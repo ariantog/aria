@@ -15,7 +15,14 @@ class StoreItemRequest extends FormRequest
             'pcode' => ['required', 'string'],
             'type' => ['required', 'integer'],
             'product_name' => ['nullable', 'string', 'max:255'],
-            'price' => ['nullable', 'numeric'],
+            'pricing.price.scope' => ['nullable', 'in:size,colorway,group'],
+            'pricing.price.value' => ['nullable', 'numeric', 'min:0'],
+            'pricing.reseller_price.scope' => ['nullable', 'in:size,colorway,group'],
+            'pricing.reseller_price.value' => ['nullable', 'numeric', 'min:0'],
+            'pricing.cost.scope' => ['nullable', 'in:size,colorway,group'],
+            'pricing.cost.value' => $isAsset ? ['required', 'numeric', 'min:0.01'] : ['nullable', 'numeric', 'min:0'],
+            'pricing.cost_cnh.scope' => ['nullable', 'in:size,colorway,group'],
+            'pricing.cost_cnh.value' => ['nullable', 'numeric', 'min:0'],
             'description' => ['nullable', 'string'],
             'description2' => ['nullable', 'string'],
             'reseller_price' => ['nullable', 'numeric', 'min:0'],
@@ -32,8 +39,6 @@ class StoreItemRequest extends FormRequest
             'image' => ['nullable', 'image', 'max:2048'],
             'tags.types' => $isAsset ? ['required', 'array', 'min:1'] : ['required'],
             'tags.sizes' => ['required', 'array', 'min:1'],
-            'cost' => $isAsset ? ['required', 'numeric'] : ['nullable'],
-            'cost_cnh' => ['nullable', 'numeric', 'min:0'],
             'tags.warna' => $isAsset ? ['required', 'array', 'min:1'] : ['required'],
             'tags.jahit' => $isAsset ? ['nullable'] : ['required'],
         ];
@@ -50,7 +55,8 @@ class StoreItemRequest extends FormRequest
             'tags.types.required' => 'Please select a type (SKU prefix).',
             'tags.types.min' => 'Please select a type for asset lancar.',
             'tags.jahit.required' => 'Please select a jahit tag.',
-            'cost.required' => 'Cost price is required for asset lancar.',
+            'pricing.cost.value.required' => 'Cost price is required for asset lancar.',
+            'pricing.cost.value.min' => 'Cost price is required for asset lancar.',
         ];
     }
 

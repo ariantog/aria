@@ -94,20 +94,7 @@ final class ItemCatalog
 
     public static function resellerPrice(Item $item): float
     {
-        $item->loadMissing('group');
-
-        if (self::itemColumnExists('reseller_price')) {
-            $itemPrice = (float) ($item->reseller_price ?? 0);
-            if ($itemPrice > 0) {
-                return $itemPrice;
-            }
-        }
-
-        if ($item->hasCatalogGroup() && self::groupColumnExists('reseller_price')) {
-            return (float) ($item->group->reseller_price ?? 0);
-        }
-
-        return 0.0;
+        return ItemPricing::resolve($item, 'reseller_price');
     }
 
     /**
@@ -120,7 +107,7 @@ final class ItemCatalog
 
         return $reseller > 0
             ? $reseller
-            : (float) ($item->price ?? 0);
+            : ItemPricing::resolve($item, 'price');
     }
 
     /**
@@ -244,6 +231,12 @@ final class ItemCatalog
 
         if (array_key_exists('reseller_price', $attributes) && self::groupColumnExists('reseller_price')) {
             $group->reseller_price = max(0, (float) ($attributes['reseller_price'] ?? 0));
+        }
+
+        foreach (['price', 'cost', 'cost_cnh'] as $priceField) {
+            if (array_key_exists($priceField, $attributes) && self::groupColumnExists($priceField)) {
+                $group->{$priceField} = max(0, (float) ($attributes[$priceField] ?? 0));
+            }
         }
 
         if (array_key_exists('url', $attributes)) {

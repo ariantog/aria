@@ -9,6 +9,7 @@ use App\Models\ItemGroup;
 use App\Models\Tag;
 use App\Services\Items\ItemIdentityBuilder;
 use App\Support\ItemCatalog;
+use App\Support\ItemPricing;
 use Exception;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
@@ -107,6 +108,7 @@ class ItemService
 
             $this->persistGroupCatalogAttributes($group, $item, $input, $typeTag);
             $this->persistItemLocalAttributes($item, $input);
+            $this->persistItemPricing($item, $input, defaultColorwayScope: false);
             $item->save();
 
             foreach ($siblings as $sibling) {
@@ -221,25 +223,53 @@ class ItemService
                     continue;
                 }
 
-                if (array_key_exists('price', $row)) {
-                    $item->price = $row['price'] ?? 0;
-                }
-
-                if (array_key_exists('cost', $row)) {
-                    $item->cost = $row['cost'] ?? 0;
-                }
-
-                if (array_key_exists('cost_cnh', $row)) {
-                    $item->cost_cnh = $row['cost_cnh'] ?? 0;
-                }
-
                 if (array_key_exists('restock_urgent_threshold', $row)) {
                     $item->restock_urgent_threshold = $this->normalizeRestockUrgentThreshold(
                         $row['restock_urgent_threshold']
                     );
+                    $item->save();
                 }
 
-                $item->save();
+                if (array_key_exists('price', $row)) {
+                    ItemPricing::apply($item, 'price', ItemPricing::SCOPE_SIZE, max(0, (float) ($row['price'] ?? 0)));
+                }
+
+                if (array_key_exists('cost', $row)) {
+                    ItemPricing::apply($item, 'cost', ItemPricing::SCOPE_SIZE, max(0, (float) ($row['cost'] ?? 0)));
+                }
+
+                if (array_key_exists('cost_cnh', $row)) {
+                    ItemPricing::apply($item, 'cost_cnh', ItemPricing::SCOPE_SIZE, max(0, (float) ($row['cost_cnh'] ?? 0)));
+                }
+
+                if (isset($row['pricing']) && is_array($row['pricing'])) {
+                    $pricingRows = [];
+                    foreach ($row['pricing'] as $field => $pricingRow) {
+                        if (! is_array($pricingRow)) {
+                            continue;
+                        }
+
+                        $scope = (string) ($pricingRow['scope'] ?? ItemPricing::SCOPE_SIZE);
+                        $value = max(0, (float) ($pricingRow['value'] ?? 0));
+
+                        if ($scope !== ItemPricing::SCOPE_SIZE && $value <= 0) {
+                            continue;
+                        }
+
+                        $pricingRows[$field] = [
+                            'scope' => $scope,
+                            'value' => $value,
+                        ];
+                    }
+
+                    if ($pricingRows !== []) {
+                        ItemPricing::applyFormRows($item, $pricingRows);
+                    }
+                }
+            }
+
+            if (isset($input->pricing) && is_array($input->pricing) && $items->isNotEmpty()) {
+                ItemPricing::applyFormRows($items->first(), $input->pricing);
             }
 
             if ($file) {
@@ -374,6 +404,10 @@ class ItemService
 
                         $this->persistGroupCatalogAttributes($group, $item, $input, $typeTag);
 
+                        if ($totalCreated === 0) {
+                            $this->persistItemPricing($item, $input, defaultColorwayScope: true);
+                        }
+
                         if ($file) {
                             if (! $firstItemWithImage) {
                                 $this->imageService->saveItemImage($item, $file);
@@ -466,9 +500,9 @@ class ItemService
         $item->pcode = $pcode;
         $item->code = $code;
         $item->name = $this->identityBuilder->buildName($displayName, $warnaTag, $sizeTag);
-        $item->price = $input->price ?? $item->price ?? 0;
-        $item->cost = $input->cost ?? $item->cost ?? 0;
-        $item->cost_cnh = $input->cost_cnh ?? $item->cost_cnh ?? 0;
+        $item->price = 0;
+        $item->cost = 0;
+        $item->cost_cnh = 0;
         $item->restock_urgent_threshold = $this->normalizeRestockUrgentThreshold(
             $input->restock_urgent_threshold ?? $item->restock_urgent_threshold
         );
@@ -1180,6 +1214,40 @@ class ItemService
         ItemCatalog::applyToGroup($group, $attributes);
     }
 
+    protected function persistItemPricing(Item $item, object $input, bool $defaultColorwayScope = false): void
+    {
+        if (isset($input->pricing) && is_array($input->pricing)) {
+            ItemPricing::applyFormRows($item, $input->pricing);
+
+            return;
+        }
+
+        $legacyRows = [];
+        $legacyScope = $defaultColorwayScope
+            ? ItemPricing::SCOPE_COLORWAY
+            : ItemPricing::SCOPE_SIZE;
+
+        foreach (ItemPricing::FIELDS as $field) {
+            if (! property_exists($input, $field) && ! isset($input->{$field})) {
+                continue;
+            }
+
+            $value = max(0, (float) ($input->{$field} ?? 0));
+            if ($value <= 0) {
+                continue;
+            }
+
+            $legacyRows[$field] = [
+                'scope' => $legacyScope,
+                'value' => $value,
+            ];
+        }
+
+        if ($legacyRows !== []) {
+            ItemPricing::applyFormRows($item, $legacyRows);
+        }
+    }
+
     protected function persistItemLocalAttributes(Item $item, object $input): void
     {
         $attributes = [];
@@ -1190,10 +1258,6 @@ class ItemService
 
         if (property_exists($input, 'item_description2') || isset($input->item_description2)) {
             $attributes['description2'] = strtoupper((string) ($input->item_description2 ?? ''));
-        }
-
-        if (property_exists($input, 'item_reseller_price') || isset($input->item_reseller_price)) {
-            $attributes['reseller_price'] = max(0, (float) ($input->item_reseller_price ?? 0));
         }
 
         if ($attributes === []) {
@@ -1218,20 +1282,20 @@ class ItemService
 
         $local = [];
 
-        if (array_key_exists('price', $row) && $row['price'] !== '' && $row['price'] !== null) {
-            $item->price = max(0, (float) $row['price']);
+        $pricingRow = [];
+        foreach (ItemPricing::FIELDS as $field) {
+            if (! array_key_exists($field, $row) || $row[$field] === '' || $row[$field] === null) {
+                continue;
+            }
+
+            $pricingRow[$field] = [
+                'scope' => ItemPricing::SCOPE_SIZE,
+                'value' => max(0, (float) $row[$field]),
+            ];
         }
 
-        if (array_key_exists('cost', $row) && $row['cost'] !== '' && $row['cost'] !== null) {
-            $item->cost = max(0, (float) $row['cost']);
-        }
-
-        if (array_key_exists('cost_cnh', $row) && $row['cost_cnh'] !== '' && $row['cost_cnh'] !== null) {
-            $item->cost_cnh = max(0, (float) $row['cost_cnh']);
-        }
-
-        if (array_key_exists('reseller_price', $row) && $row['reseller_price'] !== '' && $row['reseller_price'] !== null) {
-            $local['reseller_price'] = max(0, (float) $row['reseller_price']);
+        if ($pricingRow !== []) {
+            ItemPricing::applyFormRows($item, $pricingRow);
         }
 
         if (array_key_exists('description', $row)) {

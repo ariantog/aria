@@ -23,6 +23,7 @@ use App\Services\ItemStatsService;
 use App\Services\ItemTransactionQueryService;
 use App\Services\JubelioService;
 use App\Support\LikeSearch;
+use App\Support\ItemPricing;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 
@@ -356,6 +357,7 @@ class ItemsController extends Controller
             'item' => $item,
             'types' => $this->typeOptions(),
             'productTitle' => $productTitle,
+            'pricingState' => ItemPricing::formState($item),
             'colorwayEditUrl' => $item->group_id > 0
                 ? route('items.colorway-edit', $item->group_id)
                 : null,
@@ -369,25 +371,20 @@ class ItemsController extends Controller
 
         $isAsset = $item->type === ItemType::ASSET_LANCAR;
 
-        $request->validate([
+        $request->validate(array_merge([
             'pcode' => ['required', 'string'],
             'product_name' => ['nullable', 'string', 'max:255'],
-            'price' => ['nullable', 'numeric'],
-            'cost' => $isAsset ? ['required', 'numeric'] : ['nullable'],
-            'cost_cnh' => ['nullable', 'numeric', 'min:0'],
             'description' => ['nullable', 'string'],
             'description2' => ['nullable', 'string'],
             'item_description' => $isAsset ? ['nullable', 'string'] : ['nullable'],
             'item_description2' => $isAsset ? ['nullable', 'string'] : ['nullable'],
-            'reseller_price' => $isAsset ? ['nullable', 'numeric', 'min:0'] : ['nullable'],
-            'item_reseller_price' => $isAsset ? ['nullable', 'numeric', 'min:0'] : ['nullable'],
             'url' => ['nullable', 'string', 'max:255'],
             'restock_urgent_threshold' => ['nullable', 'integer', 'min:1'],
             'tags.types' => $isAsset ? ['nullable'] : ['required'],
             'tags.sizes' => ['required'],
             'tags.warna' => ['required'],
             'tags.jahit' => $isAsset ? ['nullable'] : ['required'],
-        ], [
+        ], $this->pricingValidationRules($isAsset)), [
             'product_name.required' => 'Product name is required.',
             'tags.warna.required' => 'Please select a color (warna).',
             'tags.types.required' => 'Please select a type (SKU prefix).',
@@ -493,6 +490,10 @@ class ItemsController extends Controller
         return view('items.group-parent-detail', [
             'detail' => $detail,
             'canEditGroup' => auth()->user()->can(ItemGroup::getPermissions()['edit']),
+            'parentPricingState' => ItemPricing::formStateForParent(
+                $detail['parent_key'],
+                Item::query()->whereIn('group_id', $detail['group_ids'])->with('group')->first(),
+            ),
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
@@ -522,9 +523,9 @@ class ItemsController extends Controller
     {
         Gate::authorize(ItemGroup::getPermissions()['edit']);
 
-        $request->validate([
+        $request->validate(array_merge([
             'name' => ['required', 'string', 'max:255'],
-        ], [
+        ], $this->pricingValidationRules()), [
             'name.required' => 'Product name is required.',
         ]);
 
@@ -538,9 +539,11 @@ class ItemsController extends Controller
                 $this->itemService->renameGroupProductName($renameGroup, $request->input('name'));
             }
 
+            ItemPricing::applyForParent($detail['parent_key'], $request->input('pricing', []));
+
             return redirect()
                 ->route('items.group-parent-detail', $group->id)
-                ->with('success', 'Product name updated for all colors in this group.');
+                ->with('success', 'Product name and group pricing updated.');
         } catch (\Exception $e) {
             return back()->withErrors(['message' => $e->getMessage()])->withInput();
         }
@@ -592,6 +595,7 @@ class ItemsController extends Controller
         $sizeRows = $items->map(function (Item $item) use ($itemType) {
             $sizeTag = $item->tags->firstWhere('type', Tag::TYPE_SIZE);
             $warnaTag = $item->tags->firstWhere('type', Tag::TYPE_WARNA);
+            $pricing = ItemPricing::formState($item);
 
             return [
                 'id' => $item->id,
@@ -600,9 +604,10 @@ class ItemsController extends Controller
                 'size_code' => $sizeTag?->code ?? '—',
                 'size_name' => $sizeTag?->name ?? '—',
                 'warna_code' => $warnaTag?->code ?? '',
-                'price' => old('items.'.$item->id.'.price', $item->price),
-                'cost' => old('items.'.$item->id.'.cost', $item->cost),
-                'cost_cnh' => old('items.'.$item->id.'.cost_cnh', $item->cost_cnh),
+                'pricing' => $pricing,
+                'effective_price' => $pricing['price']['effective'] ?? 0,
+                'effective_cost' => $pricing['cost']['effective'] ?? 0,
+                'effective_cost_cnh' => $pricing['cost_cnh']['effective'] ?? 0,
                 'restock_urgent_threshold' => old(
                     'items.'.$item->id.'.restock_urgent_threshold',
                     $item->restock_urgent_threshold
@@ -615,6 +620,7 @@ class ItemsController extends Controller
             'group' => $group,
             'sample' => $sample,
             'sizeRows' => $sizeRows,
+            'pricingState' => ItemPricing::formState($sample),
             'productTitle' => $usesPlaceholder ? '' : $productTitle,
             'usesPlaceholder' => $usesPlaceholder,
             'color' => $color,
@@ -637,7 +643,7 @@ class ItemsController extends Controller
 
         $isAsset = $sample->type === ItemType::ASSET_LANCAR;
 
-        $rules = [
+        $rules = array_merge([
             'product_name' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'description2' => ['nullable', 'string'],
@@ -646,13 +652,14 @@ class ItemsController extends Controller
             'genre' => ['nullable', 'integer'],
             'image' => ['nullable', 'image', 'max:5120'],
             'items' => ['required', 'array'],
-        ];
+        ], $this->pricingValidationRules($isAsset));
 
         foreach ($itemIds as $itemId) {
-            $rules["items.{$itemId}.price"] = ['nullable', 'numeric'];
-            $rules["items.{$itemId}.cost"] = $isAsset ? ['nullable', 'numeric'] : ['nullable', 'numeric'];
-            $rules["items.{$itemId}.cost_cnh"] = ['nullable', 'numeric', 'min:0'];
             $rules["items.{$itemId}.restock_urgent_threshold"] = ['nullable', 'integer', 'min:1'];
+            foreach (ItemPricing::FIELDS as $field) {
+                $rules["items.{$itemId}.pricing.{$field}.scope"] = ['nullable', 'in:size,colorway,group'];
+                $rules["items.{$itemId}.pricing.{$field}.value"] = ['nullable', 'numeric', 'min:0'];
+            }
         }
 
         if ($isAsset) {
@@ -672,20 +679,24 @@ class ItemsController extends Controller
                 'cost' => $row['cost'] ?? null,
                 'cost_cnh' => $row['cost_cnh'] ?? null,
                 'restock_urgent_threshold' => $row['restock_urgent_threshold'] ?? null,
+                'pricing' => $row['pricing'] ?? null,
             ];
         }
 
         try {
+            $payload = $request->only([
+                'product_name',
+                'description',
+                'description2',
+                'url',
+                'brand',
+                'genre',
+            ]);
+            $payload['pricing'] = $request->input('pricing', []);
+
             $this->itemService->updateColorway(
                 $group,
-                (object) $request->only([
-                    'product_name',
-                    'description',
-                    'description2',
-                    'url',
-                    'brand',
-                    'genre',
-                ]),
+                (object) $payload,
                 $itemRows,
                 $request->file('image'),
             );
@@ -927,6 +938,7 @@ class ItemsController extends Controller
 
         return view('items.create', array_merge($this->formProps($item->type), [
             'formItem' => $formItem,
+            'pricingState' => ItemPricing::formState($item),
             'curType' => optional($item->tags->firstWhere('type', Tag::TYPE_TYPE))->id,
             'curJahit' => optional($item->tags->firstWhere('type', Tag::TYPE_JAHIT))->id,
             'curWarna' => optional($item->tags->firstWhere('type', Tag::TYPE_WARNA))->id,
@@ -989,6 +1001,24 @@ class ItemsController extends Controller
             'delete' => $u->can($p['delete']),
             'delete_asset' => $u->can($p['asset-lancar-delete']),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function pricingValidationRules(bool $requireAssetCost = false): array
+    {
+        $rules = [];
+        foreach (ItemPricing::FIELDS as $field) {
+            $rules["pricing.{$field}.scope"] = ['nullable', 'in:size,colorway,group'];
+            $valueRules = ['nullable', 'numeric', 'min:0'];
+            if ($requireAssetCost && $field === 'cost') {
+                $valueRules = ['required', 'numeric', 'min:0.01'];
+            }
+            $rules["pricing.{$field}.value"] = $valueRules;
+        }
+
+        return $rules;
     }
 
     private function fetchJubelio(Item $item, JubelioService $s): array

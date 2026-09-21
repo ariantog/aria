@@ -9,6 +9,7 @@ use App\Services\ImageService;
 use App\Services\InventoryService;
 use App\Services\Items\ItemIdentityBuilder;
 use App\Services\ItemService;
+use App\Support\ItemPricing;
 
 beforeEach(function () {
     $this->user = User::factory()->create();
@@ -129,7 +130,7 @@ test('single item update does not broadcast price to sibling sizes', function ()
     $medium->refresh();
 
     expect((float) $small->price)->toBe(175000.0)
-        ->and((float) $medium->price)->toBe(100000.0)
+        ->and(ItemPricing::resolve($medium, 'price'))->toBe(100000.0)
         ->and($medium->catalogDescription())->toBe('UPDATED DESC');
 });
 

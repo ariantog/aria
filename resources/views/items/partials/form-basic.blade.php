@@ -2,9 +2,6 @@
     $fi = $formItem ?? [
         'pcode' => old('pcode'),
         'product_name' => old('product_name'),
-        'price' => old('price'),
-        'cost' => old('cost'),
-        'cost_cnh' => old('cost_cnh'),
     ];
     $pcodePlaceholder = $isAsset ? 'GLOVE-01' : 'CX90233-23';
     $editingItem = isset($item);
@@ -67,44 +64,14 @@
                         SKU name is built as <span class="font-mono">group name - color - size</span>.
                     </p>
                 </div>
-                <div>
-                    <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-price">Selling Price</label>
-                    <input type="number" step="any" id="item-form-price" name="price" value="{{ $fi['price'] }}" placeholder="0"
-                           data-testid="item-form-price"
-                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('price') border-red-500 @enderror">
-                    @error('price')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
-                    <p class="mt-1 text-xs text-gray-500">Default for new sizes at create time; edit per size on the colorway page.</p>
-                </div>
             </div>
         </fieldset>
 
-        @if($isAsset)
-        <fieldset class="space-y-4 rounded-lg border border-gray-200 bg-gray-50/60 p-4" data-testid="item-form-sku-financial">
-            <legend class="px-1 text-xs font-semibold uppercase tracking-wide text-gray-700">This size only</legend>
-            @include('items.partials.form-shared-banner', [
-                'sharedTone' => 'sku',
-                'sharedTitle' => 'This size only',
-                'sharedHint' => 'Cost stays on this SKU. Other sizes in the colorway keep their own cost.',
-                'sharedTestId' => 'item-form-sku-cost',
-            ])
-            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                    <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-cost">Cost Price (IDR) <span class="text-red-500">*</span></label>
-                    <input type="number" step="any" id="item-form-cost" name="cost" value="{{ $fi['cost'] }}" required placeholder="0"
-                           data-testid="item-form-cost"
-                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('cost') border-red-500 @enderror">
-                    @error('cost')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
-                </div>
-                <div>
-                    <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-cost-cnh">Cost (CNY)</label>
-                    <input type="number" step="any" id="item-form-cost-cnh" name="cost_cnh" value="{{ $fi['cost_cnh'] ?? '' }}" placeholder="0"
-                           data-testid="item-form-cost-cnh"
-                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('cost_cnh') border-red-500 @enderror">
-                    @error('cost_cnh')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
-                    <p class="mt-1 text-xs text-gray-500">Supplier cost in Chinese yuan; per SKU like IDR cost.</p>
-                </div>
-            </div>
-        </fieldset>
-        @endif
+        @include('items.partials.form-pricing-scopes', [
+            'pricingState' => $pricingState ?? [],
+            'pricingPrefix' => 'pricing',
+            'pricingIdPrefix' => 'item-form-pricing',
+            'showEffective' => isset($item),
+        ])
     </div>
 </div>

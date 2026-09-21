@@ -8,6 +8,7 @@ use App\Services\Items\ItemIdentityBuilder;
 use App\Support\FillsProductionColumnDefaults;
 use App\Support\ItemCatalog;
 use App\Support\ItemImageResolver;
+use App\Support\ItemPricing;
 use App\Support\LikeSearch;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -295,6 +296,21 @@ class Item extends Model
     public function catalogResellerPrice(): float
     {
         return ItemCatalog::resellerPrice($this);
+    }
+
+    public function effectivePrice(): float
+    {
+        return ItemPricing::resolve($this, 'price');
+    }
+
+    public function effectiveCost(): float
+    {
+        return ItemPricing::resolve($this, 'cost');
+    }
+
+    public function effectiveCostCnh(): float
+    {
+        return ItemPricing::resolve($this, 'cost_cnh');
     }
 
     public function resellerSellPrice(): float

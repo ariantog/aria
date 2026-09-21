@@ -175,9 +175,9 @@ class TransactionsController extends Controller
             'code' => $item->getItemCode(),
             'name' => $item->name ?: $item->getItemName(),
             'type' => $item->type->value,
-            'price' => (float) $item->price,
+            'price' => $item->effectivePrice(),
             'reseller_sell_price' => $item->resellerSellPrice(),
-            'cost' => (float) $item->cost,
+            'cost' => $item->effectiveCost(),
             'jubelio_item_id' => (int) ($item->jubelio_item_id ?? 0),
             'warehouse_item' => $item->warehouseItems->map(fn ($wi) => [
                 'warehouse_id' => (string) $wi->warehouse_id,
