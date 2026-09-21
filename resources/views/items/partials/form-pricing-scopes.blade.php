@@ -12,18 +12,19 @@
     ];
 
     $scopes = [
-        \App\Support\ItemPricing::SCOPE_SIZE => 'This size only',
-        \App\Support\ItemPricing::SCOPE_COLORWAY => 'Shared across colorway',
-        \App\Support\ItemPricing::SCOPE_GROUP => 'Shared across group',
+        \App\Support\ItemPricing::SCOPE_SIZE => 'This SKU',
+        \App\Support\ItemPricing::SCOPE_COLORWAY => 'This colorway',
+        \App\Support\ItemPricing::SCOPE_GROUP => 'Whole group',
     ];
+
+    $pricingIntro = $pricingIntro ?? 'Choose where each amount is saved. If a SKU has no value, the colorway applies; if the colorway has none, the whole group applies.';
 @endphp
 
 <fieldset class="space-y-5 rounded-lg border border-indigo-200 bg-indigo-50/40 p-4" data-testid="item-pricing-scopes">
     <legend class="px-1 text-xs font-semibold uppercase tracking-wide text-indigo-800">Pricing</legend>
-    @include('items.partials.form-shared-banner', [
-        'sharedTestId' => 'item-pricing-banner',
-        'sharedHint' => 'Choose where each price is stored. Effective values load this size first, then the colorway, then the parent group.',
-    ])
+    @if($pricingIntro !== '')
+    <p class="px-1 text-xs leading-relaxed text-gray-600">{{ $pricingIntro }}</p>
+    @endif
 
     @foreach($fields as $fieldKey => $fieldLabel)
         @php
