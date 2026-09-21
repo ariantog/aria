@@ -214,7 +214,11 @@ it('shows restock sheet pipeline qty on recommendation rows', function () {
     expect($row)->not->toBeNull();
     expect($row['qty_restock'])->toBe(7)
         ->and($row['qty_production'])->toBe(8)
-        ->and($row['qty_shipped'])->toBe(9);
+        ->and($row['qty_shipped'])->toBe(9)
+        ->and($row['sheet_links'])->toHaveCount(1)
+        ->and($row['sheet_links'][0]['id'])->toBe($sheet->id)
+        ->and($row['sheet_links'][0]['name'])->toBe('Pipe')
+        ->and($row['sheet_links'][0]['url'])->toBe(route('restock.sheets.show', $sheet));
 });
 
 it('renders the restock recommendations page', function () {
