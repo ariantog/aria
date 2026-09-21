@@ -148,6 +148,18 @@ Reporting aggregate tables ignore transactions before `config('reporting.cutover
 | `ARIA_LEGACY_PRODUCTION` is set | Unset it on the **new** host only. Keep it `true` on Crystal. |
 | `APP_URL` host is the current production domain | Set `APP_URL` to the new subdomain, or (empty DB only) `ARIA_NEW_DOMAIN=true` for the one-shot install. |
 
+## If `migrate` fails on `warehouse_item` (errno 150)
+
+Older code created `warehouse_item` **before** the `customers` table existed and added MySQL foreign keys production does not use. Use a current build (deferred `2026_02_16_070218_install_greenfield_warehouse_item_table.php`).
+
+On a **failed halfway** database:
+
+1. Drop the partial `warehouse_item` table if it exists (`DROP TABLE warehouse_item;`).
+2. If `2026_02_13_073538_create_warehouse_items_table` is marked ran but the table is missing, leave it — the install migration creates the table later.
+3. Run `php artisan migrate --force` again (or `php artisan app:install-new-domain` on an empty DB).
+
+Simplest recovery on a new host: empty the database (or create a fresh schema) and re-run install after deploying the fix.
+
 ## Current production (Crystal)
 
 ```bash
