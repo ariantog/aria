@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\GreenfieldMysqlSchema;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -64,7 +65,7 @@ return new class extends Migration
         Schema::create('reporting_balance_snapshots', function (Blueprint $table) {
             $table->id();
             $table->date('as_of_date');
-            $table->integer('customer_id');
+            GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'customer_id');
             $table->unsignedTinyInteger('customer_type')->default(0);
             $table->foreignId('reporting_entity_id')->nullable()->constrained('reporting_entities')->nullOnDelete();
             $table->decimal('balance', 15, 2)->default(0);

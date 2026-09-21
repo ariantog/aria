@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\GreenfieldMysqlSchema;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -21,8 +22,8 @@ return new class extends Migration
 
         Schema::create('inventory_health_snapshots', function (Blueprint $table) {
             $table->id();
-            $table->integer('warehouse_id')->default(0);
-            $table->integer('item_id');
+            GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'warehouse_id', false, 0);
+            GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'item_id');
             $table->decimal('sold_period', 15, 2)->default(0);
             $table->decimal('returned_period', 15, 2)->default(0);
             $table->decimal('sold_extended', 15, 2)->default(0);

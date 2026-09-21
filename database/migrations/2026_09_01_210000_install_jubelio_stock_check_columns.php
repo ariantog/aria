@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\GreenfieldMysqlSchema;
 use App\Support\ProductionMysqlCompat;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -79,7 +80,7 @@ return new class extends Migration
                 $table->integer('jubelio_location_id');
                 $table->unsignedBigInteger('item_id')->nullable();
                 $table->string('jubelio_location_name')->nullable();
-                $table->integer('warehouse_id');
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'warehouse_id');
                 $table->decimal('aria_qty', 15, 2);
                 $table->decimal('jubelio_qty', 15, 2);
                 $table->decimal('jubelio_on_hand', 15, 2)->nullable();

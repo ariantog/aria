@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\GreenfieldMysqlSchema;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -14,8 +15,8 @@ return new class extends Migration
 
         Schema::create('warehouse_arrangement_refresh_jobs', function (Blueprint $table) {
             $table->id();
-            $table->unsignedInteger('destination_warehouse_id');
-            $table->integer('user_id')->nullable();
+            GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'destination_warehouse_id');
+            GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'user_id', true);
             $table->string('status')->default('created');
             $table->string('phase')->default('stats');
             $table->unsignedInteger('item_cursor')->default(0);
@@ -31,7 +32,7 @@ return new class extends Migration
 
             $table->index(['destination_warehouse_id', 'status'], 'arr_refresh_dest_status_idx');
             $table->index('status', 'arr_refresh_status_idx');
-            $table->foreign('user_id', 'arr_refresh_user_fk')->references('id')->on('users')->nullOnDelete();
+            GreenfieldMysqlSchema::addUserForeignKey($table, 'user_id', true, 'arr_refresh_user_fk');
         });
     }
 
