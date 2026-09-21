@@ -19,6 +19,22 @@ test('items index page can be rendered', function () {
     $response->assertStatus(200);
 });
 
+test('items index shows effective price from colorway when sku price is zero', function () {
+    $group = \App\Models\ItemGroup::factory()->create([
+        'price' => 275_000,
+    ]);
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'price' => 0,
+        'code' => 'AJD-EFFECTIVE-PRICE-S',
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('items.index'))
+        ->assertOk()
+        ->assertSee('Rp '.format_amount($item->effectivePrice(), 0), false);
+});
+
 test('items index shows database columns and collapsible filters', function () {
     $group = \App\Models\ItemGroup::factory()->create([
         'description' => 'Item description text',

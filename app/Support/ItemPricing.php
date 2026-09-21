@@ -33,6 +33,9 @@ final class ItemPricing
     /** @var array<string, bool> */
     private static array $columnExists = [];
 
+    /** @var array<string, ItemParentPrice|null> */
+    private static array $parentRecordCache = [];
+
     public static function resolve(Item $item, string $field): float
     {
         self::assertField($field);
@@ -242,7 +245,13 @@ final class ItemPricing
     {
         $parentKey = app(ItemIdentityBuilder::class)->itemParentKey($item);
 
-        return ItemParentPrice::query()->where('parent_key', $parentKey)->first();
+        if (! array_key_exists($parentKey, self::$parentRecordCache)) {
+            self::$parentRecordCache[$parentKey] = ItemParentPrice::query()
+                ->where('parent_key', $parentKey)
+                ->first();
+        }
+
+        return self::$parentRecordCache[$parentKey];
     }
 
     private static function isSet(float $value): bool

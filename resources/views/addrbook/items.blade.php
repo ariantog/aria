@@ -257,7 +257,7 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
                         <td class="max-w-[200px] px-3 py-2.5 text-xs text-gray-500" data-copy-col="description" x-show="showDescription">
                             <div class="truncate" title="{{ $desc }}">{{ $desc }}</div>
                         </td>
-                        <td class="whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold tabular-nums text-gray-700" data-copy-col="price" data-copy-value="{{ format_copy_number($item->price) }}">{{ $idr($item->price) }}</td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold tabular-nums text-gray-700" data-copy-col="price" data-copy-value="{{ format_copy_number($item->effectivePrice()) }}">{{ $idr($item->effectivePrice()) }}</td>
                         <td class="whitespace-nowrap px-3 py-2.5 text-right font-mono text-xs font-bold tabular-nums {{ $qty > 0 ? 'text-emerald-600' : 'text-gray-400' }}" data-copy-col="qty" data-copy-value="{{ format_copy_number($qty) }}">{{ format_amount($qty, 0) }}</td>
                         @if($hasJubelio)
                             @if(! $jubelioLinked)
