@@ -11,9 +11,13 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
+use Spatie\Permission\Models\Role;
 
 class UserController extends Controller
 {
+    /** Spatie role reserved for user id 1 — not assignable via the user form. */
+    private const RESERVED_SUPERADMIN_ROLE = 'superadmin';
+
     public function index(Request $request)
     {
         Gate::authorize(User::getPermissions()['view']);
@@ -48,7 +52,7 @@ class UserController extends Controller
 
         return view('users.create', [
             'locations' => Location::all(),
-            'roles' => \Spatie\Permission\Models\Role::all(),
+            'roles' => $this->rolesForUserAssignment(),
             'staffRoles' => $this->staffRolesForAssignment(),
             'canAssignStaffRoles' => $this->canAssignStaffRoles(),
         ]);
@@ -62,7 +66,7 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'username' => 'required|string|max:255|unique:users',
             'password' => 'required|string|min:8|confirmed',
-            'role' => ['required', Rule::exists(PermissionTableConfig::rolesTable(), 'name')],
+            'role' => $this->assignableRoleValidationRules(),
             'location_id' => $this->locationIdValidationRules(),
             'active' => 'boolean',
         ]);
@@ -88,7 +92,7 @@ class UserController extends Controller
             'editUser' => $user->load(['roles', 'staffRoles']),
             'userRoles' => $user->roles->pluck('name'),
             'locations' => Location::all(),
-            'roles' => \Spatie\Permission\Models\Role::all(),
+            'roles' => $this->rolesForUserAssignment(),
             'staffRoles' => $this->staffRolesForAssignment(),
             'assignedStaffRoleIds' => old('staff_role_ids', $user->staffRoles->pluck('id')->all()),
             'canAssignStaffRoles' => $this->canAssignStaffRoles(),
@@ -103,7 +107,7 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'username' => 'required|string|max:255|unique:users,username,'.$user->id,
             'password' => 'nullable|string|min:8|confirmed',
-            'role' => ['required', Rule::exists(PermissionTableConfig::rolesTable(), 'name')],
+            'role' => $this->assignableRoleValidationRules(),
             'location_id' => $this->locationIdValidationRules(),
             'active' => 'boolean',
         ]);
@@ -161,6 +165,29 @@ class UserController extends Controller
         $user->update(['active' => true]);
 
         return redirect()->route('users.index')->with('success', 'User unbanned.');
+    }
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Collection<int, Role>
+     */
+    private function rolesForUserAssignment()
+    {
+        return Role::query()
+            ->where('name', '!=', self::RESERVED_SUPERADMIN_ROLE)
+            ->orderBy('name')
+            ->get();
+    }
+
+    /**
+     * @return list<\Illuminate\Contracts\Validation\ValidationRule|string>
+     */
+    private function assignableRoleValidationRules(): array
+    {
+        return [
+            'required',
+            Rule::notIn([self::RESERVED_SUPERADMIN_ROLE]),
+            Rule::exists(PermissionTableConfig::rolesTable(), 'name'),
+        ];
     }
 
     private function canAssignStaffRoles(): bool
