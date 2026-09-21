@@ -69,18 +69,29 @@ $fmt = fn ($v) => format_amount($v, 0);
                     <div class="border-t border-gray-100 pt-4 md:col-span-2">
                         <p class="mb-2 text-sm font-semibold uppercase tracking-wider text-gray-500">Rename Product</p>
                         <p class="mb-3 text-sm text-gray-600">Updates the product name for every color variant under this parent group.</p>
-                        <form method="POST" action="{{ route('items.group-parent-update', $detail['anchor_group_id']) }}" class="flex flex-col gap-3 sm:flex-row sm:items-end">
+                        <form method="POST" action="{{ route('items.group-parent-update', $detail['anchor_group_id']) }}" class="space-y-6">
                             @csrf
                             @method('PUT')
-                            <div class="flex-1">
-                                <label for="group-product-name" class="sr-only">Product name</label>
-                                <input id="group-product-name" type="text" name="name"
-                                       value="{{ old('name', $detail['uses_placeholder'] ? '' : $detail['product_name']) }}"
-                                       placeholder="{{ $detail['label'] }}"
-                                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('name') border-red-500 @enderror">
-                                @error('name')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+                            <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+                                <div class="flex-1">
+                                    <label for="group-product-name" class="mb-1 block text-sm font-medium text-gray-700">Product name</label>
+                                    <input id="group-product-name" type="text" name="name"
+                                           value="{{ old('name', $detail['uses_placeholder'] ? '' : $detail['product_name']) }}"
+                                           placeholder="{{ $detail['label'] }}"
+                                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('name') border-red-500 @enderror">
+                                    @error('name')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+                                </div>
                             </div>
-                            <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Save Product Name</button>
+
+                            @include('items.partials.form-pricing-scopes', [
+                                'pricingState' => $parentPricingState ?? [],
+                                'pricingPrefix' => 'pricing',
+                                'pricingIdPrefix' => 'group-parent-pricing',
+                            ])
+
+                            <div>
+                                <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Save group catalog</button>
+                            </div>
                         </form>
                     </div>
                     @endif

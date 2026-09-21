@@ -24,6 +24,9 @@ class ItemGroup extends Model
         'description',
         'description2',
         'reseller_price',
+        'price',
+        'cost',
+        'cost_cnh',
         'url',
         'master',
         'variant',
@@ -37,6 +40,9 @@ class ItemGroup extends Model
             'brand' => ItemBrand::class,
             'genre' => 'integer',
             'reseller_price' => 'decimal:2',
+            'price' => 'decimal:2',
+            'cost' => 'decimal:2',
+            'cost_cnh' => 'decimal:2',
         ];
     }
 

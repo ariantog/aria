@@ -136,11 +136,17 @@ $previewRows = collect($sizeRows)->map(fn ($row) => [
                     </div>
                 </div>
 
+                @include('items.partials.form-pricing-scopes', [
+                    'pricingState' => $pricingState ?? [],
+                    'pricingPrefix' => 'pricing',
+                    'pricingIdPrefix' => 'colorway-pricing',
+                ])
+
                 {{-- Per-size matrix --}}
                 <div class="rounded-xl border border-gray-200 bg-white shadow-sm" data-testid="colorway-size-matrix">
                     <div class="border-b border-gray-100 px-5 py-4">
-                        <h3 class="text-lg font-semibold text-gray-900">Sizes &amp; pricing</h3>
-                        <p class="text-sm text-gray-500">Each row is one SKU. Price, cost, and restock threshold are per size.</p>
+                        <h3 class="text-lg font-semibold text-gray-900">Sizes &amp; per-SKU overrides</h3>
+                        <p class="text-sm text-gray-500">Optional size-only price overrides. Leave blank to use the colorway or group price above.</p>
                     </div>
                     <div class="overflow-x-auto p-4">
                         <table class="min-w-full text-sm">
@@ -148,11 +154,12 @@ $previewRows = collect($sizeRows)->map(fn ($row) => [
                                 <tr>
                                     <th class="px-3 py-2 text-left font-semibold">Size</th>
                                     <th class="px-3 py-2 text-left font-semibold">SKU</th>
-                                    <th class="px-3 py-2 text-right font-semibold">Price</th>
+                                    <th class="px-3 py-2 text-right font-semibold">Sell (eff.)</th>
                                     @if($isAsset)
-                                    <th class="px-3 py-2 text-right font-semibold">Cost (IDR)</th>
-                                    <th class="px-3 py-2 text-right font-semibold">Cost (CNY)</th>
+                                    <th class="px-3 py-2 text-right font-semibold">Cost IDR (eff.)</th>
+                                    <th class="px-3 py-2 text-right font-semibold">Cost CNY (eff.)</th>
                                     @endif
+                                    <th class="px-3 py-2 text-right font-semibold">Size override</th>
                                     <th class="px-3 py-2 text-right font-semibold">Restock urgent</th>
                                 </tr>
                             </thead>
@@ -164,24 +171,34 @@ $previewRows = collect($sizeRows)->map(fn ($row) => [
                                         <span class="font-mono text-blue-600">{{ $row['code'] }}</span>
                                         <input type="hidden" name="items[{{ $row['id'] }}][_key]" value="1">
                                     </td>
-                                    <td class="px-3 py-3 text-right">
-                                        <input type="number" step="any" name="items[{{ $row['id'] }}][price]"
-                                               value="{{ $row['price'] }}"
-                                               data-testid="colorway-price-{{ $row['id'] }}"
-                                               class="w-28 rounded-lg border border-gray-300 px-2 py-1.5 text-right text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                                    </td>
+                                    <td class="px-3 py-3 text-right font-mono text-gray-700">{{ format_amount($row['effective_price'], 0) }}</td>
                                     @if($isAsset)
-                                    <td class="px-3 py-3 text-right">
-                                        <input type="number" step="any" name="items[{{ $row['id'] }}][cost]"
-                                               value="{{ $row['cost'] }}"
-                                               class="w-28 rounded-lg border border-gray-300 px-2 py-1.5 text-right text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                                    </td>
-                                    <td class="px-3 py-3 text-right">
-                                        <input type="number" step="any" name="items[{{ $row['id'] }}][cost_cnh]"
-                                               value="{{ $row['cost_cnh'] }}"
-                                               class="w-28 rounded-lg border border-gray-300 px-2 py-1.5 text-right text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                                    </td>
+                                    <td class="px-3 py-3 text-right font-mono text-gray-700">{{ format_amount($row['effective_cost'], 0) }}</td>
+                                    <td class="px-3 py-3 text-right font-mono text-gray-700">{{ format_amount($row['effective_cost_cnh'], 2) }}</td>
                                     @endif
+                                    <td class="px-3 py-3 text-right">
+                                        <input type="hidden" name="items[{{ $row['id'] }}][pricing][price][scope]" value="size">
+                                        <input type="number" step="any" min="0"
+                                               name="items[{{ $row['id'] }}][pricing][price][value]"
+                                               value="{{ old('items.'.$row['id'].'.pricing.price.value', ($row['pricing']['price']['scope'] ?? '') === 'size' ? ($row['pricing']['price']['value'] ?? '') : '') }}"
+                                               placeholder="Sell"
+                                               @unless($isAsset) data-testid="colorway-price-{{ $row['id'] }}" @endunless
+                                               class="mb-1 w-28 rounded-lg border border-gray-300 px-2 py-1.5 text-right text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                                        @if($isAsset)
+                                        <input type="hidden" name="items[{{ $row['id'] }}][pricing][cost][scope]" value="size">
+                                        <input type="number" step="any" min="0"
+                                               name="items[{{ $row['id'] }}][pricing][cost][value]"
+                                               value="{{ old('items.'.$row['id'].'.pricing.cost.value', ($row['pricing']['cost']['scope'] ?? '') === 'size' ? ($row['pricing']['cost']['value'] ?? '') : '') }}"
+                                               placeholder="Cost IDR"
+                                               class="mb-1 w-28 rounded-lg border border-gray-300 px-2 py-1.5 text-right text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                                        <input type="hidden" name="items[{{ $row['id'] }}][pricing][cost_cnh][scope]" value="size">
+                                        <input type="number" step="any" min="0"
+                                               name="items[{{ $row['id'] }}][pricing][cost_cnh][value]"
+                                               value="{{ old('items.'.$row['id'].'.pricing.cost_cnh.value', ($row['pricing']['cost_cnh']['scope'] ?? '') === 'size' ? ($row['pricing']['cost_cnh']['value'] ?? '') : '') }}"
+                                               placeholder="Cost CNY"
+                                               class="w-28 rounded-lg border border-gray-300 px-2 py-1.5 text-right text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                                        @endif
+                                    </td>
                                     <td class="px-3 py-3 text-right">
                                         <input type="number" min="1" step="1" name="items[{{ $row['id'] }}][restock_urgent_threshold]"
                                                value="{{ $row['restock_urgent_threshold'] }}"

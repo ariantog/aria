@@ -217,10 +217,13 @@ $legacyCodeUpdateRoute = $isAsset
                     <div class="grid grid-cols-1 gap-6 border-t border-gray-100 pt-4 md:grid-cols-2">
                         <div>
                             <p class="mb-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">Pricing</p>
-                            <p class="text-2xl font-black tracking-tight text-gray-900">Rp {{ format_amount($item->price, 0) }}</p>
-                            <p class="mt-1 text-[10px] text-gray-500">Base Cost: <span class="text-gray-700">Rp {{ format_amount($item->cost, 0) }}</span></p>
-                            @if($item->isAssetLancar() && (float) $item->cost_cnh > 0)
-                            <p class="mt-0.5 text-[10px] text-gray-500">Cost (CNY): <span class="text-gray-700">{{ format_amount($item->cost_cnh, 2) }}</span></p>
+                            <p class="text-2xl font-black tracking-tight text-gray-900">Rp {{ format_amount($item->effectivePrice(), 0) }}</p>
+                            <p class="mt-1 text-[10px] text-gray-500">Base Cost: <span class="text-gray-700">Rp {{ format_amount($item->effectiveCost(), 0) }}</span></p>
+                            @if($item->isAssetLancar() && (float) $item->effectiveCostCnh() > 0)
+                            <p class="mt-0.5 text-[10px] text-gray-500">Cost (CNY): <span class="text-gray-700">{{ format_amount($item->effectiveCostCnh(), 2) }}</span></p>
+                            @endif
+                            @if((float) $item->catalogResellerPrice() > 0)
+                            <p class="mt-0.5 text-[10px] text-gray-500">Reseller: <span class="text-gray-700">Rp {{ format_amount($item->catalogResellerPrice(), 0) }}</span></p>
                             @endif
                         </div>
                         <div>

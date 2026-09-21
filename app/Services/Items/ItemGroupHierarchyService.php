@@ -181,6 +181,14 @@ class ItemGroupHierarchyService
         ];
     }
 
+    /**
+     * @return list<int>
+     */
+    public function groupIdsForParentKey(string $parentKey): array
+    {
+        return $this->groupsForParentKey($parentKey)->pluck('id')->map(fn ($id) => (int) $id)->all();
+    }
+
     public function anchorGroupIdForParentKey(string $parentKey): ?int
     {
         $id = $this->groupsForParentKey($parentKey)->min('id');

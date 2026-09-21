@@ -29,15 +29,10 @@ $formItem = [
     'product_name' => old('product_name', $productTitle !== ''
         ? $productTitle
         : ($legacyAssetProductName ?: '')),
-    'price' => old('price', $item->price),
-    'cost' => old('cost', $item->cost),
-    'cost_cnh' => old('cost_cnh', $item->cost_cnh),
     'description' => old('description', $isAsset ? ($item->group?->description ?? '') : $item->catalogDescription()),
     'description2' => old('description2', $isAsset ? ($item->group?->description2 ?? '') : $item->catalogDescription2()),
     'item_description' => old('item_description', $isAsset ? ($item->description ?? '') : ''),
     'item_description2' => old('item_description2', $isAsset ? ($item->description2 ?? '') : ''),
-    'reseller_price' => old('reseller_price', $isAsset ? ($item->group?->reseller_price ?? 0) : 0),
-    'item_reseller_price' => old('item_reseller_price', $isAsset ? ($item->reseller_price ?? 0) : 0),
     'url' => old('url', optional($item->group)->url),
     'restock_urgent_threshold' => old('restock_urgent_threshold', $item->restock_urgent_threshold),
 ];
