@@ -99,4 +99,5 @@ it('stores an unrestricted location when none is selected', function () {
 
     $user->refresh();
     expect(app(LocationAccessService::class)->hasUnrestrictedLocationAccess($user))->toBeTrue();
+    expect($user->location_id)->toBeNull();
 });
