@@ -58,6 +58,23 @@ it('can delete jahit worker', function () {
     ]);
 });
 
+it('assigns jahit from an inline dropdown on the produksi list', function () {
+    $worker = Worker::create(['name' => 'Inline Jahit', 'type' => Worker::TYPE_JAHIT]);
+    $produksi = Produksi::create([
+        'temp_name' => 'Needs Jahit',
+        'quantity' => 5,
+        'status' => Produksi::STATUS_PRODUKSI,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get('/produksi')
+        ->assertSuccessful()
+        ->assertSee('data-testid="assign-jahit-'.$produksi->id.'"', false)
+        ->assertSee('Inline Jahit')
+        ->assertDontSee('Assign Worker')
+        ->assertDontSee('Search worker...');
+});
+
 it('can assign a jahit worker to a production entry', function () {
     $worker = Worker::create(['name' => 'Top Sewer', 'type' => Worker::TYPE_JAHIT]);
     $produksi = Produksi::create([

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\ItemType;
 use App\Support\FillsProductionColumnDefaults;
+use App\Support\ItemCatalog;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -15,7 +16,7 @@ use InvalidArgumentException;
 
 class Tag extends Model
 {
-    use HasFactory, FillsProductionColumnDefaults;
+    use FillsProductionColumnDefaults, HasFactory;
 
     protected $fillable = [
         'name',
@@ -276,16 +277,31 @@ class Tag extends Model
      */
     public function filterItemType(): ItemType
     {
-        return (int) $this->item_type === ItemType::ASSET_LANCAR->value
-            ? ItemType::ASSET_LANCAR
-            : ItemType::ITEM;
+        if ((int) $this->item_type === ItemType::ASSET_LANCAR->value) {
+            return ItemType::ASSET_LANCAR;
+        }
+
+        if ((int) $this->item_type === ItemType::ITEM->value) {
+            return ItemType::ITEM;
+        }
+
+        return $this->inferredTaggedItemType() ?? ItemType::ITEM;
     }
 
     /**
      * Item / asset lancar index URL filtered to items carrying this tag.
+     * When exactly one item carries the tag, links directly to that item's show page.
      */
     public function itemsIndexFilterUrl(?ItemType $itemType = null): string
     {
+        if ($itemType === null && $this->linkedItemsCount() === 1) {
+            $item = $this->soleTaggedItem();
+
+            if ($item !== null) {
+                return $this->itemShowRoute($item);
+            }
+        }
+
         $itemType ??= $this->filterItemType();
         $routeName = $itemType === ItemType::ASSET_LANCAR ? 'assetlancar.index' : 'items.index';
 
@@ -301,13 +317,66 @@ class Tag extends Model
     }
 
     /**
-     * Warna tags use code identical to name (uppercase) for universal SKU generation.
+     * When item_type is universal (0), infer from tagged items when they share one type.
+     */
+    protected function inferredTaggedItemType(): ?ItemType
+    {
+        if ($this->linkedItemsCount() === 0) {
+            return null;
+        }
+
+        $types = $this->items()
+            ->distinct()
+            ->pluck('items.type')
+            ->map(fn ($type) => $type instanceof ItemType ? $type->value : (int) $type);
+
+        if ($types->count() !== 1) {
+            return null;
+        }
+
+        return ItemType::tryFrom($types->first());
+    }
+
+    protected function linkedItemsCount(): int
+    {
+        if (isset($this->items_count)) {
+            return (int) $this->items_count;
+        }
+
+        return (int) $this->items()->count();
+    }
+
+    protected function soleTaggedItem(): ?Item
+    {
+        if ($this->relationLoaded('soleTaggedItem')) {
+            return $this->getRelation('soleTaggedItem');
+        }
+
+        return $this->items()->first(['items.id', 'items.type']);
+    }
+
+    protected function itemShowRoute(Item $item): string
+    {
+        $type = $item->type instanceof ItemType
+            ? $item->type
+            : ItemType::tryFrom((int) $item->type);
+
+        return match ($type) {
+            ItemType::ASSET_LANCAR => route('assetlancar.show', $item),
+            default => route('items.show', $item),
+        };
+    }
+
+    /**
+     * Warna tags store a display name and a separate SKU code (both uppercase).
+     * When code is omitted, default it from the name.
      */
     public static function normalizeWarnaAttributes(array $attributes): array
     {
         if ((int) ($attributes['type'] ?? 0) === self::TYPE_WARNA) {
-            $attributes['name'] = strtoupper(trim($attributes['name']));
-            $attributes['code'] = $attributes['name'];
+            $attributes['name'] = strtoupper(trim((string) ($attributes['name'] ?? '')));
+            $code = strtoupper(trim((string) ($attributes['code'] ?? '')));
+            $attributes['code'] = $code !== '' ? $code : $attributes['name'];
         }
 
         return $attributes;
@@ -323,7 +392,11 @@ class Tag extends Model
         ));
         $updates['tag_ids'] = implode(',', $tagIds);
 
-        if ((int) $item->genre === $tagId) {
+        if (
+            ItemCatalog::shouldMirrorItemColumns()
+            && ItemCatalog::itemColumnExists('genre')
+            && (int) $item->genre === $tagId
+        ) {
             $updates['genre'] = 0;
         }
 
@@ -338,8 +411,9 @@ class Tag extends Model
     {
         static::saving(function (Tag $tag) {
             if ((int) $tag->type === self::TYPE_WARNA) {
-                $tag->name = strtoupper(trim($tag->name));
-                $tag->code = $tag->name;
+                $tag->name = strtoupper(trim((string) $tag->name));
+                $code = strtoupper(trim((string) $tag->code));
+                $tag->code = $code !== '' ? $code : $tag->name;
             }
         });
 
@@ -373,13 +447,17 @@ class Tag extends Model
 
             Item::query()
                 ->where(function (Builder $query) use ($tagId) {
-                    $query->where('genre', $tagId)
-                        ->orWhere('size', $tagId);
+                    $query->where('size', $tagId);
+                    if (ItemCatalog::shouldMirrorItemColumns() && ItemCatalog::itemColumnExists('genre')) {
+                        $query->orWhere('genre', $tagId);
+                    }
                 })
                 ->when($itemIds->isNotEmpty(), fn (Builder $query) => $query->whereNotIn('id', $itemIds))
                 ->each(function (Item $item) use ($tagId) {
                     static::stripDeletedTagFromItem($item, $tagId);
                 });
+
+            ItemCatalog::clearGroupGenre($tagId);
         });
     }
 }

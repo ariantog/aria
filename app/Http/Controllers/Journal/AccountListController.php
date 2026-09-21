@@ -21,7 +21,10 @@ class AccountListController extends Controller
         $query = Addrbook::account()->with('operation');
 
         if ($search = $request->search) {
-            $query->where('name', 'like', "%{$search}%");
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%");
+            });
         }
 
         if ($operationId = $request->operation_id) {
@@ -29,7 +32,7 @@ class AccountListController extends Controller
         }
 
         return view('journals.account-list.index', [
-            'accounts' => $query->latest()->paginate(50)->withQueryString(),
+            'accounts' => $query->orderBy('name')->orderBy('id')->paginate(50)->withQueryString(),
             'operations' => Operation::all(['id', 'name']),
             'filters' => $request->only(['search', 'operation_id']),
             'flash' => ['success' => session('success'), 'error' => session('error')],

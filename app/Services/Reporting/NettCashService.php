@@ -187,18 +187,29 @@ class NettCashService
     }
 
     /**
+     * Inclusive calendar bounds for queries and the page header.
+     * Past months use full calendar months; the current year/month caps at today
+     * so forward-dated rows do not inflate the running period.
+     *
      * @return array{0: string, 1: string}
      */
-    private function periodRange(int $year, ?int $month): array
+    private function periodRange(int $year, ?int $month, ?\DateTimeInterface $now = null): array
     {
+        $now = Carbon::parse($now ?? now())->startOfDay();
+
         if ($month === null) {
-            return [
-                Carbon::create($year, 1, 1)->toDateString(),
-                Carbon::create($year, 12, 31)->toDateString(),
-            ];
+            $start = ReportingPeriod::monthStart($year, 1);
+            $end = ReportingPeriod::monthEnd($year, 12);
+            if ($now->year === $year && $now->lt($end)) {
+                $end = $now;
+            }
+
+            return [$start->toDateString(), $end->toDateString()];
         }
 
-        return ReportingPeriod::monthRange($year, $month);
+        $start = ReportingPeriod::monthStart($year, $month);
+
+        return [$start->toDateString(), ReportingPeriod::asOf($year, $month, $now)->toDateString()];
     }
 
     /**
@@ -212,14 +223,14 @@ class NettCashService
         }
 
         $rows = Transaction::query()
-            ->where('status', Transaction::STATUS_COMPLETED)
+            ->countsInReporting()
             ->where('type', Transaction::TYPE_CASH_IN)
             ->whereIn('sender_type', [Addrbook::TYPE_CUSTOMER, Addrbook::TYPE_RESELLER])
             ->where('receiver_type', Addrbook::TYPE_BANK)
             ->when(! $isConsolidated, fn ($query) => $query->whereIn('receiver_id', $bankIds))
             ->whereBetween('date', ReportingPeriod::queryBounds($start, $end))
-            ->selectRaw('sender_id, sender_type, SUM(ABS(total)) as cash_in, COUNT(*) as txn_count')
-            ->groupBy('sender_id', 'sender_type')
+            ->selectRaw('sender_id, MAX(sender_type) as sender_type, SUM(ABS(total)) as cash_in, COUNT(*) as txn_count')
+            ->groupBy('sender_id')
             ->get();
 
         return $rows->mapWithKeys(fn ($row) => [
@@ -245,7 +256,7 @@ class NettCashService
         $typeColumn = $side === 'sender' ? 'sender_type' : 'receiver_type';
 
         return Transaction::query()
-            ->where('status', Transaction::STATUS_COMPLETED)
+            ->countsInReporting()
             ->where('type', $type)
             ->whereIn($typeColumn, [Addrbook::TYPE_CUSTOMER, Addrbook::TYPE_RESELLER])
             ->whereIn($idColumn, $contactIds)

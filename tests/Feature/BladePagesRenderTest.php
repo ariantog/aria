@@ -50,7 +50,11 @@ it('renders the transactions index with its rows', function () {
         ->assertSee('Total', false)
         ->assertSee('Description', false)
         ->assertSee('INV-SMOKE-1', false)
-        ->assertSee('Test Supplier', false);
+        ->assertSee('Test Supplier', false)
+        ->assertSee('data-testid="copy-transactions-table"', false)
+        ->assertSee('data-copy-col="invoice"', false)
+        ->assertSee('data-copy-value="1000000"', false)
+        ->assertSee('copyRowsTable()', false);
 });
 
 it('renders the export sell page', function () {
@@ -90,6 +94,7 @@ it('renders the cash in page', function () {
         ->assertSee('Cash Entries', false)
         ->assertSee('data-testid="cash-entry-row"', false)
         ->assertSee('data-testid="cash-entry-ledger-hint"', false)
+        ->assertSee('cash-entry-invoice-', false)
         ->assertSee('sm:items-start', false);
 });
 
@@ -100,6 +105,7 @@ it('renders the cash out page', function () {
         ->assertSee('Cash Entries', false)
         ->assertSee('data-testid="cash-entry-row"', false)
         ->assertSee('data-testid="cash-entry-ledger-hint"', false)
+        ->assertSee('cash-entry-invoice-', false)
         ->assertSee('sm:items-start', false);
 });
 
@@ -107,7 +113,8 @@ it('renders the transfer page', function () {
     $this->actingAs($this->user)
         ->get('/transactions/transfer')
         ->assertOk()
-        ->assertSee('Transfer Money', false);
+        ->assertSee('Transfer Money', false)
+        ->assertSee('data-testid="transfer-swap-parties"', false);
 });
 
 it('renders the adjust page', function () {
@@ -124,7 +131,11 @@ it('renders the transaction show page', function () {
         ->get(route('transactions.show', $transaction))
         ->assertOk()
         ->assertSee('sortItems(', false)
-        ->assertSee('data-testid="delete-transaction-button"', false);
+        ->assertSee('data-testid="delete-transaction-button"', false)
+        ->assertSee('data-testid="copy-tx-url"', false)
+        ->assertSee('data-testid="copy-tx-invoice"', false)
+        ->assertSee(route('transactions.show', $transaction, absolute: true), false)
+        ->assertSee((string) $transaction->invoice, false);
 });
 
 it('renders the cash in switch on a sell transaction show page', function () {
@@ -147,7 +158,9 @@ it('renders the cash in switch on a sell transaction show page', function () {
         ->get(route('transactions.show', $sell))
         ->assertOk()
         ->assertSee('data-testid="sell-cash-in-switch"', false)
-        ->assertSee('data-testid="sell-cash-in-amount"', false);
+        ->assertSee('data-testid="sell-cash-in-amount"', false)
+        ->assertSee($warehouse->transactionsUrl(), false)
+        ->assertSee($customer->transactionsUrl(), false);
 });
 
 it('renders the addrbook item sales page', function () {
@@ -196,12 +209,17 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'stock notifications' => 'stock-notifications',
     'report product-performance' => 'reports/product-performance',
     'report inventory-health' => 'reports/inventory-health',
+    'report item-insights' => 'reports/item-insights',
+    'restock recommendations' => 'restock/recommendations',
     'report produksi potong' => 'reports/produksi-potong',
+    'report produksi jahit' => 'reports/produksi-jahit',
     'report produksi qc' => 'reports/produksi-qc',
+    'report produksi pritil' => 'reports/produksi-pritil',
     'report tax ppn' => 'reports/tax/ppn',
     'report tax pph' => 'reports/tax/pph',
     'report neraca' => 'reports/neraca',
     'report laba-rugi' => 'reports/laba-rugi',
+    'report channel-pnl' => 'reports/channel-pnl',
     'report receivables' => 'reports/receivables',
     'report payables' => 'reports/payables',
     'report tax faktur' => 'reports/tax/faktur',
@@ -213,6 +231,7 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'users' => 'users',
     'roles' => 'roles',
     'system-settings' => 'system-settings',
+    'recalculate running balances' => 'recalculate-running-balances',
     'cron manager' => 'cron-manager',
     'invoice branding settings' => 'system-settings/invoice/branding',
     'invoice maker index' => 'invoice-maker',
@@ -224,6 +243,9 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'jubelio connection' => 'jubelio/token',
     'shopee ads' => 'shopee-ads',
     'restock index' => 'restock',
+    'absensi index' => 'absensi',
+    'absensi import' => 'absensi/import',
+    'hari libur' => 'hari-libur',
 ]);
 
 it('renders the invoice maker show page with payment status', function () {
@@ -236,7 +258,9 @@ it('renders the invoice maker show page with payment status', function () {
         ->get(route('invoice-maker.show', $invoice))
         ->assertOk()
         ->assertSee('Payment', false)
-        ->assertSee('Unpaid', false);
+        ->assertSee('Unpaid', false)
+        ->assertSee('data-testid="copy-invoice-number"', false)
+        ->assertSee('INV/CA/2026/SMOKE', false);
 });
 
 it('does not expose the removed warehouse compare report', function () {

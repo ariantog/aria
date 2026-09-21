@@ -26,6 +26,24 @@ enum ItemBrand: int
     case CX8 = 19;
     case CX9 = 20;
 
+    public static function fromPcode(string $pcode): self
+    {
+        $pcode = strtoupper(trim($pcode));
+        $brandStr = strtoupper(substr($pcode, 0, 2));
+
+        if ($brandStr === 'CX') {
+            $brandStr = strtoupper(substr($pcode, 0, 3));
+        }
+
+        foreach (self::cases() as $brandCase) {
+            if ($brandCase->label() === $brandStr) {
+                return $brandCase;
+            }
+        }
+
+        return self::NO_BRAND;
+    }
+
     public function label(): string
     {
         return match ($this) {

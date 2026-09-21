@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AddrbookType as AddrbookTypeEnum;
 use App\Support\FillsProductionColumnDefaults;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -41,6 +42,7 @@ class Addrbook extends Model
         return [
             'type' => 'integer',
             'ppn' => 'boolean',
+            'ppn_included' => 'boolean',
             'is_online' => 'boolean',
             'arrangement_enabled' => 'boolean',
             'is_internal_lending' => 'boolean',
@@ -51,6 +53,45 @@ class Addrbook extends Model
     }
 
     public $appends = ['type_name', 'type_slug'];
+
+    public static function defaultPpnIncluded(): bool
+    {
+        $value = Setting::getValue('transactions.default_ppn_included', true);
+
+        return filter_var($value, FILTER_VALIDATE_BOOLEAN);
+    }
+
+    public function resolvedPpnIncluded(): bool
+    {
+        return (bool) ($this->ppn_included ?? self::defaultPpnIncluded());
+    }
+
+    /**
+     * Integer type id from an Addrbook attribute, enum instance, or raw scalar.
+     * Use this instead of `(int) $addrbook->type` when the column may be cast to AddrbookType.
+     */
+    public static function typeValueFrom(mixed $type): int
+    {
+        if ($type instanceof AddrbookTypeEnum) {
+            return $type->value;
+        }
+
+        return (int) $type;
+    }
+
+    public function typeValue(): int
+    {
+        if (array_key_exists('type', $this->attributes)) {
+            return self::typeValueFrom($this->attributes['type']);
+        }
+
+        return self::typeValueFrom($this->type);
+    }
+
+    public function resolvedAddrbookType(): ?AddrbookTypeEnum
+    {
+        return AddrbookTypeEnum::coerce($this->attributes['type'] ?? $this->type);
+    }
 
     public static function typeLabel(int $type): string
     {
@@ -99,6 +140,12 @@ class Addrbook extends Model
         return in_array($type, [self::TYPE_BANK, self::TYPE_ACCOUNT, self::TYPE_V_ACCOUNT], true);
     }
 
+    /** Chart-of-accounts ledger (journal) contacts are not location-scoped. */
+    public static function typeIsLedger(int $type): bool
+    {
+        return $type === self::TYPE_ACCOUNT;
+    }
+
     public static function typeSupportsItemSales(int $type): bool
     {
         return ! self::typeIsFinancial($type);
@@ -126,6 +173,32 @@ class Addrbook extends Model
         ];
     }
 
+    /** @return list<int> Customer, reseller, and ledger account on faktur import review. */
+    public static function fakturCounterpartyTypes(): array
+    {
+        return [
+            self::TYPE_CUSTOMER,
+            self::TYPE_RESELLER,
+            self::TYPE_ACCOUNT,
+        ];
+    }
+
+    /**
+     * Addrbook types allowed in item / asset-lancar transaction sender/receiver filters.
+     *
+     * @return list<int>
+     */
+    public static function itemTransactionPartyTypes(): array
+    {
+        return [
+            self::TYPE_CUSTOMER,
+            self::TYPE_RESELLER,
+            self::TYPE_WAREHOUSE,
+            self::TYPE_V_WAREHOUSE,
+            self::TYPE_SUPPLIER,
+        ];
+    }
+
     /** @return list<int> */
     public static function navigableTypeIds(): array
     {
@@ -149,6 +222,19 @@ class Addrbook extends Model
         $slug = is_int($typeOrSlug) ? self::typeSlug($typeOrSlug) : $typeOrSlug;
 
         return route('addrbook.type.index', $slug);
+    }
+
+    /**
+     * Contact transaction list for this addrbook row (sender/receiver on transaction show).
+     */
+    public function transactionsUrl(): string
+    {
+        return route('addrbook.type.transactions', ['type' => $this->type_slug, 'addrbook' => $this->id]);
+    }
+
+    public static function transactionsUrlFor(?self $addrbook): ?string
+    {
+        return $addrbook?->transactionsUrl();
     }
 
     public static function getPermissions(?string $type = null): array
@@ -209,14 +295,32 @@ class Addrbook extends Model
         return $query->where('type', self::TYPE_ACCOUNT);
     }
 
+    public function scopeWithoutLedgers(Builder $query): Builder
+    {
+        return $query->where('type', '!=', self::TYPE_ACCOUNT);
+    }
+
+    /**
+     * Visible to a location-restricted user: ledgers are global; other types need a pivot row.
+     */
+    public function scopeVisibleAtLocation(Builder $query, int $locationId): Builder
+    {
+        return $query->where(function (Builder $q) use ($locationId) {
+            $q->where('type', self::TYPE_ACCOUNT)
+                ->orWhereHas('locations', fn (Builder $lq) => $lq->where('locations.id', $locationId));
+        });
+    }
+
     public function getTypeNameAttribute(): string
     {
-        return self::typeLabel((int) $this->type);
+        return self::typeLabel($this->typeValue());
     }
 
     public function getTypeSlugAttribute(): string
     {
-        return self::typeSlug((int) $this->type);
+        $enum = $this->resolvedAddrbookType();
+
+        return $enum?->slug() ?? self::typeSlug($this->typeValue());
     }
 
     public function stat()
@@ -295,5 +399,13 @@ class Addrbook extends Model
     public function scopeVisibleToUser(Builder $query, ?User $user): Builder
     {
         return app(\App\Services\LocationAccessService::class)->applyAddrbookScope($query, $user);
+    }
+
+    /**
+     * Allow detail/edit routes to resolve soft-deleted contacts (list filter "Only Deleted").
+     */
+    public function resolveRouteBinding($value, $field = null)
+    {
+        return $this->where($field ?? $this->getRouteKeyName(), $value)->withTrashed()->first();
     }
 }

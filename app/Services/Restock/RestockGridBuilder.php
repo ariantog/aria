@@ -2,9 +2,12 @@
 
 namespace App\Services\Restock;
 
+use App\Models\Item;
 use App\Models\RestockCell;
 use App\Models\RestockSheet;
+use App\Services\Items\ItemGroupHierarchyService;
 use App\Services\Items\ItemIdentityBuilder;
+use App\Support\ItemImageResolver;
 use Illuminate\Support\Collection;
 
 class RestockGridBuilder
@@ -48,6 +51,8 @@ class RestockGridBuilder
                     'pcode' => $parentPcode,
                     'name' => $this->parentDisplayName($cells, $parentPcode),
                     'image_url' => $this->parentImageUrl($cells),
+                    'image_disk_path' => $this->parentImageDiskPath($cells),
+                    'group_url' => $this->parentGroupUrl($cells),
                     'sizes' => $sizes,
                     'rows' => $rows,
                 ];
@@ -153,13 +158,15 @@ class RestockGridBuilder
                 'pcode' => $parent['pcode'],
                 'name' => $parent['name'],
                 'image_url' => $parent['image_url'],
+                'image_disk_path' => $parent['image_disk_path'] ?? null,
+                'group_url' => $parent['group_url'] ?? null,
                 'sizes' => $parent['sizes'],
             ];
 
             foreach ($parent['rows'] as $colorRow) {
                 $rows[] = array_merge([
                     '_type' => 'data',
-                    '_rowKey' => 'data:'.$parent['pcode'].':'.($colorRow['color_id'] ?? $colorRow['color_name']),
+                    '_rowKey' => 'data:'.$parent['pcode'].':'.$colorRow['color_name'],
                     'pcode' => $parent['pcode'],
                     'parent_sizes' => $parent['sizes'],
                 ], $colorRow);
@@ -238,6 +245,64 @@ class RestockGridBuilder
 
     /**
      * @param  Collection<int, RestockCell>  $cells
+     */
+    protected function parentImageDiskPath(Collection $cells): ?string
+    {
+        $item = $cells->first(fn (RestockCell $cell) => $cell->item !== null)?->item;
+        if ($item === null) {
+            return null;
+        }
+
+        $resolver = app(ItemImageResolver::class);
+        $path = $resolver->resolveExistingDiskPathForItem($item);
+
+        if ($path !== null && $this->isEmbeddableImagePath($path)) {
+            return $path;
+        }
+
+        $fromUrl = $resolver->resolveExistingDiskPathFromImageUrl($item->image_url);
+        if ($fromUrl !== null && $this->isEmbeddableImagePath($fromUrl)) {
+            return $fromUrl;
+        }
+
+        return null;
+    }
+
+    protected function isEmbeddableImagePath(string $path): bool
+    {
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+
+        return in_array($extension, ['jpg', 'jpeg', 'png', 'gif'], true);
+    }
+
+    /**
+     * @param  Collection<int, RestockCell>  $cells
+     */
+    protected function parentGroupUrl(Collection $cells): ?string
+    {
+        $item = $cells->first(fn (RestockCell $cell) => $cell->item !== null)?->item;
+
+        if ($item === null) {
+            return null;
+        }
+
+        $anchorId = app(ItemGroupHierarchyService::class)
+            ->anchorGroupIdForParentKey($this->identityBuilder->itemParentKey($item));
+
+        if ($anchorId === null) {
+            $fallbackGroupId = $cells
+                ->first(fn (RestockCell $cell) => $cell->item && (int) $cell->item->group_id > 0)
+                ?->item
+                ?->group_id;
+
+            $anchorId = $fallbackGroupId > 0 ? (int) $fallbackGroupId : null;
+        }
+
+        return $anchorId !== null ? route('items.group-parent-detail', $anchorId) : null;
+    }
+
+    /**
+     * @param  Collection<int, RestockCell>  $cells
      * @return list<string>
      */
     protected function orderedSizeCodes(Collection $cells): array
@@ -272,8 +337,8 @@ class RestockGridBuilder
                 $item = $first->item;
                 $row = [
                     'color_id' => $first->color_id,
-                    'color_name' => $first->color?->name
-                        ?? ($item ? $this->identityBuilder->assetLancarColorLabel($item) : '—'),
+                    'color_name' => $this->colorLabelForCells($colorCells),
+                    'color_url' => $this->colorGroupUrl($colorCells),
                     'is_urgent' => $colorCells->contains(fn (RestockCell $c) => $c->is_urgent),
                     '_meta' => [],
                 ];
@@ -284,7 +349,12 @@ class RestockGridBuilder
                 $stockTotal = 0;
 
                 foreach ($sizes as $sizeCode) {
-                    $cell = $colorCells->first(fn (RestockCell $c) => $this->cellMatchesSize($c, $sizeCode));
+                    $cell = $colorCells
+                        ->filter(fn (RestockCell $c) => $this->cellMatchesSize($c, $sizeCode))
+                        ->sortByDesc(fn (RestockCell $c) => (int) $c->qty_restock
+                            + (int) $c->qty_production
+                            + (int) $c->qty_shipped)
+                        ->first();
 
                     if (! $cell) {
                         continue;
@@ -326,15 +396,61 @@ class RestockGridBuilder
 
     protected function colorGroupKey(RestockCell $cell): string
     {
-        if ($cell->color_id) {
-            return 'tag:'.$cell->color_id;
+        if ($cell->item) {
+            $label = $this->identityBuilder->assetLancarColorLabel($cell->item);
+
+            if ($label !== '—') {
+                return 'color:'.$label;
+            }
         }
 
-        if ($cell->item) {
-            return $this->identityBuilder->assetLancarColorGroupKey($cell->item);
+        $code = strtoupper(trim($cell->color?->code ?? ''));
+
+        if ($code !== '') {
+            return 'color:'.$code;
         }
 
         return 'none';
+    }
+
+    /**
+     * @param  Collection<int, RestockCell>  $cells
+     */
+    protected function colorLabelForCells(Collection $cells): string
+    {
+        foreach ($cells as $cell) {
+            if ($cell->item) {
+                $label = $this->identityBuilder->assetLancarColorLabel($cell->item);
+
+                if ($label !== '—') {
+                    return $label;
+                }
+            }
+        }
+
+        $code = strtoupper(trim($cells->first()?->color?->code ?? ''));
+
+        return $code !== '' ? $code : '—';
+    }
+
+    /**
+     * @param  Collection<int, RestockCell>  $cells
+     */
+    protected function colorGroupUrl(Collection $cells): ?string
+    {
+        $label = $this->colorLabelForCells($cells);
+
+        if ($label === '—') {
+            return null;
+        }
+
+        $parentUrl = $this->parentGroupUrl($cells);
+
+        if ($parentUrl === null) {
+            return null;
+        }
+
+        return $parentUrl.'#'.ItemGroupHierarchyService::colorAnchorId($label);
     }
 
     protected function cellSizeCode(RestockCell $cell): ?string

@@ -3,6 +3,7 @@
 namespace App\Actions\Transactions;
 
 use App\Actions\Transactions\Concerns\CalculatesTransactionTotals;
+use App\Exceptions\InsufficientWarehouseStockException;
 use App\Http\Requests\StoreItemTransactionRequest;
 use App\Models\Addrbook;
 use App\Models\Transaction;
@@ -24,6 +25,9 @@ class CreateItemTransaction
         $data = $request->validated();
         $sender = Addrbook::findOrFail($data['sender_id']);
         $receiver = Addrbook::findOrFail($data['receiver_id']);
+        if ($type === Transaction::TYPE_MOVE) {
+            Transaction::assertMovePartiesAllowed(Auth::user(), $sender, $receiver);
+        }
         $cashInPayload = $request->cashInPayload();
 
         return DB::transaction(function () use ($type, $data, $sender, $receiver, $cashInPayload) {
@@ -31,7 +35,11 @@ class CreateItemTransaction
             $transaction = $this->createTransaction($type, $data, $sender, $receiver);
             $this->createDetails($transaction, $data);
             $this->calculateAndSetTotals($transaction, $type, $data, $sender, $receiver);
-            $this->transactionService->handleTransaction($transaction);
+            try {
+                $this->transactionService->handleTransaction($transaction);
+            } catch (InsufficientWarehouseStockException $e) {
+                throw $e->asValidationException();
+            }
 
             if ($type === Transaction::TYPE_SELL && $cashInPayload) {
                 app(CreateCashInFromSell::class)->execute($transaction->fresh(['receiver']) ?? $transaction, $cashInPayload);
@@ -83,7 +91,7 @@ class CreateItemTransaction
             'receiver_id' => $receiver->id,
             'notes' => $data['note'] ?? null, 'user_id' => Auth::id(),
             'status' => Transaction::STATUS_COMPLETED,
-            'real_total' => 0, 'total_items' => 0,
+            'total_items' => 0,
             'adjustment' => $data['adjustment'] ?? 0,
             'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
             'invoice' => ! empty($data['invoice']) ? $data['invoice'] : null,
@@ -116,9 +124,9 @@ class CreateItemTransaction
         $itemsTotal = (float) $transaction->details()->sum('total');
         $totalItems = (float) $transaction->details()->sum('quantity');
         if ($type === Transaction::TYPE_MOVE) {
+            $signedSubtotal = Transaction::signedAmount($type, $itemsTotal);
             $transaction->update([
-                'total' => $itemsTotal,
-                'real_total' => $itemsTotal,
+                'total' => $signedSubtotal,
                 'discount' => 0,
                 'adjustment' => 0,
                 'ppn' => 0,
@@ -131,16 +139,17 @@ class CreateItemTransaction
         $discountPercent = (float) ($data['discount_percent'] ?? 0);
         $adjustment = (float) ($data['adjustment'] ?? 0);
         $isPpn = $this->shouldApplyPpn($type, $sender->id, $receiver->id);
-        $discountAmount = $this->calculateDiscountAmount($itemsTotal, $discountPercent);
-        $totalBeforeTax = $itemsTotal - $discountAmount + $adjustment;
-        $taxAmount = $isPpn ? ($totalBeforeTax * $this->getPpnRate()) : 0;
-        $grandTotal = $totalBeforeTax + $taxAmount;
+        $ppnIncluded = array_key_exists('ppn_included', $data)
+            ? (bool) $data['ppn_included']
+            : $this->resolveCounterpartyPpnIncluded($type, $sender, $receiver);
+        $totals = $this->calculateTaxTotals($itemsTotal, $discountPercent, $adjustment, $isPpn, $ppnIncluded);
+        $grandTotal = $totals['grand_total'];
+        // total = signed net payable only. Never write line subtotal here or net to real_total.
         $transaction->update([
-            'total' => Transaction::signedAmount($type, $itemsTotal),
             'discount' => $discountPercent,
             'adjustment' => $adjustment,
-            'ppn' => $taxAmount,
-            'real_total' => Transaction::signedAmount($type, $grandTotal),
+            'ppn' => $totals['tax_amount'],
+            'total' => Transaction::signedAmount($type, $grandTotal),
             'total_items' => $totalItems,
         ]);
     }

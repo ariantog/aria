@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Enums\ChecklistFrequency;
 use App\Models\ChecklistTemplate;
 use App\Models\StaffRole;
-use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
@@ -14,7 +13,7 @@ class ChecklistTemplateController extends Controller
 {
     public function index()
     {
-        Gate::authorize(User::getPermissions()['staff-roles-view']);
+        Gate::authorize(ChecklistTemplate::getPermissions()['view']);
 
         return view('staff-checklists.templates.index', [
             'roles' => StaffRole::query()

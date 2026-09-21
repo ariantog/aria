@@ -5,6 +5,7 @@ namespace App\Models;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Schema;
 
 class Crongetorder extends Model
 {
@@ -26,6 +27,28 @@ class Crongetorder extends Model
     public function isRunning(): bool
     {
         return $this->status === 0;
+    }
+
+    public function isStalled(int $minutes = 2): bool
+    {
+        if (! $this->isRunning() || $this->updated_at === null) {
+            return false;
+        }
+
+        return $this->updated_at->lt(now()->subMinutes($minutes));
+    }
+
+    public function recordError(?string $message): void
+    {
+        if (! Schema::hasColumn($this->getTable(), 'last_error')) {
+            if ($this->exists) {
+                $this->touch();
+            }
+
+            return;
+        }
+
+        $this->update(['last_error' => $message]);
     }
 
     public function progressPercent(): int

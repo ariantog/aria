@@ -103,6 +103,7 @@ it('returns ledger_hint in transaction lookup', function () {
     Addrbook::create([
         'name' => 'Hinted Ledger',
         'type' => Addrbook::TYPE_ACCOUNT,
+        'description' => 'Office supplies account',
         'ledger_hint' => 'Pick this for office supplies.',
     ]);
 
@@ -115,7 +116,47 @@ it('returns ledger_hint in transaction lookup', function () {
     $row = collect($this->actingAs($this->user)->getJson($url)->assertOk()->json())->first();
 
     expect($row)->not->toBeNull()
+        ->and($row['description'])->toBe('Office supplies account')
         ->and($row['ledger_hint'])->toBe('Pick this for office supplies.');
+});
+
+it('finds a ledger by description in transaction lookup', function () {
+    Addrbook::create([
+        'name' => 'Biaya Toko WTC',
+        'type' => Addrbook::TYPE_ACCOUNT,
+        'description' => 'Biaya operasional toko WTC',
+        'ledger_hint' => 'Sewa, transport, utilitas WTC.',
+    ]);
+
+    $url = route('transactions.lookup', [
+        'type' => 'cash-out',
+        'role' => 'receiver',
+        'addrbook_type' => Addrbook::TYPE_ACCOUNT,
+    ]).'&search='.urlencode('operasional toko');
+
+    $row = collect($this->actingAs($this->user)->getJson($url)->assertOk()->json())->first();
+
+    expect($row)->not->toBeNull()
+        ->and($row['name'])->toBe('Biaya Toko WTC')
+        ->and($row['description'])->toBe('Biaya operasional toko WTC');
+});
+
+it('includes description and ledger_hint on addrbook account json search', function () {
+    Addrbook::create([
+        'name' => 'Biaya Shopee Lookup',
+        'type' => Addrbook::TYPE_ACCOUNT,
+        'description' => 'Biaya channel Shopee',
+        'ledger_hint' => 'Komisi dan iklan Shopee.',
+    ]);
+
+    $row = collect($this->actingAs($this->user)
+        ->getJson(route('addrbook.type.index', 'account').'?search=Shopee&json=1')
+        ->assertOk()
+        ->json())->first();
+
+    expect($row)->not->toBeNull()
+        ->and($row['description'])->toBe('Biaya channel Shopee')
+        ->and($row['ledger_hint'])->toBe('Komisi dan iklan Shopee.');
 });
 
 it('assigns banks to a reporting entity', function () {

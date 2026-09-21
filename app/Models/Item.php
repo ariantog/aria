@@ -4,8 +4,11 @@ namespace App\Models;
 
 use App\Enums\ItemBrand;
 use App\Enums\ItemType;
+use App\Services\Items\ItemIdentityBuilder;
 use App\Support\FillsProductionColumnDefaults;
+use App\Support\ItemCatalog;
 use App\Support\ItemImageResolver;
+use App\Support\ItemPricing;
 use App\Support\LikeSearch;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -37,16 +40,19 @@ class Item extends Model
         'code',
         'legacy_code',
         'pcode',
+        // Leftover mirrors of item_group (see ItemCatalog::LEFTOVER_ITEM_COLUMNS).
         'brand',
         'type',
         'size',
         'genre',
         'price',
         'cost',
+        'cost_cnh',
         'qty',
         'tag_ids',
         'description',
         'description2',
+        'reseller_price',
         'jubelio_item_id',
         'restock_urgent_threshold',
     ];
@@ -60,6 +66,8 @@ class Item extends Model
             'genre' => 'integer',
             'price' => 'decimal:2',
             'cost' => 'decimal:2',
+            'cost_cnh' => 'decimal:2',
+            'reseller_price' => 'decimal:2',
             'qty' => 'decimal:2',
             'jubelio_item_id' => 'integer',
         ];
@@ -141,7 +149,10 @@ class Item extends Model
             return;
         }
 
-        $contains = LikeSearch::contains($term);
+        $contains = LikeSearch::contains($term, allowPercentWildcards: true);
+        if (LikeSearch::isMatchAll($contains)) {
+            return;
+        }
 
         $query->where(function ($q) use ($term, $contains) {
             $q->where($q->qualifyColumn('code'), 'like', $contains)
@@ -160,8 +171,8 @@ class Item extends Model
             return;
         }
 
-        $pattern = LikeSearch::containsInsensitive($term);
-        if ($pattern === '%') {
+        $pattern = LikeSearch::containsInsensitive($term, allowPercentWildcards: true);
+        if (LikeSearch::isMatchAll($pattern)) {
             return;
         }
 
@@ -192,7 +203,27 @@ class Item extends Model
             return;
         }
 
-        $query->where($query->qualifyColumn('description'), 'like', $contains);
+        $query->where(function (Builder $q) use ($contains) {
+            $q->whereExists(function ($sub) use ($contains) {
+                $sub->selectRaw('1')
+                    ->from('item_group')
+                    ->whereColumn('item_group.id', 'items.group_id')
+                    ->where('items.group_id', '>', 0)
+                    ->where('item_group.description', 'like', $contains);
+            })->orWhere(function (Builder $ungrouped) use ($contains) {
+                $ungrouped
+                    ->where(function (Builder $noGroup) {
+                        $noGroup->whereNull('items.group_id')
+                            ->orWhere('items.group_id', '<=', 0);
+                    })
+                    ->where($ungrouped->qualifyColumn('description'), 'like', $contains);
+            });
+        });
+    }
+
+    public function scopeFilterBrand(Builder $query, int $brand): void
+    {
+        ItemCatalog::constrainBrand($query, $brand);
     }
 
     public function scopeFilterByTags(Builder $query, array $tagIds): void
@@ -232,6 +263,76 @@ class Item extends Model
         return $this->getItemCode();
     }
 
+    /**
+     * Distinct preserved SKU for item detail display.
+     * Empty values and copies of the current code are hidden to avoid confusion.
+     */
+    public function distinctLegacyCode(): ?string
+    {
+        $legacy = trim((string) ($this->legacy_code ?? ''));
+        $code = trim((string) ($this->code ?? ''));
+
+        if ($legacy === '' || strcasecmp($legacy, $code) === 0) {
+            return null;
+        }
+
+        return $legacy;
+    }
+
+    /**
+     * Catalog colorway / notes / brand / genre. Grouped SKUs use item_group;
+     * leftover items.* columns are mirrors (ItemCatalog::MIRROR_ITEM_COLUMNS).
+     */
+    public function catalogDescription(): string
+    {
+        return ItemCatalog::description($this);
+    }
+
+    public function catalogDescription2(): string
+    {
+        return ItemCatalog::description2($this);
+    }
+
+    public function catalogResellerPrice(): float
+    {
+        return ItemCatalog::resellerPrice($this);
+    }
+
+    public function effectivePrice(): float
+    {
+        return ItemPricing::resolve($this, 'price');
+    }
+
+    public function effectiveCost(): float
+    {
+        return ItemPricing::resolve($this, 'cost');
+    }
+
+    public function effectiveCostCnh(): float
+    {
+        return ItemPricing::resolve($this, 'cost_cnh');
+    }
+
+    public function resellerSellPrice(): float
+    {
+        return ItemCatalog::sellPriceForReseller($this);
+    }
+
+    public function catalogBrand(): ItemBrand
+    {
+        return ItemCatalog::brand($this);
+    }
+
+    public function catalogGenre(): int
+    {
+        return ItemCatalog::genre($this);
+    }
+
+    public function hasCatalogGroup(): bool
+    {
+        return (int) $this->group_id > 0 && $this->group !== null;
+    }
+
     public function getItemName(): string
     {
         if ($this->type === ItemType::ASSET_LANCAR || $this->type === ItemType::ASSET_TETAP) {
@@ -269,6 +370,15 @@ class Item extends Model
             $this->isAssetTetap() => route('assettetap.edit', $this),
             default => route('items.edit', $this),
         };
+    }
+
+    public function groupParentUrl(): ?string
+    {
+        if ((int) $this->group_id <= 0) {
+            return null;
+        }
+
+        return route('items.group-parent-detail', $this->group_id);
     }
 
     /**

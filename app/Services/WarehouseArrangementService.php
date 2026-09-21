@@ -3,14 +3,20 @@
 namespace App\Services;
 
 use App\Enums\AddrbookType;
+use App\Enums\ItemType;
 use App\Models\Addrbook;
+use App\Models\ItemGroup;
 use App\Models\WarehouseArrangementCandidate;
 use App\Models\WarehouseArrangementPcodeSnapshot;
+use App\Services\Items\ItemIdentityBuilder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class WarehouseArrangementService
 {
+    public function __construct(
+        private ItemIdentityBuilder $identityBuilder,
+    ) {}
     public const MODE_DEMAND = 'demand';
 
     public const MODE_FAMILY = 'family';
@@ -168,6 +174,7 @@ class WarehouseArrangementService
         }
 
         $stockedByPcode = $this->loadStockedSizes($destinationWarehouseId, $pagePcodes->all());
+        $groupsByPcode = $this->loadGroupsForSnapshots($snapshots);
 
         $pageItemIds = $candidates->pluck('item_id')->map(fn ($id) => (int) $id)->unique()->values()->all();
         $wh1Stocks = $sourceWarehouse1
@@ -243,9 +250,14 @@ class WarehouseArrangementService
                 }
             }
 
+            $group = $groupsByPcode[strtoupper(trim($pcode))] ?? null;
+
             $sections[] = [
                 'pcode' => $pcode,
-                'name' => $snap->master_name ?? $pcode,
+                'name' => $this->sectionDisplayName($snap, $group),
+                'group_id' => $group?->id,
+                'group_url' => $group ? route('items.group-detail', $group) : null,
+                'group_exists' => $group !== null,
                 'warna' => $snap->warna ?? '—',
                 'family_demand_score' => (float) $snap->family_demand_365,
                 'completeness_pct' => (float) $snap->completeness_pct,
@@ -701,7 +713,7 @@ class WarehouseArrangementService
         return [
             'master' => $candidate->master ?? $snap->master,
             'pcode' => $candidate->pcode,
-            'master_name' => $snap->master_name,
+            'master_name' => $this->sectionDisplayName($snap, $this->findGroupBySnapshot($snap)),
             'family_demand_score' => (float) $snap->family_demand_365,
             'completeness_pct' => (float) $snap->completeness_pct,
             'present_count' => (int) $snap->present_count,
@@ -716,5 +728,116 @@ class WarehouseArrangementService
             'to_warehouse_id' => $destination->id,
             'to_warehouse_name' => $destination->name,
         ];
+    }
+
+    /**
+     * @param  Collection<string, WarehouseArrangementPcodeSnapshot>  $snapshots
+     * @return array<string, ?ItemGroup>
+     */
+    private function loadGroupsForSnapshots(Collection $snapshots): array
+    {
+        if ($snapshots->isEmpty()) {
+            return [];
+        }
+
+        $pcodeKeys = $snapshots->keys()
+            ->map(fn (string $pcode) => strtoupper(trim($pcode)))
+            ->filter()
+            ->values()
+            ->all();
+
+        $groupIdByPcode = DB::table('items')
+            ->whereNull('deleted_at')
+            ->whereIn(DB::raw('UPPER(TRIM(pcode))'), $pcodeKeys)
+            ->whereNotNull('group_id')
+            ->selectRaw('UPPER(TRIM(pcode)) as pcode_key, MIN(group_id) as group_id')
+            ->groupBy('pcode_key')
+            ->pluck('group_id', 'pcode_key');
+
+        $groupsById = ItemGroup::query()
+            ->whereIn('id', $groupIdByPcode->values()->unique()->all())
+            ->get()
+            ->keyBy('id');
+
+        $groupsByPcode = [];
+
+        foreach ($snapshots as $pcode => $snap) {
+            $pcodeKey = strtoupper(trim($pcode));
+            $groupId = (int) ($groupIdByPcode[$pcodeKey] ?? 0);
+            $group = $groupId > 0 ? $groupsById->get($groupId) : null;
+
+            $groupsByPcode[$pcodeKey] = $group ?? $this->findGroupBySnapshot($snap);
+        }
+
+        return $groupsByPcode;
+    }
+
+    private function findGroupBySnapshot(WarehouseArrangementPcodeSnapshot $snap): ?ItemGroup
+    {
+        $pcode = strtoupper(trim($snap->pcode));
+
+        try {
+            $master = $this->identityBuilder->groupMaster(ItemType::ITEM, $pcode);
+            $variant = $this->identityBuilder->groupVariant(ItemType::ITEM, $pcode, null);
+            $group = $this->identityBuilder->findCanonicalGroup($master, $variant);
+
+            if ($group) {
+                return $group;
+            }
+        } catch (\Throwable) {
+            // Legacy pcode shapes may fail strict validation.
+        }
+
+        $storedMaster = strtoupper(trim((string) ($snap->master ?? '')));
+        if ($storedMaster !== '') {
+            return $this->identityBuilder->findCanonicalGroup($storedMaster, '');
+        }
+
+        return null;
+    }
+
+    private function sectionDisplayName(WarehouseArrangementPcodeSnapshot $snap, ?ItemGroup $group): ?string
+    {
+        $pcode = strtoupper(trim($snap->pcode));
+        $storedName = (string) ($group?->name ?? $snap->master_name ?? '');
+
+        if ($storedName === '') {
+            return null;
+        }
+
+        $displayName = $this->identityBuilder->productDisplayName(
+            ItemType::ITEM,
+            $storedName,
+            (string) ($group?->variant ?? ''),
+            (string) ($group?->master ?? $snap->master ?? ''),
+        );
+
+        if ($this->shouldHideSectionDisplayName($displayName, $pcode)) {
+            return null;
+        }
+
+        return $displayName;
+    }
+
+    private function shouldHideSectionDisplayName(string $name, string $pcode): bool
+    {
+        $normalize = static fn (string $value): string => strtoupper(str_replace(['/', ' '], ['-', ''], trim($value)));
+
+        if ($normalize($name) === $normalize($pcode)) {
+            return true;
+        }
+
+        $compact = str_replace(' ', '', strtoupper(trim($name)));
+
+        // Another colorway pcode stored as item_group.name (legacy rows).
+        if (preg_match('/^[A-Z]{2,3}\d{5}[\/\-]\d{1,3}$/', $compact)) {
+            return true;
+        }
+
+        if (preg_match('/^[A-Z]{2,3}\d{5}$/', $compact)) {
+            return true;
+        }
+
+        return false;
     }
 }

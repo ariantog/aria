@@ -298,4 +298,17 @@ final class NewDomainChartOfAccounts
             ],
         ];
     }
+
+    /** @return LedgerRow|null */
+    public static function ledgerByName(string $name): ?array
+    {
+        $needle = mb_strtolower(trim($name));
+        foreach (self::ledgers() as $row) {
+            if (mb_strtolower($row['name']) === $needle) {
+                return $row;
+            }
+        }
+
+        return null;
+    }
 }

@@ -4,22 +4,26 @@ namespace App\Http\Controllers;
 
 use App\Enums\ItemBrand;
 use App\Enums\ItemType;
-use App\Enums\TransactionType;
 use App\Http\Requests\StoreItemRequest;
+use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\ItemGroup;
 use App\Models\Report;
 use App\Models\Tag;
+use App\Models\Transaction;
 use App\Models\TransactionDetail;
-use App\Models\WarehouseItem;
+use App\Services\ItemAvailabilityService;
 use App\Services\ItemListFilter;
-use App\Services\ItemService;
 use App\Services\Items\ItemGroupHierarchyService;
 use App\Services\Items\ItemGroupParentExportService;
 use App\Services\Items\ItemIdentityBuilder;
 use App\Services\Items\LegacyItemConverterService;
+use App\Services\ItemService;
 use App\Services\ItemStatsService;
+use App\Services\ItemTransactionQueryService;
 use App\Services\JubelioService;
+use App\Support\LikeSearch;
+use App\Support\ItemPricing;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 
@@ -32,6 +36,7 @@ class ItemsController extends Controller
         protected ItemIdentityBuilder $identityBuilder,
         protected LegacyItemConverterService $legacyConverter,
         protected ItemListFilter $itemListFilter,
+        protected ItemAvailabilityService $itemAvailability,
     ) {}
 
     public function index(Request $request, ?ItemType $type = null)
@@ -57,7 +62,7 @@ class ItemsController extends Controller
 
         $q->when($request->filled('search'), fn ($q) => $q->search($request->search))
             ->when($request->filled('id'), fn ($q) => $q->where('id', $request->id))
-            ->when($request->filled('brand'), fn ($q) => $q->where('brand', $request->brand));
+            ->when($request->filled('brand'), fn ($q) => $q->filterBrand((int) $request->brand));
 
         if (! $this->isJson($request)) {
             $this->itemListFilter->apply($q, $request);
@@ -66,7 +71,12 @@ class ItemsController extends Controller
         // Combobox / autocomplete JSON (unpaginated, limited) — used by asyncCombobox.
         if ($this->isJson($request) && ! $request->boolean('table')) {
             if ($request->filled('id') || $request->filled('code')) {
-                return $q->with('warehouseItems')->limit(8)->get();
+                return $q->with(['warehouseItems', 'group'])->limit(8)->get()->map(function ($item) {
+                    $payload = $item->toArray();
+                    $payload['reseller_sell_price'] = $item->resellerSellPrice();
+
+                    return $payload;
+                })->values();
             }
 
             $search = trim((string) $request->input('search', ''));
@@ -74,7 +84,12 @@ class ItemsController extends Controller
                 return response()->json([]);
             }
 
-            return $q->with('warehouseItems')->limit(8)->get();
+            return $q->with(['warehouseItems', 'group'])->limit(8)->get()->map(function ($item) {
+                $payload = $item->toArray();
+                $payload['reseller_sell_price'] = $item->resellerSellPrice();
+
+                return $payload;
+            })->values();
         }
 
         // Tabulator remote pagination JSON.
@@ -102,16 +117,16 @@ class ItemsController extends Controller
                     'image_url' => $item->image_url,
                     'jubelio_item_id' => $item->jubelio_item_id,
                     'product_name' => $item->group?->name ?? $item->name,
-                    'description' => $item->group?->description ?? $item->description,
-                    'description2' => $item->group?->description2 ?? $item->description2,
+                    'description' => $item->catalogDescription(),
+                    'description2' => $item->catalogDescription2(),
                 ])->all(),
                 'last_page' => $paginator->lastPage(),
                 'total' => $paginator->total(),
             ]);
         }
 
-        $items = $q->with('group')
-            ->withSum(['warehouseItems as active_qty' => fn ($query) => $query->forActiveWarehouseAddrbooks()], 'quantity')
+        $items = $q->with(['group', 'tags'])
+            ->withSum(['warehouseItems as active_qty' => fn ($query) => $query->forAvailableStock()], 'quantity')
             ->orderBy('id', 'desc')
             ->paginate(50)
             ->withQueryString();
@@ -148,6 +163,20 @@ class ItemsController extends Controller
         return view('items.create', $this->formProps(ItemType::ASSET_LANCAR));
     }
 
+    public function duplicate(Item $item)
+    {
+        abort_unless($item->type === ItemType::ITEM, 404);
+
+        return $this->duplicateCreateView($item);
+    }
+
+    public function duplicateAsset(Item $item)
+    {
+        abort_unless($item->type === ItemType::ASSET_LANCAR, 404);
+
+        return $this->duplicateCreateView($item);
+    }
+
     public function store(StoreItemRequest $request)
     {
         $type = ItemType::from((int) $request->input('type'));
@@ -182,27 +211,89 @@ class ItemsController extends Controller
                 ->orderBy('warehouse_id'),
         ]);
 
-        $activeWarehouseItems = $item->warehouseItems
-            ->filter(fn (WarehouseItem $row) => $row->warehouse && ! $row->warehouse->trashed())
-            ->values();
-        $deletedWarehouseItems = $item->warehouseItems
-            ->filter(fn (WarehouseItem $row) => $row->warehouse && $row->warehouse->trashed())
-            ->values();
+        $stock = $this->itemAvailability->partitionWarehouseItems($item->warehouseItems);
 
         return view('items.show', [
             'item' => $item,
-            'activeWarehouseItems' => $activeWarehouseItems,
-            'deletedWarehouseItems' => $deletedWarehouseItems,
-            'activeStock' => (float) $activeWarehouseItems->sum('quantity'),
-            'deletedStock' => (float) $deletedWarehouseItems->sum('quantity'),
+            'activeWarehouseItems' => $stock['physical'],
+            'virtualWarehouseItems' => $stock['virtual'],
+            'deletedWarehouseItems' => $stock['deleted'],
+            'activeStock' => $stock['available'],
+            'virtualStock' => $stock['virtual_stock'],
+            'deletedStock' => $stock['deleted_stock'],
+            'canRecalculateQty' => $this->canRecalculateQty($item),
             'isAsset' => $item->type === ItemType::ASSET_LANCAR,
-            'groupUrl' => $this->legacyConverter->hasProductGroup($item)
-                ? route('items.group-parent-detail', $this->identityBuilder->parentKeyToSlug(
-                    $this->identityBuilder->itemParentKey($item)
-                ))
+            'groupUrl' => $this->legacyConverter->hasProductGroup($item) && (int) $item->group_id > 0
+                ? route('items.group-parent-detail', $item->group_id)
+                : null,
+            'colorwayEditUrl' => $item->group_id > 0 && Gate::check(ItemGroup::getPermissions()['edit'])
+                ? route('items.colorway-edit', $item->group_id)
                 : null,
             'identityConvert' => $this->detailIdentityConvertContext($item),
+            'canEditLegacyCode' => $this->canEditLegacyCode($item),
+            'canDelete' => Gate::check(
+                $item->type === ItemType::ASSET_LANCAR
+                    ? Item::getPermissions()['asset-lancar-delete']
+                    : Item::getPermissions()['delete']
+            ),
         ]);
+    }
+
+    public function updateLegacyCode(Request $request, Item $item)
+    {
+        Gate::authorize($item->type === ItemType::ASSET_LANCAR
+            ? Item::getPermissions()['asset-lancar-edit']
+            : Item::getPermissions()['edit']
+        );
+
+        $validated = $request->validate([
+            'legacy_code' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $legacyCode = trim((string) ($validated['legacy_code'] ?? ''));
+        if ($legacyCode === '' || strcasecmp($legacyCode, (string) $item->code) === 0) {
+            $legacyCode = null;
+        }
+
+        $item->update(['legacy_code' => $legacyCode]);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'legacy_code' => $item->distinctLegacyCode(),
+            ]);
+        }
+
+        return redirect($item->showUrl())->with('success', 'Legacy code updated.');
+    }
+
+    public function recalculateQuantity(Item $item)
+    {
+        Gate::authorize($item->type === ItemType::ASSET_LANCAR
+            ? Item::getPermissions()['asset-lancar-edit']
+            : Item::getPermissions()['edit']
+        );
+
+        $result = $this->itemAvailability->recalculate($item);
+        $available = format_amount($result['available'], 0);
+
+        return redirect($item->showUrl())->with(
+            'success',
+            "Quantity recalculated. Available stock is {$available} units (non-deleted warehouses, virtual excluded).",
+        );
+    }
+
+    protected function canRecalculateQty(Item $item): bool
+    {
+        return $this->canEditLegacyCode($item);
+    }
+
+    protected function canEditLegacyCode(Item $item): bool
+    {
+        $permission = $item->type === ItemType::ASSET_LANCAR
+            ? Item::getPermissions()['asset-lancar-edit']
+            : Item::getPermissions()['edit'];
+
+        return Gate::check($permission);
     }
 
     protected function detailIdentityConvertContext(Item $item): ?array
@@ -239,9 +330,37 @@ class ItemsController extends Controller
         $p = Item::getPermissions();
         Gate::authorize($item->type === ItemType::ASSET_LANCAR ? $p['asset-lancar-edit'] : $p['edit']);
 
+        $item->load(['group', 'tags']);
+        $groupName = (string) ($item->group?->name ?: $item->name);
+        $productTitle = $this->identityBuilder->productDisplayName(
+            $item->type,
+            $groupName,
+            (string) ($item->group?->variant ?? ''),
+            (string) ($item->group?->master ?? ''),
+        );
+
+        $catalogPcode = $item->type === ItemType::ITEM
+            ? $this->identityBuilder->normalizeManufacturedPcode((string) $item->pcode)
+            : (string) $item->pcode;
+
+        if ($this->itemService->productNameIsPcodePlaceholder($item->type, $productTitle, $catalogPcode, $item)) {
+            $parentHints = $this->itemService->catalogHintsForPcode(
+                $item->type,
+                $catalogPcode,
+                $item->type === ItemType::ITEM ? $this->identityBuilder->manufacturedTypeCode($item) : null,
+            );
+
+            $productTitle = (string) ($parentHints['product_name'] ?? '');
+        }
+
         return view('items.edit', array_merge($this->formProps($item->type), [
-            'item' => $item->load(['group', 'tags']),
+            'item' => $item,
             'types' => $this->typeOptions(),
+            'productTitle' => $productTitle,
+            'pricingState' => ItemPricing::formState($item),
+            'colorwayEditUrl' => $item->group_id > 0
+                ? route('items.colorway-edit', $item->group_id)
+                : null,
         ]));
     }
 
@@ -252,24 +371,28 @@ class ItemsController extends Controller
 
         $isAsset = $item->type === ItemType::ASSET_LANCAR;
 
-        $request->validate([
+        $request->validate(array_merge([
             'pcode' => ['required', 'string'],
             'product_name' => ['nullable', 'string', 'max:255'],
-            'price' => ['nullable', 'numeric'],
-            'cost' => $isAsset ? ['required', 'numeric'] : ['nullable'],
             'description' => ['nullable', 'string'],
             'description2' => ['nullable', 'string'],
+            'item_description' => $isAsset ? ['nullable', 'string'] : ['nullable'],
+            'item_description2' => $isAsset ? ['nullable', 'string'] : ['nullable'],
             'url' => ['nullable', 'string', 'max:255'],
             'restock_urgent_threshold' => ['nullable', 'integer', 'min:1'],
             'tags.types' => $isAsset ? ['nullable'] : ['required'],
             'tags.sizes' => ['required'],
             'tags.warna' => ['required'],
             'tags.jahit' => $isAsset ? ['nullable'] : ['required'],
-        ], [
+        ], $this->pricingValidationRules($isAsset)), [
             'product_name.required' => 'Product name is required.',
             'tags.warna.required' => 'Please select a color (warna).',
             'tags.types.required' => 'Please select a type (SKU prefix).',
             'tags.jahit.required' => 'Please select a jahit tag.',
+            'pricing.cost.value.required_without' => 'Cost price is required for asset lancar.',
+            'pricing.cost.value.min' => 'Cost price is required for asset lancar.',
+            'cost.required_without' => 'Cost price is required for asset lancar.',
+            'cost.min' => 'Cost price is required for asset lancar.',
         ]);
 
         try {
@@ -292,7 +415,9 @@ class ItemsController extends Controller
         Gate::authorize($item->type === ItemType::ASSET_LANCAR ? $p['asset-lancar-delete'] : $p['delete']);
         $item->delete();
 
-        return redirect()->route('items.index')->with('success', 'Item deleted.');
+        $route = $item->type === ItemType::ASSET_LANCAR ? 'assetlancar.index' : 'items.index';
+
+        return redirect()->route($route)->with('success', 'Item archived (hidden from lists; historical transactions and reports are unchanged).');
     }
 
     public function jubelio(Item $item, JubelioService $s)
@@ -358,55 +483,71 @@ class ItemsController extends Controller
         ]);
     }
 
-    public function groupParentDetail(string $parentSlug)
+    public function groupParentDetail(ItemGroup $group)
     {
         Gate::authorize(ItemGroup::getPermissions()['view']);
 
-        $parentKey = $this->identityBuilder->parentKeyFromSlug($parentSlug);
-        $detail = $this->groupHierarchy->parentDetail($parentKey);
+        $detail = $this->groupHierarchy->parentDetailForAnchorGroup($group);
 
         abort_if($detail === null, 404);
 
         return view('items.group-parent-detail', [
             'detail' => $detail,
             'canEditGroup' => auth()->user()->can(ItemGroup::getPermissions()['edit']),
+            'parentPricingState' => ItemPricing::formStateForParent(
+                $detail['parent_key'],
+                Item::query()->whereIn('group_id', $detail['group_ids'])->with('group')->first(),
+            ),
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 
-    public function exportGroupParent(string $parentSlug, ItemGroupParentExportService $exportService)
+    public function redirectLegacyGroupParent(string $parentSlug)
+    {
+        $parentKey = $this->identityBuilder->parentKeyFromSlug($parentSlug);
+        $anchorGroupId = $this->groupHierarchy->anchorGroupIdForParentKey($parentKey);
+
+        abort_if($anchorGroupId === null, 404);
+
+        return redirect()->route('items.group-parent-detail', $anchorGroupId, 301);
+    }
+
+    public function exportGroupParent(ItemGroup $group, ItemGroupParentExportService $exportService)
     {
         Gate::authorize(ItemGroup::getPermissions()['view']);
 
-        $parentKey = $this->identityBuilder->parentKeyFromSlug($parentSlug);
+        $detail = $this->groupHierarchy->parentDetailForAnchorGroup($group, fetchJubelio: false);
 
-        return $exportService->download($parentKey);
+        abort_if($detail === null, 404);
+
+        return $exportService->download($detail['parent_key']);
     }
 
-    public function updateGroupParent(Request $request, string $parentSlug)
+    public function updateGroupParent(Request $request, ItemGroup $group)
     {
         Gate::authorize(ItemGroup::getPermissions()['edit']);
 
-        $request->validate([
+        $request->validate(array_merge([
             'name' => ['required', 'string', 'max:255'],
-        ], [
+        ], $this->pricingValidationRules()), [
             'name.required' => 'Product name is required.',
         ]);
 
-        $parentKey = $this->identityBuilder->parentKeyFromSlug($parentSlug);
-        $detail = $this->groupHierarchy->parentDetail($parentKey, fetchJubelio: false);
+        $detail = $this->groupHierarchy->parentDetailForAnchorGroup($group, fetchJubelio: false);
 
         abort_if($detail === null, 404);
 
         try {
             foreach ($detail['group_ids'] as $groupId) {
-                $group = ItemGroup::findOrFail($groupId);
-                $this->itemService->renameGroupProductName($group, $request->input('name'));
+                $renameGroup = ItemGroup::findOrFail($groupId);
+                $this->itemService->renameGroupProductName($renameGroup, $request->input('name'));
             }
 
+            ItemPricing::applyForParent($detail['parent_key'], $request->input('pricing', []));
+
             return redirect()
-                ->route('items.group-parent-detail', $parentSlug)
-                ->with('success', 'Product name updated for all colors in this group.');
+                ->route('items.group-parent-detail', $group->id)
+                ->with('success', 'Product name and group pricing updated.');
         } catch (\Exception $e) {
             return back()->withErrors(['message' => $e->getMessage()])->withInput();
         }
@@ -421,11 +562,155 @@ class ItemsController extends Controller
 
         abort_if($sample === null, 404);
 
-        $slug = $this->identityBuilder->parentKeyToSlug(
+        $anchorGroupId = $this->groupHierarchy->anchorGroupIdForParentKey(
             $this->identityBuilder->itemParentKey($sample)
-        );
+        ) ?? $group->id;
 
-        return redirect()->route('items.group-parent-detail', $slug);
+        return redirect()->route('items.group-parent-detail', $anchorGroupId);
+    }
+
+    public function colorwayEdit(ItemGroup $group)
+    {
+        Gate::authorize(ItemGroup::getPermissions()['edit']);
+
+        $group->load(['items.tags']);
+        $items = $group->items->sortBy(fn (Item $item) => $this->identityBuilder->itemSizeCode($item) ?? '')->values();
+        $sample = $items->first();
+
+        abort_if($sample === null, 404);
+
+        $itemType = $sample->type;
+        $productTitle = $this->identityBuilder->productDisplayName(
+            $itemType,
+            (string) $group->name,
+            (string) ($group->variant ?? ''),
+            (string) ($group->master ?? ''),
+        );
+        $usesPlaceholder = $this->itemService->isPlaceholderProductName(
+            $itemType,
+            (string) $group->name,
+            (string) $sample->pcode,
+        );
+        $color = $this->identityBuilder->itemColorInfo($sample);
+        $parentGroupId = $this->groupHierarchy->anchorGroupIdForParentKey(
+            $this->identityBuilder->itemParentKey($sample)
+        ) ?? $group->id;
+
+        $sizeRows = $items->map(function (Item $item) use ($itemType) {
+            $sizeTag = $item->tags->firstWhere('type', Tag::TYPE_SIZE);
+            $warnaTag = $item->tags->firstWhere('type', Tag::TYPE_WARNA);
+            $pricing = ItemPricing::formState($item);
+
+            return [
+                'id' => $item->id,
+                'code' => $item->code,
+                'name' => $item->name,
+                'size_code' => $sizeTag?->code ?? '—',
+                'size_name' => $sizeTag?->name ?? '—',
+                'warna_code' => $warnaTag?->code ?? '',
+                'pricing' => $pricing,
+                'effective_price' => $pricing['price']['effective'] ?? 0,
+                'effective_cost' => $pricing['cost']['effective'] ?? 0,
+                'effective_cost_cnh' => $pricing['cost_cnh']['effective'] ?? 0,
+                'restock_urgent_threshold' => old(
+                    'items.'.$item->id.'.restock_urgent_threshold',
+                    $item->restock_urgent_threshold
+                ),
+                'show_url' => $item->showUrl(),
+            ];
+        })->all();
+
+        return view('items.colorway-edit', [
+            'group' => $group,
+            'sample' => $sample,
+            'sizeRows' => $sizeRows,
+            'pricingState' => ItemPricing::formState($sample),
+            'productTitle' => $usesPlaceholder ? '' : $productTitle,
+            'usesPlaceholder' => $usesPlaceholder,
+            'color' => $color,
+            'parentGroupId' => $parentGroupId,
+            'isAsset' => $itemType === ItemType::ASSET_LANCAR,
+            'brands' => $this->brandOptions(),
+            'typeTags' => Tag::typeTagsForItem($itemType),
+            'flash' => ['success' => session('success'), 'error' => session('error')],
+        ]);
+    }
+
+    public function colorwayUpdate(Request $request, ItemGroup $group)
+    {
+        Gate::authorize(ItemGroup::getPermissions()['edit']);
+
+        $group->load(['items']);
+        $itemIds = $group->items->pluck('id')->all();
+        $sample = $group->items->first();
+        abort_if($sample === null, 404);
+
+        $isAsset = $sample->type === ItemType::ASSET_LANCAR;
+
+        $rules = array_merge([
+            'product_name' => ['nullable', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+            'description2' => ['nullable', 'string'],
+            'url' => ['nullable', 'string', 'max:255'],
+            'brand' => ['nullable', 'integer'],
+            'genre' => ['nullable', 'integer'],
+            'image' => ['nullable', 'image', 'max:5120'],
+            'items' => ['required', 'array'],
+        ], $this->pricingValidationRules($isAsset));
+
+        foreach ($itemIds as $itemId) {
+            $rules["items.{$itemId}.restock_urgent_threshold"] = ['nullable', 'integer', 'min:1'];
+            foreach (ItemPricing::FIELDS as $field) {
+                $rules["items.{$itemId}.pricing.{$field}.scope"] = ['nullable', 'in:size,colorway,group'];
+                $rules["items.{$itemId}.pricing.{$field}.value"] = ['nullable', 'numeric', 'min:0'];
+            }
+        }
+
+        if ($isAsset) {
+            $rules['product_name'] = ['required', 'string', 'max:255'];
+        }
+
+        $request->validate($rules, [
+            'product_name.required' => 'Product name is required.',
+        ]);
+
+        $itemRows = [];
+        foreach ($itemIds as $itemId) {
+            $row = $request->input("items.{$itemId}", []);
+            $itemRows[] = [
+                'id' => (int) $itemId,
+                'price' => $row['price'] ?? null,
+                'cost' => $row['cost'] ?? null,
+                'cost_cnh' => $row['cost_cnh'] ?? null,
+                'restock_urgent_threshold' => $row['restock_urgent_threshold'] ?? null,
+                'pricing' => $row['pricing'] ?? null,
+            ];
+        }
+
+        try {
+            $payload = $request->only([
+                'product_name',
+                'description',
+                'description2',
+                'url',
+                'brand',
+                'genre',
+            ]);
+            $payload['pricing'] = $request->input('pricing', []);
+
+            $this->itemService->updateColorway(
+                $group,
+                (object) $payload,
+                $itemRows,
+                $request->file('image'),
+            );
+
+            return redirect()
+                ->route('items.colorway-edit', $group)
+                ->with('success', 'Colorway updated.');
+        } catch (\Exception $e) {
+            return back()->withErrors(['message' => $e->getMessage()])->withInput();
+        }
     }
 
     public function updateGroup(Request $request, ItemGroup $group)
@@ -442,10 +727,10 @@ class ItemsController extends Controller
             $this->itemService->renameGroupProductName($group, $request->input('name'));
 
             $sample = $group->items()->with('tags')->first();
-            $redirect = $sample
-                ? route('items.group-parent-detail', $this->identityBuilder->parentKeyToSlug(
+            $redirect = $sample && (int) $group->id > 0
+                ? route('items.group-parent-detail', $this->groupHierarchy->anchorGroupIdForParentKey(
                     $this->identityBuilder->itemParentKey($sample)
-                ))
+                ) ?? $group->id)
                 : route('items.group');
 
             return redirect()
@@ -484,23 +769,109 @@ class ItemsController extends Controller
         ]);
     }
 
-    public function itemTransactions(Request $request, Item $item)
+    public function itemTransactions(Request $request, Item $item, ItemTransactionQueryService $queryService)
     {
         Gate::authorize(Item::getPermissions()['view']);
 
-        $transactions = TransactionDetail::with(['transaction.sender', 'transaction.receiver'])
-            ->where('item_id', $item->id)
-            ->visibleToUser($request->user())
-            ->whereHas('transaction')
-            ->orderBy('transaction_id', 'desc')
+        $filters = $queryService->filtersFromRequest($request);
+        $isAsset = $item->type === ItemType::ASSET_LANCAR;
+        $formAction = $isAsset
+            ? route('assetlancar.transactions', $item)
+            : route('items.transactions', $item);
+
+        $transactions = $queryService->apply(
+            TransactionDetail::with(['transaction.sender', 'transaction.receiver'])
+                ->where('item_id', $item->id)
+                ->visibleToUser($request->user())
+                ->whereHas('transaction'),
+            $request,
+        )
             ->paginate(50)
             ->withQueryString();
 
         return view('items.item-transactions', [
             'item' => $item->load('group'),
             'transactions' => $transactions,
-            'isAsset' => $item->type === ItemType::ASSET_LANCAR,
+            'isAsset' => $isAsset,
+            'filters' => $filters,
+            'formAction' => $formAction,
+            'resetUrl' => $formAction,
+            'partyLookupUrl' => route('items.party-lookup'),
+            'selectedParty' => $queryService->resolveSelectedParty($filters['party'], $request->user()),
+            'partyId' => $queryService->resolvePartyId($filters['party']),
+            'hasActiveFilters' => $queryService->hasActiveFilters($filters),
+            'transactionTypes' => Transaction::getTypes(),
         ]);
+    }
+
+    public function pcodeName(Request $request)
+    {
+        $type = ItemType::tryFrom((int) $request->query('type', ItemType::ITEM->value))
+            ?? ItemType::ITEM;
+        $permissions = Item::getPermissions();
+        $create = $type === ItemType::ASSET_LANCAR
+            ? $permissions['asset-lancar-create']
+            : $permissions['create'];
+        $edit = $type === ItemType::ASSET_LANCAR
+            ? $permissions['asset-lancar-edit']
+            : $permissions['edit'];
+
+        abort_unless(Gate::check($create) || Gate::check($edit), 403);
+
+        $pcode = strtoupper(trim((string) $request->query('pcode', '')));
+        $typeCode = strtoupper(trim((string) $request->query('type_code', '')));
+        $catalog = $this->itemService->catalogHintsForPcode(
+            $type,
+            $pcode,
+            $typeCode !== '' ? $typeCode : null,
+        );
+
+        return response()->json([
+            'pcode' => $pcode,
+            'product_name' => $catalog['product_name'] ?? null,
+            'description' => $catalog['description'] ?? '',
+            'description2' => $catalog['description2'] ?? '',
+            'url' => $catalog['url'] ?? '',
+            'reseller_price' => $catalog['reseller_price'] ?? 0,
+            'found' => $catalog !== null,
+        ]);
+    }
+
+    public function partyLookup(Request $request)
+    {
+        $permissions = Item::getPermissions();
+        abort_unless(
+            Gate::check($permissions['view']) || Gate::check($permissions['asset-lancar-view']),
+            403
+        );
+
+        $search = trim((string) $request->query('search', ''));
+        if (strlen($search) <= 2) {
+            return response()->json([]);
+        }
+
+        $pattern = LikeSearch::contains($search);
+        $results = Addrbook::query()
+            ->visibleToUser($request->user())
+            ->whereIn('customers.type', Addrbook::itemTransactionPartyTypes())
+            ->where(function ($q) use ($pattern) {
+                $q->where('customers.name', 'like', $pattern)
+                    ->orWhere('customers.id', 'like', $pattern);
+            })
+            ->leftJoin('customerstat', 'customers.id', '=', 'customerstat.customer_id')
+            ->select(
+                'customers.id',
+                'customers.name',
+                'customers.ppn',
+                'customers.type',
+                'customers.ledger_hint',
+                'customerstat.balance'
+            )
+            ->orderBy('customers.name')
+            ->limit(8)
+            ->get();
+
+        return response()->json($results);
     }
 
     public function itemStats(Request $request, Item $item)
@@ -530,6 +901,53 @@ class ItemsController extends Controller
     private function isJson(Request $r): bool
     {
         return ($r->wantsJson() || $r->has('json')) && ! $r->header('X-Inertia');
+    }
+
+    protected function duplicateCreateView(Item $item)
+    {
+        $permissions = Item::getPermissions();
+        Gate::authorize($item->type === ItemType::ASSET_LANCAR
+            ? $permissions['asset-lancar-create']
+            : $permissions['create']);
+
+        $item->load(['group', 'tags']);
+        $isAsset = $item->type === ItemType::ASSET_LANCAR;
+        $productTitle = $this->identityBuilder->productDisplayName(
+            $item->type,
+            (string) ($item->group?->name ?: $item->name),
+            (string) ($item->group?->variant ?? ''),
+            (string) ($item->group?->master ?? ''),
+        );
+
+        $legacyAssetProductName = '';
+        if ($isAsset && ! $item->group) {
+            $legacyAssetProductName = str_contains($item->name, ' - ')
+                ? trim(explode(' - ', $item->name, 2)[0])
+                : $item->name;
+        }
+
+        $formItem = [
+            'pcode' => old('pcode', $item->pcode),
+            'product_name' => old('product_name', $productTitle !== '' && strtoupper($productTitle) !== strtoupper((string) $item->pcode)
+                ? $productTitle
+                : ($legacyAssetProductName ?: '')),
+            'price' => old('price', $item->price),
+            'cost' => old('cost', $item->cost),
+            'cost_cnh' => old('cost_cnh', $item->cost_cnh),
+            'description' => old('description', $item->catalogDescription()),
+            'description2' => old('description2', $item->catalogDescription2()),
+            'url' => old('url', optional($item->group)->url),
+            'restock_urgent_threshold' => old('restock_urgent_threshold', $item->restock_urgent_threshold),
+        ];
+
+        return view('items.create', array_merge($this->formProps($item->type), [
+            'formItem' => $formItem,
+            'pricingState' => ItemPricing::formState($item),
+            'curType' => optional($item->tags->firstWhere('type', Tag::TYPE_TYPE))->id,
+            'curJahit' => optional($item->tags->firstWhere('type', Tag::TYPE_JAHIT))->id,
+            'curWarna' => optional($item->tags->firstWhere('type', Tag::TYPE_WARNA))->id,
+            'duplicateFrom' => $item,
+        ]));
     }
 
     private function formProps(ItemType $t): array
@@ -587,6 +1005,32 @@ class ItemsController extends Controller
             'delete' => $u->can($p['delete']),
             'delete_asset' => $u->can($p['asset-lancar-delete']),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function pricingValidationRules(bool $requireAssetCost = false): array
+    {
+        $rules = [];
+        foreach (ItemPricing::FIELDS as $field) {
+            $rules["pricing.{$field}.scope"] = ['nullable', 'in:size,colorway,group'];
+            $valueRules = ['nullable', 'numeric', 'min:0'];
+            if ($requireAssetCost && $field === 'cost') {
+                $valueRules = ['required_without:cost', 'nullable', 'numeric', 'min:0.01'];
+            }
+            $rules["pricing.{$field}.value"] = $valueRules;
+        }
+
+        $rules['price'] = ['nullable', 'numeric', 'min:0'];
+        $rules['cost_cnh'] = ['nullable', 'numeric', 'min:0'];
+        $rules['reseller_price'] = ['nullable', 'numeric', 'min:0'];
+        $rules['item_reseller_price'] = ['nullable', 'numeric', 'min:0'];
+        $rules['cost'] = $requireAssetCost
+            ? ['required_without:pricing.cost.value', 'nullable', 'numeric', 'min:0.01']
+            : ['nullable', 'numeric', 'min:0'];
+
+        return $rules;
     }
 
     private function fetchJubelio(Item $item, JubelioService $s): array

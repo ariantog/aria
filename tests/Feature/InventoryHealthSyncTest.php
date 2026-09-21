@@ -194,7 +194,7 @@ it('classifies snapshot rows with the cover rules', function () {
         ->assertDontSee('Fast Snapshot Sku', false);
 });
 
-it('seeds a daily inventory health sync and removes the unbounded rebuild', function () {
+it('seeds daily inventory health sync and drops legacy unbounded rebuild cron rows', function () {
     ScheduledTask::create([
         'name' => 'Legacy Inventory Health',
         'command' => 'app:recalculate-inventory-health',

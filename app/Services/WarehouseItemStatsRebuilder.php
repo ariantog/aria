@@ -179,8 +179,15 @@ class WarehouseItemStatsRebuilder
     ): Collection {
         $addrbookTable = (new Addrbook)->getTable();
 
+        $detailCounts = DB::table('transaction_details')
+            ->selectRaw('transaction_id, COUNT(*) as detail_count')
+            ->groupBy('transaction_id');
+
         return DB::table('transaction_details')
             ->join('transactions', 'transactions.id', '=', 'transaction_details.transaction_id')
+            ->joinSub($detailCounts, 'detail_counts', function ($join) {
+                $join->on('detail_counts.transaction_id', '=', 'transaction_details.transaction_id');
+            })
             // Legacy rows can hold 0 or orphaned warehouse ids; join to keep only
             // real warehouses so the FK on warehouse_item_monthly_stats holds.
             ->join($addrbookTable.' as wh', 'wh.id', '=', 'transaction_details.'.$warehouseColumn)
@@ -191,7 +198,10 @@ class WarehouseItemStatsRebuilder
                 'transaction_details.'.$warehouseColumn.' as warehouse_id,'
                 .' transaction_details.item_id,'
                 .' SUM(ABS(transaction_details.quantity)) as qty,'
-                .' SUM(transaction_details.total * (100 - COALESCE(transactions.discount, 0)) / 100) as value'
+                .' SUM('
+                .'transaction_details.total * (100 - COALESCE(transactions.discount, 0)) / 100'
+                .' + COALESCE(transactions.adjustment, 0) / NULLIF(detail_counts.detail_count, 0)'
+                .') as value'
             )
             ->groupBy('transaction_details.'.$warehouseColumn, 'transaction_details.item_id')
             ->get();

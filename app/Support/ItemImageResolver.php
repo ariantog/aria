@@ -39,7 +39,7 @@ class ItemImageResolver
 
     public function existsForId(int $id): bool
     {
-        return file_exists($this->diskPathForId($id));
+        return $this->resolveExistingDiskPathForId($id) !== null;
     }
 
     public function resolveUrlForId(int $id): ?string
@@ -120,21 +120,218 @@ class ItemImageResolver
 
     public function resolveDiskPathForItem(Item $item): string
     {
-        $url = $this->resolveUrlForItem($item);
+        $existing = $this->resolveExistingDiskPathForItem($item);
 
-        if ($url === $this->defaultImageUrl()) {
-            return $this->diskPathForId((int) (($item->group_id > 0) ? $item->group_id : $item->id));
+        if ($existing !== null) {
+            return $existing;
         }
 
-        foreach ($this->uniqueCandidateIdsForItem($item) as $id) {
-            $path = $this->diskPathForId($id);
+        return $this->diskPathForId((int) (($item->group_id > 0) ? $item->group_id : $item->id));
+    }
 
-            if (file_exists($path)) {
+    public function resolveExistingDiskPathForItem(Item $item): ?string
+    {
+        foreach ($this->uniqueCandidateIdsForItem($item) as $id) {
+            $path = $this->resolveExistingDiskPathForId($id);
+            if ($path !== null) {
                 return $path;
             }
         }
 
-        return $this->diskPathForId((int) (($item->group_id > 0) ? $item->group_id : $item->id));
+        return null;
+    }
+
+    public function resolveExistingDiskPathForId(int $id): ?string
+    {
+        if ($id <= 0) {
+            return null;
+        }
+
+        foreach ($this->diskPathCandidatesForId($id) as $path) {
+            if (is_file($path)) {
+                return $path;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Map a browser-facing image URL (relative or absolute CDN) to a readable local file.
+     */
+    public function resolveExistingDiskPathFromImageUrl(string $url): ?string
+    {
+        if ($url === '' || str_contains($url, 'default-item.svg')) {
+            return null;
+        }
+
+        $pathPart = parse_url($url, PHP_URL_PATH);
+        if (! is_string($pathPart) || $pathPart === '') {
+            $pathPart = str_starts_with($url, '/') ? $url : null;
+        }
+
+        if ($pathPart === null) {
+            return null;
+        }
+
+        if (preg_match('#/img/items/\d+/(\d+)\.(jpe?g|png|gif)$#i', $pathPart, $matches) === 1) {
+            $fromId = $this->resolveExistingDiskPathForId((int) $matches[1]);
+            if ($fromId !== null) {
+                return $fromId;
+            }
+        }
+
+        if (preg_match('#/(?:asset|img/items)/(\d{2})/(\d+)\.(jpe?g|png|gif)$#i', $pathPart, $matches) === 1) {
+            $fromId = $this->resolveExistingDiskPathForId((int) $matches[2]);
+            if ($fromId !== null) {
+                return $fromId;
+            }
+        }
+
+        foreach ($this->urlPathPrefixes() as $prefix) {
+            if (! str_starts_with($pathPart, $prefix)) {
+                continue;
+            }
+
+            $relative = substr($pathPart, strlen($prefix));
+            foreach ($this->imageStorageBases() as $base) {
+                $diskPath = rtrim($base, '/\\').DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $relative);
+                if (is_file($diskPath)) {
+                    return $diskPath;
+                }
+            }
+        }
+
+        return $this->mapConfiguredUrlToDiskPath($url);
+    }
+
+    /**
+     * @return list<string> Absolute URLs to try when downloading an image for export.
+     */
+    public function absoluteImageUrlsForFetch(string $url): array
+    {
+        if (str_starts_with($url, 'http://') || str_starts_with($url, 'https://')) {
+            return [$url];
+        }
+
+        if (str_starts_with($url, '//')) {
+            return ['https:'.$url];
+        }
+
+        $path = str_starts_with($url, '/') ? $url : '/'.ltrim($url, '/');
+        $candidates = [];
+
+        foreach ($this->configuredAbsoluteUrlOrigins() as $origin) {
+            $candidates[] = $origin.$path;
+        }
+
+        $candidates[] = rtrim((string) config('app.url'), '/').$path;
+
+        return array_values(array_unique($candidates));
+    }
+
+    public function mapConfiguredUrlToDiskPath(string $imageUrl): ?string
+    {
+        $pairs = [
+            [config('core-nation.item_image_url'), config('core-nation.item_image_path')],
+            [config('core-nation.cdn_url'), config('core-nation.cdn_path')],
+        ];
+
+        foreach ($pairs as [$urlBase, $pathBase]) {
+            if (! is_string($urlBase) || ! is_string($pathBase)) {
+                continue;
+            }
+
+            $normalizedUrl = rtrim($urlBase, '/').'/';
+            if ($normalizedUrl === '/' || ! str_starts_with($imageUrl, $normalizedUrl)) {
+                continue;
+            }
+
+            $relative = substr($imageUrl, strlen($normalizedUrl));
+            $diskPath = rtrim($pathBase, '/\\').DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $relative);
+            if (is_file($diskPath)) {
+                return $diskPath;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected function urlPathPrefixes(): array
+    {
+        $prefixes = ['/img/items/', '/asset/'];
+
+        foreach ([config('core-nation.item_image_url'), config('core-nation.cdn_url')] as $base) {
+            if (! is_string($base)) {
+                continue;
+            }
+
+            $path = parse_url($base, PHP_URL_PATH);
+            if (is_string($path) && $path !== '' && $path !== '/') {
+                $prefixes[] = rtrim($path, '/').'/';
+            }
+        }
+
+        return array_values(array_unique($prefixes));
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected function configuredAbsoluteUrlOrigins(): array
+    {
+        $origins = [];
+
+        foreach ([config('core-nation.cdn_url'), config('core-nation.item_image_url')] as $base) {
+            if (! is_string($base) || ! str_contains($base, '://')) {
+                continue;
+            }
+
+            $parsed = parse_url($base);
+            if (! isset($parsed['scheme'], $parsed['host'])) {
+                continue;
+            }
+
+            $port = isset($parsed['port']) ? ':'.$parsed['port'] : '';
+            $origins[] = $parsed['scheme'].'://'.$parsed['host'].$port;
+        }
+
+        return array_values(array_unique($origins));
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function diskPathCandidatesForId(int $id): array
+    {
+        $folder = $this->folderForId($id);
+        $filename = $this->filenameForId($id);
+        $paths = [];
+
+        foreach ($this->imageStorageBases() as $base) {
+            $paths[] = rtrim($base, '/\\').DIRECTORY_SEPARATOR.$folder.DIRECTORY_SEPARATOR.$filename;
+        }
+
+        return $paths;
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected function imageStorageBases(): array
+    {
+        $bases = [
+            config('core-nation.item_image_path'),
+            config('core-nation.cdn_path'),
+        ];
+
+        return array_values(array_unique(array_filter(array_map(
+            static fn ($base) => is_string($base) ? rtrim($base, '/\\') : null,
+            $bases,
+        ))));
     }
 
     /**

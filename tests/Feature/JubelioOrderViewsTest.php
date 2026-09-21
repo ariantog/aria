@@ -7,8 +7,50 @@ use App\Models\Jubeliosync;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\WarehouseItem;
+use App\Actions\Jubelio\ProcessJubelioOrder;
+use App\Services\Jubelio\JubelioOrderSyncStatus;
 use App\Services\JubelioService;
 use Mockery\MockInterface;
+
+it('does not call jubelio api when rendering orders index', function () {
+    $user = User::factory()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Index Tanpa API']);
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER, 'name' => 'Channel Index']);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 9011,
+        'jubelio_store_name' => 'Shopee',
+        'jubelio_location_id' => 9022,
+        'jubelio_location_name' => 'Pusat',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => $customer->id,
+        'bin_id' => 0,
+    ]);
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'index-no-api',
+        'source' => 1,
+        'invoice' => 'INV-INDEX-NO-API',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 0,
+        'jubelio_store_id' => 9011,
+        'jubelio_location_id' => 9022,
+        'warehouse_id' => $warehouse->id,
+        'status' => 0,
+    ]);
+
+    test()->mock(JubelioService::class, function (MockInterface $mock) {
+        $mock->shouldNotReceive('fetchSalesOrder');
+        $mock->shouldNotReceive('fetchSalesReturn');
+    });
+
+    $this->actingAs($user)
+        ->get(route('jubelio.index', ['invoice' => 'INV-INDEX-NO-API']))
+        ->assertSuccessful()
+        ->assertSee('Gudang Index Tanpa API')
+        ->assertSee('Shopee');
+});
 
 it('defaults jubelio orders index to pending only', function () {
     $user = User::factory()->create();
@@ -43,17 +85,16 @@ it('defaults jubelio orders index to pending only', function () {
 
 it('shows jubelio order summary without raw payload on list page', function () {
     $user = User::factory()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create();
 
-    mockJubelioSalesOrder('jb-100', [
-        'salesorder_no' => 'INV-SUMMARY-TEST',
-        'transaction_date' => '2026-05-10T10:00:00',
-        'source_name' => 'Tokopedia',
-        'location_name' => 'Gudang Pusat',
-        'real_total' => 150000,
-        'sub_total' => 150000,
-        'items' => [
-            ['item_code' => 'SKU-1', 'qty' => 2, 'price' => 75000],
-        ],
+    Jubeliosync::create([
+        'jubelio_store_id' => 1001,
+        'jubelio_store_name' => 'Tokopedia',
+        'jubelio_location_id' => 1002,
+        'jubelio_location_name' => 'Gudang Pusat',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => 0,
+        'bin_id' => 0,
     ]);
 
     Jubelioorder::create([
@@ -63,6 +104,9 @@ it('shows jubelio order summary without raw payload on list page', function () {
         'type' => 'SELL',
         'order_status' => 'SHIPPED',
         'run_count' => 0,
+        'jubelio_store_id' => 1001,
+        'jubelio_location_id' => 1002,
+        'warehouse_id' => $warehouse->id,
         'status' => 0,
     ]);
 
@@ -181,6 +225,73 @@ it('can manually process a pending jubelio sell order', function () {
         ->and($order->execute_by)->toBe($user->id);
 });
 
+it('uses qty_picked when jubelio sell payload has zero qty', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+    $item = Item::factory()->create(['code' => 'CORSET-01-BLACK-S', 'qty' => 5]);
+
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'warehouse_type' => $warehouse->type,
+        'item_id' => $item->id,
+        'quantity' => 5,
+    ]);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 11,
+        'jubelio_store_name' => 'Store',
+        'jubelio_location_id' => 4,
+        'jubelio_location_name' => 'WTC - Online',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => $customer->id,
+        'bin_id' => 0,
+    ]);
+
+    mockJubelioSalesOrder('zero-qty-1', [
+        'salesorder_no' => 'SP-ZERO-QTY-FALLBACK',
+        'store_id' => 11,
+        'location_id' => 4,
+        'sub_total' => 144000,
+        'real_total' => 111430,
+        'items' => [
+            [
+                'item_code' => 'CORSET-01-BLACK-S',
+                'qty' => '0.0000',
+                'qty_in_base' => '1.0000',
+                'qty_picked' => '1.0000',
+                'price' => '149000.0000',
+                'amount' => '144000.0000',
+            ],
+        ],
+    ]);
+
+    $order = Jubelioorder::create([
+        'jubelio_order_id' => 'zero-qty-1',
+        'source' => 1,
+        'invoice' => 'SP-ZERO-QTY-FALLBACK',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 0,
+        'status' => 0,
+    ]);
+
+    app(ProcessJubelioOrder::class)->execute($order);
+
+    $transaction = Transaction::where('invoice', 'SP-ZERO-QTY-FALLBACK')->first();
+    expect($transaction)->not->toBeNull();
+
+    $detail = $transaction->details->first();
+    expect((float) $detail->quantity)->toBe(1.0)
+        ->and((float) $transaction->total_items)->toBe(1.0);
+
+    $wi = WarehouseItem::query()
+        ->where('warehouse_id', $warehouse->id)
+        ->where('item_id', $item->id)
+        ->first();
+    expect((float) $wi->quantity)->toBe(4.0);
+    expect((float) $item->fresh()->qty)->toBe(4.0);
+});
+
 it('shows jubelio and aria warehouse names on orders list', function () {
     $user = User::factory()->create();
     $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Aria Utama']);
@@ -195,16 +306,6 @@ it('shows jubelio and aria warehouse names on orders list', function () {
         'bin_id' => 0,
     ]);
 
-    mockJubelioSalesOrder('wh-ware-1', [
-        'salesorder_no' => 'INV-WAREHOUSE-TEST',
-        'store_id' => 55,
-        'location_id' => 66,
-        'source_name' => 'Tokopedia',
-        'location_name' => 'Gudang Jubelio Pusat',
-        'real_total' => 100000,
-        'items' => [],
-    ]);
-
     Jubelioorder::create([
         'jubelio_order_id' => 'wh-ware-1',
         'source' => 1,
@@ -212,6 +313,9 @@ it('shows jubelio and aria warehouse names on orders list', function () {
         'type' => 'SELL',
         'order_status' => 'SHIPPED',
         'run_count' => 0,
+        'jubelio_store_id' => 55,
+        'jubelio_location_id' => 66,
+        'warehouse_id' => $warehouse->id,
         'status' => 0,
     ]);
 
@@ -220,7 +324,7 @@ it('shows jubelio and aria warehouse names on orders list', function () {
         ->assertSuccessful()
         ->assertSee('Gudang Jubelio Pusat')
         ->assertSee('Gudang Aria Utama')
-        ->assertSee(route('addrbook.type.show', ['type' => $warehouse->type_slug, 'addrbook' => $warehouse->id]), false);
+        ->assertSee(route('addrbook.type.transactions', ['type' => $warehouse->type_slug, 'addrbook' => $warehouse->id]), false);
 });
 
 it('filters jubelio orders by warehouse using jubelio store location keys', function () {
@@ -281,10 +385,10 @@ it('filters jubelio orders by warehouse using jubelio store location keys', func
         ->assertDontSee('INV-WH-BACKFILL-B');
 });
 
-it('shows return warehouse from original sell not return payload sync', function () {
+it('shows return warehouse from payload jubelio sync not original sell warehouse', function () {
     $user = User::factory()->create();
     $warehouseA = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Sell Asal']);
-    $warehouseB = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Return Salah']);
+    $warehouseB = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Return Sync']);
     $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
 
     Jubeliosync::create([
@@ -316,15 +420,6 @@ it('shows return warehouse from original sell not return payload sync', function
         'receiver_type' => $customer->type,
     ]);
 
-    mockJubelioSalesReturn('ret-list-1', [
-        'return_no' => 'RET-LIST-1',
-        'salesorder_no' => 'INV-RET-LIST',
-        'store_id' => 1,
-        'location_id' => 99,
-        'location_name' => 'Loc Return',
-        'items' => [],
-    ]);
-
     Jubelioorder::create([
         'jubelio_order_id' => 'ret-list-1',
         'source' => 1,
@@ -332,19 +427,200 @@ it('shows return warehouse from original sell not return payload sync', function
         'type' => 'RETURN',
         'order_status' => 'RETURN',
         'run_count' => 0,
-        'warehouse_id' => $warehouseA->id,
-        'jubelio_store_id' => 0,
-        'jubelio_location_id' => 0,
+        'warehouse_id' => $warehouseB->id,
+        'jubelio_store_id' => 1,
+        'jubelio_location_id' => 99,
         'status' => 0,
     ]);
 
-    $warehouseUrl = route('addrbook.type.show', ['type' => $warehouseA->type_slug, 'addrbook' => $warehouseA->id]);
+    $warehouseUrl = route('addrbook.type.transactions', ['type' => $warehouseB->type_slug, 'addrbook' => $warehouseB->id]);
 
     $this->actingAs($user)
         ->get(route('jubelio.index', ['invoice' => 'RET-LIST-1']))
         ->assertSuccessful()
-        ->assertSee('Gudang Sell Asal')
+        ->assertSee('Gudang Return Sync')
         ->assertSee($warehouseUrl, false);
+});
+
+it('shows return aria warehouse on list when payload omits store and location ids', function () {
+    $user = User::factory()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang - Online Sambisari']);
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER, 'name' => 'TikTok - Customer']);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 44,
+        'jubelio_store_name' => 'TikTok',
+        'jubelio_location_id' => 55,
+        'jubelio_location_name' => 'Pusat',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => $customer->id,
+        'bin_id' => 0,
+    ]);
+
+    Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'INV-RET-NO-IDS',
+        'sender_id' => $warehouse->id,
+        'sender_type' => $warehouse->type,
+        'receiver_id' => $customer->id,
+        'receiver_type' => $customer->type,
+    ]);
+
+    mockJubelioSalesReturn('ret-no-ids', [
+        'return_no' => 'SR-RET-NO-IDS',
+        'salesorder_no' => 'INV-RET-NO-IDS',
+        'location_name' => 'Pusat',
+        'items' => [],
+    ]);
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'ret-no-ids',
+        'source' => 1,
+        'invoice' => 'SR-RET-NO-IDS',
+        'type' => 'RETURN',
+        'order_status' => 'RETURN',
+        'run_count' => 0,
+        'warehouse_id' => $warehouse->id,
+        'jubelio_store_id' => 0,
+        'jubelio_location_id' => 0,
+        'status' => 2,
+        'error_type' => 10,
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('jubelio.index', ['invoice' => 'SR-RET-NO-IDS']))
+        ->assertSuccessful()
+        ->assertSee('Gudang - Online Sambisari')
+        ->assertDontSee('store/loc kosong di payload Jubelio');
+});
+
+it('maps return by jubelio sync location name even when order warehouse_id is wrong', function () {
+    $user = User::factory()->create();
+    $wrongWarehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Salah Dari Sell']);
+    $mappedWarehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang - Online Sambisari']);
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER, 'name' => 'TikTok - Customer']);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 44,
+        'jubelio_store_name' => 'TikTok',
+        'jubelio_location_id' => 55,
+        'jubelio_location_name' => 'Pusat',
+        'warehouse_id' => $mappedWarehouse->id,
+        'customer_id' => $customer->id,
+        'bin_id' => 0,
+    ]);
+
+    Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'INV-RET-WRONG-WH',
+        'sender_id' => $wrongWarehouse->id,
+        'sender_type' => $wrongWarehouse->type,
+        'receiver_id' => $customer->id,
+        'receiver_type' => $customer->type,
+    ]);
+
+    mockJubelioSalesReturn('ret-wrong-wh', [
+        'return_no' => 'SR-RET-WRONG-WH',
+        'salesorder_no' => 'INV-RET-WRONG-WH',
+        'source_name' => 'TikTok',
+        'location_name' => 'Pusat',
+        'items' => [],
+    ]);
+
+    $order = Jubelioorder::create([
+        'jubelio_order_id' => 'ret-wrong-wh',
+        'source' => 1,
+        'invoice' => 'SR-RET-WRONG-WH',
+        'type' => 'RETURN',
+        'order_status' => 'RETURN',
+        'run_count' => 0,
+        'warehouse_id' => $wrongWarehouse->id,
+        'jubelio_store_id' => 0,
+        'jubelio_location_id' => 0,
+        'status' => 2,
+        'error_type' => 10,
+    ]);
+
+    $this->actingAs($user)
+        ->post(route('jubelio.refresh-payload', $order))
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    $order->refresh();
+    expect($order->warehouse_id)->toBe($mappedWarehouse->id)
+        ->and($order->jubelio_store_id)->toBe(44)
+        ->and($order->jubelio_location_id)->toBe(55);
+
+    $this->actingAs($user)
+        ->get(route('jubelio.index', ['invoice' => 'SR-RET-WRONG-WH']))
+        ->assertSuccessful()
+        ->assertSee('Gudang - Online Sambisari')
+        ->assertDontSee('Gudang Salah Dari Sell');
+});
+
+it('treats jubelio location id -1 as valid pusat mapping from production sync rows', function () {
+    $user = User::factory()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang - Online Sambisari']);
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER, 'name' => 'TIKTOK Channel']);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 32327,
+        'jubelio_store_name' => 'TIKTOK - TIKTOK',
+        'jubelio_location_id' => -1,
+        'jubelio_location_name' => 'Pusat',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => $customer->id,
+        'bin_id' => 2,
+    ]);
+
+    Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'INV-PUSAT-MINUS-ONE',
+        'sender_id' => $warehouse->id,
+        'sender_type' => $warehouse->type,
+        'receiver_id' => $customer->id,
+        'receiver_type' => $customer->type,
+    ]);
+
+    mockJubelioSalesReturn('ret-pusat-minus-one', [
+        'return_no' => 'SR-PUSAT-MINUS-ONE',
+        'salesorder_no' => 'INV-PUSAT-MINUS-ONE',
+        'source_name' => 'TIKTOK - TIKTOK',
+        'location_name' => 'Pusat',
+        'store_id' => 32327,
+        'location_id' => -1,
+        'items' => [],
+    ]);
+
+    $order = Jubelioorder::create([
+        'jubelio_order_id' => 'ret-pusat-minus-one',
+        'source' => 1,
+        'invoice' => 'SR-PUSAT-MINUS-ONE',
+        'type' => 'RETURN',
+        'order_status' => 'RETURN',
+        'run_count' => 0,
+        'warehouse_id' => 0,
+        'jubelio_store_id' => 0,
+        'jubelio_location_id' => 0,
+        'status' => 2,
+        'error_type' => 10,
+    ]);
+
+    $this->actingAs($user)
+        ->post(route('jubelio.refresh-payload', $order))
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    $order->refresh();
+    expect($order->jubelio_store_id)->toBe(32327)
+        ->and($order->jubelio_location_id)->toBe(-1)
+        ->and($order->warehouse_id)->toBe($warehouse->id);
+
+    $this->actingAs($user)
+        ->get(route('jubelio.index', ['invoice' => 'SR-PUSAT-MINUS-ONE']))
+        ->assertSuccessful()
+        ->assertSee('Gudang - Online Sambisari')
+        ->assertDontSee('store/loc kosong di payload Jubelio');
 });
 
 it('can refresh jubelio order payload without changing updated_at or status', function () {
@@ -410,6 +686,73 @@ it('can refresh jubelio order payload without changing updated_at or status', fu
         ->and($order->stockErrorItemsList())->toHaveCount(1)
         ->and($order->stockErrorItemsList()[0]['code'])->toBe('SKU-REFRESH-ERR')
         ->and($order->stockErrorItemsList()[0]['item_id'])->toBe($item->id);
+});
+
+it('refreshes payload from index and keeps filters with visible feedback', function () {
+    $user = User::factory()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang After Refresh']);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 8801,
+        'jubelio_store_name' => 'Shopee',
+        'jubelio_location_id' => 8802,
+        'jubelio_location_name' => 'Pusat',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => 0,
+        'bin_id' => 0,
+    ]);
+
+    mockJubelioSalesOrder('index-refresh-1', [
+        'salesorder_no' => 'INV-INDEX-REFRESH',
+        'store_id' => 8801,
+        'location_id' => 8802,
+        'source_name' => 'Shopee',
+        'location_name' => 'Pusat',
+        'real_total' => 88000,
+        'sub_total' => 88000,
+        'items' => [
+            ['item_code' => 'SKU-IDX-REF', 'qty' => 2, 'price' => 44000],
+        ],
+    ]);
+
+    $order = Jubelioorder::create([
+        'jubelio_order_id' => 'index-refresh-1',
+        'source' => 1,
+        'invoice' => 'INV-INDEX-REFRESH',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 0,
+        'status' => 2,
+        'error_type' => 10,
+    ]);
+
+    $this->actingAs($user)
+        ->post(route('jubelio.refresh-payload', $order), [
+            'return_to_index' => '1',
+            'return_status' => 'success',
+            'return_warehouse_id' => $warehouse->id,
+            'return_page' => '1',
+        ])
+        ->assertRedirect(route('jubelio.index', [
+            'status' => 'success',
+            'warehouse_id' => $warehouse->id,
+            'page' => '1',
+        ]))
+        ->assertSessionHas('success')
+        ->assertSessionHas('jubelio_refreshed_order_id', $order->id);
+
+    $order->refresh();
+    expect($order->warehouse_id)->toBe($warehouse->id);
+
+    $this->actingAs($user)
+        ->get(route('jubelio.index', [
+            'status' => 'success',
+            'warehouse_id' => $warehouse->id,
+            'invoice' => 'INV-INDEX-REFRESH',
+        ]))
+        ->assertSuccessful()
+        ->assertSee('Gudang After Refresh')
+        ->assertSee('88,000');
 });
 
 it('can refresh jubelio order payload and report warehouse mapping', function () {
@@ -504,8 +847,8 @@ it('shows clickable customer warehouse and item links on order detail', function
         'status' => 0,
     ]);
 
-    $warehouseUrl = route('addrbook.type.show', ['type' => $warehouse->type_slug, 'addrbook' => $warehouse->id]);
-    $customerUrl = route('addrbook.type.show', ['type' => $customer->type_slug, 'addrbook' => $customer->id]);
+    $warehouseUrl = route('addrbook.type.transactions', ['type' => $warehouse->type_slug, 'addrbook' => $warehouse->id]);
+    $customerUrl = route('addrbook.type.transactions', ['type' => $customer->type_slug, 'addrbook' => $customer->id]);
     $itemUrl = route('items.show', $item);
 
     $this->actingAs($user)
@@ -521,9 +864,9 @@ it('shows clickable customer warehouse and item links on order detail', function
         ->assertSee('Stok Aria');
 });
 
-it('processes jubelio return into the original sell warehouse', function () {
+it('processes jubelio return into payload jubelio sync warehouse', function () {
     $warehouseA = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Asal']);
-    $warehouseB = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Lain']);
+    $warehouseB = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Retur Payload']);
     $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
     $item = Item::factory()->create(['code' => 'SKU-RET-WH']);
 
@@ -552,8 +895,8 @@ it('processes jubelio return into the original sell warehouse', function () {
         'invoice' => 'INV-SELL-ORIG',
         'sender_id' => $warehouseA->id,
         'sender_type' => $warehouseA->type,
-        'receiver_id' => $customer->id,
-        'receiver_type' => $customer->type,
+        'receiver_id' => 0,
+        'receiver_type' => Addrbook::TYPE_CUSTOMER,
     ]);
 
     mockJubelioSalesReturn('ret-wh-1', [
@@ -582,10 +925,9 @@ it('processes jubelio return into the original sell warehouse', function () {
 
     $returnTrx = Transaction::where('type', Transaction::TYPE_RETURN)->where('invoice', 'RET-WH-1')->first();
     expect($returnTrx)->not->toBeNull()
-        ->and($returnTrx->receiver_id)->toBe($warehouseA->id)
+        ->and($returnTrx->receiver_id)->toBe($warehouseB->id)
         ->and($returnTrx->sender_id)->toBe($customer->id)
-        ->and((float) $returnTrx->total)->toBe(10000.0)
-        ->and((float) $returnTrx->real_total)->toBe(10000.0);
+        ->and((float) $returnTrx->total)->toBe(10000.0);
 });
 
 it('rejects jubelio sell when mapped warehouse stock is insufficient', function () {
@@ -931,8 +1273,7 @@ it('ignores inflated jubelio sub_total when line prices already match grand tota
 
     expect($transaction)->not->toBeNull()
         ->and((float) $transaction->total)->toBe(-79000.0)
-        ->and((float) $transaction->adjustment)->toBe(0.0)
-        ->and((float) $transaction->real_total)->toBe(-79000.0);
+        ->and((float) $transaction->adjustment)->toBe(0.0);
 
     $detail = $transaction->details->first();
     expect((float) $detail->price)->toBe(79000.0)
@@ -989,7 +1330,6 @@ it('applies marketplace discount adjustment when line prices use list amounts', 
     $transaction = Transaction::where('invoice', 'SP-LIST-PRICE')->first();
 
     expect($transaction)->not->toBeNull()
-        ->and((float) $transaction->real_total)->toBe(-122590.0)
         ->and((float) $transaction->adjustment)->toBe(-79000.0)
         ->and((float) $transaction->total)->toBe(-43590.0);
 });
@@ -1044,7 +1384,6 @@ it('books seller income for marketplace orders with fee breakdown', function () 
     $transaction = Transaction::where('invoice', 'SP-SELLER-INCOME')->first();
 
     expect($transaction)->not->toBeNull()
-        ->and((float) $transaction->real_total)->toBe(-64000.0)
         ->and((float) $transaction->adjustment)->toBe(-21065.0)
         ->and((float) $transaction->total)->toBe(-42935.0);
 });
@@ -1073,4 +1412,53 @@ it('can mark duplicate jubelio order as solved', function () {
     expect($order->error_type)->toBe(10)
         ->and($order->error)->toBeNull()
         ->and($order->execute_by)->toBe($user->id);
+});
+
+it('describes sell sync failure when jubelio sales order api returns empty', function () {
+    $this->mock(JubelioService::class, function (MockInterface $mock) {
+        $mock->shouldReceive('fetchSalesOrder')
+            ->with('api-empty-1')
+            ->andReturn(null);
+    });
+
+    $order = Jubelioorder::create([
+        'jubelio_order_id' => 'api-empty-1',
+        'source' => 1,
+        'invoice' => 'INV-API-EMPTY',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 0,
+        'status' => 0,
+    ]);
+
+    $result = app(ProcessJubelioOrder::class)->execute($order);
+
+    expect($result['success'])->toBeFalse()
+        ->and($result['message'])->toBe(JubelioOrderSyncStatus::MESSAGE_SELL_API_EMPTY);
+
+    $order->refresh();
+    expect($order->error_type)->toBe(JubelioOrderSyncStatus::ERROR_PAYLOAD)
+        ->and($order->status)->toBe(1);
+});
+
+it('shows api gagal badge for sell orders with payload sync error on index', function () {
+    $user = User::factory()->create();
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'badge-api-1',
+        'source' => 1,
+        'invoice' => 'INV-BADGE-API',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 1,
+        'error_type' => JubelioOrderSyncStatus::ERROR_PAYLOAD,
+        'error' => JubelioOrderSyncStatus::MESSAGE_SELL_API_EMPTY,
+        'status' => 1,
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('jubelio.index', ['status' => 'error', 'invoice' => 'INV-BADGE-API']))
+        ->assertOk()
+        ->assertSee('API gagal', false)
+        ->assertSee('API Jubelio', false);
 });

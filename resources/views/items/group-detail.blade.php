@@ -60,7 +60,6 @@ $breadcrumbs = [
                         </p>
                     </div>
                     <div><p class="text-sm font-semibold uppercase tracking-wider text-gray-500">Master</p><p class="text-gray-700">{{ $group->master ?: '-' }}</p></div>
-                    <div><p class="text-sm font-semibold uppercase tracking-wider text-gray-500">Variant</p><p class="text-gray-700">{{ $group->variant ?: '-' }}</p></div>
                     <div class="border-t border-gray-100 pt-4 md:col-span-2"><p class="text-sm font-semibold uppercase tracking-wider text-gray-500">Description</p><p class="leading-relaxed text-gray-700">{{ $group->description ?: 'No description available for this group.' }}</p></div>
 
                     @if($canEditGroup)

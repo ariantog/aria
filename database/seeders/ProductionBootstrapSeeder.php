@@ -39,6 +39,7 @@ class ProductionBootstrapSeeder extends Seeder
         $this->syncSuperadminRolePermissions();
         $this->call(ScheduledTaskSeeder::class);
         $this->call(SettingSeeder::class);
+        $this->call(StockIntelligenceSettingSeeder::class);
         $this->call(StaffRoleChecklistSeeder::class);
     }
 

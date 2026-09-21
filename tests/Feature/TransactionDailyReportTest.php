@@ -20,7 +20,7 @@ test('creating a transaction updates daily report for sender and receiver', func
         'receiver_type' => Addrbook::TYPE_WAREHOUSE,
         'type' => Transaction::TYPE_BUY,
         'date' => now(),
-        'real_total' => 1000.00,
+        'total' => 1000.00,
         'status' => Transaction::STATUS_COMPLETED,
     ]);
 
@@ -31,7 +31,7 @@ test('creating a transaction updates daily report for sender and receiver', func
     $service = new ReflectionClass(TransactionService::class);
     $method = $service->getMethod('updateDailyReports');
     $method->setAccessible(true);
-    $method->invoke(new TransactionService, $transaction, 'sender', $transaction->real_total);
+    $method->invoke(new TransactionService, $transaction, 'sender', $transaction->total);
 
     // 3. Assertion
     $senderDaily = AddrbookDaily::where('customer_id', $sender->id)
@@ -62,6 +62,7 @@ test('subsequent transactions on the same day increment the daily total', functi
         'type' => Transaction::TYPE_BUY,
         'date' => now(),
         'real_total' => 500.00,
+        'total' => 500.00,
     ]);
     $service->handleTransaction($t1);
 
@@ -72,6 +73,7 @@ test('subsequent transactions on the same day increment the daily total', functi
         'type' => Transaction::TYPE_BUY,
         'date' => now(),
         'real_total' => 300.00,
+        'total' => 300.00,
     ]);
     $service->handleTransaction($t2);
 

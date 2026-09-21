@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Addrbook;
 use App\Models\StandaloneInvoice;
 use App\Services\InvoiceMakerSettingsService;
+use App\Services\SellCashInPresenter;
 use App\Services\StandaloneInvoiceService;
 use App\Services\StandaloneInvoiceSettlement;
 use Illuminate\Http\Request;
@@ -77,10 +78,14 @@ class StandaloneInvoicesController extends Controller
         Gate::authorize(StandaloneInvoice::getPermissions()['view']);
 
         $invoice->load(['lines', 'sender', 'user']);
+        $settlement = app(StandaloneInvoiceSettlement::class)->snapshot($invoice);
+        $sellCashInPresenter = app(SellCashInPresenter::class);
 
         return view('invoice-maker.show', [
             'invoice' => $invoice,
-            'settlement' => app(StandaloneInvoiceSettlement::class)->snapshot($invoice),
+            'settlement' => $settlement,
+            'sellCashIn' => $sellCashInPresenter->forInvoiceSettlement($settlement, auth()->user()),
+            'sellCashInTransaction' => $sellCashInPresenter->primarySell($settlement),
             'hasInvoicePdf' => $service->invoicePdfExists($invoice),
             'invoicePdfUrl' => $service->invoicePdfUrl($invoice),
             'invoicePdfDownloadUrl' => $service->invoicePdfDownloadUrl($invoice),

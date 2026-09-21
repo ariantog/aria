@@ -57,8 +57,11 @@ class ProductionColumnDefaults
         ],
         'items' => [
             'tag_ids' => '',
+            'alias' => '',
+            // Leftover mirrors of item_group — keep filling until ItemCatalog::MIRROR_ITEM_COLUMNS is false and the columns are dropped.
             'description' => '',
             'description2' => '',
+            'reseller_price' => 0,
             'variant' => '',
             'pcode' => '',
         ],
@@ -68,10 +71,14 @@ class ProductionColumnDefaults
             'description' => '',
             'alias' => '',
             'description2' => '',
+            'reseller_price' => 0,
+            'brand' => 0,
+            'genre' => 0,
         ],
         'transactions' => [
             'description' => '',
             'detail_ids' => '',
+            // Leftover NOT NULL prod column — dummy 0 only. Do not read or store amounts here.
             'real_total' => 0,
             'cogs' => 0,
             'location_id' => 0,
@@ -102,7 +109,6 @@ class ProductionColumnDefaults
         ],
         'prod_produksi' => [
             'item_id' => 0,
-            'jahit_id' => 0,
             'customer' => '',
             'potong_id' => 0,
             'warna' => '',
@@ -112,12 +118,18 @@ class ProductionColumnDefaults
             'invoice' => '',
             'detail_id' => 0,
             'surat_jalan_potong' => '',
+            'original_id' => 0,
+            'transaction_id' => 0,
         ],
         'operations' => [
             'description' => '',
         ],
         'tags' => [
             'price' => 0,
+        ],
+        'users' => [
+            // Legacy L10 column — Spatie aria_roles is authoritative; dummy 0 satisfies NOT NULL on MySQL.
+            'role_id' => 0,
         ],
     ];
 

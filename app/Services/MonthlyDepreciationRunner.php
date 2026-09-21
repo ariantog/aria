@@ -88,7 +88,6 @@ class MonthlyDepreciationRunner
                 'user_id' => $userId ?? Auth::id() ?? User::query()->orderBy('id')->value('id'),
                 'status' => Transaction::STATUS_COMPLETED,
                 'total' => $signed,
-                'real_total' => $signed,
                 'total_items' => count($lines),
                 'adjustment' => 0,
                 'discount' => 0,

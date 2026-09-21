@@ -18,4 +18,20 @@ enum ItemType: int
             self::SERVICE => 'Service',
         };
     }
+
+    /**
+     * Accept an enum instance, raw int, or numeric string from Eloquent / legacy rows.
+     */
+    public static function coerce(mixed $value): ?self
+    {
+        if ($value instanceof self) {
+            return $value;
+        }
+
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return self::tryFrom((int) $value);
+    }
 }

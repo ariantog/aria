@@ -3,6 +3,7 @@
 use App\Enums\ItemType;
 use App\Models\Addrbook;
 use App\Models\Item;
+use App\Models\RestockCell;
 use App\Models\RestockCellHistory;
 use App\Models\RestockSheet;
 use App\Models\Setting;
@@ -13,6 +14,7 @@ use App\Models\WarehouseItem;
 use App\Services\ItemService;
 use App\Services\Restock\RestockGridBuilder;
 use App\Services\Restock\RestockSheetService;
+use App\Support\ItemImageResolver;
 use Spatie\Permission\Models\Permission;
 
 beforeEach(function () {
@@ -20,7 +22,8 @@ beforeEach(function () {
     foreach (['restock-list', 'restock-create', 'restock-edit'] as $perm) {
         Permission::firstOrCreate(['name' => $perm]);
     }
-    $this->user->givePermissionTo(['restock-list', 'restock-create', 'restock-edit']);
+    Permission::firstOrCreate(['name' => 'restock-export']);
+    $this->user->givePermissionTo(['restock-list', 'restock-create', 'restock-edit', 'restock-export']);
 
     $this->typeTag = Tag::factory()->create([
         'type' => Tag::TYPE_TYPE,
@@ -83,24 +86,88 @@ test('type tabs only include asset lancar tags with item_type 2', function () {
     expect($tags->pluck('id'))->not->toContain($this->manufacturedTypeTag->id);
 });
 
-test('restock index redirects to first asset lancar type tab', function () {
+test('restock index lists sheets with pipeline totals', function () {
+    createAssetLancarSkus($this);
+
+    $otherType = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'code' => 'KNEE',
+        'name' => 'Knee Support',
+        'item_type' => ItemType::ASSET_LANCAR->value,
+    ]);
+
+    $elbowSheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $kneeSheet = RestockSheet::create([
+        'name' => 'Knee Support',
+        'type_tag_id' => $otherType->id,
+        'created_by' => $this->user->id,
+    ]);
+
+    $elbowCells = $elbowSheet->cells()->orderBy('id')->get();
+    $elbowCells[0]->update([
+        'qty_restock' => 11,
+        'qty_production' => 22,
+        'qty_shipped' => 33,
+    ]);
+    $elbowCells[1]->update([
+        'qty_restock' => 4,
+        'qty_production' => 5,
+        'qty_shipped' => 6,
+    ]);
+
+    $kneeItem = Item::factory()->create();
+    RestockCell::create([
+        'restock_sheet_id' => $kneeSheet->id,
+        'item_id' => $kneeItem->id,
+        'qty_restock' => 100,
+        'qty_production' => 200,
+        'qty_shipped' => 300,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get('/restock')
+        ->assertOk()
+        ->assertSee('data-testid="restock-sheets-table"', false)
+        ->assertSee('Elbow', false)
+        ->assertSee('Knee Support', false)
+        ->assertSee('data-qty-restock="15"', false)
+        ->assertSee('data-qty-production="27"', false)
+        ->assertSee('data-qty-shipping="39"', false)
+        ->assertSee('data-qty-restock="100"', false)
+        ->assertSee('data-qty-production="200"', false)
+        ->assertSee('data-qty-shipping="300"', false)
+        ->assertSee('data-qty-restock="115"', false)
+        ->assertSee('data-qty-production="227"', false)
+        ->assertSee('data-qty-shipping="339"', false)
+        ->assertSee('All sheets', false);
+});
+
+test('restock index shows empty state when no sheets exist', function () {
     createAssetLancarSkus($this);
 
     $this->actingAs($this->user)
         ->get('/restock')
-        ->assertRedirect(route('restock.type.show', $this->typeTag));
+        ->assertOk()
+        ->assertSee('data-testid="restock-sheets-empty"', false)
+        ->assertSee('No restock sheets yet', false)
+        ->assertDontSee('data-testid="restock-sheets-table"', false);
 });
 
 test('type landing lists parent pcodes under the type', function () {
     createAssetLancarSkus($this);
     createAssetLancarSkus($this, 'ELBOW-07', 'Elbow Support v2');
 
+    $parents = app(RestockSheetService::class)->parentsForType($this->typeTag);
+    $elbow03Url = $parents->firstWhere('pcode', 'ELBOW-03')['group_url'] ?? null;
+    expect($elbow03Url)->not->toBeNull();
+
     $this->actingAs($this->user)
         ->get(route('restock.type.show', $this->typeTag))
         ->assertOk()
         ->assertSee('ELBOW-03')
         ->assertSee('ELBOW-07')
-        ->assertSee('Start tracking Elbow');
+        ->assertSee('Start tracking Elbow')
+        ->assertSee($elbow03Url, false);
 });
 
 test('creating a sheet seeds cells for every sku under the type', function () {
@@ -159,9 +226,86 @@ test('sync skus adds cells when new variants are created', function () {
 
     $this->actingAs($this->user)
         ->post(route('restock.sheets.sync', $sheet))
-        ->assertRedirect();
+        ->assertRedirect()
+        ->assertSessionHas('success');
 
     expect($sheet->fresh()->cells)->toHaveCount(5);
+});
+
+test('sync skus removes cells when item no longer belongs to the type', function () {
+    createAssetLancarSkus($this);
+
+    $kneeType = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'code' => 'KNEE',
+        'name' => 'Knee Support',
+        'item_type' => ItemType::ASSET_LANCAR->value,
+    ]);
+
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    expect($sheet->cells)->toHaveCount(4);
+
+    $wrongItem = $sheet->cells()->with('item.tags')->first()->item;
+    $wrongItem->tags()->sync([
+        $kneeType->id,
+        $this->warnaBlue->id,
+        $this->sizeS->id,
+    ]);
+
+    $this->actingAs($this->user)
+        ->post(route('restock.sheets.sync', $sheet))
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    expect($sheet->fresh()->cells)->toHaveCount(3);
+    expect($sheet->cells()->where('item_id', $wrongItem->id)->exists())->toBeFalse();
+});
+
+test('grid merges color rows when cells have stale color_id tags', function () {
+    createAssetLancarSkus($this);
+
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $gridBuilder = app(RestockGridBuilder::class);
+
+    $legacyLavender = Tag::factory()->create([
+        'type' => Tag::TYPE_WARNA,
+        'code' => 'LAVENDER',
+        'name' => 'LAVENDER',
+    ]);
+
+    $sheet->cells()->update(['color_id' => $legacyLavender->id]);
+
+    $parent = $gridBuilder->build($sheet->fresh())['parents'][0];
+    expect(collect($parent['rows'])->where('color_name', 'BLUE'))->toHaveCount(1);
+    expect(collect($parent['rows'])->where('color_name', 'RED'))->toHaveCount(1);
+
+    $sheet->cells()->take(2)->update(['color_id' => null]);
+
+    $parent = $gridBuilder->build($sheet->fresh())['parents'][0];
+    expect(collect($parent['rows'])->where('color_name', 'BLUE'))->toHaveCount(1);
+    expect(collect($parent['rows'])->where('color_name', 'RED'))->toHaveCount(1);
+});
+
+test('sync skus refreshes stale cell color and size tags', function () {
+    createAssetLancarSkus($this);
+
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $cell = $sheet->cells()->with('item.tags')->first();
+
+    $staleColor = Tag::factory()->create([
+        'type' => Tag::TYPE_WARNA,
+        'code' => 'LAVENDER',
+        'name' => 'LAVENDER',
+    ]);
+    $cell->update(['color_id' => $staleColor->id]);
+
+    $warnaTag = $cell->item->tags->firstWhere('type', Tag::TYPE_WARNA);
+
+    $this->actingAs($this->user)
+        ->post(route('restock.sheets.sync', $sheet))
+        ->assertRedirect();
+
+    expect($cell->fresh()->color_id)->toBe($warnaTag?->id);
 });
 
 test('grid groups legacy full-sku pcodes into parent color rows and size columns', function () {
@@ -272,8 +416,11 @@ test('sheet show page includes unified tabulator block grids', function () {
         ->assertDontSee('data-parent-grid=', false)
         ->assertSee('vendor/tabulator/tabulator.min.js', false)
         ->assertSee('Save sheet', false)
+        ->assertSee('overflow-x: auto', false)
+        ->assertSee('data-testid="restock-image-preview-dialog"', false)
         ->assertSee('Export Excel', false)
-        ->assertSee('Stock', false);
+        ->assertSee('Stock', false)
+        ->assertSee('restock-data-row.tabulator-selected', false);
 });
 
 test('grid includes warehouse stock from configured warehouses', function () {
@@ -336,10 +483,211 @@ test('sheet export returns xlsx download with all parent sections', function () 
         }
     }
 
-    expect($values)->toContain('ELBOW-03');
-    expect($values)->toContain('ELBOW-07');
+    expect(collect($values)->contains(fn ($v) => str_contains((string) $v, 'ELBOW-03')))->toBeTrue();
+    expect(collect($values)->contains(fn ($v) => str_contains((string) $v, 'ELBOW-07')))->toBeTrue();
 
     @unlink($tempPath);
+});
+
+test('sheet export is forbidden without restock-export permission', function () {
+    createAssetLancarSkus($this);
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+
+    $viewer = User::factory()->create();
+    Permission::firstOrCreate(['name' => 'restock-list']);
+    $viewer->givePermissionTo('restock-list');
+
+    $this->actingAs($viewer)
+        ->get(route('restock.sheets.export', $sheet))
+        ->assertForbidden();
+});
+
+test('bulk export includes only selected sheets and pipeline stages', function () {
+    createAssetLancarSkus($this);
+
+    $kneeType = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'code' => 'KNEE',
+        'name' => 'Knee Support',
+        'item_type' => ItemType::ASSET_LANCAR->value,
+    ]);
+
+    $elbowSheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $kneeSheet = RestockSheet::create([
+        'name' => 'Knee Support',
+        'type_tag_id' => $kneeType->id,
+        'created_by' => $this->user->id,
+    ]);
+    RestockCell::create([
+        'restock_sheet_id' => $kneeSheet->id,
+        'item_id' => Item::factory()->create()->id,
+        'qty_restock' => 1,
+    ]);
+
+    $response = $this->actingAs($this->user)
+        ->post(route('restock.export'), [
+            'sheet_ids' => [$elbowSheet->id],
+            'stages' => ['restock'],
+        ]);
+
+    $response->assertOk()
+        ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+    $tempPath = tempnam(sys_get_temp_dir(), 'restock-bulk-').'.xlsx';
+    file_put_contents($tempPath, $response->streamedContent());
+
+    $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($tempPath);
+    expect($spreadsheet->getSheetCount())->toBe(1);
+
+    $values = [];
+    foreach ($spreadsheet->getActiveSheet()->getRowIterator() as $row) {
+        foreach ($row->getCellIterator() as $cell) {
+            $value = $cell->getValue();
+            if ($value !== null && $value !== '') {
+                $values[] = (string) $value;
+            }
+        }
+    }
+
+    expect(collect($values)->contains(fn ($v) => str_contains((string) $v, 'Restock')))->toBeTrue();
+    expect(collect($values)->contains(fn ($v) => str_contains((string) $v, 'Production')))->toBeFalse();
+    expect(collect($values)->contains(fn ($v) => str_contains((string) $v, 'Cost (IDR)')))->toBeTrue();
+
+    @unlink($tempPath);
+});
+
+test('export uses configured cost_cnh column from restock settings', function () {
+    createAssetLancarSkus($this);
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $cell = $sheet->cells()->first();
+    $cell->item->update(['cost' => 100, 'cost_cnh' => 12.5]);
+
+    Setting::updateOrCreate(['slug' => 'restock.export_cost_field'], [
+        'group' => 'Restock',
+        'name' => 'Export Cost Column',
+        'value' => 'cost_cnh',
+    ]);
+
+    $response = $this->actingAs($this->user)
+        ->get(route('restock.sheets.export', $sheet));
+
+    $tempPath = tempnam(sys_get_temp_dir(), 'restock-cost-').'.xlsx';
+    file_put_contents($tempPath, $response->streamedContent());
+    $worksheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($tempPath)->getActiveSheet();
+
+    $flatValues = [];
+    foreach ($worksheet->getRowIterator() as $row) {
+        foreach ($row->getCellIterator() as $cell) {
+            $value = $cell->getValue();
+            if ($value !== null && $value !== '') {
+                $flatValues[] = $value;
+            }
+        }
+    }
+
+    expect(collect($flatValues)->contains(fn ($v) => str_contains((string) $v, 'Cost (CNY)')))->toBeTrue();
+    expect(collect($flatValues)->contains(fn ($v) => (float) $v === 12.5))->toBeTrue();
+
+    @unlink($tempPath);
+});
+
+test('export embeds a thumbnail when the product image file exists on disk', function () {
+    createAssetLancarSkus($this);
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $cell = $sheet->cells()->with('item')->first();
+    $groupId = (int) $cell->item->group_id;
+
+    $imagePath = app(ItemImageResolver::class)->diskPathForId($groupId);
+    $directory = dirname($imagePath);
+    if (! is_dir($directory)) {
+        mkdir($directory, 0777, true);
+    }
+
+    $image = imagecreatetruecolor(48, 48);
+    imagejpeg($image, $imagePath, 90);
+    imagedestroy($image);
+
+    $grid = app(RestockGridBuilder::class)->build($sheet->fresh());
+    $section = collect($grid['blocks'][0]['rows'])->firstWhere('_type', 'section');
+    expect($section['image_disk_path'] ?? null)->toBe($imagePath);
+
+    $response = $this->actingAs($this->user)
+        ->get(route('restock.sheets.export', $sheet));
+
+    $tempPath = tempnam(sys_get_temp_dir(), 'restock-image-').'.xlsx';
+    file_put_contents($tempPath, $response->streamedContent());
+
+    $zip = new ZipArchive;
+    expect($zip->open($tempPath))->toBeTrue();
+
+    $hasMedia = false;
+    for ($index = 0; $index < $zip->numFiles; $index++) {
+        $name = $zip->getNameIndex($index);
+        if (is_string($name) && str_starts_with($name, 'xl/media/')) {
+            $hasMedia = true;
+            break;
+        }
+    }
+    $zip->close();
+
+    expect($hasMedia)->toBeTrue();
+
+    @unlink($tempPath);
+    @unlink($imagePath);
+});
+
+test('restock index shows bulk export panel when user can export', function () {
+    createAssetLancarSkus($this);
+    app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+
+    $this->actingAs($this->user)
+        ->get('/restock')
+        ->assertOk()
+        ->assertSee('data-testid="restock-bulk-export-panel"', false);
+});
+
+test('grid includes group parent anchor url for color rows', function () {
+    createAssetLancarSkus($this);
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+
+    $grid = app(RestockGridBuilder::class)->build($sheet);
+    $blueRow = collect($grid['parents'][0]['rows'])->firstWhere('color_name', 'BLUE');
+
+    expect($blueRow)->not->toBeNull();
+    expect($blueRow['color_url'])->toContain('/items-group/parent/');
+    expect($blueRow['color_url'])->toContain('#color-blue');
+});
+
+test('grid color url uses restock cell color when sku has no parseable color segment', function () {
+    $group = \App\Models\ItemGroup::factory()->create([
+        'master' => 'WEIGHTBRACELET-01',
+        'variant' => 'PINK',
+        'name' => 'ADJUSTABLE WRIST BRACELET',
+    ]);
+
+    $pinkTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'PINK', 'name' => 'PINK']);
+
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'type' => ItemType::ASSET_LANCAR,
+        'pcode' => 'WEIGHTBRACELET-01-PINK',
+        'code' => 'WEIGHTBRACELET-01-PINK',
+        'name' => 'ADJUSTABLE WRIST BRACELET - PINK',
+    ]);
+    $item->tags()->attach([$this->typeTag->id]);
+
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $cell = $sheet->cells()->where('item_id', $item->id)->firstOrFail();
+    $cell->update(['color_id' => $pinkTag->id]);
+
+    $sheet->load(['cells.color', 'cells.size', 'cells.item.group', 'cells.item.tags', 'cells.item.warehouseItems']);
+    $grid = app(RestockGridBuilder::class)->build($sheet);
+
+    $pinkRow = collect($grid['parents'][0]['rows'])->firstWhere('color_name', 'PINK');
+
+    expect($pinkRow)->not->toBeNull();
+    expect($pinkRow['color_url'])->toContain('/items-group/parent/');
+    expect($pinkRow['color_url'])->toContain('#color-pink');
 });
 
 test('grid includes parent image url', function () {
@@ -349,6 +697,7 @@ test('grid includes parent image url', function () {
     $grid = app(RestockGridBuilder::class)->build($sheet);
 
     expect($grid['parents'][0]['image_url'])->toBeString()->not->toBeEmpty();
+    expect($grid['parents'][0]['group_url'])->toContain('/items-group/parent/');
 });
 
 test('grid resolves parent from code when pcode stores the full sku', function () {

@@ -2,6 +2,7 @@
 
 use App\Models\Addrbook;
 use App\Models\ReportingEntity;
+use App\Models\ReportingMonthlyTaxSummary;
 use App\Models\TaxFakturImport;
 use App\Models\Transaction;
 use App\Models\User;
@@ -28,6 +29,7 @@ beforeEach(function () {
         'database/migrations/2026_08_25_100200_add_variance_transaction_id_to_tax_faktur_imports_table.php',
         'database/migrations/2026_08_27_100000_add_sell_transaction_id_to_tax_faktur_imports_table.php',
         'database/migrations/2026_08_31_120000_install_tax_faktur_import_sells_table.php',
+        'database/migrations/2026_09_02_180000_add_down_payment_total_to_tax_faktur_imports_table.php',
     ] as $path) {
         Artisan::call('migrate', ['--path' => $path, '--force' => true]);
     }
@@ -75,7 +77,6 @@ function seedFakturLinkScenario(): array
         'receiver_id' => $customer->id,
         'invoice' => 'INV-A',
         'total' => Transaction::signedAmount(Transaction::TYPE_SELL, 10_000_000),
-        'real_total' => Transaction::signedAmount(Transaction::TYPE_SELL, 11_100_000),
         'ppn' => 1_100_000,
         'status' => Transaction::STATUS_COMPLETED,
         'user_id' => $cashIn->user_id,
@@ -91,7 +92,6 @@ function seedFakturLinkScenario(): array
         'receiver_id' => $customer->id,
         'invoice' => 'INV-B',
         'total' => Transaction::signedAmount(Transaction::TYPE_SELL, 9_452_728),
-        'real_total' => Transaction::signedAmount(Transaction::TYPE_SELL, 10_687_055),
         'ppn' => 1_234_327,
         'status' => Transaction::STATUS_COMPLETED,
         'user_id' => $cashIn->user_id,
@@ -184,6 +184,36 @@ it('rejects a sell already linked to another faktur', function () {
 
     app(LinkFakturSells::class)->attach($second, [$data['sellA']->id]);
 })->throws(InvalidArgumentException::class, 'already linked to another faktur');
+
+it('does not add remaining faktur dpp to ppn ringkasan after a partial sell link', function () {
+    $data = seedFakturLinkScenario();
+    $this->actingAs($this->user);
+
+    ReportingMonthlyTaxSummary::create([
+        'year' => 2026,
+        'month' => 7,
+        'reporting_entity_id' => $data['entity']->id,
+        'ppn_keluaran_dpp' => 10_000_000,
+        'ppn_keluaran_tax' => 1_100_000,
+    ]);
+
+    $import = app(TaxFakturImportService::class)->storeFromParsed($data['parsed'], [
+        'direction' => TaxFakturImport::DIRECTION_KELUARAN,
+        'reporting_entity_id' => $data['entity']->id,
+        'counterparty_id' => $data['customer']->id,
+    ]);
+
+    expect(app(TaxReportService::class)->ringkasan(2026, 7, $data['entity']->id)['keluaran_dpp'])
+        ->toBe(29_452_728.0);
+
+    app(LinkFakturSells::class)->attach($import, [$data['sellA']->id]);
+
+    $ringkasan = app(TaxReportService::class)->ringkasan(2026, 7, $data['entity']->id);
+
+    expect($import->fresh(['sellTransactions'])->remainingSellDpp())->toBe(9_452_728.0)
+        ->and($ringkasan['keluaran_dpp'])->toBe(10_000_000.0)
+        ->and($ringkasan['keluaran_tax'])->toBe(1_100_000.0);
+});
 
 it('excludes linked faktur from keluaran drill-down', function () {
     $data = seedFakturLinkScenario();

@@ -18,7 +18,7 @@
     $status = $statuses[$transaction->status] ?? ['label' => 'Unknown', 'color' => 'bg-gray-100 text-gray-800'];
 
     $fmt = fn ($n) => format_amount($n);
-    $grandTotalFormatted = $fmt($transaction->total);
+    $grandTotalFormatted = $fmt($transaction->displaySignedGrandTotal());
     $grandTotalHeroClass = \App\Support\AmountFormatter::displayTextClass($grandTotalFormatted, 'hero');
     $grandTotalCompactClass = \App\Support\AmountFormatter::displayTextClass($grandTotalFormatted, 'compact');
     $fmtDate = fn ($d) => $d ? \Illuminate\Support\Carbon::parse($d)->format('d/m/Y') : '-';
@@ -61,7 +61,7 @@
     <div class="flex items-center gap-4 rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
         <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
         <div>
-            <p class="text-sm font-bold">This transaction was deleted on {{ $fmtDateTime($transaction->deleted_at) }}</p>
+            <p class="text-sm font-bold">This transaction was deleted on {{ $fmtDateTime($transaction->archivedAt()) }}</p>
             <p class="text-xs opacity-80">Stock and balance impacts were reversed when it was removed from the active list.</p>
         </div>
     </div>
@@ -194,9 +194,9 @@
                             @endif
                             <div class="flex flex-wrap gap-2 pt-1">
                                 @if($itemUrl)
-                                    <a href="{{ $itemUrl }}" class="font-mono text-[10px] font-medium text-blue-600 hover:underline" x-show="showBarcode">#{{ $item->id }}</a>
+                                    <a href="{{ $itemUrl }}" class="font-mono text-[10px] font-medium text-blue-600 hover:underline" x-show="showBarcode">{{ $item->id }}</a>
                                 @else
-                                    <span class="font-mono text-[10px] font-medium text-blue-600" x-show="showBarcode">#{{ $item?->id }}</span>
+                                    <span class="font-mono text-[10px] font-medium text-blue-600" x-show="showBarcode">{{ $item?->id }}</span>
                                 @endif
                                 @if($item?->code)
                                     @if($itemUrl)
@@ -251,7 +251,7 @@
                         @else
                             <span class="font-bold text-zinc-900">{{ $item?->name }}</span>
                         @endif
-                        <span class="mt-0.5 line-clamp-1 text-[10px] leading-tight italic text-gray-500">{{ $detail->notes ?: $item?->description }}</span>
+                        <span class="mt-0.5 line-clamp-1 text-[10px] leading-tight italic text-gray-500">{{ $detail->notes ?: $item?->catalogDescription() }}</span>
                     </div>
 
                     <div class="flex items-center justify-between sm:col-span-1 sm:block sm:text-center print:block print:text-center">
@@ -316,24 +316,34 @@
                 </div>
                 <div class="flex items-center justify-between text-sm">
                     <span class="text-gray-500">Invoice Discount ({{ $transaction->discount ?? 0 }}%)</span>
-                    <span class="font-bold text-red-600">-{{ $fmt($transaction->discount) }}</span>
+                    @php $signedDiscount = $transaction->displaySignedInvoiceDiscount(); @endphp
+                    <span data-testid="tx-invoice-discount-amount" class="font-bold {{ $signedDiscount < 0 ? 'text-red-600' : 'text-green-600' }}">{{ $signedDiscount > 0 ? '+' : '' }}{{ $fmt($signedDiscount) }}</span>
                 </div>
                 <hr class="border-dashed">
                 <div class="flex items-center justify-between text-sm">
                     <span class="text-gray-500 italic underline decoration-dotted">Adjustment</span>
-                    <span class="font-bold {{ $transaction->adjustment < 0 ? 'text-red-500' : 'text-green-500' }}">{{ $transaction->adjustment > 0 ? '+' : '' }}{{ $fmt($transaction->adjustment) }}</span>
+                    @php $signedAdjustment = $transaction->displaySignedAdjustment(); @endphp
+                    <span data-testid="tx-adjustment-amount" class="font-bold {{ $signedAdjustment < 0 ? 'text-red-500' : 'text-green-500' }}">{{ $signedAdjustment > 0 ? '+' : '' }}{{ $fmt($signedAdjustment) }}</span>
                 </div>
                 <div class="flex items-center justify-between text-sm">
                     <span class="text-gray-500">Tax / VAT</span>
-                    <span class="font-bold">{{ $fmt($transaction->ppn) }}</span>
+                    <span class="font-bold">{{ $fmt($transaction->displaySignedPpn()) }}</span>
                 </div>
+                @if($transaction->hasLegacyTotalMismatch())
+                    <p class="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900" data-testid="legacy-total-mismatch">
+                        Stored total ({{ $fmt($transaction->displaySignedGrandTotal()) }}) does not match
+                        lines − discount + adjustment{{ $transaction->storedPpnIsIncludedInPayable() ? '' : ' + PPN' }}
+                        ({{ $fmt($transaction->displayReconstructedSignedTotal()) }}).
+                        This is leftover from an older write.
+                    </p>
+                @endif
                 <div class="pt-2">
                     <div class="flex items-center justify-between gap-3 rounded-lg bg-zinc-800 p-4 text-white shadow-lg">
                         <div class="flex min-w-0 flex-shrink-0 flex-col">
                             <span class="text-[10px] font-black tracking-widest text-zinc-300 uppercase">Grand Total</span>
                             <span class="text-xs font-medium italic text-zinc-400">Net Amount</span>
                         </div>
-                        <span class="min-w-0 break-all text-right tabular-nums {{ $grandTotalCompactClass }}">IDR {{ $grandTotalFormatted }}</span>
+                        <span data-testid="tx-grand-total" class="min-w-0 break-all text-right tabular-nums {{ $grandTotalCompactClass }}">IDR {{ $grandTotalFormatted }}</span>
                     </div>
                 </div>
             </div>

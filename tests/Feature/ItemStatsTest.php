@@ -143,6 +143,19 @@ it('shows an empty state when the item has no sell or return lines', function ()
         ->assertSee('No statistical data available for this period.', false);
 });
 
+it('applies header adjustment equally across lines in monthly totals', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->customer()->create();
+    $item = Item::factory()->create();
+
+    $transaction = seedItemStatLine($item, $warehouse, $customer, Transaction::TYPE_SELL, now()->toDateString(), 2, 20_000, 0);
+    $transaction->update(['adjustment' => -4_000]);
+
+    $stats = app(ItemStatsService::class)->monthlyBreakdown($item->id, 90);
+
+    expect($stats['totals']['sold_value'])->toBe(16_000.0);
+});
+
 it('calculates monthly totals after invoice header discount', function () {
     $warehouse = Addrbook::factory()->warehouse()->create();
     $customer = Addrbook::factory()->customer()->create();

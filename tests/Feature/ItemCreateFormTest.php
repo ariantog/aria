@@ -157,5 +157,98 @@ it('renders asset lancar create page', function () {
         ->get(route('assetlancar.create'))
         ->assertOk()
         ->assertSee('Create New Asset', false)
-        ->assertSee('Product Name', false);
+        ->assertSee('Product Name', false)
+        ->assertSee('data-testid="item-form-pcode"', false)
+        ->assertSee('group name - color - size', false)
+        ->assertSee('data-testid="item-form-shared-attributes"', false);
+});
+
+it('renders item summary preview below tag selection on create forms', function () {
+    foreach ([route('items.create'), route('assetlancar.create')] as $url) {
+        $html = $this->actingAs($this->user)
+            ->get($url)
+            ->assertOk()
+            ->assertSee('data-testid="item-form-preview"', false)
+            ->assertSee('data-testid="item-form-sku-override"', false)
+            ->assertSee('sku_overrides', false)
+            ->content();
+
+        $attributesPos = strpos($html, 'data-testid="item-form-shared-tags"');
+        $previewPos = strpos($html, 'data-testid="item-form-preview"');
+
+        expect($attributesPos)->not->toBeFalse()
+            ->and($previewPos)->not->toBeFalse()
+            ->and($previewPos)->toBeGreaterThan($attributesPos);
+    }
+});
+
+it('returns the product title for an existing pcode', function () {
+    $group = \App\Models\ItemGroup::factory()->create([
+        'master' => 'ELBOWSUPPORT-02',
+        'variant' => 'BLACKWHITE',
+        'name' => 'ELBOW STRAP - BLACKWHITE (ELBOWSUPPORT-02)',
+        'description' => 'Shared elbow strap copy',
+        'description2' => 'sale 25000 reseller 15000',
+        'url' => 'https://example.com/elbow',
+        'reseller_price' => 15000,
+    ]);
+    \App\Models\Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => $group->id,
+        'pcode' => 'ELBOWSUPPORT-02',
+        'code' => 'ELBOWSUPPORT-02-BLACKWHITE',
+        'name' => 'ELBOW STRAP - BLACKWHITE',
+    ]);
+
+    $this->actingAs($this->user)
+        ->getJson(route('items.pcode-name', [
+            'pcode' => 'ELBOWSUPPORT-02',
+            'type' => ItemType::ASSET_LANCAR->value,
+        ]))
+        ->assertOk()
+        ->assertJson([
+            'found' => true,
+            'product_name' => 'ELBOW STRAP',
+            'description' => 'Shared elbow strap copy',
+            'description2' => 'sale 25000 reseller 15000',
+            'url' => 'https://example.com/elbow',
+            'reseller_price' => 15000,
+        ]);
+});
+
+it('returns a manufactured parent title for a new colorway pcode', function () {
+    $typeTag = \App\Models\Tag::factory()->create([
+        'type' => \App\Models\Tag::TYPE_TYPE,
+        'item_type' => ItemType::ITEM->value,
+        'code' => 'AJD',
+        'name' => 'Jacket',
+    ]);
+    $sizeTag = \App\Models\Tag::factory()->create(['type' => \App\Models\Tag::TYPE_SIZE, 'code' => 'S', 'name' => 'Small']);
+    $warnaTag = \App\Models\Tag::factory()->create(['type' => \App\Models\Tag::TYPE_WARNA, 'code' => 'BLUE', 'name' => 'BLUE']);
+
+    $group = \App\Models\ItemGroup::factory()->create([
+        'master' => 'CX00122-03',
+        'variant' => '03',
+        'name' => 'RUNNING SHIRT',
+    ]);
+    $existing = \App\Models\Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => $group->id,
+        'pcode' => 'CX00122-03',
+        'code' => 'AJD-CX00122-03-S',
+        'name' => 'RUNNING SHIRT - BLUE - S',
+    ]);
+    $existing->tags()->sync([$typeTag->id, $sizeTag->id, $warnaTag->id]);
+
+    $this->actingAs($this->user)
+        ->getJson(route('items.pcode-name', [
+            'pcode' => 'CX00122-35',
+            'type' => ItemType::ITEM->value,
+            'type_code' => 'AJD',
+        ]))
+        ->assertOk()
+        ->assertJson([
+            'found' => true,
+            'product_name' => 'RUNNING SHIRT',
+        ]);
 });

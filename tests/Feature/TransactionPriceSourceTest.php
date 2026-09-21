@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Addrbook;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -20,9 +21,20 @@ class TransactionPriceSourceTest extends TestCase
         $response->assertViewIs('transactions.create');
         $this->assertSame('cost', $response->viewData('config')['price_source']);
 
-        // The item picker must initialize line prices from the configured source
         $response->assertSee('const _PriceSource = "cost"', false);
-        $response->assertSee('[_PriceSource]', false);
+        $response->assertSee('resolveRowPrice', false);
+    }
+
+    public function test_sell_transaction_exposes_reseller_price_helpers()
+    {
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
+        $response = $this->get(route('transactions.create', ['type' => 'sell']));
+        $response->assertOk();
+        $response->assertSee('const _AddrbookTypeReseller = '.Addrbook::TYPE_RESELLER, false);
+        $response->assertSee('isResellerSale()', false);
+        $response->assertSee('reseller_sell_price', false);
     }
 
     public function test_sell_transaction_has_price_price_source()
@@ -35,6 +47,28 @@ class TransactionPriceSourceTest extends TestCase
         $response->assertViewIs('transactions.create');
         $this->assertSame('price', $response->viewData('config')['price_source']);
         $response->assertSee('const _PriceSource = "price"', false);
-        $response->assertSee('[_PriceSource]', false);
+        $response->assertSee('resolveRowPrice', false);
+    }
+
+    public function test_return_transaction_uses_item_price_column()
+    {
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
+        $response = $this->get(route('transactions.create', ['type' => 'return']));
+        $response->assertOk();
+        $this->assertSame('price', $response->viewData('config')['price_source']);
+        $response->assertSee('const _PriceSource = "price"', false);
+    }
+
+    public function test_return_supplier_transaction_uses_item_cost_column()
+    {
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
+        $response = $this->get(route('transactions.create', ['type' => 'return-supplier']));
+        $response->assertOk();
+        $this->assertSame('cost', $response->viewData('config')['price_source']);
+        $response->assertSee('const _PriceSource = "cost"', false);
     }
 }

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Addrbook;
 use App\Models\DataRetentionRun;
 use Illuminate\Database\Connection;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -630,6 +631,166 @@ class DataRetentionService
         return $purged;
     }
 
+    /**
+     * @return array{id: int, name: string, type: int, type_label: string, has_transactions: bool, deletable: bool}|null
+     */
+    public function previewAddrbookPurge(int $id): ?array
+    {
+        $row = $this->live()->table('customers')->where('id', $id)->first();
+
+        if ($row === null) {
+            return null;
+        }
+
+        $hasTransactions = $this->addrbookAppearsInTransactions($id);
+
+        return [
+            'id' => (int) $row->id,
+            'name' => (string) $row->name,
+            'type' => (int) $row->type,
+            'type_label' => Addrbook::typeLabel((int) $row->type),
+            'has_transactions' => $hasTransactions,
+            'deletable' => ! $hasTransactions,
+        ];
+    }
+
+    public function addrbookAppearsInTransactions(int $id): bool
+    {
+        if (! Schema::hasTable('transactions')) {
+            return false;
+        }
+
+        return $this->live()->table('transactions')
+            ->where('sender_id', $id)
+            ->orWhere('receiver_id', $id)
+            ->exists();
+    }
+
+    public function deleteAddrbookFromLive(int $id): void
+    {
+        if ($this->addrbookAppearsInTransactions($id)) {
+            throw new \InvalidArgumentException('This addrbook appears in the transactions table and cannot be deleted.');
+        }
+
+        if (! $this->live()->table('customers')->where('id', $id)->exists()) {
+            throw new \InvalidArgumentException('Addrbook not found.');
+        }
+
+        DB::transaction(fn () => $this->hardDeleteAddrbook($id));
+    }
+
+    public function countDeletableAddrbooks(int $type): int
+    {
+        return (int) $this->deletableAddrbooksQuery($type)->count('customers.id');
+    }
+
+    /**
+     * @return LengthAwarePaginator<int, array{id: int, name: string, type: int, type_label: string, member_id: ?string, deleted_at: ?string}>
+     */
+    public function paginateDeletableAddrbooks(int $type, int $perPage = 50): LengthAwarePaginator
+    {
+        return $this->deletableAddrbooksQuery($type)
+            ->select([
+                'customers.id',
+                'customers.name',
+                'customers.type',
+                'customers.memberId',
+                'customers.deleted_at',
+            ])
+            ->orderBy('customers.name')
+            ->orderBy('customers.id')
+            ->paginate($perPage)
+            ->withQueryString()
+            ->through(function ($row) {
+                return [
+                    'id' => (int) $row->id,
+                    'name' => (string) $row->name,
+                    'type' => (int) $row->type,
+                    'type_label' => Addrbook::typeLabel((int) $row->type),
+                    'member_id' => $row->memberId !== null ? (string) $row->memberId : null,
+                    'deleted_at' => $row->deleted_at
+                        ? Carbon::parse($row->deleted_at)->toDateString()
+                        : null,
+                ];
+            });
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function deletableAddrbookIdsOnPage(int $type, int $page, int $perPage = 50): array
+    {
+        if ($page < 1) {
+            return [];
+        }
+
+        return $this->deletableAddrbooksQuery($type)
+            ->orderBy('customers.name')
+            ->orderBy('customers.id')
+            ->forPage($page, $perPage)
+            ->pluck('customers.id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
+    /**
+     * Delete only unchecked rows on one paginated page. Page membership is resolved
+     * server-side; client-submitted ids cannot purge rows from other pages.
+     *
+     * @param  list<int>  $keepIds
+     */
+    public function purgeDeletableAddrbooksOnPage(
+        int $type,
+        int $page,
+        array $keepIds = [],
+        int $perPage = 50,
+    ): int {
+        $allowedPageIds = $this->deletableAddrbookIdsOnPage($type, $page, $perPage);
+        $keepIds = array_values(array_intersect(
+            array_values(array_unique(array_map('intval', $keepIds))),
+            $allowedPageIds,
+        ));
+        $purgeIds = array_values(array_diff($allowedPageIds, $keepIds));
+
+        if ($purgeIds === []) {
+            return 0;
+        }
+
+        return $this->purgeDeletableAddrbooksByIds($type, $purgeIds);
+    }
+
+    /**
+     * @param  list<int>  $ids
+     */
+    public function purgeDeletableAddrbooksByIds(int $type, array $ids): int
+    {
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+
+        if ($ids === []) {
+            return 0;
+        }
+
+        $eligibleIds = $this->deletableAddrbooksQuery($type)
+            ->whereIn('customers.id', $ids)
+            ->orderBy('customers.id')
+            ->pluck('customers.id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        if (count($eligibleIds) !== count($ids)) {
+            throw new \InvalidArgumentException('One or more selected addrbooks are not eligible for deletion.');
+        }
+
+        $purged = 0;
+
+        foreach ($eligibleIds as $id) {
+            DB::transaction(fn () => $this->hardDeleteAddrbook($id));
+            $purged++;
+        }
+
+        return $purged;
+    }
+
     public function confirmTokenForAddrbookType(int $type): string
     {
         return match ($type) {
@@ -1085,6 +1246,26 @@ class DataRetentionService
         return $query;
     }
 
+    protected function deletableAddrbooksQuery(int $type): \Illuminate\Database\Query\Builder
+    {
+        $query = $this->live()->table('customers')
+            ->where('customers.type', $type);
+
+        if (Schema::hasTable('transactions')) {
+            $query->whereNotIn('customers.id', $this->transactionPartyIdsSubquery());
+        }
+
+        return $query;
+    }
+
+    protected function transactionPartyIdsSubquery(): \Illuminate\Database\Query\Builder
+    {
+        $senderIds = $this->live()->table('transactions')->select('sender_id');
+        $receiverIds = $this->live()->table('transactions')->select('receiver_id');
+
+        return $senderIds->union($receiverIds);
+    }
+
     /**
      * @param  list<int|string>  $ids
      * @return list<int>
@@ -1113,38 +1294,112 @@ class DataRetentionService
 
     protected function hardDeleteAddrbook(int $id): void
     {
-        if (Schema::hasTable('customerstat')) {
-            DB::table('customerstat')->where('customer_id', $id)->delete();
-        }
+        $this->deleteWarehouseArrangementCandidateSourcesForDestination($id);
 
-        if (Schema::hasTable('customer_class')) {
-            DB::table('customer_class')->where('customer_id', $id)->delete();
-        }
-
-        if (Schema::hasTable('monthly_account_summaries')) {
-            DB::table('monthly_account_summaries')->where('customer_id', $id)->delete();
-        }
-
-        if (Schema::hasTable('location_customer')) {
-            DB::table('location_customer')->where('customer_id', $id)->delete();
-        }
-
-        foreach (['reporting_channel_banks', 'reporting_warehouse_fulfillment', 'reporting_ledger_roles', 'reporting_balance_snapshots'] as $table) {
-            if (Schema::hasTable($table)) {
-                DB::table($table)->where('customer_id', $id)->delete();
+        foreach ($this->addrbookReferenceDeletes() as $delete) {
+            if (! Schema::hasTable($delete['table'])) {
+                continue;
             }
-        }
 
-        if (Schema::hasTable('ledger_merge_maps')) {
-            DB::table('ledger_merge_maps')
-                ->where(function ($query) use ($id) {
-                    $query->where('old_customer_id', $id)
-                        ->orWhere('new_customer_id', $id);
-                })
-                ->delete();
+            if (($delete['action'] ?? 'delete') === 'null') {
+                foreach ($delete['columns'] as $column) {
+                    if (! Schema::hasColumn($delete['table'], $column)) {
+                        continue;
+                    }
+
+                    DB::table($delete['table'])->where($column, $id)->update([$column => null]);
+                }
+
+                continue;
+            }
+
+            $columns = array_values(array_filter(
+                $delete['columns'],
+                fn (string $column) => Schema::hasColumn($delete['table'], $column),
+            ));
+
+            if ($columns === []) {
+                continue;
+            }
+
+            $query = DB::table($delete['table']);
+
+            $query->where(function ($builder) use ($columns, $id) {
+                foreach ($columns as $index => $column) {
+                    if ($index === 0) {
+                        $builder->where($column, $id);
+                    } else {
+                        $builder->orWhere($column, $id);
+                    }
+                }
+            });
+
+            $query->delete();
         }
 
         DB::table('customers')->where('id', $id)->delete();
+    }
+
+    protected function deleteWarehouseArrangementCandidateSourcesForDestination(int $warehouseId): void
+    {
+        if (! Schema::hasTable('warehouse_arrangement_candidate_sources')
+            || ! Schema::hasTable('warehouse_arrangement_candidates')) {
+            return;
+        }
+
+        $candidateIds = DB::table('warehouse_arrangement_candidates')
+            ->where('destination_warehouse_id', $warehouseId)
+            ->pluck('id');
+
+        if ($candidateIds->isEmpty()) {
+            return;
+        }
+
+        DB::table('warehouse_arrangement_candidate_sources')
+            ->whereIn('candidate_id', $candidateIds->all())
+            ->delete();
+    }
+
+    /**
+     * @return list<array{table: string, columns: list<string>, action?: 'delete'|'null'}>
+     */
+    protected function addrbookReferenceDeletes(): array
+    {
+        return [
+            ['table' => 'customerstat', 'columns' => ['customer_id']],
+            ['table' => 'customer_class', 'columns' => ['customer_id']],
+            ['table' => 'monthly_account_summaries', 'columns' => ['customer_id']],
+            ['table' => 'monthly_item_sales', 'columns' => ['customer_id']],
+            ['table' => 'location_customer', 'columns' => ['customer_id']],
+            ['table' => 'reporting_ledger_roles', 'columns' => ['customer_id']],
+            ['table' => 'reporting_balance_snapshots', 'columns' => ['customer_id']],
+            ['table' => 'reporting_channel_banks', 'columns' => ['customer_id', 'bank_id']],
+            ['table' => 'reporting_entity_banks', 'columns' => ['bank_id']],
+            ['table' => 'reporting_warehouse_fulfillment', 'columns' => ['warehouse_id', 'customer_id']],
+            ['table' => 'warehouse_item', 'columns' => ['warehouse_id']],
+            ['table' => 'warehouse_item_monthly_stats', 'columns' => ['warehouse_id']],
+            ['table' => 'daily_inventory_summaries', 'columns' => ['warehouse_id']],
+            ['table' => 'warehouse_compares', 'columns' => ['warehouse_id']],
+            ['table' => 'inventory_health_snapshots', 'columns' => ['warehouse_id']],
+            ['table' => 'depreciation', 'columns' => ['warehouse_id']],
+            ['table' => 'jubeliosyncs', 'columns' => ['warehouse_id', 'customer_id']],
+            ['table' => 'warehouse_arrangement_sources', 'columns' => ['destination_warehouse_id', 'source_warehouse_id']],
+            ['table' => 'warehouse_arrangement_pcode_snapshots', 'columns' => ['destination_warehouse_id']],
+            ['table' => 'warehouse_arrangement_candidates', 'columns' => ['destination_warehouse_id']],
+            ['table' => 'warehouse_arrangement_candidate_sources', 'columns' => ['source_warehouse_id']],
+            ['table' => 'warehouse_arrangement_refresh_jobs', 'columns' => ['destination_warehouse_id']],
+            ['table' => 'item_stock_notifications', 'columns' => ['sold_out_warehouse_id', 'source_warehouse_id']],
+            ['table' => 'stock_data', 'columns' => ['current_warehouse_id', 'best_performing_warehouse_id']],
+            ['table' => 'stat_sells', 'columns' => ['sender_id']],
+            ['table' => 'reporting_tax_accounts', 'columns' => ['legacy_ledger_id']],
+            ['table' => 'tax_faktur_imports', 'columns' => ['counterparty_id', 'variance_expense_addrbook_id']],
+            ['table' => 'standalone_invoices', 'columns' => ['sender_addrbook_id']],
+            ['table' => 'product_performance_rollups', 'columns' => ['warehouse_id']],
+            ['table' => 'ledger_merge_maps', 'columns' => ['old_customer_id', 'new_customer_id']],
+            ['table' => 'customers', 'columns' => ['default_bank_id'], 'action' => 'null'],
+            ['table' => 'karyawan', 'columns' => ['bank_id'], 'action' => 'null'],
+            ['table' => 'gaji', 'columns' => ['bank_id'], 'action' => 'null'],
+        ];
     }
 
     /**

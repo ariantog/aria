@@ -38,7 +38,7 @@ class OperationController extends Controller
 
         return view('journals.operations.show', [
             'operation' => $operation,
-            'accounts' => $query->latest()->paginate(50)->withQueryString(),
+            'accounts' => $query->orderBy('name')->orderBy('id')->paginate(50)->withQueryString(),
             'filters' => $request->only(['search']),
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);

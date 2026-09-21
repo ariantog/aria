@@ -20,6 +20,15 @@ test('format_currency prefixes formatted amounts', function () {
     expect(format_currency(1500, 'Rp ', 0))->toBe('Rp 1,500');
 });
 
+test('format_copy_number drops currency grouping for spreadsheet paste', function () {
+    expect(format_copy_number(214500))->toBe('214500')
+        ->and(format_copy_number(214500.5))->toBe('214500.5')
+        ->and(format_copy_number(-1500))->toBe('-1500')
+        ->and(format_copy_number(null))->toBe('0')
+        ->and(format_copy_number(1000.00))->toBe('1000')
+        ->and(\App\Support\AmountFormatter::plain(214500))->toBe('214500');
+});
+
 test('displayTextClass scales down for long formatted amounts', function () {
     expect(\App\Support\AmountFormatter::displayTextClass('1,234'))->toContain('text-2xl')
         ->and(\App\Support\AmountFormatter::displayTextClass('12,345,678'))->toContain('text-lg')

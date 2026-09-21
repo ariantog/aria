@@ -124,9 +124,8 @@ class ScheduledTaskSeeder extends Seeder
             ]
         );
 
-        // Do not cron app:recalculate-inventory-health — it truncates daily_inventory_summaries
-        // and walks every year of transaction_details (the same unbounded scan that OOM'd
-        // warehouse stats). Inventory Health reads warehouse_item_monthly_stats instead.
+        // Legacy unbounded rebuild removed — use app:sync-inventory-health (daily cron below).
+        // Drop any stale scheduled_tasks row from older seeds.
         \App\Models\ScheduledTask::where('command', 'app:recalculate-inventory-health')->delete();
 
         \App\Models\ScheduledTask::updateOrCreate(
@@ -145,7 +144,7 @@ class ScheduledTaskSeeder extends Seeder
                 'name' => 'Sync Jubelio Orders',
                 'frequency' => 'everyMinute',
                 'active' => true,
-                'description' => 'Processes pending Jubelio orders into Aria transactions (one per minute).',
+                'description' => 'Processes pending Jubelio orders into Aria transactions (one per minute). Only Jubelio cron that posts stock via SELL/RETURN transactions.',
             ]
         );
 
@@ -189,15 +188,7 @@ class ScheduledTaskSeeder extends Seeder
             ]
         );
 
-        \App\Models\ScheduledTask::updateOrCreate(
-            ['command' => 'jubelio:get-orders'],
-            [
-                'name' => 'Jubelio Get Orders (legacy resume)',
-                'frequency' => 'everyMinute',
-                'active' => false,
-                'description' => 'Legacy fallback to resume interrupted manual imports. Prefer the queued sync job from Get Orders UI.',
-            ]
-        );
+        \App\Models\ScheduledTask::where('command', 'jubelio:get-orders')->delete();
 
         \App\Models\ScheduledTask::updateOrCreate(
             ['command' => 'app:jubelio-stock-check'],
@@ -205,7 +196,7 @@ class ScheduledTaskSeeder extends Seeder
                 'name' => 'Jubelio Stock Check',
                 'frequency' => 'everyMinute',
                 'active' => true,
-                'description' => 'Compares Aria vs Jubelio available per synced warehouse. One warehouse per cron tick; auto-creates a daily job and scans extra rounds until the target discrepancy count is reached.',
+                'description' => 'Compares Aria vs Jubelio available per synced warehouse (read-only; does not write warehouse_item). One warehouse per cron tick; auto-creates a daily job and scans extra rounds until the target discrepancy count is reached.',
             ]
         );
 

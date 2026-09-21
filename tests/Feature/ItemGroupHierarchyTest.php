@@ -1,10 +1,12 @@
 <?php
 
 use App\Enums\ItemType;
+use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\ItemGroup;
 use App\Models\Tag;
 use App\Models\User;
+use App\Models\WarehouseItem;
 use App\Services\Items\ItemGroupHierarchyService;
 use App\Services\Items\ItemIdentityBuilder;
 
@@ -52,6 +54,101 @@ it('lists parent groups by type and master pcode', function () {
     expect($parents->first()['label'])->toBe('AJD CX93024');
 });
 
+it('paginates parent groups without breaking the count query', function () {
+    foreach (['05', '06'] as $suffix) {
+        $group = ItemGroup::factory()->create([
+            'master' => 'CX94001-'.$suffix,
+            'variant' => $suffix,
+            'name' => 'PAGINATED SHIRT',
+        ]);
+
+        $item = Item::factory()->create([
+            'group_id' => $group->id,
+            'type' => ItemType::ITEM,
+            'pcode' => 'CX94001-'.$suffix,
+            'code' => 'AJD-CX94001-'.$suffix.'-S',
+        ]);
+        $item->tags()->attach([$this->typeTag->id, $this->pinkTag->id, $this->sizeS->id]);
+    }
+
+    $assetGroup = ItemGroup::factory()->create(['master' => 'GLOVE-02', 'variant' => 'RED', 'name' => 'GLOVE']);
+    $asset = Item::factory()->create([
+        'group_id' => $assetGroup->id,
+        'type' => ItemType::ASSET_LANCAR,
+        'pcode' => 'GLOVE-02',
+        'code' => 'GLOVE-02-RED-S',
+    ]);
+    $asset->tags()->attach([$this->pinkTag->id, $this->sizeS->id]);
+
+    $pageOne = $this->hierarchy->paginateParents([], 1);
+
+    expect($pageOne->total())->toBe(2)
+        ->and($pageOne->count())->toBe(1);
+});
+
+it('lists parent groups newest item_group id first', function () {
+    $olderGroup = ItemGroup::factory()->create(['master' => 'CX95001', 'variant' => '01', 'name' => 'OLDER']);
+    $olderItem = Item::factory()->create([
+        'group_id' => $olderGroup->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CX95001-01',
+        'code' => 'AJD-CX95001-01-S',
+    ]);
+    $olderItem->tags()->attach([$this->typeTag->id, $this->pinkTag->id, $this->sizeS->id]);
+
+    $newerGroup = ItemGroup::factory()->create(['master' => 'CX95002', 'variant' => '02', 'name' => 'NEWER']);
+    $newerItem = Item::factory()->create([
+        'group_id' => $newerGroup->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CX95002-02',
+        'code' => 'AJD-CX95002-02-S',
+    ]);
+    $newerItem->tags()->attach([$this->typeTag->id, $this->blackTag->id, $this->sizeS->id]);
+
+    $parents = $this->hierarchy->paginateParents([], 50);
+
+    expect($parents->pluck('label')->all())->toBe(['AJD CX95002', 'AJD CX95001']);
+});
+
+it('parent detail totals exclude virtual warehouse stock', function () {
+    $group = ItemGroup::factory()->create(['master' => 'CX93024', 'variant' => '05', 'name' => 'RUNNING SHIRT']);
+
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CX93024-05',
+        'code' => 'AJD-CX93024-05-S',
+    ]);
+    $item->tags()->attach([$this->typeTag->id, $this->pinkTag->id, $this->sizeS->id]);
+
+    $physical = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Fisik']);
+    $virtual = Addrbook::factory()->create([
+        'name' => 'V-WH Channel',
+        'type' => Addrbook::TYPE_V_WAREHOUSE,
+    ]);
+
+    WarehouseItem::create([
+        'warehouse_id' => $physical->id,
+        'item_id' => $item->id,
+        'warehouse_type' => (string) Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 10,
+    ]);
+    WarehouseItem::create([
+        'warehouse_id' => $virtual->id,
+        'item_id' => $item->id,
+        'warehouse_type' => (string) Addrbook::TYPE_V_WAREHOUSE,
+        'quantity' => 50,
+    ]);
+
+    $parentKey = $this->builder->itemParentKey($item->load('tags', 'group'));
+    $detail = $this->hierarchy->parentDetail($parentKey, fetchJubelio: false);
+
+    expect($detail['total_warehouse_qty'])->toBe(10.0)
+        ->and($detail['warehouse_names'])->toBe(['Gudang Fisik'])
+        ->and($detail['colors'][0]['in_warehouse_qty'])->toBe(10.0)
+        ->and($detail['colors'][0]['size_rows'][0]['warehouse_qty'])->toBe(10.0);
+});
+
 it('renders parent detail with color sections and size rows', function () {
     $pinkGroup = ItemGroup::factory()->create(['master' => 'CX93024', 'variant' => '05', 'name' => 'RUNNING SHIRT']);
 
@@ -71,6 +168,7 @@ it('renders parent detail with color sections and size rows', function () {
     expect($detail['colors'])->toHaveCount(1);
     expect($detail['colors'][0]['code'])->toBe('PINK');
     expect($detail['colors'][0]['name'])->toBe('PINK');
+    expect($detail['colors'][0]['anchor_id'])->toBe('color-pink');
     expect($detail['colors'][0]['size_rows'])->toHaveCount(1);
     expect($detail['colors'][0]['size_rows'][0]['size'])->toBe('S');
     expect($detail['warehouse_breakdown'])->toBeArray();
@@ -100,6 +198,29 @@ it('builds export payload with warehouse columns per sku', function () {
     expect($payload['warehouse_names'])->toBeArray();
 });
 
+it('parent detail finds leftover slash-master groups under the canonical CX00122 page', function () {
+    $group = ItemGroup::factory()->create([
+        'master' => 'CX00122/03',
+        'variant' => '',
+        'name' => 'CX00122/03',
+    ]);
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CX00122/03',
+        'code' => 'AJD-CX00122-03-S',
+    ]);
+    $item->tags()->attach([$this->typeTag->id, $this->pinkTag->id, $this->sizeS->id]);
+
+    $detail = $this->hierarchy->parentDetail('1:AJD:CX00122', fetchJubelio: false);
+    $slashDetail = $this->hierarchy->parentDetail('1:AJD:CX00122/03', fetchJubelio: false);
+
+    expect($detail)->not->toBeNull()
+        ->and($slashDetail)->not->toBeNull()
+        ->and(collect($detail['colors'])->pluck('group_id'))->toContain($group->id)
+        ->and($this->builder->itemParentKey($item->fresh(['tags', 'group'])))->toBe('1:AJD:CX00122');
+});
+
 it('renders group list and parent detail pages', function () {
     $group = ItemGroup::factory()->create(['master' => 'GLOVE-01', 'variant' => 'BLACK', 'name' => 'BOXING GLOVE']);
 
@@ -111,17 +232,16 @@ it('renders group list and parent detail pages', function () {
     ]);
     $item->tags()->attach([$this->blackTag->id, $this->sizeS->id]);
 
-    $slug = $this->builder->parentKeyToSlug($this->builder->itemParentKey($item->load('tags', 'group')));
-
     $this->actingAs($this->user)
         ->get(route('items.group'))
         ->assertOk()
         ->assertSee('GLOVE-01', false);
 
     $this->actingAs($this->user)
-        ->get(route('items.group-parent-detail', $slug))
+        ->get(route('items.group-parent-detail', $group->id))
         ->assertOk()
         ->assertSee('BLACK', false)
+        ->assertSee('id="color-black"', false)
         ->assertSee('Warehouse focus', false)
         ->assertSee('Total only', false)
         ->assertSee('Export Excel', false)
@@ -140,10 +260,8 @@ it('exports parent group stock to excel', function () {
     ]);
     $item->tags()->attach([$this->blackTag->id, $this->sizeS->id]);
 
-    $slug = $this->builder->parentKeyToSlug($this->builder->itemParentKey($item->load('tags', 'group')));
-
     $response = $this->actingAs($this->user)
-        ->get(route('items.group-parent-export', $slug));
+        ->get(route('items.group-parent-export', $group->id));
 
     $response->assertOk();
     expect($response->headers->get('content-type'))->toContain('spreadsheetml.sheet');

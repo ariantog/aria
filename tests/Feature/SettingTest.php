@@ -33,6 +33,7 @@ test('authorized user can view settings', function () {
         ->get(route('system-settings.index'))
         ->assertStatus(200)
         ->assertSee('PPN Rate', false)
+        ->assertSee('Running Balances', false)
         ->assertDontSee('start_time', false);
 });
 
@@ -97,6 +98,43 @@ test('authorized user can update restock warehouse ids from system settings', fu
         ->assertRedirect(route('system-settings.index'));
 
     expect(Setting::getValue('restock.default_warehouse_ids'))->toBe([$warehouse->id]);
+});
+
+test('authorized user can update default ppn mode from system settings', function () {
+    $setting = Setting::where('slug', 'transactions.default_ppn_included')->firstOrFail();
+
+    $this->user->givePermissionTo(Setting::getPermissions()['edit']);
+
+    $this->actingAs($this->user)
+        ->put(route('system-settings.update', $setting->id), [
+            'group' => $setting->group,
+            'name' => $setting->name,
+            'value' => '0',
+        ])
+        ->assertRedirect(route('system-settings.index'));
+
+    expect(Addrbook::defaultPpnIncluded())->toBeFalse();
+});
+
+test('authorized user can view default ppn mode on settings index', function () {
+    $this->user->givePermissionTo(Setting::getPermissions()['view']);
+
+    $this->actingAs($this->user)
+        ->get(route('system-settings.index'))
+        ->assertOk()
+        ->assertSee('Default PPN Mode', false)
+        ->assertSee('Included', false);
+});
+
+test('setting seeder does not overwrite existing managed values', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Persist WH']);
+    $setting = Setting::where('slug', 'produksi.default_warehouse_id')->firstOrFail();
+
+    $setting->update(['value' => $warehouse->id]);
+
+    $this->seed(SettingSeeder::class);
+
+    expect(Setting::getValue('produksi.default_warehouse_id'))->toBe($warehouse->id);
 });
 
 test('authorized user can update produksi default warehouse via autocomplete value', function () {

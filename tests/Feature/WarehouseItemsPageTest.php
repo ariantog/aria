@@ -7,6 +7,8 @@ use App\Models\User;
 use App\Models\WarehouseItem;
 use App\Services\JubelioService;
 use App\Services\PermissionGenerator;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Mockery\MockInterface;
 
 beforeEach(function () {
@@ -25,6 +27,52 @@ function seedWarehouseJubelioSync(Addrbook $warehouse, int $locationId = 10, str
         'bin_id' => 0,
     ]);
 }
+
+it('shows item name in the name column instead of catalog description', function () {
+    User::factory()->create();
+    $user = User::factory()->create();
+    $user->givePermissionTo('addrbook-warehouse-items');
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $group = \App\Models\ItemGroup::factory()->create([
+        'name' => 'RUNNING SHIRT',
+        'description' => 'MIKRO MOTIF CAMO HIJAU',
+        'description2' => 'ONLINE LISTING TITLE',
+    ]);
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'name' => 'RUNNING SHIRT - GREEN - M',
+        'code' => 'WH-NAME-COL-M',
+        'description' => '',
+        'description2' => '',
+    ]);
+
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $item->id,
+        'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 3,
+    ]);
+
+    $html = $this->actingAs($user)
+        ->get(route('addrbook.type.items', ['warehouse', $warehouse->id]))
+        ->assertOk()
+        ->getContent();
+
+    $nameColPos = strpos($html, 'data-copy-col="name"');
+    $codePos = strpos($html, 'WH-NAME-COL-M');
+
+    expect($nameColPos)->not->toBeFalse()
+        ->and($codePos)->not->toBeFalse();
+
+    $nameCell = substr($html, $nameColPos, $codePos - $nameColPos);
+
+    expect($nameCell)
+        ->toContain('RUNNING SHIRT - GREEN - M')
+        ->not->toContain('MIKRO MOTIF CAMO HIJAU');
+
+    expect($html)->toContain('MIKRO MOTIF CAMO HIJAU');
+});
 
 it('requires warehouse-items permission for the stock list page', function () {
     User::factory()->create();
@@ -45,7 +93,7 @@ it('links warehouse items to item or asset lancar show pages', function () {
 
     $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang A']);
 
-    $regularItem = Item::factory()->create(['name' => 'Regular SKU', 'code' => 'REG-001']);
+    $regularItem = Item::factory()->create(['name' => 'Regular SKU', 'code' => 'REG-001', 'price' => 214500]);
     $assetItem = Item::factory()->create([
         'type' => \App\Enums\ItemType::ASSET_LANCAR,
         'name' => 'Asset SKU',
@@ -65,13 +113,19 @@ it('links warehouse items to item or asset lancar show pages', function () {
         ->get(route('addrbook.type.items', ['type' => 'warehouse', 'addrbook' => $warehouse->id]));
 
     $response->assertOk()
+        ->assertSee('>'.$regularItem->id.'</a>', false)
+        ->assertDontSee('#'.$regularItem->id.'</a>', false)
         ->assertSee(route('items.show', $regularItem), false)
         ->assertSee(route('items.edit', $regularItem), false)
         ->assertSee(route('assetlancar.show', $assetItem), false)
         ->assertSee(route('assetlancar.edit', $assetItem), false)
         ->assertSee('REG-001', false)
         ->assertSee('AST-001', false)
-        ->assertSee('Export Excel', false);
+        ->assertSee('Export Excel', false)
+        ->assertSee('data-testid="copy-warehouse-items-table"', false)
+        ->assertSee('data-copy-col="code"', false)
+        ->assertSee('data-copy-value="214500"', false)
+        ->assertSee('copyRowsTable()', false);
 });
 
 it('filters warehouse stock by group product title', function () {
@@ -237,6 +291,8 @@ it('shows jubelio on-hand stock for synced warehouses', function () {
                         'location_id' => 10,
                         'on_hand' => 40,
                         'on_order' => 5,
+                        'reserved' => 2,
+                        'available' => 38,
                     ]],
                 ]],
             ]);
@@ -246,11 +302,68 @@ it('shows jubelio on-hand stock for synced warehouses', function () {
         ->get(route('addrbook.type.items', ['warehouse', $warehouse->id]));
 
     $response->assertOk()
-        ->assertSee('Jubelio', false)
+        ->assertSee('On hand', false)
+        ->assertSee('On order', false)
+        ->assertSee('Avail', false)
         ->assertSee('Gudang Pusat', false)
         ->assertSee('40', false)
+        ->assertSee('5', false)
+        ->assertSee('38', false)
+        ->assertSee('data-testid="warehouse-items-column-toggles"', false)
+        ->assertSee('x-model="showName"', false)
+        ->assertSee('x-model="showImage"', false)
+        ->assertSee('x-model="showDescription"', false)
+        ->assertSee('aria-warehouse-items-columns-', false)
+        ->assertDontSee('Show Image', false)
+        ->assertSee('data-testid="warehouse-items-scroll-top"', false)
         ->assertSee('Not linked', false)
         ->assertSee('item(s) on this page are not linked to Jubelio', false);
+});
+
+it('shows jubelio stock when mapped location id is -1 pusat', function () {
+    User::factory()->create();
+    $user = User::factory()->create();
+    $user->givePermissionTo('addrbook-warehouse-items');
+
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Online Pusat']);
+    seedWarehouseJubelioSync($warehouse, -1, 'Pusat');
+
+    $linkedItem = Item::factory()->create([
+        'code' => 'JUB-PUSAT',
+        'jubelio_item_id' => 456,
+    ]);
+
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $linkedItem->id,
+        'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 12,
+    ]);
+
+    $this->mock(JubelioService::class, function (MockInterface $mock) {
+        $mock->shouldReceive('fetchItemsAllStocks')
+            ->once()
+            ->with([456])
+            ->andReturn([
+                'data' => [[
+                    'item_id' => 456,
+                    'location_stocks' => [[
+                        'location_id' => -1,
+                        'on_hand' => 9,
+                        'on_order' => 0,
+                        'reserved' => 1,
+                        'available' => 8,
+                    ]],
+                ]],
+            ]);
+    });
+
+    $this->actingAs($user)
+        ->get(route('addrbook.type.items', ['warehouse', $warehouse->id]))
+        ->assertOk()
+        ->assertSee('Pusat', false)
+        ->assertSee('9', false)
+        ->assertSee('8', false);
 });
 
 it('does not show jubelio column when warehouse is not mapped', function () {
@@ -347,4 +460,44 @@ it('renders sortable column headers on warehouse stock page', function () {
         ->assertOk()
         ->assertSee('sort=codedesc', false)
         ->assertSee('sort=qtyasc', false);
+});
+
+it('shows optional item and group alias column toggles on warehouse stock page', function () {
+    if (! Schema::hasColumn('item_group', 'alias')) {
+        Schema::table('item_group', function ($table) {
+            $table->string('alias')->nullable();
+        });
+    }
+
+    User::factory()->create();
+    $user = User::factory()->create();
+    $user->givePermissionTo('addrbook-warehouse-items');
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $group = \App\Models\ItemGroup::factory()->create(['name' => 'RUNNING SHIRT']);
+    DB::table('item_group')->where('id', $group->id)->update(['alias' => 'GROUP ALIAS SKU']);
+
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'name' => 'RUNNING SHIRT - GREEN - M',
+        'code' => 'WH-ALIAS-COL-M',
+    ]);
+    DB::table('items')->where('id', $item->id)->update(['alias' => 'ITEM ALIAS SKU']);
+
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $item->id,
+        'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 3,
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('addrbook.type.items', ['warehouse', $warehouse->id]))
+        ->assertOk()
+        ->assertSee('x-model="showItemAlias"', false)
+        ->assertSee('x-model="showGroupAlias"', false)
+        ->assertSee('data-copy-col="item_alias"', false)
+        ->assertSee('data-copy-col="group_alias"', false)
+        ->assertSee('ITEM ALIAS SKU', false)
+        ->assertSee('GROUP ALIAS SKU', false);
 });

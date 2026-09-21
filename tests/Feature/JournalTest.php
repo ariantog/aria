@@ -97,3 +97,66 @@ test('account list shows operation from legacy parent_id', function () {
         ->assertSee('Operational Expenses')
         ->assertDontSee('Uncategorized');
 });
+
+test('account list shows and searches ledger description', function () {
+    $operation = Operation::create(['name' => 'Operational Expenses']);
+
+    Addrbook::create([
+        'name' => 'Biaya Toko WTC',
+        'type' => Addrbook::TYPE_ACCOUNT,
+        'parent_id' => $operation->id,
+        'description' => 'Biaya operasional toko WTC',
+    ]);
+
+    $this->actingAs($this->user)
+        ->get('/journals/account-list')
+        ->assertOk()
+        ->assertSee('Biaya Toko WTC')
+        ->assertSee('Biaya operasional toko WTC')
+        ->assertDontSee('No description');
+
+    $this->actingAs($this->user)
+        ->get('/journals/account-list?search='.urlencode('operasional toko'))
+        ->assertOk()
+        ->assertSee('Biaya Toko WTC');
+});
+
+test('journal account list is sorted by name by default', function () {
+    $operation = Operation::create(['name' => 'Expenses']);
+
+    Addrbook::create([
+        'name' => 'Alpha Ledger',
+        'type' => Addrbook::TYPE_ACCOUNT,
+        'parent_id' => $operation->id,
+    ]);
+    Addrbook::create([
+        'name' => 'Zebra Ledger',
+        'type' => Addrbook::TYPE_ACCOUNT,
+        'parent_id' => $operation->id,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get('/journals/account-list')
+        ->assertOk()
+        ->assertSeeInOrder(['Alpha Ledger', 'Zebra Ledger'], false);
+});
+
+test('operation account list is sorted by name by default', function () {
+    $operation = Operation::create(['name' => 'Expenses']);
+
+    Addrbook::create([
+        'name' => 'Alpha Ledger',
+        'type' => Addrbook::TYPE_ACCOUNT,
+        'parent_id' => $operation->id,
+    ]);
+    Addrbook::create([
+        'name' => 'Zebra Ledger',
+        'type' => Addrbook::TYPE_ACCOUNT,
+        'parent_id' => $operation->id,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get("/journals/operations/{$operation->id}")
+        ->assertOk()
+        ->assertSeeInOrder(['Alpha Ledger', 'Zebra Ledger'], false);
+});

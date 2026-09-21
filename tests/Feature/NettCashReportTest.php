@@ -6,6 +6,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Services\PermissionGenerator;
 use App\Services\Reporting\NettCashService;
+use Illuminate\Support\Carbon;
 
 beforeEach(function () {
     $this->user = User::factory()->create();
@@ -90,7 +91,29 @@ it('lists every customer and reseller with cash in without hardcoded ids', funct
         ->assertSee('data-testid="nett-cash-row-'.$customer->id.'"', false);
 });
 
-it('excludes pending cash in and internal lending from the bonus total', function () {
+it('still excludes cancelled cash in from the bonus total', function () {
+    $bank = Addrbook::factory()->create(['type' => Addrbook::TYPE_BANK]);
+    $customer = Addrbook::factory()->customer()->create(['name' => 'Toko Batal']);
+
+    createNettCashTransaction([
+        'sender_id' => $customer->id,
+        'receiver_id' => $bank->id,
+        'total' => 500_000,
+    ]);
+    createNettCashTransaction([
+        'sender_id' => $customer->id,
+        'receiver_id' => $bank->id,
+        'total' => 300_000,
+        'status' => Transaction::STATUS_CANCELLED,
+        'invoice' => 'CIN-CANCEL',
+    ]);
+
+    $report = app(NettCashService::class)->build(2026, 4, NettCashService::CONSOLIDATED_ENTITY);
+
+    expect($report['totals']['cash_in'])->toBe(500_000.0);
+});
+
+it('includes pending cash in in the bonus total and excludes internal lending', function () {
     $bank = Addrbook::factory()->create(['type' => Addrbook::TYPE_BANK]);
     $customer = Addrbook::factory()->customer()->create(['name' => 'Toko Usaha']);
     $lender = Addrbook::factory()->customer()->create([
@@ -119,7 +142,7 @@ it('excludes pending cash in and internal lending from the bonus total', functio
 
     $report = app(NettCashService::class)->build(2026, 4, NettCashService::CONSOLIDATED_ENTITY);
 
-    expect($report['totals']['cash_in'])->toBe(1_200_000.0)
+    expect($report['totals']['cash_in'])->toBe(1_600_000.0)
         ->and($report['lending_total'])->toBe(800_000.0)
         ->and(collect($report['lending_rows'])->pluck('name')->all())->toContain('Pinjaman Internal');
 
@@ -159,6 +182,89 @@ it('filters cash in by reporting entity banks', function () {
     expect($sby['totals']['cash_in'])->toBe(900_000.0)
         ->and(collect($sby['rows'])->pluck('name')->all())->toBe(['Toko SBY'])
         ->and($all['totals']['cash_in'])->toBe(1_200_000.0);
+});
+
+it('matches footer totals to the sum of visible bonus rows', function () {
+    $bank = Addrbook::factory()->create(['type' => Addrbook::TYPE_BANK]);
+    $a = Addrbook::factory()->customer()->create(['name' => 'Toko A']);
+    $b = Addrbook::factory()->customer()->create(['name' => 'Toko B']);
+
+    createNettCashTransaction([
+        'sender_id' => $a->id,
+        'receiver_id' => $bank->id,
+        'total' => 1_000_000,
+    ]);
+    createNettCashTransaction([
+        'sender_id' => $b->id,
+        'receiver_id' => $bank->id,
+        'total' => 2_500_000,
+    ]);
+
+    $report = app(NettCashService::class)->build(2026, 4, NettCashService::CONSOLIDATED_ENTITY);
+    $rowSum = collect($report['rows'])->sum('cash_in');
+
+    expect($rowSum)->toBe($report['totals']['cash_in'])
+        ->and($report['totals']['customer_cash_in'] + $report['totals']['reseller_cash_in'])
+        ->toBe($report['totals']['cash_in']);
+});
+
+it('aggregates cash in per contact when sender_type differs across rows', function () {
+    $bank = Addrbook::factory()->create(['type' => Addrbook::TYPE_BANK]);
+    $customer = Addrbook::factory()->customer()->create(['name' => 'Toko Type Mismatch']);
+
+    createNettCashTransaction([
+        'sender_id' => $customer->id,
+        'sender_type' => Addrbook::TYPE_CUSTOMER,
+        'receiver_id' => $bank->id,
+        'total' => 600_000,
+        'invoice' => 'CIN-TYPE-1',
+    ]);
+    createNettCashTransaction([
+        'sender_id' => $customer->id,
+        'sender_type' => Addrbook::TYPE_RESELLER,
+        'receiver_id' => $bank->id,
+        'total' => 400_000,
+        'invoice' => 'CIN-TYPE-2',
+    ]);
+
+    $report = app(NettCashService::class)->build(2026, 4, NettCashService::CONSOLIDATED_ENTITY);
+
+    expect($report['totals']['cash_in'])->toBe(1_000_000.0)
+        ->and($report['rows'])->toHaveCount(1)
+        ->and($report['rows'][0]['cash_in'])->toBe(1_000_000.0);
+});
+
+it('excludes forward-dated cash in from the running month and year', function () {
+    Carbon::setTestNow('2026-09-15');
+
+    $bank = Addrbook::factory()->create(['type' => Addrbook::TYPE_BANK]);
+    $customer = Addrbook::factory()->customer()->create(['name' => 'Toko Forward']);
+
+    createNettCashTransaction([
+        'sender_id' => $customer->id,
+        'receiver_id' => $bank->id,
+        'date' => '2026-09-10',
+        'total' => 500_000,
+        'invoice' => 'CIN-SEP-10',
+    ]);
+    createNettCashTransaction([
+        'sender_id' => $customer->id,
+        'receiver_id' => $bank->id,
+        'date' => '2026-09-25',
+        'total' => 9_000_000,
+        'invoice' => 'CIN-SEP-25',
+    ]);
+
+    $service = app(NettCashService::class);
+    $september = $service->build(2026, 9, NettCashService::CONSOLIDATED_ENTITY);
+    $year = $service->build(2026, null, NettCashService::CONSOLIDATED_ENTITY);
+
+    expect($september['period_end'])->toBe('2026-09-15')
+        ->and($september['totals']['cash_in'])->toBe(500_000.0)
+        ->and($year['period_end'])->toBe('2026-09-15')
+        ->and($year['totals']['cash_in'])->toBe(500_000.0);
+
+    Carbon::setTestNow();
 });
 
 it('exports csv of the bonus rows', function () {

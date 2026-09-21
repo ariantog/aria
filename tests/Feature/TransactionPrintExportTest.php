@@ -34,7 +34,7 @@ it('generates the receipt pdf and serves it inline', function () {
         'invoice' => '615922',
         'sender_id' => $sender->id,
         'receiver_id' => $receiver->id,
-        'real_total' => -934_700,
+        'total' => -934_700,
         'total_items' => 4,
     ]);
     $item = Item::factory()->create(['name' => 'LANA TOP - LILAC', 'code' => 'AJDCA2302510L']);
@@ -63,7 +63,7 @@ it('renders the receipt pdf blade with item name and code', function () {
     $transaction = Transaction::factory()->create([
         'invoice' => '615922',
         'sender_id' => $sender->id,
-        'real_total' => -934_700,
+        'total' => -934_700,
         'total_items' => 4,
     ]);
     $item = Item::factory()->create(['name' => 'LANA TOP - LILAC', 'code' => 'AJDCA2302510L']);
@@ -126,6 +126,43 @@ it('renders the dot matrix print page with item view columns and signature block
         ->assertSee('Warehouse Staff', false)
         ->assertSee('Customer One', false)
         ->assertSee('css/print.css', false);
+});
+
+it('shows grand total below subtotal on print invoice instead of header meta', function () {
+    $transaction = Transaction::factory()->create([
+        'invoice' => 'PRT-TOTAL',
+        'discount' => 5,
+        'adjustment' => -250,
+        'total' => -128_000,
+        'total_items' => 1,
+    ]);
+    $item = Item::factory()->create(['name' => 'Invoice Shirt', 'code' => 'SKU-TOTAL-01']);
+    TransactionDetail::factory()->create([
+        'transaction_id' => $transaction->id,
+        'item_id' => $item->id,
+        'quantity' => 1,
+        'price' => 135_000,
+        'discount' => 0,
+        'total' => 135_000,
+    ]);
+
+    $response = $this->actingAs($this->user)
+        ->get(route('transactions.print', [
+            'transaction' => $transaction,
+            'image' => 0,
+            'barcode' => 0,
+            'sku' => 0,
+            'name' => 1,
+        ]))
+        ->assertOk();
+
+    $html = $response->getContent();
+
+    expect($html)
+        ->not->toContain('<tr><td>Total</td><td>')
+        ->toContain('Subtotal')
+        ->toContain('Grand Total')
+        ->and(strpos($html, 'Subtotal'))->toBeLessThan(strpos($html, 'Grand Total'));
 });
 
 it('generates invoice pdf with item view columns from request', function () {
@@ -348,31 +385,68 @@ it('shows group alias as item name on transaction detail', function () {
 });
 
 it('shows item description toggle and column on transaction detail', function () {
+    $group = ItemGroup::factory()->create([
+        'description' => 'GROUP DESC FOR TX SHOW',
+    ]);
     $item = Item::factory()->create([
+        'group_id' => $group->id,
         'name' => 'Desc Toggle Item',
         'code' => 'AJD-DESC-TOGGLE-M',
-        'description' => 'ITEM DESCRIPTION FOR TX SHOW',
+        'description' => 'LOCAL DESC FOR TX SHOW',
     ]);
 
     $transaction = Transaction::factory()->create(['invoice' => 'TX-DESC-COL']);
     TransactionDetail::factory()->create([
         'transaction_id' => $transaction->id,
         'item_id' => $item->id,
+        'price' => 214500,
+        'total' => 214500,
     ]);
 
     $this->actingAs($this->user)
         ->get(route('transactions.show', $transaction))
         ->assertOk()
         ->assertSee('x-model="showDescription"', false)
-        ->assertSee('ITEM DESCRIPTION FOR TX SHOW', false)
-        ->assertSee('data-copy-col="desc"', false);
+        ->assertSee('LOCAL DESC FOR TX SHOW', false)
+        ->assertDontSee('GROUP DESC FOR TX SHOW', false)
+        ->assertSee('data-copy-col="desc"', false)
+        ->assertSee('data-copy-value="214500"', false);
+});
+
+it('transaction detail description falls back to group when item description is empty', function () {
+    $group = ItemGroup::factory()->create([
+        'description' => 'GROUP DESCRIPTION FOR TX SHOW',
+    ]);
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'name' => 'Desc Fallback Item',
+        'code' => 'AJD-DESC-FALLBACK-M',
+        'description' => '',
+    ]);
+
+    $transaction = Transaction::factory()->create(['invoice' => 'TX-DESC-FALLBACK']);
+    TransactionDetail::factory()->create([
+        'transaction_id' => $transaction->id,
+        'item_id' => $item->id,
+        'price' => 214500,
+        'total' => 214500,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.show', $transaction))
+        ->assertOk()
+        ->assertSee('GROUP DESCRIPTION FOR TX SHOW', false);
 });
 
 it('print invoice respects view column query params', function () {
+    $group = ItemGroup::factory()->create([
+        'description' => 'PRINT DESCRIPTION COLUMN',
+    ]);
     $item = Item::factory()->create([
+        'group_id' => $group->id,
         'name' => 'RAW ITEM NAME',
         'code' => 'AJD-PRINT-COL-M',
-        'description' => 'PRINT DESCRIPTION COLUMN',
+        'description' => '',
     ]);
 
     $transaction = Transaction::factory()->create(['invoice' => 'TX-PRINT-COLS']);
@@ -408,5 +482,100 @@ it('transaction show page builds print invoice href from view checkboxes', funct
         ->get(route('transactions.show', $transaction))
         ->assertOk()
         ->assertSee('itemViewQuery()', false)
-        ->assertSee("name=\"desc\"", false);
+        ->assertSee("name=\"desc\"", false)
+        ->assertSee('x-model="showLegacyCode"', false);
+});
+
+it('print invoice shows legacy code with code fallback in shared sku column', function () {
+    $item = Item::factory()->create([
+        'name' => 'Legacy Item',
+        'code' => 'NEW-SKU-01',
+        'legacy_code' => 'OLD-SKU-01',
+    ]);
+
+    $transaction = Transaction::factory()->create(['invoice' => 'TX-LEGACY-PRINT']);
+    TransactionDetail::factory()->create([
+        'transaction_id' => $transaction->id,
+        'item_id' => $item->id,
+        'quantity' => 1,
+        'price' => 10_000,
+        'total' => 10_000,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.print', [
+            'transaction' => $transaction,
+            'image' => '0',
+            'barcode' => '0',
+            'sku' => '0',
+            'legacy' => '1',
+            'name' => '0',
+        ]))
+        ->assertOk()
+        ->assertSee('Legacy code', false)
+        ->assertSee('OLD-SKU-01', false)
+        ->assertDontSee('NEW-SKU-01', false);
+});
+
+it('print invoice shows sku code only when legacy code is disabled', function () {
+    $item = Item::factory()->create([
+        'name' => 'Sku Item',
+        'code' => 'NEW-SKU-02',
+        'legacy_code' => 'OLD-SKU-02',
+    ]);
+
+    $transaction = Transaction::factory()->create(['invoice' => 'TX-SKU-PRINT']);
+    TransactionDetail::factory()->create([
+        'transaction_id' => $transaction->id,
+        'item_id' => $item->id,
+        'quantity' => 1,
+        'price' => 10_000,
+        'total' => 10_000,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.print', [
+            'transaction' => $transaction,
+            'image' => '0',
+            'barcode' => '0',
+            'sku' => '1',
+            'legacy' => '0',
+            'name' => '0',
+        ]))
+        ->assertOk()
+        ->assertSee('SKU', false)
+        ->assertSee('NEW-SKU-02', false)
+        ->assertDontSee('OLD-SKU-02', false);
+});
+
+it('print invoice hides shared sku column when sku and legacy code are disabled', function () {
+    $item = Item::factory()->create([
+        'name' => 'Hidden Sku Item',
+        'code' => 'HIDDEN-SKU',
+        'legacy_code' => 'HIDDEN-LEGACY',
+    ]);
+
+    $transaction = Transaction::factory()->create(['invoice' => 'TX-HIDE-SKU']);
+    TransactionDetail::factory()->create([
+        'transaction_id' => $transaction->id,
+        'item_id' => $item->id,
+        'quantity' => 1,
+        'price' => 10_000,
+        'total' => 10_000,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.print', [
+            'transaction' => $transaction,
+            'image' => '0',
+            'barcode' => '0',
+            'sku' => '0',
+            'legacy' => '0',
+            'name' => '1',
+        ]))
+        ->assertOk()
+        ->assertDontSee('HIDDEN-SKU', false)
+        ->assertDontSee('HIDDEN-LEGACY', false)
+        ->assertDontSee('>SKU<', false)
+        ->assertDontSee('Legacy code', false);
 });

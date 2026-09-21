@@ -37,11 +37,24 @@ class RestockSettingsService
         return array_values(array_filter(array_map('intval', $value)));
     }
 
+    public function exportCostField(): string
+    {
+        $value = Setting::getValue('restock.export_cost_field', 'cost');
+
+        return in_array($value, ['cost', 'cost_cnh'], true) ? $value : 'cost';
+    }
+
+    public function exportCostColumnLabel(): string
+    {
+        return $this->exportCostField() === 'cost_cnh' ? 'Cost (CNY)' : 'Cost (IDR)';
+    }
+
     /**
      * @return array{
      *   default_supplier_id: ?int,
      *   default_receiver_id: ?int,
      *   default_warehouse_ids: list<int>,
+     *   export_cost_field: string,
      *   supplier: ?Addrbook,
      *   receiver: ?Addrbook,
      *   warehouses: \Illuminate\Support\Collection<int, Addrbook>
@@ -57,6 +70,7 @@ class RestockSettingsService
             'default_supplier_id' => $supplierId,
             'default_receiver_id' => $receiverId,
             'default_warehouse_ids' => $warehouseIds,
+            'export_cost_field' => $this->exportCostField(),
             'supplier' => $supplierId ? Addrbook::find($supplierId) : null,
             'receiver' => $receiverId ? Addrbook::find($receiverId) : null,
             'warehouses' => Addrbook::query()
@@ -67,7 +81,12 @@ class RestockSettingsService
     }
 
     /**
-     * @param  array{default_supplier_id: int, default_receiver_id: int, default_warehouse_ids?: list<int>}  $data
+     * @param  array{
+     *   default_supplier_id: int,
+     *   default_receiver_id: int,
+     *   default_warehouse_ids?: list<int>,
+     *   export_cost_field?: string,
+     * }  $data
      */
     public function update(array $data): void
     {
@@ -103,6 +122,12 @@ class RestockSettingsService
         $this->persistSetting('restock.default_supplier_id', 'Default Supplier', $supplier->id);
         $this->persistSetting('restock.default_receiver_id', 'Default Receiver (Warehouse)', $receiver->id);
         $this->persistSetting('restock.default_warehouse_ids', 'Stock Display Warehouses', $warehouseIds);
+
+        $exportCostField = $data['export_cost_field'] ?? 'cost';
+        if (! in_array($exportCostField, ['cost', 'cost_cnh'], true)) {
+            throw new InvalidArgumentException('Export cost column must be cost or cost_cnh.');
+        }
+        $this->persistSetting('restock.export_cost_field', 'Export Cost Column', $exportCostField);
     }
 
     public function stockQuantityForItem(?\App\Models\Item $item): int

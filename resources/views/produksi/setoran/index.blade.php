@@ -211,6 +211,15 @@ $hasFilters = collect($filters)->filter(fn($v) => $v !== null && $v !== '')->isN
                     <tr><td colspan="11" class="bg-white px-6 py-12 text-center text-sm text-gray-500">No records found. Adjust your filters to see more results.</td></tr>
                     @endforelse
                 </tbody>
+                @if($prod_produksi->isNotEmpty())
+                <tfoot class="border-t border-gray-200 bg-gray-50">
+                    <tr>
+                        <td colspan="4" class="px-2 py-2 text-sm font-bold text-gray-900">Total</td>
+                        <td class="px-2 py-2 text-sm font-black whitespace-nowrap tabular-nums text-gray-900" data-testid="setoran-page-jml-total">{{ $prod_produksi->sum('quantity') }}</td>
+                        <td colspan="6"></td>
+                    </tr>
+                </tfoot>
+                @endif
             </table>
         </div>
         @include('partials.pagination', ['paginator' => $prod_produksi, 'label' => 'records'])

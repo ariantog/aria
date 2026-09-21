@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Sales / inventory / cash document.
@@ -129,17 +130,22 @@ class Transaction extends Model
             self::TYPE_RETURN_SUPPLIER,
             self::TYPE_CASH_OUT,
             self::TYPE_TRANSFER,
+            self::TYPE_MOVE,
         ], true);
     }
 
-    /** Signed monetary amount for header total / real_total per transaction type. */
+    /**
+     * Signed monetary amount for header `total` per transaction type.
+     * Negative: sell, return-supplier, cash out, transfer, move.
+     * Positive: buy, return, cash in, adjustment.
+     */
     public static function signedAmount(int $type, float $amount): float
     {
         if (self::typeIsNegative($type)) {
             return -abs($amount);
         }
 
-        if (in_array($type, [self::TYPE_BUY, self::TYPE_RETURN, self::TYPE_CASH_IN], true)) {
+        if (in_array($type, [self::TYPE_BUY, self::TYPE_RETURN, self::TYPE_CASH_IN, self::TYPE_ADJUST], true)) {
             return abs($amount);
         }
 
@@ -207,17 +213,37 @@ class Transaction extends Model
 
     public function sender()
     {
-        return $this->belongsTo(Addrbook::class, 'sender_id');
+        return $this->belongsTo(Addrbook::class, 'sender_id')->withTrashed();
     }
 
     public function receiver()
     {
-        return $this->belongsTo(Addrbook::class, 'receiver_id');
+        return $this->belongsTo(Addrbook::class, 'receiver_id')->withTrashed();
     }
 
     public function details()
     {
         return $this->hasMany(TransactionDetail::class);
+    }
+
+    /**
+     * Reorder loaded line items by item SKU (`items.code`) for display.
+     * No-op when details are empty or the relation is not loaded.
+     */
+    public function sortDetailsBySku(): static
+    {
+        if (! $this->relationLoaded('details') || $this->details->isEmpty()) {
+            return $this;
+        }
+
+        $this->setRelation(
+            'details',
+            $this->details
+                ->sortBy(fn ($detail) => (string) ($detail->item?->code ?? ''), SORT_NATURAL | SORT_FLAG_CASE)
+                ->values()
+        );
+
+        return $this;
     }
 
     public function user()
@@ -259,6 +285,15 @@ class Transaction extends Model
         return $this->b_submit_by !== null;
     }
 
+    /**
+     * Cash-based reporting rows. Legacy production may leave status at 0 (pending)
+     * even when balances are posted; cancelled rows are excluded.
+     */
+    public function scopeCountsInReporting(Builder $query): Builder
+    {
+        return $query->whereIn('status', [self::STATUS_PENDING, self::STATUS_COMPLETED]);
+    }
+
     public function scopeVisibleToUser(Builder $query, ?User $user): Builder
     {
         return app(\App\Services\LocationAccessService::class)->applyTransactionScope($query, $user);
@@ -270,7 +305,9 @@ class Transaction extends Model
             'view' => 'transactions-list', 'create' => 'transactions-create',
             'edit' => 'transactions-edit', 'delete' => 'transactions-delete', 'show' => 'transactions-show',
             'type-buy' => 'transactions-type-buy', 'type-sell' => 'transactions-type-sell',
-            'type-move' => 'transactions-type-move', 'type-cash-in' => 'transactions-type-cash-in',
+            'type-move' => 'transactions-type-move',
+            'type-move-virtual' => 'transactions-type-move-virtual',
+            'type-cash-in' => 'transactions-type-cash-in',
             'type-cash-out' => 'transactions-type-cash-out', 'type-transfer' => 'transactions-type-transfer',
             'type-adjust' => 'transactions-type-adjust', 'type-return' => 'transactions-type-return',
             'type-return-supplier' => 'transactions-type-return-supplier',
@@ -288,6 +325,52 @@ class Transaction extends Model
     public static function permissionNameForType(string $typeSlug): ?string
     {
         return self::getPermissions()[self::typePermissionKey($typeSlug)] ?? null;
+    }
+
+    public static function userCanMoveVirtualWarehouses(?User $user): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        if ($user->is_superadmin) {
+            return true;
+        }
+
+        return $user->can(self::getPermissions()['type-move-virtual']);
+    }
+
+    /**
+     * Addrbook types allowed as sender/receiver on Move for the given user.
+     *
+     * @return list<int>
+     */
+    public static function movePartyAddrbookTypeIds(?User $user): array
+    {
+        $types = [Addrbook::TYPE_WAREHOUSE];
+        if (self::userCanMoveVirtualWarehouses($user)) {
+            $types[] = Addrbook::TYPE_V_WAREHOUSE;
+        }
+
+        return $types;
+    }
+
+    public static function assertMovePartiesAllowed(?User $user, Addrbook $sender, Addrbook $receiver): void
+    {
+        $allowed = self::movePartyAddrbookTypeIds($user);
+        $errors = [];
+
+        if (! in_array($sender->typeValue(), $allowed, true)) {
+            $errors['sender_id'] = ['Move sender must be a physical warehouse for your permissions.'];
+        }
+
+        if (! in_array($receiver->typeValue(), $allowed, true)) {
+            $errors['receiver_id'] = ['Move receiver must be a physical warehouse for your permissions.'];
+        }
+
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
+        }
     }
 
     public static function userCanAccessType(?User $user, string $typeSlug): bool

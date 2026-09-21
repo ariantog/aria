@@ -292,12 +292,9 @@
                 <tbody class="divide-y divide-gray-100">
                     @foreach($stockAlerts['recent'] as $notification)
                     <tr class="bg-blue-50/40">
-                        <td class="px-5 py-3">
-                            <div class="font-medium text-gray-900">{{ $notification->item?->code }}</div>
-                            <div class="text-xs text-gray-500">{{ $notification->item?->name }}</div>
-                        </td>
-                        <td class="px-5 py-3 text-gray-700">{{ $notification->soldOutWarehouse?->name }}</td>
-                        <td class="px-5 py-3 text-gray-700">{{ $notification->sourceWarehouse?->name }}</td>
+                        @include('stock-notifications.partials.item-cell', ['notification' => $notification, 'tdClass' => 'px-5 py-3'])
+                        @include('stock-notifications.partials.warehouse-cell', ['warehouse' => $notification->soldOutWarehouse, 'tdClass' => 'px-5 py-3 text-gray-700'])
+                        @include('stock-notifications.partials.warehouse-cell', ['warehouse' => $notification->sourceWarehouse, 'tdClass' => 'px-5 py-3 text-gray-700'])
                         <td class="px-5 py-3 font-mono text-gray-700">{{ $fmtNum($notification->source_stock) }}</td>
                         <td class="px-5 py-3">
                             @if($notification->source_status)
@@ -340,25 +337,6 @@
     </div>
     @endif
 
-    @if(($can['cron_manager'] ?? false) && $cron && $cron['disabled_count'] > 0)
-    <div class="rounded-xl border border-amber-200 bg-amber-50/50 shadow-sm" data-testid="dashboard-disabled-crons-list">
-        <div class="flex items-center justify-between border-b border-amber-100 px-5 py-4">
-            <div>
-                <h3 class="text-sm font-semibold text-amber-900">Disabled Scheduled Tasks</h3>
-                <p class="text-xs text-amber-800/80">These crons will not run until re-enabled</p>
-            </div>
-            <a href="{{ route('scheduled-tasks.index') }}" class="text-sm font-medium text-blue-700 hover:underline">Cron Manager</a>
-        </div>
-        <ul class="divide-y divide-amber-100 px-5 py-2 text-sm">
-            @foreach($cron['disabled_tasks'] as $task)
-            <li class="py-2.5">
-                <p class="font-medium text-gray-900">{{ $task->name }}</p>
-                <p class="font-mono text-xs text-gray-500">{{ $task->command }}</p>
-            </li>
-            @endforeach
-        </ul>
-    </div>
-    @endif
     @endif
 
     @if($hasRoleChecklist)
@@ -419,32 +397,55 @@
 
         <div class="grid grid-cols-1 gap-4 xl:grid-cols-2">
             @if(($can['restock'] ?? false) && $restock)
-            <div class="rounded-xl border p-5 shadow-sm {{ $restock['urgent_count'] > 0 ? 'border-rose-200 bg-rose-50/40' : 'border-gray-200 bg-white' }}"
-                 data-testid="dashboard-restock-urgent">
+            @php
+                $restockAlertCount = (int) ($restock['alert_count'] ?? 0);
+                $restockInsightsUrl = ($restock['period_key'] ?? null)
+                    ? route('reports.item-insights', [
+                        'grain' => 'month',
+                        'period' => $restock['period_key'],
+                        'tab' => 'restock_alert',
+                    ])
+                    : route('reports.item-insights', ['tab' => 'restock_alert']);
+            @endphp
+            <div class="rounded-xl border p-5 shadow-sm {{ $restockAlertCount > 0 ? 'border-amber-200 bg-amber-50/40' : 'border-gray-200 bg-white' }}"
+                 data-testid="dashboard-restock-alerts">
                 <div class="flex items-center justify-between gap-3">
                     <div>
-                        <h4 class="text-sm font-semibold text-gray-900">Urgent restock</h4>
-                        <p class="text-xs text-gray-500">Asset lancar SKUs flagged on restock sheets</p>
+                        <h4 class="text-sm font-semibold text-gray-900">Restock alerts</h4>
+                        <p class="text-xs text-gray-500">
+                            @if($restock['calculated'] ?? false)
+                                Item Insights · {{ $restock['period_key'] }}
+                            @else
+                                Item Insights — run Recalculate on the report to populate alerts
+                            @endif
+                        </p>
                     </div>
-                    <a href="{{ route('restock.index') }}" class="text-sm font-medium text-blue-700 hover:underline">Restock</a>
+                    <a href="{{ $restockInsightsUrl }}" class="text-sm font-medium text-blue-700 hover:underline">Item Insights</a>
                 </div>
-                <p class="mt-3 text-3xl font-bold {{ $restock['urgent_count'] > 0 ? 'text-rose-900' : 'text-gray-900' }}">
-                    {{ $fmtNum($restock['urgent_count']) }}
+                <p class="mt-3 text-3xl font-bold {{ $restockAlertCount > 0 ? 'text-amber-900' : 'text-gray-900' }}">
+                    {{ $fmtNum($restockAlertCount) }}
                 </p>
                 @if($restock['recent']->isNotEmpty())
-                <ul class="mt-4 divide-y divide-rose-100 rounded-lg border border-rose-100 bg-white/80 text-sm">
-                    @foreach($restock['recent'] as $cell)
-                    <li class="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5">
-                        <div>
-                            <p class="font-medium text-gray-900">{{ $cell->item?->code }}</p>
-                            <p class="text-xs text-gray-500">{{ $cell->item?->name }} · {{ $cell->sheet?->typeTag?->name ?? $cell->sheet?->name }}</p>
+                <ul class="mt-4 divide-y divide-amber-100 rounded-lg border border-amber-100 bg-white/80 text-sm">
+                    @foreach($restock['recent'] as $alert)
+                    <li class="flex flex-wrap items-start justify-between gap-2 px-3 py-2.5">
+                        <div class="min-w-0">
+                            <p class="font-medium text-gray-900">{{ $alert->item_code ?? '—' }}</p>
+                            <p class="text-xs text-gray-500 truncate">{{ $alert->item_name }}</p>
                         </div>
-                        <span class="text-xs font-medium text-rose-700">restock {{ $fmtNum($cell->qty_restock) }}</span>
+                        <div class="text-right text-xs text-amber-900">
+                            @if($alert->days_of_cover !== null)
+                            <p class="font-medium">{{ number_format($alert->days_of_cover, 1) }}d cover</p>
+                            @endif
+                            @if($alert->alert_detail)
+                            <p class="text-amber-800/90">{{ $alert->alert_detail }}</p>
+                            @endif
+                        </div>
                     </li>
                     @endforeach
                 </ul>
                 @else
-                <p class="mt-3 text-sm text-gray-500">No urgent restock items.</p>
+                <p class="mt-3 text-sm text-gray-500">No restock alerts for the latest calculated month.</p>
                 @endif
             </div>
             @endif

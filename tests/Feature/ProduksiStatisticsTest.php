@@ -82,6 +82,148 @@ it('aggregates qc statistics with lag metrics', function () {
     expect($summary->first()->avg_setor_lag_days)->toBe(2.0);
 });
 
+it('aggregates jahit statistics by worker and month', function () {
+    $jahit = Worker::create(['name' => 'Jahit One', 'type' => Worker::TYPE_JAHIT]);
+    $year = (int) date('Y');
+
+    Produksi::create([
+        'temp_name' => 'Jahit Shirt',
+        'quantity' => 12,
+        'jahit_id' => $jahit->id,
+        'jahit_date' => "{$year}-05-10",
+        'potong_date' => "{$year}-05-01",
+        'surat_jalan_potong' => 'SJP-J1',
+    ]);
+    Produksi::create([
+        'temp_name' => 'Jahit Pants',
+        'quantity' => 6,
+        'jahit_id' => $jahit->id,
+        'jahit_date' => "{$year}-05-20",
+        'potong_date' => "{$year}-05-18",
+        'surat_jalan_potong' => 'SJP-J2',
+    ]);
+
+    $stats = app(ProduksiStatisticsService::class);
+    [$start, $end] = $stats->resolveDateRange(5, $year);
+
+    $summary = $stats->jahitWorkerSummary($start, $end);
+
+    expect($summary)->toHaveCount(1);
+    expect($summary->first()->worker_name)->toBe('Jahit One');
+    expect($summary->first()->kitir_count)->toBe(2);
+    expect($summary->first()->total_qty)->toBe(18);
+    expect($summary->first()->sjp_count)->toBe(2);
+    expect($summary->first()->avg_potong_lag_days)->toBe(5.5);
+
+    $monthly = $stats->jahitMonthlyTotals($year);
+    expect($monthly->firstWhere('month', 5)?->total_qty)->toBe(18);
+});
+
+it('aggregates pritil statistics with lag metrics', function () {
+    $pritil = Worker::create(['name' => 'Pritil One', 'type' => Worker::TYPE_PRITIL]);
+    $year = (int) date('Y');
+
+    Produksi::create([
+        'temp_name' => 'Pritil Item',
+        'quantity' => 4,
+        'pritil_id' => $pritil->id,
+        'pritil_date' => "{$year}-07-12",
+        'potong_date' => "{$year}-07-01",
+        'setor_date' => "{$year}-07-10",
+        'status' => Produksi::STATUS_SETOR,
+    ]);
+
+    $stats = app(ProduksiStatisticsService::class);
+    [$start, $end] = $stats->resolveDateRange(7, $year);
+
+    $summary = $stats->pritilWorkerSummary($start, $end);
+
+    expect($summary)->toHaveCount(1);
+    expect($summary->first()->worker_name)->toBe('Pritil One');
+    expect($summary->first()->total_qty)->toBe(4);
+    expect($summary->first()->avg_potong_lag_days)->toBe(11.0);
+    expect($summary->first()->avg_setor_lag_days)->toBe(2.0);
+});
+
+it('filters produksi statistics by date range and status including zero', function () {
+    $potong = Worker::create(['name' => 'Range Cutter', 'type' => Worker::TYPE_POTONG]);
+    $year = (int) date('Y');
+
+    Produksi::create([
+        'temp_name' => 'In-range Produksi',
+        'quantity' => 1234,
+        'potong_id' => $potong->id,
+        'potong_date' => "{$year}-03-10",
+        'status' => Produksi::STATUS_PRODUKSI,
+    ]);
+    Produksi::create([
+        'temp_name' => 'In-range Setor',
+        'quantity' => 77,
+        'potong_id' => $potong->id,
+        'potong_date' => "{$year}-03-11",
+        'status' => Produksi::STATUS_SETOR,
+    ]);
+    Produksi::create([
+        'temp_name' => 'Out-of-range Produksi',
+        'quantity' => 8888,
+        'potong_id' => $potong->id,
+        'potong_date' => "{$year}-05-01",
+        'status' => Produksi::STATUS_PRODUKSI,
+    ]);
+
+    $stats = app(ProduksiStatisticsService::class);
+    $ctx = $stats->reportContext([
+        'from' => "{$year}-03-01",
+        'to' => "{$year}-03-31",
+        'status' => '0',
+        'year' => $year,
+    ]);
+
+    expect($ctx['hasCustomRange'])->toBeTrue();
+    expect($ctx['status'])->toBe(Produksi::STATUS_PRODUKSI);
+    expect($ctx['periodLabel'])->toContain("{$year}-03-01")
+        ->and($ctx['periodLabel'])->toContain('Produksi');
+
+    $summary = $stats->potongWorkerSummary($ctx['startDate'], $ctx['endDate'], $ctx['status']);
+
+    expect($summary)->toHaveCount(1);
+    expect($summary->first()->total_qty)->toBe(1234);
+
+    $unfilteredRange = $stats->potongWorkerSummary($ctx['startDate'], $ctx['endDate']);
+    expect($unfilteredRange->first()->total_qty)->toBe(1311);
+});
+
+it('renders produksi report date and status filters including status zero', function () {
+    $potong = Worker::create(['name' => 'Report Cutter', 'type' => Worker::TYPE_POTONG]);
+    $year = (int) date('Y');
+
+    Produksi::create([
+        'temp_name' => 'Filterable Shirt',
+        'quantity' => 3210,
+        'potong_id' => $potong->id,
+        'potong_date' => "{$year}-03-08",
+        'status' => Produksi::STATUS_PRODUKSI,
+    ]);
+    Produksi::create([
+        'temp_name' => 'Later Shirt',
+        'quantity' => 9999,
+        'potong_id' => $potong->id,
+        'potong_date' => "{$year}-08-01",
+        'status' => Produksi::STATUS_PRODUKSI,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get("/reports/produksi-potong?from={$year}-03-01&to={$year}-03-31&status=0")
+        ->assertSuccessful()
+        ->assertSee('data-testid="produksi-report-from"', false)
+        ->assertSee('data-testid="produksi-report-status"', false)
+        ->assertSee('Report Cutter')
+        ->assertSee('3,210')
+        ->assertDontSee('13,209')
+        ->assertDontSee('9,999')
+        ->assertSee('option value="0"', false);
+});
+
 it('denies potong statistics without permission', function () {
     $user = User::factory()->create();
     Permission::findOrCreate(Report::getPermissions()['view-produksi-potong']);
@@ -109,4 +251,33 @@ it('allows qc statistics with permission', function () {
         ->get('/reports/produksi-qc')
         ->assertSuccessful()
         ->assertSee('Statistik QC');
+});
+
+it('denies jahit statistics without permission', function () {
+    $user = User::factory()->create();
+    Permission::findOrCreate(Report::getPermissions()['view-produksi-jahit']);
+
+    $this->actingAs($user)->get('/reports/produksi-jahit')->assertForbidden();
+});
+
+it('allows jahit statistics with permission', function () {
+    $user = User::factory()->create();
+    Permission::findOrCreate(Report::getPermissions()['view-produksi-jahit']);
+    $user->givePermissionTo(Report::getPermissions()['view-produksi-jahit']);
+
+    $this->actingAs($user)
+        ->get('/reports/produksi-jahit')
+        ->assertSuccessful()
+        ->assertSee('Statistik Jahit');
+});
+
+it('allows pritil statistics with permission', function () {
+    $user = User::factory()->create();
+    Permission::findOrCreate(Report::getPermissions()['view-produksi-pritil']);
+    $user->givePermissionTo(Report::getPermissions()['view-produksi-pritil']);
+
+    $this->actingAs($user)
+        ->get('/reports/produksi-pritil')
+        ->assertSuccessful()
+        ->assertSee('Statistik Pritil');
 });

@@ -17,6 +17,7 @@ $curWarna = optional($item->tags->firstWhere('type', \App\Models\Tag::TYPE_WARNA
 $curSizes = $item->tags->where('type', \App\Models\Tag::TYPE_SIZE)->pluck('id')->all();
 
 $itemType = $item->type->value;
+$productTitle = $productTitle ?? '';
 $legacyAssetProductName = '';
 if ($isAsset && ! $item->group) {
     $legacyAssetProductName = str_contains($item->name, ' - ')
@@ -25,14 +26,13 @@ if ($isAsset && ! $item->group) {
 }
 $formItem = [
     'pcode' => old('pcode', $item->pcode),
-    'product_name' => old('product_name', (
-        optional($item->group)->name
-        && strtoupper(optional($item->group)->name) !== strtoupper($item->pcode)
-    ) ? optional($item->group)->name : ($legacyAssetProductName ?: '')),
-    'price' => old('price', $item->price),
-    'cost' => old('cost', $item->cost),
-    'description' => old('description', $item->description),
-    'description2' => old('description2', $item->description2),
+    'product_name' => old('product_name', $productTitle !== ''
+        ? $productTitle
+        : ($legacyAssetProductName ?: '')),
+    'description' => old('description', $isAsset ? ($item->group?->description ?? '') : $item->catalogDescription()),
+    'description2' => old('description2', $isAsset ? ($item->group?->description2 ?? '') : $item->catalogDescription2()),
+    'item_description' => old('item_description', $isAsset ? ($item->description ?? '') : ''),
+    'item_description2' => old('item_description2', $isAsset ? ($item->description2 ?? '') : ''),
     'url' => old('url', optional($item->group)->url),
     'restock_urgent_threshold' => old('restock_urgent_threshold', $item->restock_urgent_threshold),
 ];
@@ -42,6 +42,13 @@ $formItem = [
     <div class="mb-2">
         <h2 class="mb-1 text-3xl font-bold tracking-tight text-gray-900">{{ $isAsset ? 'Edit Asset' : 'Edit Item' }}</h2>
         <p class="text-gray-500">Update <span class="font-mono text-sm">{{ $item->code }}</span></p>
+        @if(!empty($colorwayEditUrl))
+        <p class="mt-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm text-indigo-900">
+            Catalog fields, product name, and the per-size price matrix live on the
+            <a href="{{ $colorwayEditUrl }}" class="font-medium underline hover:text-indigo-700">colorway editor</a>.
+            Use this page for SKU-specific tags, pcode moves, or Jubelio identity.
+        </p>
+        @endif
     </div>
 
     @include('items.partials.form-errors')
@@ -55,7 +62,6 @@ $formItem = [
             <div class="space-y-6 lg:col-span-2">
                 @include('items.partials.form-basic', ['formItem' => $formItem])
                 @include('items.partials.form-details', ['formItem' => $formItem])
-                @include('items.partials.form-preview')
             </div>
             <div class="space-y-6">
                 @include('items.partials.form-attributes', [
@@ -68,6 +74,8 @@ $formItem = [
                 @include('items.partials.form-image', ['imageUrl' => $item->image_url])
             </div>
         </div>
+
+        @include('items.partials.form-preview')
 
         <div class="flex justify-end gap-4 border-t border-gray-200 pt-8">
             <button type="button" onclick="window.history.back()" class="rounded-lg px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900">Cancel</button>

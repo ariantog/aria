@@ -13,15 +13,26 @@ beforeEach(function () {
     $this->seed(\Database\Seeders\SuperAdminSeeder::class);
     $this->seed(StaffRoleChecklistSeeder::class);
 
-    Permission::firstOrCreate(['name' => 'users-staff-roles-view', 'guard_name' => 'web']);
+    Permission::firstOrCreate(['name' => 'staff-checklists-view', 'guard_name' => 'web']);
     Permission::firstOrCreate(['name' => 'users-staff-roles-edit', 'guard_name' => 'web']);
 
     $this->viewer = User::factory()->create(['username' => 'checklist_viewer']);
-    $this->viewer->givePermissionTo('users-staff-roles-view');
+    $this->viewer->givePermissionTo('staff-checklists-view');
 });
 
 it('requires permission to view staff checklist overview', function () {
     $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->get(route('staff-checklists.index'))
+        ->assertForbidden();
+});
+
+it('does not grant overview access with only users-staff-roles-view', function () {
+    Permission::firstOrCreate(['name' => 'users-staff-roles-view', 'guard_name' => 'web']);
+
+    $user = User::factory()->create();
+    $user->givePermissionTo('users-staff-roles-view');
 
     $this->actingAs($user)
         ->get(route('staff-checklists.index'))

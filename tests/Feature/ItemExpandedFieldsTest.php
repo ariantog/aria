@@ -117,6 +117,107 @@ it('updates group url and item restock urgent threshold on item edit', function 
         ->and($item->restock_urgent_threshold)->toBe(8);
 });
 
+it('stores per-sku description overrides and reseller price on asset lancar edit', function () {
+    $size5 = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => '5KG', 'name' => '5KG']);
+    $size6 = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => '6KG', 'name' => '6KG']);
+    $warnaTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLACK', 'name' => 'BLACK']);
+    $group = ItemGroup::factory()->create([
+        'master' => 'DUMBBELL-04',
+        'variant' => 'BLACK',
+        'description' => 'SHARED DESC',
+        'description2' => 'SHARED NB',
+        'reseller_price' => 100000,
+    ]);
+    $item5 = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => $group->id,
+        'code' => 'DUMBBELL-04-BLACK-5KG',
+        'pcode' => 'DUMBBELL-04',
+        'cost' => 50000,
+        'description' => '',
+        'description2' => '',
+        'reseller_price' => 0,
+    ]);
+    $item6 = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => $group->id,
+        'code' => 'DUMBBELL-04-BLACK-6KG',
+        'pcode' => 'DUMBBELL-04',
+        'cost' => 55000,
+        'description' => '6KG ONLY DESC',
+        'description2' => '6KG NB',
+        'reseller_price' => 120000,
+    ]);
+    $item5->tags()->attach([$size5->id, $warnaTag->id]);
+    $item6->tags()->attach([$size6->id, $warnaTag->id]);
+
+    $this->actingAs($this->user)
+        ->put(route('assetlancar.update', $item5), [
+            'type' => ItemType::ASSET_LANCAR->value,
+            'pcode' => 'DUMBBELL-04',
+            'product_name' => 'Dumbbell',
+            'cost' => 50000,
+            'description' => 'UPDATED SHARED DESC',
+            'description2' => 'UPDATED SHARED NB',
+            'reseller_price' => 110000,
+            'item_description' => '5KG SPECIAL',
+            'item_description2' => '5KG NOTES',
+            'item_reseller_price' => 95000,
+            'tags' => [
+                'sizes' => [$size5->id],
+                'warna' => $warnaTag->id,
+            ],
+        ])
+        ->assertRedirect(route('assetlancar.show', $item5));
+
+    $item5->refresh();
+    $item6->refresh();
+    $group->refresh();
+
+    expect($group->description)->toBe('UPDATED SHARED DESC')
+        ->and($group->description2)->toBe('UPDATED SHARED NB')
+        ->and((float) $group->reseller_price)->toBe(110000.0)
+        ->and($item5->description)->toBe('5KG SPECIAL')
+        ->and($item5->description2)->toBe('5KG NOTES')
+        ->and((float) $item5->reseller_price)->toBe(95000.0)
+        ->and($item5->catalogDescription())->toBe('5KG SPECIAL')
+        ->and((float) $item5->catalogResellerPrice())->toBe(95000.0)
+        ->and($item6->description)->toBe('6KG ONLY DESC')
+        ->and($item6->catalogDescription())->toBe('6KG ONLY DESC')
+        ->and((float) $item6->catalogResellerPrice())->toBe(120000.0);
+});
+
+it('shows separate global and per-sku description fields on asset lancar edit page', function () {
+    $sizeTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => '5KG', 'name' => '5KG']);
+    $warnaTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLACK', 'name' => 'BLACK']);
+    $group = ItemGroup::factory()->create([
+        'description' => 'GROUP DESC',
+        'description2' => 'GROUP NB',
+        'reseller_price' => 100000,
+    ]);
+    $item = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => $group->id,
+        'code' => 'DUMBBELL-04-BLACK-5KG',
+        'pcode' => 'DUMBBELL-04',
+        'cost' => 50000,
+        'description' => 'SKU DESC',
+        'description2' => 'SKU NB',
+        'reseller_price' => 90000,
+    ]);
+    $item->tags()->attach([$sizeTag->id, $warnaTag->id]);
+
+    $this->actingAs($this->user)
+        ->get(route('assetlancar.edit', $item))
+        ->assertOk()
+        ->assertSee('name="item_description"', false)
+        ->assertSee('data-testid="item-form-pricing-reseller_price-scope-size"', false)
+        ->assertSee('data-testid="item-form-sku-details"', false)
+        ->assertSee('Optional per-SKU overrides for rare cases', false)
+        ->assertSee('GROUP DESC', false)
+        ->assertSee('SKU DESC', false);
+});
+
 it('redirects to asset lancar detail page after update', function () {
     $sizeTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'S', 'name' => 'S']);
     $warnaTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLACK', 'name' => 'BLACK']);
@@ -141,6 +242,39 @@ it('redirects to asset lancar detail page after update', function () {
         ])
         ->assertRedirect(route('assetlancar.show', $item))
         ->assertSessionHas('success', 'Item updated.');
+});
+
+it('stores legacy_code when asset lancar edit changes the sku', function () {
+    $sizeTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'S', 'name' => 'S']);
+    $blackTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLACK', 'name' => 'BLACK']);
+    $navyTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'NAVY', 'name' => 'NAVY']);
+    $item = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'code' => 'GLOVE-07-BLACK-S',
+        'legacy_code' => null,
+        'pcode' => 'GLOVE-07',
+        'name' => 'GLOVE 07 - BLACK - S',
+        'cost' => 1000,
+    ]);
+    $item->tags()->attach([$sizeTag->id, $blackTag->id]);
+
+    $this->actingAs($this->user)
+        ->put(route('assetlancar.update', $item), [
+            'type' => ItemType::ASSET_LANCAR->value,
+            'pcode' => 'GLOVE-07',
+            'product_name' => 'Glove 07',
+            'cost' => 1500,
+            'tags' => [
+                'sizes' => [$sizeTag->id],
+                'warna' => $navyTag->id,
+            ],
+        ])
+        ->assertRedirect(route('assetlancar.show', $item));
+
+    $item->refresh();
+
+    expect($item->code)->toBe('GLOVE-07-NAVY-S')
+        ->and($item->legacy_code)->toBe('GLOVE-07-BLACK-S');
 });
 
 it('shows group url and item restock threshold on item detail page when set', function () {
@@ -183,4 +317,52 @@ it('rejects invalid restock urgent threshold on create', function () {
         ])
         ->assertRedirect(route('items.create'))
         ->assertSessionHasErrors('restock_urgent_threshold');
+});
+
+it('stores per-sku overrides when creating multiple asset lancar sizes', function () {
+    $assetType = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ASSET_LANCAR->value,
+        'code' => 'GLOVE',
+        'name' => 'Glove',
+    ]);
+    $sizeS = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'S', 'name' => 'S']);
+    $sizeM = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'M']);
+    $warnaTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLACK', 'name' => 'BLACK']);
+
+    $this->actingAs($this->user)
+        ->post(route('assetlancar.store'), [
+            'type' => ItemType::ASSET_LANCAR->value,
+            'pcode' => 'GLOVE-09',
+            'product_name' => 'Training Glove',
+            'price' => 100000,
+            'cost' => 60000,
+            'reseller_price' => 90000,
+            'description' => 'SHARED DESC',
+            'tags' => [
+                'types' => [$assetType->id],
+                'sizes' => [$sizeS->id, $sizeM->id],
+                'warna' => [$warnaTag->id],
+            ],
+            'sku_overrides' => [
+                'GLOVE-09-BLACK-S' => [
+                    'price' => 110000,
+                    'description' => 'SMALL ONLY',
+                    'reseller_price' => 95000,
+                ],
+            ],
+        ])
+        ->assertRedirect(route('assetlancar.index'))
+        ->assertSessionHas('success');
+
+    $small = Item::query()->where('code', 'GLOVE-09-BLACK-S')->first();
+    $medium = Item::query()->where('code', 'GLOVE-09-BLACK-M')->first();
+
+    expect($small)->not->toBeNull()
+        ->and((float) $small->price)->toBe(110000.0)
+        ->and($small->description)->toBe('SMALL ONLY')
+        ->and((float) $small->reseller_price)->toBe(95000.0)
+        ->and($small->effectivePrice())->toBe(110000.0)
+        ->and($medium->effectivePrice())->toBe(100000.0)
+        ->and(trim((string) ($medium->description ?? '')))->toBe('');
 });

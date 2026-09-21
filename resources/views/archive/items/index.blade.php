@@ -46,7 +46,7 @@ $idr = fn ($v) => 'Rp ' . format_amount($v, 0);
                     @forelse($items as $item)
                     <tr class="hover:bg-gray-50">
                         <td class="px-3 py-2 font-mono text-xs">
-                            <a href="{{ route('archive.items.show', $item->id) }}" class="text-blue-600 hover:underline">#{{ $item->id }}</a>
+                            <a href="{{ route('archive.items.show', $item->id) }}" class="text-blue-600 hover:underline">{{ $item->id }}</a>
                         </td>
                         <td class="px-3 py-2 font-mono text-xs">{{ $item->code }}</td>
                         <td class="px-3 py-2">

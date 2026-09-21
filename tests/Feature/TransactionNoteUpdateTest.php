@@ -81,7 +81,8 @@ it('shows edit note controls on the transactions index for editors', function ()
         ->get(route('transactions.index'))
         ->assertOk()
         ->assertSee('Description', false)
-        ->assertSee('data-testid="edit-tx-note-'.$this->transaction->id.'"', false);
+        ->assertSee('data-testid="edit-tx-note-'.$this->transaction->id.'"', false)
+        ->assertSee('data-testid="copy-transactions-table"', false);
 });
 
 it('hides edit note controls without edit permission', function () {

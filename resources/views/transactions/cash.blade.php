@@ -100,17 +100,18 @@ $config = [
                     <div class="col-span-4">{{ $config['sourceLabel'] }}</div>
                     <div class="col-span-3">Invoice #</div>
                     <div class="col-span-2">Note</div>
-                    <div class="col-span-2 text-right">Total (Rp)</div>
+                    <div class="col-span-2">Total (Rp)</div>
                     <div class="col-span-1 text-center">×</div>
                 </div>
 
                 @php
-                    $rowInput = 'w-full h-8 min-h-8 box-border rounded border border-gray-200 px-2 py-0 text-sm leading-8 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none';
+                    $rowInput = 'w-full h-9 min-h-9 box-border rounded border border-gray-200 px-2 py-0 text-base leading-9 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none';
+                    $amountInput = $rowInput.' text-left';
                 @endphp
                 <div class="divide-y divide-gray-100 px-0">
                     <template x-for="(row, idx) in form.items" :key="row.id">
                         {{-- Ledger hint is its own grid cell so the input row stays even. --}}
-                        <div class="flex flex-col gap-3 px-5 py-4 text-sm hover:bg-gray-50 sm:grid sm:grid-cols-12 sm:items-start sm:gap-x-2 sm:gap-y-1 sm:py-2"
+                        <div class="flex flex-col gap-3 px-5 py-4 hover:bg-gray-50 sm:grid sm:grid-cols-12 sm:items-start sm:gap-x-2 sm:gap-y-1 sm:py-2"
                              data-testid="cash-entry-row"
                              :class="rowInvalid(row) ? 'bg-red-50' : ''">
                             {{-- Source / recipient autocomplete --}}
@@ -121,13 +122,14 @@ $config = [
                                      onSelect: (item) => onRowSourceSelect(idx, row, item)
                                  })">
                                 <label class="mb-1 block text-xs font-medium text-gray-500 sm:hidden">{{ $config['sourceLabel'] }}</label>
-                                <div class="relative flex h-8 min-h-8 overflow-hidden rounded border focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
+                                <div class="relative flex h-9 min-h-9 overflow-hidden rounded border focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
                                      :class="rowInvalid(row) && !row.customer_id ? 'border-red-400 bg-red-50' : 'border-gray-200'">
                                     <input type="text" x-model="query" @input="handleInput()" @focus="handleFocus()"
                                            @keydown="handleKeydown($event)" @keyup="handleKeyup($event)"
                                            :readonly="keyboardNavLock()"
                                            :id="'source_' + idx"
-                                           :placeholder="placeholder" class="flex-1 border-none bg-transparent px-2 text-sm leading-8 outline-none" autocomplete="off">
+                                           :data-testid="'cash-entry-source-' + idx"
+                                           :placeholder="placeholder" class="flex-1 border-none bg-transparent px-2 text-base leading-9 outline-none" autocomplete="off">
                                     <span x-show="loading" class="flex items-center pr-1.5"><svg class="h-3.5 w-3.5 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg></span>
                                 </div>
                                 <div x-show="open" class="combobox-options" x-ref="optionsList" style="z-index:60">
@@ -135,22 +137,23 @@ $config = [
                                     <template x-for="(item, i) in items" :key="item.id">
                                         <div @mousedown.prevent="selectItem(item)" @mouseenter="activeIndex=i" class="combobox-option" :class="{'active': activeIndex===i}">
                                             <span class="block font-medium" x-text="item.name"></span>
-                                            <span x-show="item.ledger_hint" class="block text-xs text-gray-500 line-clamp-2" x-text="item.ledger_hint"></span>
+                                            <span x-show="item.ledger_hint || item.description" class="block text-xs text-gray-500 line-clamp-2" x-text="item.ledger_hint || item.description"></span>
                                         </div>
                                     </template>
                                 </div>
                             </div>
-                            <p x-show="row.customer && row.customer.ledger_hint"
+                            <p x-show="row.customer && (row.customer.ledger_hint || row.customer.description)"
                                x-cloak
                                data-testid="cash-entry-ledger-hint"
                                class="order-2 text-xs leading-4 text-gray-500 sm:order-6 sm:col-span-4 sm:col-start-1"
-                               x-text="row.customer.ledger_hint"></p>
+                               x-text="row.customer.ledger_hint || row.customer.description"></p>
                             <div class="order-3 sm:order-2 sm:col-span-3">
                                 <label class="mb-1 block text-xs font-medium text-gray-500 sm:hidden">Invoice #</label>
                                 <input type="text" x-model="row.invoice" placeholder="Invoice #"
                                        @keydown="fieldKeydown(idx, 'invoice', $event)"
                                        @keyup="fieldKeyup(idx, 'invoice', $event)"
                                        :id="'invoice_' + idx"
+                                       :data-testid="'cash-entry-invoice-' + idx"
                                        class="{{ $rowInput }}">
                             </div>
                             <div class="order-4 sm:order-3 sm:col-span-2">
@@ -159,6 +162,7 @@ $config = [
                                        @keydown="fieldKeydown(idx, 'note', $event)"
                                        @keyup="fieldKeyup(idx, 'note', $event)"
                                        :id="'note_' + idx"
+                                       :data-testid="'cash-entry-note-' + idx"
                                        class="{{ $rowInput }}">
                             </div>
                             <div class="order-5 sm:order-4 sm:col-span-2">
@@ -168,7 +172,8 @@ $config = [
                                        @keydown="fieldKeydown(idx, 'total', $event)"
                                        @keyup="fieldKeyup(idx, 'total', $event)"
                                        :id="'total_' + idx"
-                                       class="{{ $rowInput }} text-right"
+                                       :data-testid="'cash-entry-total-' + idx"
+                                       class="{{ $amountInput }}"
                                        :class="rowInvalid(row) && !(Number(row.total) >= 0.01) ? 'border-red-400 bg-red-50' : ''">
                             </div>
                             <div class="order-6 sm:order-5 sm:col-span-1 sm:text-center">
@@ -203,7 +208,7 @@ $config = [
                                                step="any"
                                                placeholder="0"
                                                @input="markPpnManual(row)"
-                                               class="{{ $rowInput }}"
+                                               class="{{ $amountInput }}"
                                                :class="rowInvalid(row) && row.record_ppn && !(Number(row.ppn_dpp) >= 0.01) ? 'border-red-400 bg-red-50' : ''">
                                     </div>
                                     <div>
@@ -214,7 +219,7 @@ $config = [
                                                step="any"
                                                placeholder="0"
                                                @input="markPpnManual(row)"
-                                               class="{{ $rowInput }}"
+                                               class="{{ $amountInput }}"
                                                :class="rowInvalid(row) && row.record_ppn && !(Number(row.ppn) >= 0.01) ? 'border-red-400 bg-red-50' : ''">
                                     </div>
                                     <div x-show="row.record_pph" x-cloak>
@@ -225,7 +230,7 @@ $config = [
                                                step="any"
                                                placeholder="0"
                                                @input="markPpnManual(row)"
-                                               class="{{ $rowInput }}"
+                                               class="{{ $amountInput }}"
                                                :class="rowInvalid(row) && row.record_pph && !(Number(row.pph) >= 0.01) ? 'border-red-400 bg-red-50' : ''">
                                     </div>
                                     </div>
@@ -286,6 +291,8 @@ function cashForm() {
         touched: false,
         serverErrors: [],
         _fieldKeyHandled: false,
+        _pendingFieldFocus: null,
+        _pendingFocusTimer: null,
         form: {
             date: startDate,
             account_id: '',
@@ -428,8 +435,16 @@ function cashForm() {
             return this.dateValid() && this.accountValid() && rows.length >= 1 && rows.every(r => this.rowValid(r));
         },
 
+        rowTotalFilled(row) {
+            if (!row) return false;
+            const raw = row.total;
+            if (raw === null || raw === '' || raw === undefined) return false;
+            return Number(raw) >= 0.01;
+        },
+
         focusNext(idx, field) {
             if (field === 'next') {
+                if (!this.rowTotalFilled(this.form.items[idx])) return;
                 // Move to next row or add row (capped at _CashMaxRows)
                 if (idx < this.form.items.length - 1) {
                     deferFocusElement('source_' + (idx + 1), false);
@@ -442,41 +457,90 @@ function cashForm() {
             deferFocusElement(field + '_' + idx);
         },
 
+        _queueFieldFocus(idx, field) {
+            if (this._pendingFocusTimer) {
+                clearTimeout(this._pendingFocusTimer);
+                this._pendingFocusTimer = null;
+            }
+            this._pendingFieldFocus = { idx, field };
+            // Flush on keyup. This timer is only if Android swallows keyup.
+            this._pendingFocusTimer = setTimeout(() => this._flushPendingFieldFocus(), 400);
+        },
+
+        _flushPendingFieldFocus() {
+            if (this._pendingFocusTimer) {
+                clearTimeout(this._pendingFocusTimer);
+                this._pendingFocusTimer = null;
+            }
+            const pending = this._pendingFieldFocus;
+            this._pendingFieldFocus = null;
+            if (!pending) return;
+            this.focusNext(pending.idx, pending.field);
+        },
+
         // Bare keydown/keyup (not Alpine .enter) so Android/IME keyboards work.
+        // Do not reset _fieldKeyHandled on every keydown: Android Chrome often
+        // sends IME 229 then a real Enter, and resetting unlocked the keyup
+        // fallback so one press jumped invoice → note → total.
         fieldKeydown(idx, field, e) {
-            if (isFieldNavigationSuppressed()) {
+            if (e.repeat && (isConfirmedEnterKey(e) || normalizeNavigationKey(e) === 'Enter')) {
                 e.preventDefault();
+                this._fieldKeyHandled = true;
                 return;
             }
-            this._fieldKeyHandled = false;
-            if (this._processFieldKey(idx, field, e)) {
+            if (isFieldNavigationSuppressed()) {
+                if (isImePlaceholderKey(e) || isConfirmedEnterKey(e) || normalizeNavigationKey(e) === 'Enter') {
+                    e.preventDefault();
+                    this._fieldKeyHandled = true;
+                }
+                return;
+            }
+            if (this._processFieldKey(idx, field, e, false)) {
                 this._fieldKeyHandled = true;
                 e.preventDefault();
+                e.stopPropagation();
             }
         },
 
         fieldKeyup(idx, field, e) {
-            if (isFieldNavigationSuppressed()) {
-                e.preventDefault();
-                return;
-            }
             if (this._fieldKeyHandled) {
                 this._fieldKeyHandled = false;
+                if (normalizeNavigationKey(e) === 'Enter') e.preventDefault();
+                this._flushPendingFieldFocus();
                 return;
             }
-            if (this._processFieldKey(idx, field, e)) {
+            if (isFieldNavigationSuppressed()) {
+                if (normalizeNavigationKey(e) === 'Enter') e.preventDefault();
+                return;
+            }
+            if (this._processFieldKey(idx, field, e, true)) {
                 this._fieldKeyHandled = true;
                 e.preventDefault();
+                e.stopPropagation();
+                this._flushPendingFieldFocus();
             }
         },
 
-        _processFieldKey(idx, field, e) {
-            if (normalizeNavigationKey(e) !== 'Enter') return false;
-            suppressFieldNavigation(400);
-            if (field === 'invoice') { this.focusNext(idx, 'note'); return true; }
-            if (field === 'note') { this.focusNext(idx, 'total'); return true; }
-            if (field === 'total') { this.focusNext(idx, 'next'); return true; }
-            return false;
+        _processFieldKey(idx, field, e, fromKeyup) {
+            const isEnter = fromKeyup
+                ? normalizeNavigationKey(e) === 'Enter'
+                : isConfirmedEnterKey(e);
+            if (!isEnter) return false;
+            if (e.repeat) return true;
+            if (!claimEnterFieldNavigation()) return true;
+
+            let dest = null;
+            if (field === 'invoice') dest = 'note';
+            else if (field === 'note') dest = 'total';
+            else if (field === 'total') {
+                if (!this.rowTotalFilled(this.form.items[idx])) return true;
+                dest = 'next';
+            } else {
+                return false;
+            }
+
+            this._queueFieldFocus(idx, dest);
+            return true;
         },
 
         async handleSubmit() {

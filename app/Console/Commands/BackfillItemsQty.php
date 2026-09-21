@@ -2,42 +2,26 @@
 
 namespace App\Console\Commands;
 
+use App\Services\ItemsQtySyncService;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 
 class BackfillItemsQty extends Command
 {
-    protected $signature = 'app:backfill-items-qty {--chunk=500 : Rows per chunk}';
+    protected $signature = 'app:backfill-items-qty {--chunk=500 : Unused legacy option kept for CLI compatibility}';
 
-    protected $description = 'Backfill items.qty from per-warehouse stock (warehouse_item / warehouse_item).';
+    protected $description = 'Backfill items.qty from non-deleted physical warehouse stock (virtual excluded; does not modify warehouse_item)';
 
-    public function handle(): int
+    public function handle(ItemsQtySyncService $sync): int
     {
-        if (! Schema::hasColumn('items', 'qty')) {
-            $this->error('items.qty column does not exist. Run migrations first.');
+        $this->info('Backfilling items.qty from warehouse_item (non-deleted warehouses, virtual excluded)...');
+
+        try {
+            $updated = $sync->syncAllFromPhysicalWarehouse();
+        } catch (\RuntimeException $e) {
+            $this->error($e->getMessage());
 
             return self::FAILURE;
         }
-
-        $warehouseTable = Schema::hasTable('warehouse_item')
-            ? 'warehouse_item'
-            : (Schema::hasTable('warehouse_item') ? 'warehouse_item' : null);
-
-        if (! $warehouseTable) {
-            $this->error('No warehouse_item / warehouse_item table found.');
-
-            return self::FAILURE;
-        }
-
-        $this->info("Backfilling items.qty from {$warehouseTable}...");
-
-        $updated = DB::update("
-            UPDATE items
-            SET qty = COALESCE((
-                SELECT SUM(quantity) FROM {$warehouseTable} wi WHERE wi.item_id = items.id
-            ), 0)
-        ");
 
         $this->info("Updated {$updated} item rows.");
 

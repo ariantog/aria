@@ -5,4 +5,4 @@
 - [Never point tests at the dev DB](laravel-test-db-safety.md) — RefreshDatabase is global on Feature tests, so overriding DB_DATABASE drops all seeded dev data.
 - [Don't rewrite existing providers](editing-existing-providers.md) — editing bootstrap files by full rewrite silently deletes observers, gates and prod guards; edit in place.
 - [Plain tables, not data grids](no-tabulator-decision.md) — owner rejected Tabulator on the transactions index; a merge reverted it once, so re-check after merges.
-- [Blade migration conventions](blade-migration.md) — app is fully Blade+Alpine (no Inertia/React); follow docs/blade-migration-conventions.md for any new page.
+- [Blade migration conventions](blade-migration.md) — app is fully Blade+Alpine (no Inertia/React); see `AGENTS.md` for constraints.

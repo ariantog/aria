@@ -22,6 +22,15 @@ use Illuminate\Database\Migrations\Migration;
  * 11. `2026_08_25_100000_bootstrap_shopee_ads_tables` — Shopee Ads bot tables
  * 12. `2026_08_13_120000_add_production_not_null_column_defaults` — MySQL `DEFAULT` on NOT NULL columns
  * 13. `2026_08_13_130000_fix_production_bigint_columns_to_int` — INT FK types for prod PKs
+ * 14. `2026_09_01_210000_install_jubelio_stock_check_columns` — sync_cursor + discrepancy qty columns
+ * 15. `2026_09_02_120000_make_produksi_worker_ids_nullable` — jahit/qc/pritil NULL default
+ * 16. `2026_09_02_210000_add_last_error_to_crongetorders_and_resume_stuck_imports` — get-orders resume
+ * 17. `2026_09_01_100000_add_soft_deletes_to_checklist_templates` — catalog_key / route_query / soft deletes
+ * 18. `2026_09_03_130000_add_brand_and_genre_to_item_group_table` — item_group.brand / genre
+ * 19. `2026_09_03_150000_widen_item_group_name_drop_unique` — item_group.name VARCHAR(255)
+ * 20. `2026_09_06_150000_add_alias_to_items_table` — items.alias for per-SKU alias display
+ * 21. `2026_09_08_120000_add_reseller_price_to_items_and_item_group` — reseller price on items + item_group
+ * 22. `2026_09_08_130000_remove_jubelio_get_orders_cron` — drop legacy get-orders resume cron
  *
  * Safe to run on a fresh prod copy in one step:
  *
@@ -53,9 +62,11 @@ return new class extends Migration
         (require __DIR__.'/2026_08_25_100200_add_variance_transaction_id_to_tax_faktur_imports_table.php')->up();
         (require __DIR__.'/2026_08_27_100000_add_sell_transaction_id_to_tax_faktur_imports_table.php')->up();
         (require __DIR__.'/2026_08_31_120000_install_tax_faktur_import_sells_table.php')->up();
+        (require __DIR__.'/2026_09_02_180000_add_down_payment_total_to_tax_faktur_imports_table.php')->up();
         (require __DIR__.'/2026_08_25_100000_bootstrap_shopee_ads_tables.php')->up();
         (require __DIR__.'/2026_08_26_120000_widen_shopee_ads_item_id_column.php')->up();
         (require __DIR__.'/2026_08_28_100000_add_shopee_ads_item_performance_and_topup.php')->up();
+        (require __DIR__.'/2026_09_08_100000_add_item_replenish_min_roas_to_shopee_ads_settings.php')->up();
         (require __DIR__.'/2026_08_28_120000_create_data_retention_runs_table.php')->up();
         (require __DIR__.'/2026_08_29_100000_install_karyawan_gaji_table.php')->up();
         (require __DIR__.'/2026_08_29_100100_add_payroll_attendance_fields_to_karyawans_table.php')->up();
@@ -65,6 +76,29 @@ return new class extends Migration
         (require __DIR__.'/2026_08_29_100000_install_depreciation_register.php')->up();
         (require __DIR__.'/2026_08_31_100000_install_inventory_health_snapshots_table.php')->up();
         (require __DIR__.'/2026_08_31_120000_install_staff_role_checklists.php')->up();
+        (require __DIR__.'/2026_09_01_100000_add_soft_deletes_to_checklist_templates.php')->up();
+        (require __DIR__.'/2026_09_01_150000_add_nama_absensi_to_karyawans_table.php')->up();
+        (require __DIR__.'/2026_09_01_150100_add_izin_to_cutis_table.php')->up();
+        (require __DIR__.'/2026_09_01_160000_add_absen_id_and_jam_kerja_to_karyawans_table.php')->up();
+        (require __DIR__.'/2026_09_01_160100_install_hari_libur_table.php')->up();
+        (require __DIR__.'/2026_09_01_160200_install_absensi_tables.php')->up();
+        (require __DIR__.'/2026_09_01_160300_add_jam_kerja_hours_to_karyawan_gaji_table.php')->up();
+        (require __DIR__.'/2026_09_01_170000_install_karyawan_cuti_sisa_tables.php')->up();
+        (require __DIR__.'/2026_09_01_210000_install_jubelio_stock_check_columns.php')->up();
+        (require __DIR__.'/2026_09_02_120000_make_produksi_worker_ids_nullable.php')->up();
+        (require __DIR__.'/2026_09_02_210000_add_last_error_to_crongetorders_and_resume_stuck_imports.php')->up();
+        (require __DIR__.'/2026_09_03_130000_add_brand_and_genre_to_item_group_table.php')->up();
+        (require __DIR__.'/2026_09_03_150000_widen_item_group_name_drop_unique.php')->up();
+        (require __DIR__.'/2026_09_06_150000_add_alias_to_items_table.php')->up();
+        (require __DIR__.'/2026_09_08_120000_add_reseller_price_to_items_and_item_group.php')->up();
+        (require __DIR__.'/2026_09_15_100000_add_cost_cnh_to_items_table.php')->up();
+        (require __DIR__.'/2026_09_21_100000_install_item_pricing_catalog.php')->up();
+        (require __DIR__.'/2026_09_08_130000_remove_jubelio_get_orders_cron.php')->up();
+        (require __DIR__.'/2026_09_05_150000_add_ppn_included_to_customers_table.php')->up();
+        (require __DIR__.'/2026_09_13_100000_install_item_insight_tables.php')->up();
+        (require __DIR__.'/2026_09_13_100100_grant_item_insights_report_permission.php')->up();
+        (require __DIR__.'/2026_09_13_110000_add_months_included_to_item_insight_months.php')->up();
+        (require __DIR__.'/2026_09_13_120000_add_restock_fields_to_item_insight_rankings.php')->up();
     }
 
     public function down(): void

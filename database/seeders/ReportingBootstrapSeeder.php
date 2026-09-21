@@ -2,15 +2,12 @@
 
 namespace Database\Seeders;
 
-use App\Enums\ReportingLedgerRole;
-use App\Models\Addrbook;
 use App\Models\Operation;
 use App\Models\ReportingEntity;
-use App\Models\ReportingLedgerRole as ReportingLedgerRoleModel;
 use App\Models\ReportingTaxAccount;
 use App\Support\OperationSimplificationPlan;
+use App\Support\ProductionLedgerCopy;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
 
 class ReportingBootstrapSeeder extends Seeder
 {
@@ -49,69 +46,8 @@ class ReportingBootstrapSeeder extends Seeder
             Operation::where('id', $id)->update(['report_slug' => $slug]);
         }
 
-        $taxMap = [
-            2106 => ['cv-crystal', 'pph'],
-            2883 => ['cv-crystal', 'spt'],
-            2861 => ['cv-cipta', 'pph'],
-            2884 => ['cv-cipta', 'spt'],
-            2849 => ['pt-indosport', 'ppn'],
-            2885 => ['pt-indosport', 'spt'],
-            2862 => ['pt-indosport', 'pph'],
-            2863 => ['cv-cakra', 'pph'],
-            2896 => ['cv-cakra', 'pph'],
-            2941 => ['agm', 'pph'],
-            2944 => ['uai', 'pph'],
-            2865 => ['pribadi', 'pph'],
-            2797 => ['pribadi', 'spt'],
-        ];
-
-        foreach ($taxMap as $ledgerId => [$entitySlug, $taxType]) {
-            $entity = ReportingEntity::where('slug', $entitySlug)->first();
-            if (! $entity || ! Addrbook::find($ledgerId)) {
-                continue;
-            }
-            ReportingTaxAccount::updateOrCreate(
-                ['legacy_ledger_id' => $ledgerId],
-                ['reporting_entity_id' => $entity->id, 'tax_type' => $taxType],
-            );
-        }
-
-        $hints = [
-            2889 => 'Biaya operasional toko WTC: sewa, transport, utilitas. Juga gudang pengiriman marketplace. Isi catatan untuk detail.',
-            2842 => 'Biaya operasional toko Citos: sewa, utilitas, perlengkapan. Juga gudang pengiriman marketplace.',
-            2234 => 'Komisi dan biaya platform Shopee.',
-            2788 => 'Komisi dan biaya platform TikTok Shop.',
-            2881 => 'Biaya platform Lazada.',
-            2273 => 'Biaya platform Tokopedia.',
-            2099 => 'Biaya partner Metro: sample, fixture, lampu, banner, display.',
-            2178 => 'Biaya partner Sogo: sample, fixture, display.',
-            2633 => 'Biaya partner Central: sample, fixture, display.',
-            1558 => 'Pembelian bahan baku / material produksi.',
-            2696 => 'Gaji mingguan jahit — biaya produksi aktual (bukan borongan).',
-            830 => 'Sewa HQ Sambisari — kantor pusat, bukan toko WTC/Citos.',
-        ];
-
-        foreach ($hints as $id => $hint) {
-            Addrbook::where('id', $id)->where('type', Addrbook::TYPE_ACCOUNT)->update(['ledger_hint' => $hint]);
-        }
-
-        $roles = [
-            1558 => ReportingLedgerRole::Material,
-            2696 => ReportingLedgerRole::ProductionCost,
-            2889 => ReportingLedgerRole::TokoCost,
-            2842 => ReportingLedgerRole::TokoCost,
-            2234 => ReportingLedgerRole::MarketplaceCost,
-            2788 => ReportingLedgerRole::MarketplaceCost,
-        ];
-
-        foreach ($roles as $id => $role) {
-            if (! Addrbook::find($id)) {
-                continue;
-            }
-            ReportingLedgerRoleModel::updateOrCreate(
-                ['customer_id' => $id],
-                ['role' => $role->value],
-            );
-        }
+        ProductionLedgerCopy::applyTaxMaps();
+        ProductionLedgerCopy::apply();
+        ProductionLedgerCopy::applyRoles();
     }
 }

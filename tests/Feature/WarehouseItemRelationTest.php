@@ -113,7 +113,7 @@ it('item show lists deleted warehouse stock in a collapsible section', function 
         ->get(route('items.show', $item))
         ->assertOk()
         ->assertSee('Gudang Aktif', false)
-        ->assertSee('Active Stock:', false)
+        ->assertSee('Available:', false)
         ->assertSee('8 Units', false)
         ->assertSee('3 in deleted warehouses', false)
         ->assertSee('Deleted Warehouses (3 units)', false)
@@ -123,6 +123,7 @@ it('item show lists deleted warehouse stock in a collapsible section', function 
 });
 
 it('asset lancar show lists deleted warehouse stock separately from active stock', function () {
+    $physicalWarehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Fisik']);
     $activeWarehouse = Addrbook::factory()->create([
         'name' => 'V-WH Active',
         'type' => Addrbook::TYPE_V_WAREHOUSE,
@@ -135,6 +136,12 @@ it('asset lancar show lists deleted warehouse stock separately from active stock
 
     $item = Item::factory()->create(['type' => \App\Enums\ItemType::ASSET_LANCAR]);
 
+    WarehouseItem::create([
+        'warehouse_id' => $physicalWarehouse->id,
+        'item_id' => $item->id,
+        'warehouse_type' => (string) Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 7,
+    ]);
     WarehouseItem::create([
         'warehouse_id' => $activeWarehouse->id,
         'item_id' => $item->id,
@@ -151,8 +158,10 @@ it('asset lancar show lists deleted warehouse stock separately from active stock
     $this->actingAs($this->user)
         ->get(route('assetlancar.show', $item))
         ->assertOk()
+        ->assertSee('Gudang Fisik', false)
+        ->assertSee('7 Units', false)
         ->assertSee('V-WH Active', false)
-        ->assertSee('4 Units', false)
+        ->assertSee('Virtual Warehouses (4 units, excluded from available)', false)
         ->assertSee('Deleted Warehouses (2 units)', false)
         ->assertSee('V-WH Retired', false);
 });

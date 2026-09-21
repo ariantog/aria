@@ -28,7 +28,6 @@ test('adjust transaction can be stored and updates balances', function () {
         'sender_id' => $account->id,
         'receiver_id' => $customer->id,
         'total' => 1000,
-        'real_total' => 1000,
     ]);
 
     // Check balance updates (AddrbookStat)

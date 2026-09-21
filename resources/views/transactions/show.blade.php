@@ -18,7 +18,7 @@
     $status = $statuses[$statusKey] ?? ['label' => 'Unknown', 'color' => 'bg-gray-100 text-gray-800'];
 
     $fmt = fn ($n) => format_amount($n);
-    $grandTotalFormatted = $fmt($transaction->total);
+    $grandTotalFormatted = $fmt($transaction->displaySignedGrandTotal());
     $grandTotalHeroClass = \App\Support\AmountFormatter::displayTextClass($grandTotalFormatted, 'hero');
     $grandTotalCompactClass = \App\Support\AmountFormatter::displayTextClass($grandTotalFormatted, 'compact');
     $fmtDate = function ($d) {
@@ -28,11 +28,11 @@
     $noteText = $transaction->description ?: ($transaction->notes ?: '');
     $hasRecordedPpn = (float) $transaction->ppn > 0;
     $ppnDppDisplay = $transaction->ppn_dpp !== null ? $fmt($transaction->ppn_dpp) : '-';
-    $cashTotalAbs = abs((float) $transaction->total);
+    $cashTotalAbs = $transaction->displayGrandTotal();
 @endphp
 
 <div class="flex h-full flex-1 flex-col gap-3 overflow-x-auto rounded-xl p-3 sm:gap-4 sm:p-4"
-     x-data="transactionShowPage({{ $transaction->id }}, @js($noteText), @js((bool) ($can['edit_transaction'] ?? false)), @js((bool) ($canEditPpn ?? false)), @js((float) $transaction->ppn), @js($transaction->ppn_dpp !== null ? (float) $transaction->ppn_dpp : null), @js($transaction->pph !== null ? (float) $transaction->pph : null), @js((float) ($ppn_rate ?? 11)), @js((float) ($pph_rate ?? 10)), @js($cashTotalAbs))">
+     x-data="transactionShowPage({{ $transaction->id }}, @js($noteText), @js((bool) ($can['edit_transaction'] ?? false)), @js((bool) ($canEditPpn ?? false)), @js((float) $transaction->ppn), @js($transaction->ppn_dpp !== null ? (float) $transaction->ppn_dpp : null), @js($transaction->pph !== null ? (float) $transaction->pph : null), @js((float) ($ppn_rate ?? 11)), @js((float) ($pph_rate ?? 10)), @js($cashTotalAbs), @js($transaction->displaySignedPpn()))">
 
     {{-- Top Action Bar --}}
     <div class="flex flex-col gap-3 print:hidden md:flex-row md:items-start md:justify-between">
@@ -52,6 +52,16 @@
                         Edit
                     </button>
                     @endif
+                    @include('partials.copy-button', [
+                        'value' => route('transactions.show', $transaction, absolute: true),
+                        'testid' => 'copy-tx-url',
+                        'label' => 'Copy link',
+                    ])
+                    @include('partials.copy-button', [
+                        'value' => (string) $transaction->invoice,
+                        'testid' => 'copy-tx-invoice',
+                        'label' => 'Copy invoice #',
+                    ])
                     @if($invoiceSettlement)
                         @include('invoice-maker.partials.status-badge', [
                             'status' => $invoiceSettlement['status'],
@@ -236,7 +246,7 @@
                         <div class="text-[10px] font-medium tracking-wider text-gray-500 uppercase sm:text-xs">Grand Total</div>
                         <div class="mt-0.5 min-w-0 sm:mt-1">
                             <div class="text-[10px] font-semibold text-blue-600 sm:text-xs">IDR</div>
-                            <div class="{{ $grandTotalHeroClass }} tabular-nums break-all text-blue-700">{{ $grandTotalFormatted }}</div>
+                            <div data-testid="tx-grand-total-hero" class="{{ $grandTotalHeroClass }} tabular-nums break-all text-blue-700">{{ $grandTotalFormatted }}</div>
                         </div>
                     </div>
                     <span class="inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold sm:hidden {{ $status['color'] }}">{{ $status['label'] }}</span>
@@ -311,7 +321,7 @@
                 <div class="px-3 py-2.5">
                     <div class="text-[10px] font-semibold tracking-wide text-gray-400 uppercase">{{ $contact['label'] }} ({{ $contact['direction'] }})</div>
                     @if($contact['party'])
-                        @php $contactUrl = route('addrbook.type.show', ['type' => $contact['party']->type_slug, 'addrbook' => $contact['party']->id]); @endphp
+                        @php $contactUrl = $contact['party']->transactionsUrl(); @endphp
                         <div class="mt-1 flex items-center gap-2">
                             <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-{{ $contact['accent'] }}-100 text-xs font-bold text-{{ $contact['accent'] }}-600">
                                 {{ mb_substr($contact['party']->name, 0, 1) }}
@@ -367,6 +377,16 @@
 
     @include('transactions.partials.jubelio-sync', ['transaction' => $transaction, 'jubelioSync' => $jubelioSync ?? []])
 
+    @include('transactions.partials.sell-cash-in', [
+        'transaction' => $transaction,
+        'sellCashIn' => $sellCashIn ?? null,
+    ])
+
+    @include('transactions.partials.invoice-linked-transactions', [
+        'transaction' => $transaction,
+        'invoiceLinked' => $invoiceLinked ?? null,
+    ])
+
     @if($invoiceSettlement)
     <div class="print:hidden">
         <div class="mb-2 flex items-center justify-between gap-3">
@@ -386,11 +406,6 @@
         ])
     </div>
     @endif
-
-    @include('transactions.partials.sell-cash-in', [
-        'transaction' => $transaction,
-        'sellCashIn' => $sellCashIn ?? null,
-    ])
 
     {{-- Items Section --}}
     <div class="rounded-xl bg-white shadow-md print:shadow-none">
@@ -425,6 +440,9 @@
                     <input type="checkbox" x-model="showSku" class="h-4 w-4 rounded border-gray-300"> SKU
                 </label>
                 <label class="flex cursor-pointer items-center gap-2 text-xs font-bold">
+                    <input type="checkbox" x-model="showLegacyCode" class="h-4 w-4 rounded border-gray-300"> Legacy code
+                </label>
+                <label class="flex cursor-pointer items-center gap-2 text-xs font-bold">
                     <input type="checkbox" x-model="showName" class="h-4 w-4 rounded border-gray-300"> Name
                 </label>
                 <label class="flex cursor-pointer items-center gap-2 text-xs font-bold">
@@ -451,11 +469,15 @@
                         ] as $sortCol)
                         <th class="px-3 py-2.5 font-black {{ $sortCol['align'] }}"
                             data-copy-col="{{ $sortCol['col'] }}"
-                            @if(in_array($sortCol['col'], ['barcode', 'sku', 'name', 'desc'], true)) x-show="{{ match($sortCol['col']) { 'barcode' => 'showBarcode', 'sku' => 'showSku', 'name' => 'showName', 'desc' => 'showDescription', default => 'true' } }}" @endif>
+                            @if(in_array($sortCol['col'], ['barcode', 'sku', 'name', 'desc'], true)) x-show="{{ match($sortCol['col']) { 'barcode' => 'showBarcode', 'sku' => 'showSkuColumn()', 'name' => 'showName', 'desc' => 'showDescription', default => 'true' } }}" @endif>
                             <button type="button"
                                     @click="sortItems('{{ $sortCol['col'] }}')"
                                     class="inline-flex w-full items-center gap-1 hover:text-gray-900 {{ str_contains($sortCol['align'], 'text-right') ? 'justify-end' : (str_contains($sortCol['align'], 'text-center') ? 'justify-center' : 'justify-start') }}">
-                                {{ $sortCol['label'] }}
+                                @if($sortCol['col'] === 'sku')
+                                    <span x-text="skuColumnLabel()"></span>
+                                @else
+                                    {{ $sortCol['label'] }}
+                                @endif
                                 <span x-show="sortCol === '{{ $sortCol['col'] }}'" class="text-blue-600" x-text="sortDir === 'asc' ? '↑' : '↓'"></span>
                             </button>
                         </th>
@@ -465,7 +487,7 @@
                 <tbody class="divide-y divide-gray-100">
                     @foreach($transaction->details as $detail)
                     @php $item = $detail->item; @endphp
-                    <tr class="group transition-colors hover:bg-gray-50">
+                    <tr class="group transition-colors hover:bg-gray-50" data-testid="tx-item-row" data-sku="{{ $item?->code ?: '' }}">
                         <td class="px-3 py-2.5 text-center align-middle" data-copy-col="image" x-show="showImage">
                             <div class="relative mx-auto flex h-12 w-12 items-center justify-center overflow-hidden rounded border bg-white shadow-sm transition-transform duration-200 group-hover:scale-105">
                                 @if($item?->image_url)
@@ -476,9 +498,27 @@
                             </div>
                         </td>
                         <td class="whitespace-nowrap px-3 py-2.5 align-middle font-mono text-xs" data-copy-col="barcode" data-sort-value="{{ $item?->id ?? 0 }}" x-show="showBarcode">
-                            <a href="{{ $item ? route('items.show', $item->id) : '#' }}" class="text-blue-600 hover:underline">{{ $item?->id }}</a>
+                            @if($item)
+                                <a href="{{ $item->showUrl() }}" class="text-blue-600 hover:underline">{{ $item->id }}</a>
+                            @else
+                                <span class="text-gray-400">—</span>
+                            @endif
                         </td>
-                        <td class="whitespace-nowrap px-3 py-2.5 align-middle font-mono text-xs italic text-gray-500" data-copy-col="sku" data-sort-value="{{ $item?->code ?: '' }}" x-show="showSku">{{ $item?->code ?: '-' }}</td>
+                        <td class="whitespace-nowrap px-3 py-2.5 align-middle font-mono text-xs"
+                            data-copy-col="sku"
+                            data-sort-value="{{ $item?->code ?: '' }}"
+                            @if($item)
+                            :data-copy-value="showLegacyCode ? @js($item->distinctLegacyCode() ?: ($item->code ?: '')) : @js($item->code ?: '')"
+                            @endif
+                            x-show="showSkuColumn()">
+                            @if($item)
+                                <a href="{{ $item->showUrl() }}" class="italic text-blue-600 hover:underline" data-testid="tx-item-sku-link-{{ $item->id }}">
+                                    <span x-text="showLegacyCode ? @js($item->distinctLegacyCode() ?: ($item->code ?: '—')) : @js($item->code ?: '—')"></span>
+                                </a>
+                            @else
+                                <span class="italic text-gray-500">—</span>
+                            @endif
+                        </td>
                         <td class="px-3 py-2.5 align-middle" data-copy-col="name" data-sort-value="{{ $item?->getItemName() ?: '' }}" x-show="showName">
                             <div class="font-bold text-gray-900">{{ $item?->getItemName() }}</div>
                             @if($item?->code)
@@ -488,17 +528,17 @@
                             <div class="mt-1 text-xs italic text-gray-500">📝 {{ $detail->notes }}</div>
                             @endif
                         </td>
-                        <td class="px-3 py-2.5 align-middle text-gray-600" data-copy-col="desc" data-sort-value="{{ $item?->description ?: '' }}" x-show="showDescription">{{ $item?->description ?: '-' }}</td>
-                        <td class="whitespace-nowrap px-3 py-2.5 text-center align-middle font-black tabular-nums" data-copy-col="qty" data-sort-value="{{ $detail->quantity }}">{{ $detail->quantity }}</td>
-                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle font-medium tabular-nums" data-copy-col="price" data-sort-value="{{ $detail->price }}">{{ $fmt($detail->price) }}</td>
-                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle tabular-nums" data-copy-col="disc" data-sort-value="{{ (float) $detail->discount }}">
+                        <td class="px-3 py-2.5 align-middle text-gray-600" data-copy-col="desc" data-sort-value="{{ $item?->catalogDescription() ?: '' }}" x-show="showDescription">{{ $item?->catalogDescription() ?: '-' }}</td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-center align-middle font-black tabular-nums" data-copy-col="qty" data-copy-value="{{ format_copy_number($detail->quantity) }}" data-sort-value="{{ $detail->quantity }}">{{ $detail->quantity }}</td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle font-medium tabular-nums" data-copy-col="price" data-copy-value="{{ format_copy_number($detail->price) }}" data-sort-value="{{ $detail->price }}">{{ $fmt($detail->price) }}</td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle tabular-nums" data-copy-col="disc" data-copy-value="{{ format_copy_number((float) $detail->discount) }}" data-sort-value="{{ (float) $detail->discount }}">
                             @if($detail->discount > 0)
                                 <span class="inline-flex h-5 items-center rounded-md border border-dashed border-red-300 bg-red-50 px-1.5 text-[10px] font-bold text-red-600">-{{ format_amount((float) $detail->discount) }}%</span>
                             @else
                                 <span class="text-gray-400">-</span>
                             @endif
                         </td>
-                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle font-black text-blue-700 tabular-nums" data-copy-col="subtotal" data-sort-value="{{ $detail->total }}">{{ $fmt($detail->total) }}</td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right align-middle font-black text-blue-700 tabular-nums" data-copy-col="subtotal" data-copy-value="{{ format_copy_number($detail->total) }}" data-sort-value="{{ $detail->total }}">{{ $fmt($detail->total) }}</td>
                     </tr>
                     @endforeach
                 </tbody>
@@ -543,12 +583,14 @@
                 </div>
                 <div class="flex items-center justify-between text-sm">
                     <span class="text-gray-500">Invoice Discount ({{ $transaction->discount ?? 0 }}%)</span>
-                    <span class="font-bold text-red-600">-{{ $fmt($transaction->discount) }}</span>
+                    @php $signedDiscount = $transaction->displaySignedInvoiceDiscount(); @endphp
+                    <span data-testid="tx-invoice-discount-amount" class="font-bold {{ $signedDiscount < 0 ? 'text-red-600' : 'text-green-600' }}">{{ $signedDiscount > 0 ? '+' : '' }}{{ $fmt($signedDiscount) }}</span>
                 </div>
                 <hr class="border-dashed">
                 <div class="flex items-center justify-between text-sm">
                     <span class="text-gray-500 italic underline decoration-dotted">Adjustment</span>
-                    <span class="font-bold {{ $transaction->adjustment < 0 ? 'text-red-500' : 'text-green-500' }}">{{ $transaction->adjustment > 0 ? '+' : '' }}{{ $fmt($transaction->adjustment) }}</span>
+                    @php $signedAdjustment = $transaction->displaySignedAdjustment(); @endphp
+                    <span data-testid="tx-adjustment-amount" class="font-bold {{ $signedAdjustment < 0 ? 'text-red-500' : 'text-green-500' }}">{{ $signedAdjustment > 0 ? '+' : '' }}{{ $fmt($signedAdjustment) }}</span>
                 </div>
                 <div class="flex items-center justify-between text-sm">
                     <span class="text-gray-500">PPN / Tax</span>
@@ -572,13 +614,21 @@
                     <span>PPh withheld</span>
                     <span x-text="pphDisplay"></span>
                 </div>
+                @if($transaction->hasLegacyTotalMismatch())
+                    <p class="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900" data-testid="legacy-total-mismatch">
+                        Stored total ({{ $fmt($transaction->displaySignedGrandTotal()) }}) does not match
+                        lines − discount + adjustment{{ $transaction->storedPpnIsIncludedInPayable() ? '' : ' + PPN' }}
+                        ({{ $fmt($transaction->displayReconstructedSignedTotal()) }}).
+                        This is leftover from an older write — delete and recreate if the payable should follow the discount.
+                    </p>
+                @endif
                 <div class="pt-2">
                     <div class="flex items-center justify-between gap-3 rounded-lg bg-blue-600 p-4 text-white shadow-lg shadow-blue-500/20">
                         <div class="flex min-w-0 flex-shrink-0 flex-col">
                             <span class="text-[10px] font-black tracking-widest text-blue-100/70 uppercase">Grand Total</span>
                             <span class="text-xs font-medium italic text-blue-100">Net Amount Payable</span>
                         </div>
-                        <span class="min-w-0 break-all text-right tabular-nums {{ $grandTotalCompactClass }}">IDR {{ $grandTotalFormatted }}</span>
+                        <span data-testid="tx-grand-total" class="min-w-0 break-all text-right tabular-nums {{ $grandTotalCompactClass }}">IDR {{ $grandTotalFormatted }}</span>
                     </div>
                 </div>
             </div>
@@ -620,9 +670,9 @@
 
 @push('scripts')
 <script>
-function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn, initialPpn, initialPpnDpp, initialPph, ppnRate, pphRate, transactionTotal) {
+function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn, initialPpn, initialPpnDpp, initialPph, ppnRate, pphRate, transactionTotal, initialSignedPpn) {
     const storageKey = 'aria-transaction-show-view';
-    const defaults = { showImage: true, showBarcode: true, showSku: false, showName: true, showDescription: false };
+    const defaults = { showImage: true, showBarcode: true, showSku: false, showLegacyCode: false, showName: true, showDescription: false };
     let saved = {};
 
     try {
@@ -635,11 +685,12 @@ function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn
         showImage: typeof saved.showImage === 'boolean' ? saved.showImage : defaults.showImage,
         showBarcode: typeof saved.showBarcode === 'boolean' ? saved.showBarcode : defaults.showBarcode,
         showSku: typeof saved.showSku === 'boolean' ? saved.showSku : defaults.showSku,
+        showLegacyCode: typeof saved.showLegacyCode === 'boolean' ? saved.showLegacyCode : defaults.showLegacyCode,
         showName: typeof saved.showName === 'boolean' ? saved.showName : defaults.showName,
         showDescription: typeof saved.showDescription === 'boolean' ? saved.showDescription : defaults.showDescription,
         copyFeedback: false,
         copyFeedbackTimer: null,
-        sortCol: null,
+        sortCol: @js($transaction->details->isNotEmpty() ? 'sku' : null),
         sortDir: 'asc',
         waOpen: false,
         deleteConfirmOpen: false,
@@ -662,7 +713,7 @@ function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn
         pphAmount: initialPph !== null ? Number(initialPph) : null,
         ppnRecord: Number(initialPpn || 0) > 0,
         pphRecord: Number(initialPph || 0) > 0,
-        ppnDisplay: formatAmountId(Number(initialPpn || 0)),
+        ppnDisplay: formatAmountId(Number(initialSignedPpn ?? (initialPpn || 0))),
         ppnDppDisplay: initialPpnDpp !== null ? formatAmountId(Number(initialPpnDpp)) : '-',
         pphDisplay: initialPph !== null ? formatAmountId(Number(initialPph)) : '-',
         ppnModalOpen: false,
@@ -814,17 +865,50 @@ function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn
             }
         },
         init() {
+            if (this.showLegacyCode && ! this.showSku) {
+                this.showSku = true;
+            }
+
             this.$watch('showImage', () => this.persistViewPrefs());
-            this.$watch('showBarcode', () => this.persistViewPrefs());
-            this.$watch('showSku', () => this.persistViewPrefs());
+            this.$watch('showBarcode', (value) => {
+                if (!value && !this.showSkuColumn()) {
+                    this.showSku = true;
+                }
+                this.persistViewPrefs();
+            });
+            this.$watch('showLegacyCode', (value) => {
+                if (value) {
+                    this.showSku = true;
+                }
+                this.persistViewPrefs();
+            });
+            this.$watch('showSku', (value) => {
+                if (! value && this.showLegacyCode) {
+                    this.showSku = true;
+
+                    return;
+                }
+                this.persistViewPrefs();
+            });
             this.$watch('showName', () => this.persistViewPrefs());
             this.$watch('showDescription', () => this.persistViewPrefs());
+        },
+        showSkuColumn() {
+            return this.showSku || this.showLegacyCode;
+        },
+        skuColumnLabel() {
+            if (! this.showSkuColumn()) {
+                return '';
+            }
+
+            return this.showLegacyCode ? 'Legacy code' : 'SKU';
         },
         persistViewPrefs() {
             localStorage.setItem(storageKey, JSON.stringify({
                 showImage: this.showImage,
                 showBarcode: this.showBarcode,
                 showSku: this.showSku,
+                showLegacyCode: this.showLegacyCode,
                 showName: this.showName,
                 showDescription: this.showDescription,
             }));
@@ -834,6 +918,7 @@ function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn
             params.set('image', this.showImage ? '1' : '0');
             params.set('barcode', this.showBarcode ? '1' : '0');
             params.set('sku', this.showSku ? '1' : '0');
+            params.set('legacy', this.showLegacyCode ? '1' : '0');
             params.set('name', this.showName ? '1' : '0');
             params.set('desc', this.showDescription ? '1' : '0');
 
@@ -849,7 +934,7 @@ function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn
         isCopyColumnVisible(col) {
             if (col === 'image') return this.showImage;
             if (col === 'barcode') return this.showBarcode;
-            if (col === 'sku') return this.showSku;
+            if (col === 'sku') return this.showSkuColumn();
             if (col === 'name') return this.showName;
             if (col === 'desc') return this.showDescription;
 
@@ -903,76 +988,9 @@ function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn
 
             rows.forEach((row) => tbody.appendChild(row));
         },
-        cellCopyValue(cell) {
-            const img = cell.querySelector('img');
-            if (img) {
-                return (img.getAttribute('alt') || img.getAttribute('src') || '').trim();
-            }
-
-            const link = cell.querySelector('a');
-            if (link) {
-                return link.textContent.trim();
-            }
-
-            return cell.innerText.replace(/\s+/g, ' ').trim();
-        },
-        tableNodeToTsv(table) {
-            const rows = [];
-
-            table.querySelectorAll('thead tr, tbody tr').forEach((row) => {
-                const values = [];
-
-                row.querySelectorAll('[data-copy-col]').forEach((cell) => {
-                    if (!this.isCopyColumnVisible(cell.dataset.copyCol)) {
-                        return;
-                    }
-
-                    values.push(this.cellCopyValue(cell));
-                });
-
-                if (values.length) {
-                    rows.push(values.join('\t'));
-                }
-            });
-
-            return rows.join('\n');
-        },
         async copyItemsTable() {
-            const table = this.$refs.itemsTable;
-            if (!table) {
-                return;
-            }
-
-            const clone = table.cloneNode(true);
-            clone.querySelectorAll('[data-copy-col]').forEach((cell) => {
-                if (!this.isCopyColumnVisible(cell.dataset.copyCol)) {
-                    cell.remove();
-                }
-            });
-
-            const plain = this.tableNodeToTsv(clone);
-            const html = clone.outerHTML;
-
-            try {
-                if (window.ClipboardItem && navigator.clipboard?.write) {
-                    await navigator.clipboard.write([
-                        new ClipboardItem({
-                            'text/plain': new Blob([plain], { type: 'text/plain' }),
-                            'text/html': new Blob([html], { type: 'text/html' }),
-                        }),
-                    ]);
-                } else {
-                    await navigator.clipboard.writeText(plain);
-                }
-
+            if (await ariaCopyTable(this.$refs.itemsTable, (col) => this.isCopyColumnVisible(col))) {
                 this.showCopyFeedback();
-            } catch (e) {
-                try {
-                    await navigator.clipboard.writeText(plain);
-                    this.showCopyFeedback();
-                } catch (fallbackError) {
-                    console.error('Failed to copy items table', fallbackError);
-                }
             }
         },
     };

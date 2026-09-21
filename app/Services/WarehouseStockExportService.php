@@ -13,7 +13,14 @@ class WarehouseStockExportService
 {
     /**
      * @param  Collection<int, Item>  $items
-     * @param  array<int, array{linked: bool, on_hand: ?float, mismatch: bool}>  $jubelioStocks
+     * @param  array<int, array{
+     *     linked: bool,
+     *     on_hand: ?float,
+     *     on_order: ?float,
+     *     reserved: ?float,
+     *     available: ?float,
+     *     mismatch: bool,
+     * }>  $jubelioStocks
      */
     public function download(
         Collection $items,
@@ -36,6 +43,9 @@ class WarehouseStockExportService
 
         if ($jubelioSync) {
             $headers[] = 'Jubelio On Hand';
+            $headers[] = 'Jubelio On Order';
+            $headers[] = 'Jubelio Reserved';
+            $headers[] = 'Jubelio Available';
             $headers[] = 'Jubelio Linked';
         }
 
@@ -45,25 +55,27 @@ class WarehouseStockExportService
 
         $rowNum = 2;
         foreach ($items as $item) {
-            $group = $item->group;
             $row = [
                 (int) $item->id,
                 $item->code ?? '',
-                $group->description ?? $item->name ?? '',
-                $item->description ?: ($group->description ?? ''),
+                $item->name ?? '',
+                $item->catalogDescription(),
                 (float) $item->price,
                 (float) ($item->pivot->quantity ?? 0),
             ];
 
             if ($jubelioSync) {
                 $jubelio = $jubelioStocks[$item->id] ?? null;
-                if ($jubelio && $jubelio['linked'] && $jubelio['on_hand'] !== null) {
+                if ($jubelio && $jubelio['linked']) {
                     $row[] = $jubelio['on_hand'];
-                    $row[] = 'Yes';
-                } elseif ($jubelio && $jubelio['linked']) {
-                    $row[] = '';
+                    $row[] = $jubelio['on_order'];
+                    $row[] = $jubelio['reserved'];
+                    $row[] = $jubelio['available'];
                     $row[] = 'Yes';
                 } else {
+                    $row[] = '';
+                    $row[] = '';
+                    $row[] = '';
                     $row[] = '';
                     $row[] = 'No';
                 }

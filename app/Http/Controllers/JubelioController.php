@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Actions\Jubelio\AdjustStock;
 use App\Actions\Jubelio\ProcessJubelioOrder;
+use App\Models\Addrbook;
 use App\Models\Jubelio;
 use App\Models\Jubelioorder;
 use App\Models\Jubelioreturn;
+use App\Models\Jubeliosync;
 use App\Models\Transaction;
 use App\Services\Jubelio\JubelioAdjustmentHint;
 use App\Services\Jubelio\JubelioOrderShowPresenter;
@@ -92,7 +94,7 @@ class JubelioController extends Controller
         } elseif ($request->status == 'success') {
             $q->where('status', 2)->where('error_type', 10);
         } elseif ($request->status == 'error') {
-            $q->where('status', 1)->where('error_type', 1);
+            $q->where('status', 1)->whereIn('error_type', [1, 3]);
         } elseif ($request->status == 'pending') {
             $q->where('status', 0);
         } elseif (! $request->invoice && $warehouseId <= 0) {
@@ -104,17 +106,45 @@ class JubelioController extends Controller
             $resolver->applyWarehouseFilter($q, $warehouseId);
         }
 
-        $stats = Jubelioorder::selectRaw('COUNT(CASE WHEN status=0 THEN 1 END) as pending, COUNT(CASE WHEN status=2 AND error_type=10 THEN 1 END) as success, COUNT(CASE WHEN status=2 AND error_type=2 THEN 1 END) as warning, COUNT(CASE WHEN status=1 AND error_type=1 THEN 1 END) as error')->first();
+        $stats = Jubelioorder::selectRaw('COUNT(CASE WHEN status=0 THEN 1 END) as pending, COUNT(CASE WHEN status=2 AND error_type=10 THEN 1 END) as success, COUNT(CASE WHEN status=2 AND error_type=2 THEN 1 END) as warning, COUNT(CASE WHEN status=1 AND error_type IN (1, 3) THEN 1 END) as error')->first();
         $syncIndex = $resolver->syncIndex();
+        $syncsByWarehouseId = $resolver->syncsGroupedByWarehouse();
         $orders = $q->paginate(15)->withQueryString();
-        $orders->getCollection()->transform(function (Jubelioorder $order) use ($resolver, $syncIndex) {
-            $warehouses = $resolver->resolve($order, $syncIndex);
-            $payload = $order->payloadArray();
-            $order->jubelio_warehouse = $warehouses['jubelio_warehouse'];
-            $order->aria_warehouse = $warehouses['aria_warehouse'];
-            $order->aria_warehouse_url = $warehouses['aria_warehouse_url'];
-            $order->payload_store_id = (int) ($payload['store_id'] ?? 0);
-            $order->payload_location_id = (int) ($payload['location_id'] ?? 0);
+        $warehouseIds = $orders->getCollection()
+            ->pluck('warehouse_id')
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+        $warehousesById = $warehouseIds === []
+            ? collect()
+            : Addrbook::withTrashed()->whereIn('id', $warehouseIds)->get()->keyBy('id');
+
+        $refreshedOrderId = (int) session('jubelio_refreshed_order_id', 0);
+        $refreshedSummary = session('jubelio_refreshed_summary');
+
+        $orders->getCollection()->transform(function (Jubelioorder $order) use (
+            $resolver,
+            $syncIndex,
+            $warehousesById,
+            $syncsByWarehouseId,
+            $refreshedOrderId,
+            $refreshedSummary,
+        ) {
+            $resolved = $resolver->resolveForIndex($order, $syncIndex, $warehousesById, $syncsByWarehouseId);
+            $order->jubelio_warehouse = $resolved['jubelio_warehouse'];
+            $order->aria_warehouse = $resolved['aria_warehouse'];
+            $order->aria_warehouse_url = $resolved['aria_warehouse_url'];
+            $order->payload_store_id = $resolved['payload_store_id'];
+            $order->payload_location_id = $resolved['payload_location_id'];
+            $order->list_summary = $resolved['summary'];
+
+            if ($refreshedOrderId > 0
+                && $order->id === $refreshedOrderId
+                && is_array($refreshedSummary)) {
+                $order->list_summary = array_merge($order->list_summary, $refreshedSummary);
+            }
 
             return $order;
         });
@@ -159,16 +189,37 @@ class JubelioController extends Controller
         ]);
     }
 
-    public function refreshPayload(Jubelioorder $jubelio, JubelioOrderWarehouseResolver $resolver): RedirectResponse
+    public function refreshPayload(Request $request, Jubelioorder $jubelio, JubelioOrderWarehouseResolver $resolver): RedirectResponse
     {
         Gate::authorize(Jubelio::getPermissions()['view']);
 
         $result = $resolver->refreshFromApi($jubelio);
 
-        return back()->with(
-            $result['success'] ? 'success' : 'error',
-            $result['message'],
-        );
+        $redirect = $this->redirectAfterJubelioOrderAction($request);
+        $flashKey = $result['success'] ? 'success' : 'error';
+
+        $redirect = $redirect->with($flashKey, $result['message']);
+
+        if ($result['success'] && is_array($result['payload_summary'] ?? null)) {
+            $redirect->with('jubelio_refreshed_order_id', $jubelio->id)
+                ->with('jubelio_refreshed_summary', $result['payload_summary']);
+        }
+
+        return $redirect;
+    }
+
+    private function redirectAfterJubelioOrderAction(Request $request): RedirectResponse
+    {
+        if ($request->boolean('return_to_index')) {
+            return redirect()->route('jubelio.index', array_filter([
+                'status' => $request->input('return_status'),
+                'invoice' => $request->input('return_invoice'),
+                'warehouse_id' => $request->input('return_warehouse_id'),
+                'page' => $request->input('return_page'),
+            ], fn ($value) => $value !== null && $value !== ''));
+        }
+
+        return back();
     }
 
     public function processOrder(Jubelioorder $jubelio, ProcessJubelioOrder $processor): RedirectResponse
@@ -244,6 +295,10 @@ class JubelioController extends Controller
             ->first();
 
         $warehouseId = (int) ($sellTransaction?->sender_id ?? 0);
+        $sellJubelioKeys = app(JubelioOrderWarehouseResolver::class)
+            ->storeLocationIdsFromSellJubelioOrder((string) ($dataApi['salesorder_no'] ?? ''));
+        [$payloadStoreId, $payloadLocationId] = app(JubelioOrderWarehouseResolver::class)
+            ->storeLocationIdsFromPayload($dataApi);
 
         Jubelioorder::create([
             'jubelio_order_id' => $dataApi['return_id'],
@@ -253,8 +308,12 @@ class JubelioController extends Controller
             'order_status' => 'RETURN',
             'run_count' => 0,
             'warehouse_id' => $warehouseId,
-            'jubelio_store_id' => 0,
-            'jubelio_location_id' => 0,
+            'jubelio_store_id' => Jubeliosync::isMappedStoreId($payloadStoreId)
+                ? $payloadStoreId
+                : $sellJubelioKeys['store_id'],
+            'jubelio_location_id' => Jubeliosync::isMappedLocationId($payloadLocationId)
+                ? $payloadLocationId
+                : $sellJubelioKeys['location_id'],
             'status' => 0,
         ]);
 
@@ -285,15 +344,8 @@ class JubelioController extends Controller
                 return response()->json(['status' => 'ok', 'message' => 'Already exists']);
             }
 
-            $invoice = $d['salesorder_no'];
-            $destyInvoice = str_replace('SP-', '', $invoice);
             $sellExists = Transaction::where('type', Transaction::TYPE_SELL)
-                ->where(function ($query) use ($invoice, $destyInvoice) {
-                    $query->where('invoice', $invoice);
-                    if ($destyInvoice !== $invoice) {
-                        $query->orWhere('invoice', $destyInvoice);
-                    }
-                })
+                ->where('invoice', $d['salesorder_no'])
                 ->exists();
 
             if ($sellExists) {
@@ -302,7 +354,10 @@ class JubelioController extends Controller
 
             $resolver = app(JubelioOrderWarehouseResolver::class);
             $payload = $d;
-            if ((int) ($d['store_id'] ?? 0) <= 0 || (int) ($d['location_id'] ?? 0) <= 0) {
+            if (! Jubeliosync::hasMappedStoreLocationPair(
+                (int) ($d['store_id'] ?? 0),
+                (int) ($d['location_id'] ?? 0),
+            )) {
                 $apiPayload = app(JubelioService::class)->fetchSalesOrder((string) ($d['salesorder_id'] ?? ''));
                 if (is_array($apiPayload)) {
                     $payload = array_merge($d, $apiPayload);

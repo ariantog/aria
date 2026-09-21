@@ -38,7 +38,17 @@
         </div>
     </div>
 
-    {{-- Validation errors — kept client-side so entries persist on failure --}}
+    {{-- Validation errors — Alpine keeps entries on AJAX 422; Blade covers a full-page redirect --}}
+    @if ($errors->any())
+    <div class="rounded-lg border border-red-200 bg-red-50 p-3">
+        <p class="text-sm font-medium text-red-800">Please fix the following:</p>
+        <ul class="mt-1 list-disc pl-5 text-sm text-red-700">
+            @foreach ($errors->all() as $error)
+                <li>{{ $error }}</li>
+            @endforeach
+        </ul>
+    </div>
+    @endif
     <div x-show="serverErrors.length" x-cloak class="rounded-lg border border-red-200 bg-red-50 p-3">
         <p class="text-sm font-medium text-red-800">Please fix the following:</p>
         <ul class="mt-1 list-disc pl-5 text-sm text-red-700">
@@ -86,7 +96,7 @@
                             endpoint: @js($config['sender_route']),
                             placeholder: 'Select {{ $config['sender_label'] }}...',
                             initial: @js(isset($prefill) ? ($prefill['sender'] ?? null) : null),
-                            onSelect: (item) => { form.sender_id = item ? String(item.id) : ''; form.sender = item; recalcTotals(); }
+                            onSelect: (item) => { form.sender_id = item ? String(item.id) : ''; form.sender = item; syncPpnModeFromContact(); refreshRowPricesForContact(); }
                         })" class="relative">
                             <div class="relative flex h-10 w-full overflow-hidden rounded-lg border focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
                                  :class="errors.sender_id ? 'border-red-500' : 'border-gray-300'">
@@ -131,7 +141,7 @@
                             endpoint: @js($config['receiver_route']),
                             placeholder: 'Select {{ $config['receiver_label'] }}...',
                             initial: @js(isset($prefill) ? ($prefill['receiver'] ?? null) : null),
-                            onSelect: (item) => { form.receiver_id = item ? String(item.id) : ''; form.receiver = item; recalcTotals(); }
+                            onSelect: (item) => { form.receiver_id = item ? String(item.id) : ''; form.receiver = item; syncPpnModeFromContact(); refreshRowPricesForContact(); }
                         })" class="relative">
                             <div class="relative flex h-10 w-full overflow-hidden rounded-lg border focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
                                  :class="errors.receiver_id ? 'border-red-500' : 'border-gray-300'">
@@ -244,11 +254,11 @@
 
                 {{-- Item rows --}}
                 @php
-                    $rowInput = 'w-full h-8 min-h-8 box-border rounded border border-gray-200 px-2 py-0 text-sm leading-8 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none';
+                    $rowInput = 'w-full h-9 min-h-9 box-border rounded border border-gray-200 px-2 py-0 text-base leading-9 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none';
                 @endphp
                 <div class="divide-y divide-gray-100 px-0">
                     <template x-for="(item, idx) in form.items" :key="item.uid">
-                        <div class="flex flex-col gap-3 px-5 py-4 text-sm hover:bg-gray-50 sm:grid sm:grid-cols-12 sm:items-center sm:gap-2 sm:py-2"
+                        <div class="flex flex-col gap-3 px-5 py-4 hover:bg-gray-50 sm:grid sm:grid-cols-12 sm:items-center sm:gap-2 sm:py-2"
                              :class="(isOverStock(item) || itemInvalid(item)) ? 'bg-red-50' : ''">
                             {{-- Code / barcode --}}
                             <div class="sm:col-span-2">
@@ -314,7 +324,7 @@
                             {{-- Warehouse stock (read-only) --}}
                             <div class="flex items-center justify-between {{ $isMove ? 'sm:col-span-2' : 'sm:col-span-1' }} sm:block sm:text-center">
                                 <span class="text-xs font-medium text-gray-500 sm:hidden">Whs. Stock</span>
-                                <span class="text-xs tabular-nums"
+                                <span class="text-base tabular-nums"
                                       :class="isOverStock(item) ? 'font-semibold text-red-500' : 'text-gray-400'"
                                       x-text="item.item_id ? formatNumberId(item.warehouse_stock || 0) : '—'"></span>
                             </div>
@@ -340,17 +350,17 @@
                                        @keyup="rowKeyup(idx, 'price', $event)"
                                        enterkeyhint="next"
                                        min="0" step="0.01"
-                                       class="{{ $rowInput }} text-right">
+                                       class="{{ $rowInput }}">
                             </div>
                             {{-- Subtotal --}}
                             <div class="flex items-center justify-between sm:col-span-1 sm:block sm:text-right">
                                 <span class="text-xs font-medium text-gray-500 sm:hidden">Subtotal</span>
-                                <span class="text-sm font-medium tabular-nums" x-text="formatAmountId(item.subtotal || 0)"></span>
+                                <span class="font-medium tabular-nums" x-text="formatAmountId(item.subtotal || 0)"></span>
                             </div>
                             {{-- Remove --}}
                             <div class="sm:col-span-1 sm:text-center">
                                 <button type="button" @click="removeItem(idx)"
-                                        class="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded border border-red-200 text-sm text-red-600 hover:bg-red-50 sm:w-8 sm:border-0 sm:text-gray-400">
+                                        class="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded border border-red-200 text-red-600 hover:bg-red-50 sm:w-9 sm:border-0 sm:text-gray-400">
                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                                     <span class="sm:hidden">Remove</span>
                                 </button>
@@ -390,6 +400,23 @@
                                class="w-24 rounded border border-gray-200 px-2 py-1 text-right text-sm focus:border-blue-500">
                     </div>
                     @endif
+                    @if($type !== 'move')
+                    <div class="flex items-center justify-between text-sm" data-testid="ppn-mode-switch">
+                        <div>
+                            <span class="text-gray-500">PPN mode</span>
+                            <p class="text-[11px] text-gray-400" x-text="form.ppn_included ? 'Prices include PPN' : 'PPN added on top'"></p>
+                        </div>
+                        <label class="inline-flex cursor-pointer items-center gap-2">
+                            <span class="text-xs font-medium text-gray-600" x-text="form.ppn_included ? 'Included' : 'Excluded'"></span>
+                            <span class="relative inline-flex h-6 w-11 shrink-0 items-center">
+                                <input type="checkbox" x-model="form.ppn_included" @change="recalcTotals()"
+                                       class="peer sr-only">
+                                <span class="absolute inset-0 rounded-full bg-gray-300 peer-checked:bg-blue-600"></span>
+                                <span class="absolute left-0.5 h-5 w-5 rounded-full bg-white shadow transition peer-checked:translate-x-5"></span>
+                            </span>
+                        </label>
+                    </div>
+                    @endif
                     <div class="flex justify-between text-sm">
                         <span class="text-gray-500">Total before PPN</span>
                         <span class="tabular-nums" x-text="'Rp ' + formatAmountId(form.total_before_ppn)"></span>
@@ -400,7 +427,7 @@
                     </div>
                     <div class="border-t border-gray-100 pt-3 flex justify-between">
                         <span class="font-bold text-gray-900">Grand Total</span>
-                        <span class="text-lg font-bold tabular-nums text-blue-700" x-text="'Rp ' + formatAmountId(form.real_total)"></span>
+                        <span class="text-lg font-bold tabular-nums text-blue-700" x-text="'Rp ' + formatAmountId(form.grand_total)"></span>
                     </div>
                     @if($type === 'sell' && ($sellCashIn['can_create'] ?? false))
                     <div class="mt-4 rounded-lg border border-gray-100 bg-gray-50 p-3" data-testid="sell-cash-in-card">
@@ -409,11 +436,15 @@
                                 <div class="text-sm font-medium text-gray-900">Cash In</div>
                                 <p class="text-xs text-gray-500">Create a cash in with the same invoice. Sender is this sell’s receiver.</p>
                             </div>
-                            <label class="relative inline-flex cursor-pointer items-center">
-                                <input type="checkbox" x-model="form.cash_in_enabled" @change="onCashInToggle()"
-                                       data-testid="sell-cash-in-switch"
-                                       class="peer sr-only">
-                                <span class="h-6 w-11 rounded-full bg-gray-300 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white"></span>
+                            <label class="inline-flex cursor-pointer items-center gap-2">
+                                <span class="text-xs font-medium text-gray-600" x-text="form.cash_in_enabled ? 'On' : 'Off'">Off</span>
+                                <span class="relative inline-flex h-6 w-11 shrink-0 items-center">
+                                    <input type="checkbox" x-model="form.cash_in_enabled" @change="onCashInToggle()"
+                                           data-testid="sell-cash-in-switch"
+                                           class="peer sr-only">
+                                    <span class="absolute inset-0 rounded-full bg-gray-300 peer-checked:bg-blue-600"></span>
+                                    <span class="absolute left-0.5 h-5 w-5 rounded-full bg-white shadow transition peer-checked:translate-x-5"></span>
+                                </span>
                             </label>
                         </div>
                         <div x-show="form.cash_in_enabled" x-cloak class="mt-3 space-y-3">
@@ -512,6 +543,7 @@ const _PPNRate = {{ $ppn_rate }};
 const _TxType  = '{{ $type }}';
 const _MinDate = '{{ $min_date ?? '' }}';
 const _PriceSource = @json($config['price_source'] ?? 'price');
+const _AddrbookTypeReseller = @json(\App\Models\Addrbook::TYPE_RESELLER);
 const _Prefill = @json($prefill ?? null);
 const _ItemLookupUrl = @json(route('transactions.item-by-id', ['type' => $type]));
 const _ItemLookupByCodeUrl = @json(route('transactions.item-by-code', ['type' => $type]));
@@ -522,6 +554,7 @@ const _CanSellCashIn = @js((bool) ($type === 'sell' && ($sellCashIn['can_create'
 const _CashInDefaultAccount = @js($sellCashIn['default_account'] ?? null);
 const _CashInDefaultDate = @js($sellCashIn['default_date'] ?? null);
 const _CashInMinDate = @js($sellCashIn['min_date'] ?? '');
+const _SystemPpnIncludedDefault = @js((bool) ($ppn_included_system_default ?? true));
 
 function isFrontCameraLabel(label) {
     return /front|user|selfie|facetime|true.?depth|mirror/i.test(String(label || ''));
@@ -592,11 +625,12 @@ function createTransaction() {
             total_before_discount: 0,
             total_before_ppn: 0,
             ppn_amount: 0,
-            real_total: 0,
+            grand_total: 0,
             cash_in_enabled: false,
             cash_in_amount: null,
             cash_in_account_id: '',
             cash_in_date: _CashInDefaultDate || startDate,
+            ppn_included: _SystemPpnIncludedDefault,
         },
         cashInAmountManual: false,
 
@@ -624,8 +658,9 @@ function createTransaction() {
                     row.code = ci.code || '';
                     row.name = ci.name || '';
                     row.quantity = Number(ci.quantity || 1);
-                    row.price = Number(ci.price ?? ci[_PriceSource] ?? 0);
-                    const gross = row.quantity * row.price;
+                    this.storeCatalogPricesOnRow(row, ci);
+                    row.price = this.resolveRowPrice(ci, { preferLinePrice: true });
+                    const gross = Number(row.quantity || 0) * Number(row.price || 0);
                     row.discount = gross > 0 ? (Number(ci.discount || 0) / gross) * 100 : 0;
                     row.warehouse_item = this.warehouseItemsFrom(ci);
                     row.warehouse_stock = this.stockFor(row) || Number(ci.warehouse_stock || 0);
@@ -638,21 +673,85 @@ function createTransaction() {
                 this.recalcTotals();
             }
 
+            this.syncPpnModeFromContact();
+
             if (this.form.items.length === 0) {
                 this.addItemRow(false);
             }
             // The warehouse side can change after items are added → refresh their stock.
             this.$watch('form.sender_id', () => { this.refreshStocks(); this.refreshJubelioWarnings(); });
             this.$watch('form.receiver_id', () => { this.refreshStocks(); this.refreshJubelioWarnings(); });
-            // PPN depends on the counterparty's ppn flag.
+            // PPN is optional: item forms follow the counterparty ppn flag; cash/tax
+            // reporting is gated by the bank's PKP reporting entity. Never assume 11%.
             this.$watch('form.sender', () => this.recalcTotals());
             this.$watch('form.receiver', () => this.recalcTotals());
-            this.$watch('form.real_total', () => this.syncCashInAmountFromTotal());
+            this.$watch('form.grand_total', () => this.syncCashInAmountFromTotal());
         },
 
         // Warehouse whose on-hand stock is relevant: receiver for buy/return, sender otherwise.
         warehouseId() {
             return (_TxType === 'buy' || _TxType === 'return') ? this.form.receiver_id : this.form.sender_id;
+        },
+
+        taxContact() {
+            if (_TxType === 'buy' || _TxType === 'return') {
+                return this.form.sender;
+            }
+            if (_TxType === 'sell' || _TxType === 'return-supplier') {
+                return this.form.receiver;
+            }
+
+            return null;
+        },
+
+        resolvePpnIncludedFromContact(contact) {
+            if (!contact || contact.ppn_included === undefined || contact.ppn_included === null) {
+                return _SystemPpnIncludedDefault;
+            }
+
+            return !!contact.ppn_included;
+        },
+
+        syncPpnModeFromContact() {
+            this.form.ppn_included = this.resolvePpnIncludedFromContact(this.taxContact());
+            this.recalcTotals();
+        },
+
+        isResellerSale() {
+            return _TxType === 'sell' && Number(this.form.receiver?.type) === Number(_AddrbookTypeReseller);
+        },
+
+        storeCatalogPricesOnRow(row, source) {
+            row._catalog_price = Number(source?.price ?? 0);
+            row._reseller_sell_price = Number(source?.reseller_sell_price ?? 0);
+        },
+
+        refreshRowPricesForContact() {
+            if (_TxType !== 'sell') {
+                return;
+            }
+
+            this.form.items.forEach(row => {
+                if (!row.item_id) {
+                    return;
+                }
+
+                if (this.isResellerSale() && row._reseller_sell_price > 0) {
+                    row.price = row._reseller_sell_price;
+                } else if (row._catalog_price > 0) {
+                    row.price = row._catalog_price;
+                }
+            });
+            this.recalcTotals();
+        },
+
+        splitPpnFromGross(gross) {
+            const rate = _PPNRate / 100;
+            const divisor = 1 + rate;
+            const dpp = Math.round((gross / divisor) * 100) / 100;
+            const ppn = Math.round(dpp * rate * 100) / 100;
+
+            return { dpp, ppn };
         },
 
         // Laravel JSON uses warehouse_items; item-by-id uses warehouse_item.
@@ -670,7 +769,41 @@ function createTransaction() {
         senderValid() { return !!this.form.sender_id; },
         receiverValid() { return !!this.form.receiver_id; },
         itemStarted(i) { return !!(i.item_id || i.name || i.code); },
-        itemValid(i) { return !!i.item_id && Number(i.quantity) >= 0.01 && Number(i.price) >= 0; },
+        priceIsSet(value) {
+            return value !== null && value !== '' && value !== undefined && ! Number.isNaN(Number(value));
+        },
+        // sell/return → items.price; buy/return-supplier → items.cost (via _PriceSource).
+        // Sell to reseller → reseller_sell_price (SKU, then group, then price).
+        // Empty rows stay empty until an item is picked; return/CSV prefills may carry line price.
+        resolveRowPrice(source, { preferLinePrice = false } = {}) {
+            if (! source) {
+                return null;
+            }
+
+            if (preferLinePrice && source.price !== null && source.price !== undefined && source.price !== '') {
+                const linePrice = Number(source.price);
+                if (! Number.isNaN(linePrice)) {
+                    return linePrice;
+                }
+            }
+
+            if (this.isResellerSale()) {
+                const resellerPrice = Number(source.reseller_sell_price ?? 0);
+                if (! Number.isNaN(resellerPrice) && resellerPrice > 0) {
+                    return resellerPrice;
+                }
+            }
+
+            const raw = source[_PriceSource];
+            if (raw === null || raw === undefined || raw === '') {
+                return null;
+            }
+
+            const amount = Number(raw);
+
+            return Number.isNaN(amount) ? null : amount;
+        },
+        itemValid(i) { return !!i.item_id && Number(i.quantity) >= 0.01 && this.priceIsSet(i.price) && Number(i.price) >= 0; },
         itemInvalid(i) { return this.itemStarted(i) && !this.itemValid(i); },
         validItems() { return this.form.items.filter(i => this.itemValid(i)); },
         cashInDateValid() {
@@ -699,7 +832,7 @@ function createTransaction() {
             if (!_CanSellCashIn || !this.form.cash_in_enabled || this.cashInAmountManual) {
                 return;
             }
-            this.form.cash_in_amount = Number(this.form.real_total || 0);
+            this.form.cash_in_amount = Number(this.form.grand_total || 0);
         },
         canSubmit() {
             return this.senderValid() && this.receiverValid() && this.dateValid()
@@ -714,7 +847,7 @@ function createTransaction() {
             return {
                 uid: Math.random().toString(36).slice(2),
                 item_id: '', code: '', name: '',
-                quantity: 1, price: 0, discount: 0,
+                quantity: 1, price: null, discount: 0,
                 warehouse_stock: null, warehouse_item: [],
                 jubelio_item_id: 0, jubelio_unlinked_warning: false,
                 subtotal: 0, note: '',
@@ -760,7 +893,8 @@ function createTransaction() {
             row.item_id = String(source.id ?? source.item_id ?? '');
             row.code = source.code || source.item_code || String(source.id ?? '');
             row.name = source.name || source.product_name || '';
-            row.price = Number(source[_PriceSource] ?? source.price ?? source.cost) || 0;
+            this.storeCatalogPricesOnRow(row, source);
+            row.price = this.resolveRowPrice(source);
             row.warehouse_item = this.warehouseItemsFrom(source);
             if (!row.quantity || row.quantity < 0.01) row.quantity = 1;
             row.warehouse_stock = this.stockFor(row);
@@ -1239,15 +1373,32 @@ function createTransaction() {
             const afterRowDisc = items.reduce((s, i) => s + Number(i.subtotal || 0), 0);
             const headerDisc = afterRowDisc * (Number(this.form.discount_percent || 0) / 100);
             const withAdj = (afterRowDisc - headerDisc) + Number(this.form.adjustment || 0);
-            const contact = _TxType === 'buy' ? this.form.sender : this.form.receiver;
-            const ppn = (contact?.ppn) ? withAdj * (_PPNRate / 100) : 0;
+            const contact = this.taxContact();
+            const applyPpn = !!(contact?.ppn);
+
+            let totalBeforePpn = withAdj;
+            let ppn = 0;
+            let grandTotal = withAdj;
+
+            if (applyPpn) {
+                if (this.form.ppn_included) {
+                    const split = this.splitPpnFromGross(withAdj);
+                    totalBeforePpn = split.dpp;
+                    ppn = split.ppn;
+                    grandTotal = withAdj;
+                } else {
+                    totalBeforePpn = withAdj;
+                    ppn = withAdj * (_PPNRate / 100);
+                    grandTotal = withAdj + ppn;
+                }
+            }
 
             this.form.total_quantity = totalQty;
             this.form.gross_total = gross;
             this.form.total_before_discount = afterRowDisc;
-            this.form.total_before_ppn = withAdj;
+            this.form.total_before_ppn = totalBeforePpn;
             this.form.ppn_amount = ppn;
-            this.form.real_total = withAdj + ppn;
+            this.form.grand_total = grandTotal;
         },
 
         isOverStock(item) {
@@ -1284,8 +1435,8 @@ function createTransaction() {
                     row.code = ci.code || '';
                     row.name = ci.name || '';
                     row.quantity = Number(ci.quantity || 1);
-                    row.price = Number(ci.price ?? ci[_PriceSource] ?? 0);
-                    const gross = row.quantity * row.price;
+                    row.price = this.resolveRowPrice(ci, { preferLinePrice: true });
+                    const gross = Number(row.quantity || 0) * Number(row.price || 0);
                     row.discount = gross > 0 ? (Number(ci.discount || 0) / gross) * 100 : 0;
                     row.warehouse_item = this.warehouseItemsFrom(ci);
                     row.warehouse_stock = this.stockFor(row) || Number(ci.warehouse_stock || 0);
@@ -1333,6 +1484,7 @@ function createTransaction() {
                 }),
                 discount_percent: this.form.discount_percent,
                 adjustment: this.form.adjustment,
+                ppn_included: !!this.form.ppn_included,
                 create_cash_in: !!(_CanSellCashIn && this.form.cash_in_enabled),
                 cash_in_amount: _CanSellCashIn && this.form.cash_in_enabled ? Number(this.form.cash_in_amount || 0) : null,
                 cash_in_account_id: _CanSellCashIn && this.form.cash_in_enabled ? this.form.cash_in_account_id : null,
@@ -1340,7 +1492,7 @@ function createTransaction() {
             };
 
             try {
-                const res = await fetch('{{ route('transactions.store') }}', {
+                const res = await fetch(@js(route('transactions.store', [], false)), {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1349,19 +1501,31 @@ function createTransaction() {
                         'X-Requested-With': 'XMLHttpRequest',
                         ...idempotencyHeaders(this),
                     },
-                    redirect: 'follow',
+                    redirect: 'manual',
                     body: JSON.stringify(payload),
                 });
 
-                if (res.redirected) {
-                    keepLocked = true;
-                    window.location.href = res.url;
-                    return;
+                if (res.status === 201 || res.status === 200) {
+                    const data = await res.json().catch(() => ({}));
+                    if (data.redirect) {
+                        keepLocked = true;
+                        window.location.href = data.redirect;
+                        return;
+                    }
                 }
 
-                if (res.status === 302 || res.status === 200) {
+                if (res.status === 302 || res.status === 301) {
+                    const location = res.headers.get('Location');
+                    if (location) {
+                        keepLocked = true;
+                        window.location.href = location;
+                        return;
+                    }
+                }
+
+                if (res.type === 'opaqueredirect' || res.status === 0) {
                     keepLocked = true;
-                    window.location.href = '{{ route('transactions.index') }}';
+                    window.location.href = '{{ route('transactions.index', [], false) }}';
                     return;
                 }
 

@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\Addrbook;
+use App\Models\Transaction;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -29,6 +30,7 @@ class StoreItemTransactionRequest extends FormRequest
             'items.*.note' => ['nullable', 'string', 'max:1000'],
             'discount_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'adjustment' => ['nullable', 'numeric'],
+            'ppn_included' => ['sometimes', 'boolean'],
             'create_cash_in' => ['sometimes', 'boolean'],
             'cash_in_amount' => [$creatingCashIn ? 'required' : 'nullable', 'numeric', 'min:0.01'],
             'cash_in_account_id' => [$creatingCashIn ? 'required' : 'nullable', 'integer', 'exists:customers,id'],
@@ -55,6 +57,34 @@ class StoreItemTransactionRequest extends FormRequest
 
     public function withValidator(Validator $validator): void
     {
+        $validator->after(function (Validator $validator) {
+            if ($this->input('type') !== 'move') {
+                return;
+            }
+
+            $senderId = (int) $this->input('sender_id');
+            $receiverId = (int) $this->input('receiver_id');
+            if ($senderId < 1 || $receiverId < 1) {
+                return;
+            }
+
+            $sender = Addrbook::query()->find($senderId);
+            $receiver = Addrbook::query()->find($receiverId);
+            if (! $sender || ! $receiver) {
+                return;
+            }
+
+            try {
+                Transaction::assertMovePartiesAllowed($this->user(), $sender, $receiver);
+            } catch (\Illuminate\Validation\ValidationException $e) {
+                foreach ($e->errors() as $field => $messages) {
+                    foreach ($messages as $message) {
+                        $validator->errors()->add($field, $message);
+                    }
+                }
+            }
+        });
+
         $validator->after(function (Validator $validator) {
             if (! $this->boolean('create_cash_in')) {
                 return;

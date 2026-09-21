@@ -18,6 +18,7 @@ class RestockSheet extends Model
             'edit' => 'restock-edit',
             'delete' => 'restock-delete',
             'history' => 'restock-history',
+            'export' => 'restock-export',
         ];
     }
 

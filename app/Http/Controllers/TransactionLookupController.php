@@ -25,15 +25,24 @@ class TransactionLookupController extends Controller
             403
         );
         // Remove dd and use request input
-        // Configuration now gives us the Addrbook Type ID directly, or we get it from request
-        $typeId = $request->input('addrbook_type') ?? ($request['addrbook_type'] ?? null);
-
         // We default to Addrbook model for all types now as per config
         $query = \App\Models\Addrbook::query()
             ->visibleToUser($request->user());
 
         // Apply type filtering
-        if ($typeId !== null) {
+        if ($type === 'move') {
+            $allowed = Transaction::movePartyAddrbookTypeIds($user);
+            $typeId = $request->input('addrbook_type') ?? ($request['addrbook_type'] ?? null);
+            if ($typeId !== null) {
+                $requested = is_array($typeId) ? $typeId : explode(',', (string) $typeId);
+                $requested = array_map(intval(...), $requested);
+                $typeIds = array_values(array_intersect($requested, $allowed));
+                $typeIds = $typeIds !== [] ? $typeIds : $allowed;
+            } else {
+                $typeIds = $allowed;
+            }
+            $query->whereIn('type', $typeIds);
+        } elseif (($typeId = $request->input('addrbook_type') ?? ($request['addrbook_type'] ?? null)) !== null) {
             $typeIds = is_array($typeId) ? $typeId : explode(',', (string) $typeId);
             $query->whereIn('type', $typeIds);
         }
@@ -47,7 +56,9 @@ class TransactionLookupController extends Controller
         $pattern = LikeSearch::contains($search);
         $query->where(function ($q) use ($pattern) {
             $q->where('customers.name', 'like', $pattern)
-                ->orWhere('customers.id', 'like', $pattern);
+                ->orWhere('customers.id', 'like', $pattern)
+                ->orWhere('customers.description', 'like', $pattern)
+                ->orWhere('customers.ledger_hint', 'like', $pattern);
         });
 
         $results = $query
@@ -56,7 +67,9 @@ class TransactionLookupController extends Controller
                 'customers.id',
                 'customers.name',
                 'customers.ppn',
+                'customers.ppn_included',
                 'customers.type',
+                'customers.description',
                 'customers.ledger_hint',
                 'customerstat.balance'
             )

@@ -25,6 +25,11 @@ $firstGroup = $groupList->first() ?? 'Accounting';
             Cron Manager
         </a>
         @endif
+        <a href="{{ route('recalculate-running-balances.index') }}"
+           data-testid="recalculate-running-balances-link"
+           class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+            Running Balances
+        </a>
         @if($can['edit'])
         <a href="{{ route('invoice-settings.edit') }}"
            class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">

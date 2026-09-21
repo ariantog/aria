@@ -69,6 +69,29 @@ class UserPreferenceService
         $this->set($user, UserPreferenceRegistry::APPEARANCE_SLUG, $appearance);
     }
 
+    public function fontSizeFor(User $user): string
+    {
+        $value = $this->get($user, UserPreferenceRegistry::FONT_SIZE_SLUG, 'default');
+
+        return in_array($value, UserPreferenceRegistry::fontSizeOptions(), true)
+            ? $value
+            : 'default';
+    }
+
+    public function fontSizePixelsFor(User $user): string
+    {
+        return UserPreferenceRegistry::fontSizePixels()[$this->fontSizeFor($user)];
+    }
+
+    public function setFontSize(User $user, string $fontSize): void
+    {
+        if (! in_array($fontSize, UserPreferenceRegistry::fontSizeOptions(), true)) {
+            throw new InvalidArgumentException('Invalid font size value.');
+        }
+
+        $this->set($user, UserPreferenceRegistry::FONT_SIZE_SLUG, $fontSize);
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -113,7 +136,11 @@ class UserPreferenceService
                 throw new InvalidArgumentException("{$definition['label']} is not a valid contact.");
             }
 
-            if (! in_array($this->addrbookTypeValue($addrbook), $definition['types'], true)) {
+            $types = $slug === 'transactions.default_move_receiver_id'
+                ? \App\Models\Transaction::movePartyAddrbookTypeIds($user)
+                : $definition['types'];
+
+            if (! in_array($this->addrbookTypeValue($addrbook), $types, true)) {
                 throw new InvalidArgumentException("{$definition['label']} must be the correct contact type.");
             }
 
@@ -265,7 +292,7 @@ class UserPreferenceService
     }
 
     /**
-     * @return array{id: int, name: string, ppn: bool}
+     * @return array{id: int, name: string, ppn: bool, ppn_included: bool}
      */
     protected function partyPayload(Addrbook $addrbook): array
     {
@@ -273,6 +300,7 @@ class UserPreferenceService
             'id' => $addrbook->id,
             'name' => $addrbook->name,
             'ppn' => (bool) $addrbook->ppn,
+            'ppn_included' => $addrbook->resolvedPpnIncluded(),
         ];
     }
 

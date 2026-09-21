@@ -136,6 +136,51 @@ test('can delete addrbook', function () {
     expect(Addrbook::withTrashed()->find($addrbook->id))->not->toBeNull();
 });
 
+test('can view soft deleted addrbook detail', function () {
+    $addrbook = Addrbook::create([
+        'name' => 'Deleted Detail',
+        'type' => Addrbook::TYPE_CUSTOMER,
+    ]);
+    $addrbook->delete();
+
+    $this->actingAs($this->user)
+        ->get("/customer/{$addrbook->id}")
+        ->assertOk()
+        ->assertSee('Deleted Detail', false)
+        ->assertSee('This contact was deleted', false);
+});
+
+test('can view soft deleted addrbook edit form', function () {
+    $addrbook = Addrbook::create([
+        'name' => 'Deleted Edit',
+        'type' => Addrbook::TYPE_SUPPLIER,
+    ]);
+    $addrbook->delete();
+
+    $this->actingAs($this->user)
+        ->get("/supplier/{$addrbook->id}/edit")
+        ->assertOk()
+        ->assertSee('Deleted Edit', false)
+        ->assertSee('This contact was deleted', false);
+});
+
+test('can restore soft deleted addrbook', function () {
+    $addrbook = Addrbook::create([
+        'name' => 'Restore Me',
+        'type' => Addrbook::TYPE_CUSTOMER,
+    ]);
+    $addrbook->delete();
+
+    $this->assertSoftDeleted('customers', ['id' => $addrbook->id]);
+
+    $this->actingAs($this->user)
+        ->post(route('addrbook.restore', $addrbook))
+        ->assertRedirect(Addrbook::typeIndexRoute(Addrbook::TYPE_CUSTOMER));
+
+    $addrbook->refresh();
+    expect($addrbook->trashed())->toBeFalse();
+});
+
 test('addrbook list trash button soft deletes via fetch delete', function () {
     $addrbook = Addrbook::create([
         'name' => 'Trash Button Target',
@@ -236,25 +281,24 @@ test('persists warehouse arrangement source warehouses on update', function () {
         ->assertSee('Source WH', false);
 });
 
-test('bank list is sorted by name', function () {
-    Addrbook::factory()->create(['name' => 'Zebra Bank', 'type' => Addrbook::TYPE_BANK]);
-    Addrbook::factory()->create(['name' => 'Alpha Bank', 'type' => Addrbook::TYPE_BANK]);
+test('addrbook type list is sorted by name by default', function (string $slug, int $type) {
+    Addrbook::factory()->create(['name' => 'Alpha Contact', 'type' => $type]);
+    Addrbook::factory()->create(['name' => 'Zebra Contact', 'type' => $type]);
 
     $this->actingAs($this->user)
-        ->get(route('addrbook.type.index', 'bank'))
+        ->get(route('addrbook.type.index', $slug))
         ->assertOk()
-        ->assertSeeInOrder(['Alpha Bank', 'Zebra Bank'], false);
-});
-
-test('warehouse list is sorted by name', function () {
-    Addrbook::factory()->warehouse()->create(['name' => 'Zulu Warehouse']);
-    Addrbook::factory()->warehouse()->create(['name' => 'Alpha Warehouse']);
-
-    $this->actingAs($this->user)
-        ->get(route('addrbook.type.index', 'warehouse'))
-        ->assertOk()
-        ->assertSeeInOrder(['Alpha Warehouse', 'Zulu Warehouse'], false);
-});
+        ->assertSeeInOrder(['Alpha Contact', 'Zebra Contact'], false);
+})->with([
+    'customer' => ['customer', Addrbook::TYPE_CUSTOMER],
+    'warehouse' => ['warehouse', Addrbook::TYPE_WAREHOUSE],
+    'bank' => ['bank', Addrbook::TYPE_BANK],
+    'supplier' => ['supplier', Addrbook::TYPE_SUPPLIER],
+    'vwarehouse' => ['vwarehouse', Addrbook::TYPE_V_WAREHOUSE],
+    'vaccount' => ['vaccount', Addrbook::TYPE_V_ACCOUNT],
+    'reseller' => ['reseller', Addrbook::TYPE_RESELLER],
+    'account' => ['account', Addrbook::TYPE_ACCOUNT],
+]);
 
 test('warehouse list shows arrangement destination column', function () {
     Addrbook::factory()->warehouse()->create([

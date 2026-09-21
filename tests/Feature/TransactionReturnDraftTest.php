@@ -249,7 +249,6 @@ it('submits a drafted return transaction with the same invoice and line totals',
         ->and($return->sender_id)->toBe($customer->id)
         ->and($return->receiver_id)->toBe($warehouse->id)
         ->and($return->notes)->toBe("return\nOriginal note")
-        ->and((float) $return->real_total)->toBe(80_000.0)
         ->and((float) $return->total)->toBe(80_000.0);
 });
 

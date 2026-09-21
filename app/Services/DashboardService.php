@@ -3,13 +3,14 @@
 namespace App\Services;
 
 use App\Models\Crongetorder;
+use App\Models\ItemInsightRanking;
 use App\Models\ItemStockNotification;
+use App\Models\Report;
 use App\Models\Jubelio;
 use App\Models\Jubelioorder;
 use App\Models\JubelioStockCheck;
 use App\Models\Jubelioreturn;
 use App\Models\Produksi;
-use App\Models\RestockCell;
 use App\Models\ScheduledTask;
 use App\Models\Transaction;
 use App\Models\User;
@@ -46,6 +47,7 @@ class DashboardService
         protected JubelioService $jubelioService,
         protected BookClosingService $bookClosingService,
         protected StaffChecklistService $staffChecklistService,
+        protected ItemInsightQueryService $itemInsightQuery,
     ) {}
 
     /**
@@ -63,7 +65,7 @@ class DashboardService
         $canBookClosing = Gate::forUser($user)->allows('transactions-list');
         $canWarehouseArrangement = Gate::forUser($user)->allows('report-warehouse-arrangement');
         $canActivity = Gate::forUser($user)->allows('transactions-list');
-        $canRestock = Gate::forUser($user)->allows('restock-list');
+        $canRestock = Gate::forUser($user)->allows(Report::getPermissions()['view-item-insights']);
         $canProduksiList = Gate::forUser($user)->allows(Produksi::getPermissions()['view']);
 
         $data = [
@@ -131,7 +133,7 @@ class DashboardService
         }
 
         if ($canRestock) {
-            $data['restock'] = $this->rememberSitewidePanel('restock', self::CACHE_TTL_DEFAULT, fn () => $this->restockPanel());
+            $data['restock'] = $this->rememberSitewidePanel('item-insight-restock-alerts', self::CACHE_TTL_DEFAULT, fn () => $this->restockPanel());
         }
 
         if ($canProduksiList) {
@@ -257,9 +259,9 @@ class DashboardService
             'recent' => ItemStockNotification::query()
                 ->unread()
                 ->with([
-                    'item:id,code,name',
-                    'soldOutWarehouse:id,name',
-                    'sourceWarehouse:id,name',
+                    'item:id,code,name,type',
+                    'soldOutWarehouse:id,name,type',
+                    'sourceWarehouse:id,name,type',
                 ])
                 ->orderByDesc('created_at')
                 ->limit(5)
@@ -299,14 +301,8 @@ class DashboardService
      */
     protected function cronPanel(): array
     {
-        $disabledTasks = ScheduledTask::query()
-            ->where('active', false)
-            ->orderBy('name')
-            ->get(['id', 'name', 'command']);
-
         return [
-            'disabled_count' => $disabledTasks->count(),
-            'disabled_tasks' => $disabledTasks->take(5)->values(),
+            'disabled_count' => (int) ScheduledTask::query()->where('active', false)->count(),
             'total_tasks' => (int) ScheduledTask::query()->count(),
         ];
     }
@@ -357,7 +353,7 @@ class DashboardService
                 Transaction::TYPE_CASH_IN,
                 Transaction::TYPE_CASH_OUT,
             ])
-            ->selectRaw('date, type, COUNT(*) as row_count, SUM(ABS(COALESCE(real_total, total, 0))) as amount_total')
+            ->selectRaw('date, type, COUNT(*) as row_count, SUM(ABS(COALESCE(total, 0))) as amount_total')
             ->groupBy('date', 'type')
             ->get();
 
@@ -452,15 +448,28 @@ class DashboardService
      */
     protected function restockPanel(): array
     {
-        $urgentCells = RestockCell::query()
-            ->where('is_urgent', true)
-            ->with(['item:id,code,name', 'sheet:id,name,type_tag_id', 'sheet.typeTag:id,name'])
-            ->orderByDesc('urgent_flagged_at')
-            ->orderByDesc('updated_at');
+        $latest = $this->itemInsightQuery->latestCalculatedMonthlyPeriod();
+        if ($latest === null) {
+            return [
+                'alert_count' => 0,
+                'recent' => collect(),
+                'period_key' => null,
+                'calculated' => false,
+            ];
+        }
+
+        $alerts = ItemInsightRanking::query()
+            ->where('year', $latest->year)
+            ->where('month', $latest->month)
+            ->where('category', ItemInsightRanking::CATEGORY_RESTOCK_ALERT)
+            ->orderBy('rank')
+            ->get();
 
         return [
-            'urgent_count' => (int) (clone $urgentCells)->count(),
-            'recent' => (clone $urgentCells)->limit(5)->get(),
+            'alert_count' => $alerts->count(),
+            'recent' => $alerts->take(5)->values(),
+            'period_key' => $latest->periodLabel(),
+            'calculated' => true,
         ];
     }
 

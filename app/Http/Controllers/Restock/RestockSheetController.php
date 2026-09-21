@@ -63,6 +63,7 @@ class RestockSheetController extends Controller
       'grid' => $this->gridBuilder->build($sheet),
       'typeTags' => $this->sheetService->typeTags(),
       'canEdit' => request()->user()?->can(RestockSheet::getPermissions()['edit']) ?? false,
+      'canExport' => request()->user()?->can(RestockSheet::getPermissions()['export']) ?? false,
       'receiveReady' => $receiveReady,
       'stockWarehouseLabel' => $this->settingsService->stockDisplayLabel(),
     ]);
@@ -70,7 +71,7 @@ class RestockSheetController extends Controller
 
   public function export(RestockSheet $sheet): StreamedResponse
   {
-    Gate::authorize(RestockSheet::getPermissions()['view']);
+    Gate::authorize(RestockSheet::getPermissions()['export']);
 
     return $this->exportService->download($sheet);
   }
@@ -103,14 +104,16 @@ class RestockSheetController extends Controller
   {
     Gate::authorize(RestockSheet::getPermissions()['edit']);
 
-    $added = $this->sheetService->syncSkus($sheet);
+    $result = $this->sheetService->syncSkus($sheet);
 
-    return back()->with(
-      'success',
-      $added > 0
-        ? "Added {$added} new SKU cell(s) from the item catalog."
-        : 'Sheet is already up to date with the item catalog.',
-    );
+    $message = match (true) {
+      $result['added'] > 0 && $result['removed'] > 0 => "Added {$result['added']} new SKU cell(s) and removed {$result['removed']} stale cell(s).",
+      $result['added'] > 0 => "Added {$result['added']} new SKU cell(s) from the item catalog.",
+      $result['removed'] > 0 => "Removed {$result['removed']} stale SKU cell(s) no longer in this type.",
+      default => 'Sheet is already up to date with the item catalog.',
+    };
+
+    return back()->with('success', $message);
   }
 
   public function move(Request $request, RestockSheet $sheet): JsonResponse

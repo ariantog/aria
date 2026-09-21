@@ -60,16 +60,9 @@ class JubelioOrderShowPresenter
 
         if (! $warehouse || ! $customer) {
             if ($order->type === 'RETURN') {
-                $payload = $order->payloadArray();
-                $sell = Transaction::query()
-                    ->where('type', Transaction::TYPE_SELL)
-                    ->where('invoice', $payload['salesorder_no'] ?? '')
-                    ->first();
-
-                if ($sell) {
-                    $warehouse ??= Addrbook::find($sell->sender_id);
-                    $customer ??= Addrbook::find($sell->receiver_id);
-                }
+                $parties = $this->warehouseResolver->resolveReturnParties($order);
+                $warehouse ??= $parties['warehouse'];
+                $customer ??= $parties['customer'];
             } else {
                 $syncIndex = $this->warehouseResolver->syncIndex();
                 $payload = $order->payloadArray();
@@ -131,7 +124,10 @@ class JubelioOrderShowPresenter
                 : ($item ? 0.0 : null);
 
             return $enriched;
-        })->values()->all();
+        })
+            ->sortBy(fn (array $row) => (string) ($row['item_code'] ?? ''), SORT_NATURAL | SORT_FLAG_CASE)
+            ->values()
+            ->all();
     }
 
   /**
@@ -146,7 +142,7 @@ class JubelioOrderShowPresenter
         return [
             'id' => $party->id,
             'name' => $party->name,
-            'url' => route('addrbook.type.show', ['type' => $party->type_slug, 'addrbook' => $party->id]),
+            'url' => $party->transactionsUrl(),
         ];
     }
 

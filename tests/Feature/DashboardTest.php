@@ -8,8 +8,7 @@ use App\Models\Jubelioorder;
 use App\Models\JubelioStockCheck;
 use App\Models\Jubelioreturn;
 use App\Models\Produksi;
-use App\Models\RestockCell;
-use App\Models\RestockSheet;
+use App\Models\WarehouseItemMonthlyStat;
 use App\Models\ScheduledTask;
 use App\Models\Tag;
 use App\Models\Transaction;
@@ -208,8 +207,7 @@ test('superadmin sees phase 2 dashboard widgets', function () {
         ->assertSee('data-testid="dashboard-stock-check-active"', false)
         ->assertSee('data-testid="dashboard-arrangement-refresh"', false)
         ->assertSee('data-testid="dashboard-arrangement-jobs"', false)
-        ->assertSee('data-testid="dashboard-disabled-crons-list"', false)
-        ->assertSee('Disabled Test Cron', false)
+        ->assertDontSee('data-testid="dashboard-disabled-crons-list"', false)
         ->assertSee('Dash Refresh WH', false);
 });
 
@@ -228,24 +226,27 @@ test('superadmin sees daily checklist widgets', function () {
         'user_id' => $user->id,
     ]);
 
-    $typeTag = Tag::factory()->create([
-        'type' => Tag::TYPE_TYPE,
-        'code' => 'DASH-TYPE',
-        'name' => 'Dash Type',
-        'item_type' => \App\Enums\ItemType::ASSET_LANCAR->value,
-    ]);
-    $item = Item::factory()->create(['code' => 'URG-RESTOCK']);
-    $sheet = RestockSheet::create([
-        'name' => 'Dash Sheet',
-        'type_tag_id' => $typeTag->id,
-        'created_by' => $user->id,
-    ]);
-    RestockCell::create([
-        'restock_sheet_id' => $sheet->id,
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $item = Item::factory()->create(['code' => 'DASH-RESTOCK-ALERT', 'name' => 'Dash Alert SKU']);
+    \App\Models\WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
         'item_id' => $item->id,
-        'qty_restock' => 2,
-        'is_urgent' => true,
+        'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 2,
     ]);
+    $year = (int) now()->year;
+    $month = (int) now()->month;
+    WarehouseItemMonthlyStat::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $item->id,
+        'year' => $year,
+        'month' => $month,
+        'sold_qty' => 60,
+        'returned_qty' => 0,
+        'sold_value' => 600_000,
+        'returned_value' => 0,
+    ]);
+    app(\App\Services\ItemInsightSyncService::class)->recalculateMonth($year, $month);
 
     $worker = Worker::create(['name' => 'Dash Cutter', 'type' => Worker::TYPE_POTONG]);
     $size = Tag::create(['name' => 'M', 'type' => Tag::TYPE_SIZE, 'item_type' => 0]);
@@ -283,8 +284,8 @@ test('superadmin sees daily checklist widgets', function () {
         ->assertSee('data-testid="dashboard-daily-panel"', false)
         ->assertSee('Daily checklist', false)
         ->assertSee('data-testid="dashboard-activity-chart"', false)
-        ->assertSee('data-testid="dashboard-restock-urgent"', false)
-        ->assertSee('URG-RESTOCK', false)
+        ->assertSee('data-testid="dashboard-restock-alerts"', false)
+        ->assertSee('DASH-RESTOCK-ALERT', false)
         ->assertSee('data-testid="dashboard-produksi-recent"', false)
         ->assertSee('In production', false)
         ->assertDontSee('data-testid="dashboard-jubelio-stock-sync"', false)
@@ -292,36 +293,41 @@ test('superadmin sees daily checklist widgets', function () {
         ->assertDontSee('data-testid="dashboard-nett-cash-summary"', false);
 });
 
-test('restock viewers see urgent restock checklist without ops panel', function () {
+test('item insight viewers see restock alerts checklist without ops panel', function () {
     $user = User::factory()->create(['id' => 96]);
-    Permission::firstOrCreate(['name' => 'restock-list', 'guard_name' => 'web']);
-    $user->givePermissionTo('restock-list');
+    app(PermissionGenerator::class)->generateForModule('Report');
+    Permission::firstOrCreate(['name' => 'report-item-insights', 'guard_name' => 'web']);
+    $user->givePermissionTo('report-item-insights');
 
-    $typeTag = Tag::factory()->create([
-        'type' => Tag::TYPE_TYPE,
-        'code' => 'REST-TYPE',
-        'name' => 'Rest Type',
-        'item_type' => \App\Enums\ItemType::ASSET_LANCAR->value,
-    ]);
-    $item = Item::factory()->create(['code' => 'REST-URGENT']);
-    $sheet = RestockSheet::create([
-        'name' => 'Rest Sheet',
-        'type_tag_id' => $typeTag->id,
-        'created_by' => $user->id,
-    ]);
-    RestockCell::create([
-        'restock_sheet_id' => $sheet->id,
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $item = Item::factory()->create(['code' => 'INSIGHT-ALERT']);
+    \App\Models\WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
         'item_id' => $item->id,
-        'qty_restock' => 1,
-        'is_urgent' => true,
+        'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 3,
     ]);
+    $year = 2026;
+    $month = 3;
+    $this->travelTo('2026-03-31');
+    WarehouseItemMonthlyStat::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $item->id,
+        'year' => $year,
+        'month' => $month,
+        'sold_qty' => 90,
+        'returned_qty' => 0,
+        'sold_value' => 900_000,
+        'returned_value' => 0,
+    ]);
+    app(\App\Services\ItemInsightSyncService::class)->recalculateMonth($year, $month);
 
     $this->actingAs($user)
         ->get(route('dashboard'))
         ->assertOk()
         ->assertSee('data-testid="dashboard-daily-panel"', false)
-        ->assertSee('data-testid="dashboard-restock-urgent"', false)
-        ->assertSee('REST-URGENT', false)
+        ->assertSee('data-testid="dashboard-restock-alerts"', false)
+        ->assertSee('INSIGHT-ALERT', false)
         ->assertDontSee('data-testid="dashboard-activity-chart"', false)
         ->assertDontSee('data-testid="dashboard-health-strip"', false);
 });
@@ -387,6 +393,9 @@ test('stock alert viewers see unread list without jubelio widgets', function () 
         ->assertSee('data-testid="dashboard-kpi-stock-alerts"', false)
         ->assertSee('data-testid="dashboard-stock-alerts-list"', false)
         ->assertSee('ALERT-SKU', false)
+        ->assertSee(route('items.show', $item->id), false)
+        ->assertSee(route('addrbook.type.transactions', ['type' => 'warehouse', 'addrbook' => $shop->id]), false)
+        ->assertSee(route('addrbook.type.transactions', ['type' => 'warehouse', 'addrbook' => $source->id]), false)
         ->assertDontSee('data-testid="dashboard-jubelio-connection"', false)
         ->assertDontSee('data-testid="dashboard-kpi-jubelio-pending"', false);
 });

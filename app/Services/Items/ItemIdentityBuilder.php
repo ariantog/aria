@@ -4,12 +4,18 @@ namespace App\Services\Items;
 
 use App\Enums\ItemType;
 use App\Models\Item;
+use App\Models\ItemGroup;
 use App\Models\Tag;
 use InvalidArgumentException;
 
 class ItemIdentityBuilder
 {
     public const ALL_SIZE_CODE = 'AS';
+
+    /**
+     * Production `item_group.name` is varchar(255) (see database/old.sql; widened in 2026_09_03).
+     */
+    public const GROUP_NAME_MAX_LENGTH = 255;
 
     /**
      * Manufactured item pcode: [2-3 letters][5 digits]-[2-3 digits] e.g. CX90233-23
@@ -22,9 +28,45 @@ class ItemIdentityBuilder
      */
     private const ASSET_PCODE_PATTERN = '/^[A-Za-z0-9]+(?:-[A-Za-z0-9]+){1,2}$/i';
 
-    public function validatePcode(ItemType $type, string $pcode): void
+    /**
+     * Leftover manufactured pcodes used a slash (CX00122/03). Canonical form is hyphenated.
+     */
+    public function normalizeManufacturedPcode(string $pcode): string
+    {
+        return strtoupper(str_replace('/', '-', trim($pcode)));
+    }
+
+    /**
+     * Rewrite the first hyphen segment of an asset lancar pcode to the TYPE tag code.
+     * gloves-03 + GLOVE → GLOVE-03; BAG-16-03 keeps three segments (legacy color).
+     */
+    public function applyAssetTypePrefixToPcode(string $pcode, ?Tag $typeTag): string
     {
         $pcode = strtoupper(trim($pcode));
+        if ($pcode === '' || $typeTag === null) {
+            return $pcode;
+        }
+
+        $typeCode = strtoupper(trim((string) $typeTag->code));
+        if ($typeCode === '') {
+            return $pcode;
+        }
+
+        $parts = explode('-', $pcode);
+        if (count($parts) < 2) {
+            return $typeCode;
+        }
+
+        $parts[0] = $typeCode;
+
+        return implode('-', $parts);
+    }
+
+    public function validatePcode(ItemType $type, string $pcode): void
+    {
+        $pcode = $type === ItemType::ITEM
+            ? $this->normalizeManufacturedPcode($pcode)
+            : strtoupper(trim($pcode));
 
         if ($pcode === '') {
             throw new InvalidArgumentException('pcode is required');
@@ -49,7 +91,9 @@ class ItemIdentityBuilder
     public function parsePcode(ItemType $type, string $pcode): array
     {
         $this->validatePcode($type, $pcode);
-        $pcode = strtoupper(trim($pcode));
+        $pcode = $type === ItemType::ITEM
+            ? $this->normalizeManufacturedPcode($pcode)
+            : strtoupper(trim($pcode));
 
         if ($type === ItemType::ASSET_LANCAR) {
             return [
@@ -67,6 +111,108 @@ class ItemIdentityBuilder
     }
 
     /**
+     * Parent master for a leftover slash pcode, hyphen pcode, or already-canonical master.
+     * CX00122/03 and CX00122-03 → CX00122. Bare CX00122 → CX00122.
+     */
+    public function canonicalManufacturedMaster(string $value): ?string
+    {
+        $value = strtoupper(trim($value));
+
+        if ($value === '') {
+            return null;
+        }
+
+        $normalized = $this->normalizeManufacturedPcode($value);
+
+        if (preg_match(self::ITEM_PCODE_PATTERN, $normalized)) {
+            return explode('-', $normalized, 2)[0];
+        }
+
+        if (preg_match('/^[A-Z]{2,3}[0-9]{5}$/', $normalized)) {
+            return $normalized;
+        }
+
+        return null;
+    }
+
+    /**
+     * Stored item_group.master for a colorway group.
+     * Manufactured: full colorway pcode (CX00122-03). Asset lancar: TYPE-CODE (GLOVE-07).
+     */
+    public function groupMaster(ItemType $type, string $pcode): string
+    {
+        if ($type === ItemType::ITEM) {
+            return $this->normalizeManufacturedPcode($pcode);
+        }
+
+        return strtoupper(trim($pcode));
+    }
+
+    /**
+     * Find an existing colorway row by canonical (master, variant), including legacy master shapes.
+     */
+    public function findCanonicalGroup(string $master, string $variant): ?ItemGroup
+    {
+        $master = strtoupper(trim($master));
+        $variant = strtoupper(trim($variant));
+
+        $exact = ItemGroup::query()
+            ->whereRaw('UPPER(TRIM(master)) = ?', [$master])
+            ->whereRaw('UPPER(TRIM(variant)) = ?', [$variant])
+            ->first();
+
+        if ($exact) {
+            return $exact;
+        }
+
+        $productionMaster = $this->canonicalManufacturedMaster($master);
+
+        if ($productionMaster === null) {
+            return null;
+        }
+
+        $legacyMasters = array_values(array_unique(array_filter([
+            $productionMaster,
+            str_replace('-', '/', $master),
+        ])));
+
+        return ItemGroup::query()
+            ->where(function ($query) use ($legacyMasters, $master) {
+                foreach ($legacyMasters as $legacyMaster) {
+                    $query->orWhereRaw('UPPER(TRIM(master)) = ?', [$legacyMaster]);
+                }
+
+                $query->orWhereRaw('UPPER(REPLACE(TRIM(master), "/", "-")) = ?', [$master]);
+            })
+            ->where(function ($query) use ($variant) {
+                $query->whereRaw('UPPER(TRIM(variant)) = ?', [$variant]);
+
+                if ($variant !== '') {
+                    $query->orWhereRaw("UPPER(TRIM(variant)) = ''");
+                }
+            })
+            ->first();
+    }
+
+    /**
+     * Parent list key for a stored group master (production master for manufactured items).
+     */
+    public function canonicalParentMasterFromGroupMaster(string $master): string
+    {
+        $canonical = $this->canonicalManufacturedMaster($master);
+
+        if ($canonical !== null) {
+            return $canonical;
+        }
+
+        if (str_contains($master, '/')) {
+            return strtoupper(trim(explode('/', $master, 2)[0]));
+        }
+
+        return strtoupper(trim($master));
+    }
+
+    /**
      * Grouping key variant segment (color number in pcode for items, warna code for assets).
      */
     public function groupVariant(ItemType $type, string $pcode, ?Tag $warnaTag): string
@@ -76,6 +222,64 @@ class ItemIdentityBuilder
         }
 
         return strtoupper($warnaTag?->code ?? '');
+    }
+
+    /**
+     * Whether a stored colorway group matches the canonical (master, variant) for pcode + warna.
+     * Accepts legacy manufactured master shapes (CX00122, CX00122/03) and empty variant.
+     */
+    public function groupMatchesExpectedColorway(
+        ItemGroup $group,
+        ItemType $type,
+        string $pcode,
+        ?Tag $warnaTag,
+    ): bool {
+        $pcode = $type === ItemType::ITEM
+            ? $this->normalizeManufacturedPcode($pcode)
+            : strtoupper(trim($pcode));
+
+        $expectedMaster = strtoupper(trim($this->groupMaster($type, $pcode)));
+        $expectedVariant = strtoupper(trim($this->groupVariant($type, $pcode, $warnaTag)));
+        $storedMaster = strtoupper(trim((string) ($group->master ?? '')));
+        $storedVariant = strtoupper(trim((string) ($group->variant ?? '')));
+
+        if ($storedMaster === '') {
+            return false;
+        }
+
+        if ($storedMaster === $expectedMaster && $this->variantMatchesExpected($storedVariant, $expectedVariant, $pcode)) {
+            return true;
+        }
+
+        if ($type !== ItemType::ITEM) {
+            return false;
+        }
+
+        $normalizedStoredMaster = $this->normalizeManufacturedPcode($storedMaster);
+        $productionMaster = $this->canonicalManufacturedMaster($expectedMaster);
+
+        if ($normalizedStoredMaster === $expectedMaster) {
+            return $this->variantMatchesExpected($storedVariant, $expectedVariant, $pcode);
+        }
+
+        if ($productionMaster !== null && $this->canonicalManufacturedMaster($storedMaster) === $productionMaster) {
+            return $this->variantMatchesExpected($storedVariant, $expectedVariant, $pcode);
+        }
+
+        return false;
+    }
+
+    private function variantMatchesExpected(string $storedVariant, string $expectedVariant, string $pcode): bool
+    {
+        if ($storedVariant === $expectedVariant) {
+            return true;
+        }
+
+        if ($storedVariant === '') {
+            return true;
+        }
+
+        return $this->normalizeManufacturedPcode($storedVariant) === $this->normalizeManufacturedPcode($pcode);
     }
 
     /**
@@ -120,15 +324,26 @@ class ItemIdentityBuilder
     }
 
     /**
-     * Display name: {group.name} - {warna code} - {size code}
-     * e.g. SLASH RUNNING SHIRT - BLUE - S
+     * Display name: {product title} - {warna} - {size}
+     * All-size omits the size segment: {product title} - {warna}
+     * e.g. ELBOW STRAP - BLACKWHITE, SLASH RUNNING SHIRT - BLUE - S
      */
     public function buildName(string $groupName, ?Tag $warnaTag, ?Tag $sizeTag): string
     {
-        $parts = [strtoupper(trim($groupName))];
+        $warnaCode = $warnaTag ? strtoupper(trim((string) $warnaTag->code)) : '';
+        $warnaDisplay = $warnaTag
+            ? strtoupper(trim((string) ($warnaTag->name ?: $warnaTag->code)))
+            : '';
+        $product = $this->productDisplayName(
+            ItemType::ASSET_LANCAR,
+            $groupName,
+            $warnaCode,
+        );
 
-        if ($warnaTag) {
-            $parts[] = strtoupper($warnaTag->code);
+        $parts = [$product];
+
+        if ($warnaDisplay !== '') {
+            $parts[] = $warnaDisplay;
         }
 
         if ($sizeTag && ! $this->isAllSize($sizeTag)) {
@@ -139,8 +354,8 @@ class ItemIdentityBuilder
     }
 
     /**
-     * Stored item_group.name must be globally unique in production (UNIQUE index on name).
-     * Asset lancar groups are keyed by color variant, so append the warna code to the product name.
+     * Stored item_group.name: bare product title, or pcode when the title is blank.
+     * Color/warna lives on item_group.variant and item display names — not in group.name.
      */
     public function storedGroupName(
         ItemType $type,
@@ -150,36 +365,68 @@ class ItemIdentityBuilder
     ): string {
         $productName = strtoupper(trim($productName));
         $pcode = strtoupper(trim($pcode));
-        $groupVariant = strtoupper(trim($groupVariant));
 
         if ($productName === '') {
-            $productName = $pcode;
-        }
-
-        if ($type === ItemType::ASSET_LANCAR && $groupVariant !== '') {
-            return "{$productName} - {$groupVariant}";
+            return $type === ItemType::ITEM
+                ? $this->normalizeManufacturedPcode($pcode)
+                : $pcode;
         }
 
         return $productName;
     }
 
     /**
-     * Reverse storedGroupName for item display names (buildName expects the bare product title).
+     * Trim a stored group name to the production column width.
      */
-    public function productDisplayName(ItemType $type, string $storedGroupName, string $groupVariant): string
+    public function fitStoredGroupName(string $name): string
     {
-        $storedGroupName = strtoupper(trim($storedGroupName));
+        $name = strtoupper(trim($name));
+
+        if ($name === '' || mb_strlen($name) <= self::GROUP_NAME_MAX_LENGTH) {
+            return $name;
+        }
+
+        return rtrim(mb_substr($name, 0, self::GROUP_NAME_MAX_LENGTH));
+    }
+
+    /**
+     * Fit the stored group name to the production column width.
+     * Multiple colorways may share the same bare title — no uniqueness suffix.
+     */
+    public function uniqueStoredGroupName(string $storedName, string $master = '', string $variant = ''): string
+    {
+        return $this->fitStoredGroupName($storedName);
+    }
+
+    /**
+     * Reverse storedGroupName for item display names (buildName expects the bare product title).
+     *
+     * Unique item_group.name values may include a color segment and a
+     * uniqueness suffix, e.g. "ELBOW STRAP - BLACKWHITE (ELBOWSUPPORT-02)".
+     * Those must not leak into the item display name.
+     */
+    public function productDisplayName(
+        ItemType $type,
+        string $storedGroupName,
+        string $groupVariant,
+        string $master = '',
+    ): string {
+        $name = $this->stripUniquenessSuffix(strtoupper(trim($storedGroupName)), strtoupper(trim($master)));
         $groupVariant = strtoupper(trim($groupVariant));
 
-        if ($type === ItemType::ASSET_LANCAR && $groupVariant !== '') {
+        if ($groupVariant !== '') {
             $suffix = ' - '.$groupVariant;
 
-            if (str_ends_with($storedGroupName, $suffix)) {
-                return substr($storedGroupName, 0, -strlen($suffix));
+            while (str_ends_with($name, $suffix)) {
+                $name = strtoupper(trim(substr($name, 0, -strlen($suffix))));
             }
         }
 
-        return $storedGroupName;
+        if ($type === ItemType::ASSET_LANCAR && str_contains($name, ' - ')) {
+            return strtoupper(trim(explode(' - ', $name, 2)[0]));
+        }
+
+        return $name;
     }
 
     /**
@@ -356,12 +603,12 @@ class ItemIdentityBuilder
 
     public function parentKeyToSlug(string $parentKey): string
     {
-        return str_replace(':', '__', $parentKey);
+        return str_replace(['/', ':'], ['--', '__'], $parentKey);
     }
 
     public function parentKeyFromSlug(string $slug): string
     {
-        return str_replace('__', ':', $slug);
+        return str_replace(['__', '--'], [':', '/'], $slug);
     }
 
     public function itemColorGroupKey(Item $item): string
@@ -456,15 +703,18 @@ class ItemIdentityBuilder
     public function manufacturedParentMaster(Item $item): string
     {
         if ($item->group?->master) {
-            return strtoupper($item->group->master);
+            return $this->canonicalManufacturedMaster((string) $item->group->master)
+                ?? strtoupper(trim((string) $item->group->master));
         }
 
-        $pcode = strtoupper(trim($item->pcode ?? ''));
-        if ($pcode !== '' && preg_match(self::ITEM_PCODE_PATTERN, $pcode)) {
-            return $this->parsePcode(ItemType::ITEM, $pcode)['master'];
+        $pcode = strtoupper(trim((string) ($item->pcode ?? '')));
+        $fromPcode = $this->canonicalManufacturedMaster($pcode);
+
+        if ($fromPcode !== null) {
+            return $fromPcode;
         }
 
-        $parts = explode('-', strtoupper(trim($item->code ?? '')));
+        $parts = explode('-', strtoupper(trim((string) ($item->code ?? ''))));
         if (count($parts) >= 2) {
             return $parts[1];
         }
@@ -481,5 +731,29 @@ class ItemIdentityBuilder
         }
 
         return ItemType::tryFrom((int) $raw) ?? ItemType::ITEM;
+    }
+
+    /**
+     * Remove legacy uniqueness suffixes: " (MASTER)", " (MASTER/VARIANT)", " (2)".
+     */
+    public function stripUniquenessSuffix(string $name, string $master = ''): string
+    {
+        $name = strtoupper(trim($name));
+        $master = strtoupper(trim($master));
+
+        return (string) preg_replace_callback(
+            '/\s+\(([^)]+)\)/',
+            function (array $match) use ($master) {
+                $inside = strtoupper(trim($match[1]));
+
+                $looksLikeDisambiguator = ctype_digit($inside)
+                    || str_contains($inside, '/')
+                    || str_contains($inside, '-')
+                    || ($master !== '' && str_starts_with($inside, $master));
+
+                return $looksLikeDisambiguator ? '' : $match[0];
+            },
+            $name,
+        );
     }
 }

@@ -21,11 +21,24 @@ The migration from the React/Inertia SPA to Blade+Alpine and a batch of UI/bug f
   links restored, gated by `journal-*` / `production-*` / `borongan-*` permissions or superadmin.
 - **Superadmin (user 1) sees real balances** — it is exempt from the `bank_hidden_balance` check.
 - **Transaction entry forms are inline + keyboard-driven** (cash-in/out and buy/sell/return/
-  return-supplier): barcode/autocomplete lookup, discount in %, PPN 11%, AJAX submit that keeps
-  inputs + highlights invalid rows on validation error, and a submit button gated by client-side
-  validation (see `transactions/create.blade.php`, `transactions/cash.blade.php`).
+  return-supplier): barcode/autocomplete lookup, discount in %, optional PPN (not on every
+  invoice — see reporting entities below), AJAX submit that keeps inputs + highlights invalid
+  rows on validation error, and a submit button gated by client-side validation
+  (see `transactions/create.blade.php`, `transactions/cash.blade.php`).
 - **Palette normalized to `gray-*`** (journals/produksi were `zinc-*`); page-load slide-in animation
   removed.
+- **Transaction backend (signed posting + balances + Jubelio sync UI) is shipped.** Back-dated
+  insert/edit/delete recalculates later running balances (`TransactionObserver`, `TransactionService`,
+  `TransactionBalanceIntegrityTest`). Transaction show has Jubelio stock-sync buttons
+  (`resources/views/transactions/partials/jubelio-sync.blade.php`, `JubelioService`, dormant while
+  `JUBELIO_ACTIVE=false`). Manual batch tool: System Settings → Running Balances
+  (`/recalculate-running-balances`).
+- **Item catalog on `item_group` is shipped** (`App\Support\ItemCatalog`, `item_group.brand` /
+  `genre`). Leftover `items.*` mirror columns stay for L10 parity; new shared attributes belong on
+  the group. Colorway edit page, per-size price, asset TYPE→pcode autofill, and `item_group.name`
+  schema (varchar 255, not UNIQUE) landed in PRs **#575–#587** — see **Item group & item identity**.
+- **L12 reporting stack is shipped** (Blade reports + summary tables) — see **Reporting (L12)**.
+  **Maintainer will still request confirmation and modifications**; do not treat report output as final.
 
 Already-fixed gotchas — don't reintroduce them:
 - Read query params with `request()->query('x')`, **not** `request('x')`, on routes that also have a
@@ -70,6 +83,8 @@ migration file must be production-safe on its own**:
   `2026_08_19_040000` / `2026_08_19_070000`) — prod may have run the old version already.
 - Fresh prod bootstrap = `2026_08_13_100000_production_database_bootstrap` (+ seeder). Add new
   L12 tables to the bootstrap's `up()` list as well as shipping the standalone migration.
+- **Legacy table drops** (Phase 1 cleanup) are **maintainer manual only** — see **Roadmap & open work**
+  and `database/legacy-table-audit.md`. Agents must not add `DROP TABLE` migrations for audit candidates.
 
 ## AI agent restrictions (MUST follow)
 
@@ -83,28 +98,114 @@ user explicitly asks.**
 - The maintainer tests manually. Implement, run `./vendor/bin/pest` / `curl` / tinker as needed, **commit**,
   and open a PR. Avoid burning tokens on GUI demos.
 
+### Do NOT use `transactions.real_total`
+
+Application code must ignore `transactions.real_total`. **`total` is the only header amount.**
+
+- **`transactions.total`** is the signed **final payable** after invoice discount and adjustment,
+  plus **stored** PPN only when tax was recorded. Balances, display, reports, and new writes all
+  use this column. Do **not** assume every row includes 11% PPN.
+- Line subtotals come from **`transaction_details.total`**, not from a second header column.
+- `transactions.discount` is an invoice-discount **percent** (production `decimal(5,2)`), not money.
+- The leftover MySQL column on partitioned `transactions` / `deleted` may stay (NOT NULL, no
+  useful default on some prod rows). `ProductionColumnDefaults` (and raw upserts) may set
+  `real_total => 0` on MySQL create so inserts do not hit errno 1364. That is a dummy fill — do
+  **not** read, write a second semantic amount, display, or fall back to it in PHP, Blade, SQL
+  aggregates, or tests.
+- Do **not** ship `DROP COLUMN real_total` on partitioned `transactions` / `deleted`.
+- Do **not** reintroduce `real_total` as a second Aria amount. Jubelio's HTTP payload field named
+  `real_total` is **their** API, not our DB column — keep that mapping as API data only.
+- Faktur-posted sells store **DPP** on `total` (tax linking sums that as DPP). Reconstruct gross as
+  `abs(total) + ppn` — do not bring back a second header column for it.
+
+**Pre-deploy L12 bug (do not reintroduce).** Until commit `93dd8022` / PR #548, manual item sells
+wrote the **line subtotal** on `total` and the **net payable** on `real_total`:
+
+| Column | Stored | Meaning |
+|--------|--------|---------|
+| `total` | signed line subtotal | wrong — this is what balances read |
+| `real_total` | signed net after disc% + adj + PPN | correct amount, wrong column |
+
+Example production row **`618383`** (sell, 2026-09-01): one line Rp 135,000, invoice discount
+5%, adjustment −250 → net **Rp 128,000**. DB had `total = -135,000`, `real_total = -128,000`.
+Customer/reseller balance moved by 135,000 instead of 128,000.
+
+After the fix, **`CreateItemTransaction`** (and all other writers) set **`total` only** to
+`signedAmount(type, lines − disc% + adj + stored PPN)`. `real_total` is never a second payable —
+only dummy `0` on insert where MySQL requires NOT NULL. **Do not** swap columns back, read
+`real_total` in PHP/Blade/reports, or store subtotal on `total`.
+
+Regression: `tests/Feature/ItemTransactionTotalsTest.php` (“618383 net payable on total”).
+
 ### Do NOT change signed transaction totals
 
-`transactions.total` and `transactions.real_total` are **signed integers/decimals by design** — not
-unsigned amounts with sign inferred elsewhere.
+`transactions.total` is a **signed** integer/decimal by design — not an unsigned amount with sign
+inferred elsewhere.
 
-- **Sign convention (do not flip):** positive = sender owes receiver; negative = receiver owes sender.
-  **Buy / Return / CashIn → positive.** **Sell / ReturnSupplier / CashOut / Transfer → negative.**
-  Authoritative helper: `Transaction::signedAmount($type, $amount)` in `app/Models/Transaction.php`.
-- **When writing new transactions**, store totals through `Transaction::signedAmount()` (see
+**Sign convention (do not flip):** positive = sender owes receiver; negative = receiver owes sender.
+
+- **Negative:** sell, return-supplier, cash out, transfer, move.
+- **Positive:** buy, return, cash in, adjustment.
+
+Authoritative helper: `Transaction::signedAmount($type, $amount)` in `app/Models/Transaction.php`.
+
+- **When writing new transactions**, store `total` through `Transaction::signedAmount()` (see
   `CreateItemTransaction`, `CreateCashTransaction`, `CreateTransferTransaction`). Do **not** store
   `abs($grandTotal)` and apply sign later.
-- **When reading totals for balances**, use `TransactionService::balanceAmount()` — it already
-  normalizes legacy rows via `signedAmount(abs($stored))`. Do **not** replace this with bare
-  `abs()`, `*-1` flips, debit/credit logic, or "always store positive" refactors.
+- **When reading totals for balances**, use `TransactionService::balanceAmount()` — it reads
+  **`total`** and normalizes legacy sign via `signedAmount(abs($stored))`. A stored `total` of `0`
+  is a real zero (e.g. 100% invoice discount). Do **not** replace this with bare `abs()`, `*-1`
+  flips, debit/credit logic, or "always store positive" refactors.
 - **Display-only** formatting may use `abs()` for human-readable currency; **do not** change what is
-  persisted based on display needs.
+  persisted based on display needs. On-screen payable uses `total`; on-screen line subtotal uses
+  detail rows.
 - **Do not edit** `Transaction::signedAmount()`, `Transaction::typeIsNegative()`, or tests such as
   `tests/Unit/TransactionSignedAmountTest.php` and `tests/Feature/TransactionBalanceIntegrityTest.php`
   unless the task **explicitly** requests a signed-total convention change.
 - **Balance bugs:** fix running-balance recalculation, observer/job ordering, or back-dated row
-  updates — **not** the sign convention. If a row looks "wrong", check whether you are comparing
-  against legacy unsigned data before rewriting the signing rules.
+  updates — **not** the sign convention. Delete reverts whatever was posted from `total`.
+
+### Do NOT delete or rebuild `warehouse_item` stock
+
+Per-warehouse quantities live in **`warehouse_item`** and change **only through completed transaction
+posting** — manual entry in Aria (`TransactionService::handleTransaction` / `editTransaction` /
+`revertTransaction` on create, edit, delete) or inbound Jubelio orders (`jubelio:order-jubelio-to-aria` /
+`ProcessJubelioOrder`). **Nothing else** may change live **`warehouse_item`** quantities or move stock
+by replaying history: not `app:recalculate-running-balances`, not reporting rebuilds, not crons except
+the Jubelio order poster above.
+
+**`items.qty`** is a cached total (physical warehouses only) — sync it by **reading** existing
+`warehouse_item` rows; do **not** delete, truncate, insert, or rebuild `warehouse_item` from transaction
+history in application code, artisan commands, or crons.
+
+**`app:recalculate-running-balances`** (System Settings → Running Balances) rebuilds **money** running
+balances on `transactions` (`sender_balance` / `receiver_balance`) and addrbook stats only. It must
+**never** update `warehouse_item`, `items.qty`, `transaction_details.quantity`, or repost inventory.
+Fix wrong stock by correcting the transaction (edit detail qty and repost) — not by balance rebuild tools.
+
+**Manual `items.qty` sync commands** (read `warehouse_item` only; may update `items.qty`):
+
+| Command | Allowed behavior |
+|---------|------------------|
+| `inventory:recalculate` | Sync all `items.qty` from physical, non-deleted `warehouse_item` sums |
+| `report:recalculate` | Same as above (legacy alias) |
+| `app:backfill-items-qty` | Same as above |
+
+- **Never** register the commands above in Cron Manager — manual maintainer use only.
+- **Item / asset lancar "Recalculate qty"** (`ItemAvailabilityService::recalculate()`) must **only**
+  write **`items.qty`** from existing physical `warehouse_item` rows — **never** touch `warehouse_item`.
+- **Cron Manager** must not run the sync commands above. The only scheduled path that may change live
+  **`warehouse_item`** stock is **`jubelio:order-jubelio-to-aria`** (posts SELL/RETURN transactions).
+  Other Jubelio crons (`app:jubelio-stock-check`, poll/get-orders, check-connection) are read-only or
+  queue-only.
+- Do **not** add migrations, seeders, observers, or "repair" scripts that bulk-delete or bulk-rebuild
+  `warehouse_item` from transactions. Fix balance/stock bugs through transaction posting, observer
+  ordering, or targeted row fixes — not a global warehouse recalc.
+- **`migrate:finalize-aggregation` was removed** — it rebuilt `warehouse_item` from transactions; use
+  `app:recalculate-running-balances` only for **addrbook money** running balances (not stock).
+- **Dev / migration / wipe commands were removed** — do not reintroduce `app:delete-transactions`,
+  `app:recalculate-item-sales`, `import:legacy-jubelio`, `app:fix-warehouse-types`, `migrate:legacy-journals`,
+  `app:migrate-legacy-*`, `app:truncate-*`, `db:truncate-transactions`, or `app:reset-legacy-items-migration`.
 
 ### Do NOT reintroduce React / Vite / a JS build
 
@@ -126,6 +227,44 @@ asks for a specific schema change:
 - **New L12 tables** are fine — guard with `Schema::hasTable()`. Full production-migration rules
   (integer FKs, no FK to partitioned `transactions`, index name length, etc.) live in **Production
   database safety** below.
+
+### Do NOT remove `items.legacy_code`
+
+`items.legacy_code` is a live production column. It stores the pre-conversion SKU so Jubelio
+order matching still finds the item after `items.code` is rewritten.
+
+- **Never drop, rename, or null out the column** — not in a migration `down()`, a "cleanup"
+  after mass convert, or a refactor that treats conversion as finished.
+- **Never wipe row values** (`UPDATE items SET legacy_code = NULL`, empty-string backfills,
+  or "legacy_code is redundant now" edits).
+- **When `code` changes**, preserve the old SKU in `legacy_code` if it is still empty
+  (`ItemService` / `LegacyItemConverterService::preserveLegacyCode()`). If `legacy_code` is
+  already set, do not overwrite it.
+- Keep it on `Item` `$fillable` / forms / Jubelio lookups. Display-only UI may hide it;
+  persistence must keep it.
+- The **legacy identity converter UI** (`LegacyItemConverterService`, convert-identity routes)
+  is a **temporary migration tool**. **`items.legacy_code` is permanent** — do not remove the
+  column or row values when conversion work finishes. See **Item group & item identity** below.
+
+### Do NOT regress item_group / item identity
+
+Settled rules live in **Item group & item identity** below. In particular:
+
+- **Do NOT add `item_group.legacy_name`** — it was never shipped; product title is
+  `item_group.name` only.
+- **Do NOT re-add a UNIQUE index on `item_group.name`** — multiple colorways may share the
+  same bare title; identity is `(master, variant)`, not name.
+- **Do NOT store color in `item_group.name`** — warna lives on `item_group.variant` (assets)
+  or the pcode suffix (manufactured); SKU display names append color/size via `buildName()`.
+- **Do NOT use manufactured master-only shapes for new writes** — canonical manufactured
+  `master` is the full colorway pcode (`CX90233-23`). Legacy parent-only masters
+  (`CX00122`, `CX00122/03`) are read/merge paths only (see PR #576).
+- **Do NOT propagate price, cost, or restock threshold to sibling sizes on single-item
+  `ItemService::update()`** — those fields are per-SKU; only shared catalog/name paths
+  propagate. Matrix edits belong on colorway edit (`updateColorway()`).
+- **Do NOT edit `ItemIdentityBuilder`, `ItemService` group resolution, pcode validation, or
+  `buildName()` / master-variant conventions** unless the task **explicitly** requests an
+  identity or catalog rule change (same bar as `Transaction::signedAmount()`).
 
 ### Do NOT change Alpine.js patterns
 
@@ -162,11 +301,12 @@ not "modernize" or refactor Alpine style:
   **Composer 2**, **Node 22**. The startup update script only refreshes deps (`composer install`).
 - Config in `.env` (from `.env.example`), DB is SQLite at `database/database.sqlite` (both gitignored,
   persist in the VM snapshot). Migrate + seed: `php artisan migrate`, then `SuperAdminSeeder`,
-  `SettingSeeder`, `DemoDataSeeder`. Grant the superadmin role its permissions once via
-  `PermissionGenerator::generateAll()` + `syncPermissions(...)` (see `replit.md`).
+  `SettingSeeder`, `DemoDataSeeder`. On a fresh dev DB, generate permissions once:
+  `php artisan tinker --execute="app(\App\Services\PermissionGenerator::class)->generateAll(); \Spatie\Permission\Models\Role::findByName('superadmin', 'web')?->syncPermissions(\Spatie\Permission\Models\Permission::all());"`.
 - Serve: `php artisan serve --host=0.0.0.0 --port=5000`. Run a queue worker
   (`php artisan queue:listen`) so `UpdateTransactionSummaries` jobs process.
 - Preview login: `superadmin` / `password`. **Login is by username, not email** (`config/fortify.php`).
+- New subdomain (empty MySQL, not Crystal): `doc/new-domain-install.md` — `php artisan app:install-new-domain`.
 
 ## Domain rules that affect code
 
@@ -174,16 +314,224 @@ not "modernize" or refactor Alpine style:
   `User::getIsSuperadminAttribute()`) and all ACL/location/hidden-balance restrictions. Every other user
   is subject to ACL.
 - Balances use **signed values**, not debit/credit. Parties are sender/receiver; a positive value/balance
-  means the sender owes the receiver, negative means the receiver owes the sender. buy/return → total
-  positive; sell/return-supplier → total negative. The double-entry is handled in the background.
-  **Agents: do not change this convention** — see **AI agent restrictions** above.
+  means the sender owes the receiver, negative means the receiver owes the sender.
+  **`total`** is the only header amount (final payable). Do **not** use `real_total`.
+  Signs: sell / return-supplier / cash out / transfer / move → negative; buy / return / cash in /
+  adjustment → positive. The double-entry is handled in the background.
+  **Agents: do not reintroduce `real_total` or flip these signs** — see **AI agent restrictions** above.
 - Transaction types (`App\Enums\TransactionType`): Buy=1, Sell=2, Move=3, Transfer=6, CashOut=7, Use=8,
   CashIn=9, Adjust=12, Return=15, Production=16, ReturnSupplier=17, Depreciation=18. Legal sender/receiver
   types per transaction live in `config/transaction_rules.php`.
 - Addrbook `type` is polymorphic: 1 customer, 2 warehouse, 3 bank, 4 supplier, 5 v_warehouse,
   6 v_account, 7 reseller, 8 account, 99 other.
+- **PPN is not always calculated.** It depends on the **reporting entity**, not a global 11% on every
+  invoice. Do not infer tax from `ppn_rate` when reconstructing or "fixing" a payable.
+  - Cash in/out: `record_ppn` is allowed only when the bank belongs to an active **PKP**
+    reporting entity (`ReportingEntity::is_pkp` via `reporting_entity_banks`). Non-PKP entities
+    do not take PPN keluaran; cash-in may get PPh final instead.
+  - Tax reports attribute **stored** `transactions.ppn` to an entity (sell via cash-in bank,
+    buy via cash-out bank). `ppn = 0` is a real zero — the row is not taxable.
+  - Item buy/sell write path still uses the counterparty `addrbook.ppn` flag to decide whether
+    to add tax to `total`. Do not change that unless asked. Reconstruct from the stored `ppn`
+    column; never add rate × subtotal because a contact or entity "should" be PKP.
 - Connects to **Jubelio** (Indonesian omnichannel) for online stock; dormant while `JUBELIO_ACTIVE=false`.
   See **Jubelio stock sync** below — do not guess what `a_submit_by` / `b_submit_by` mean.
+
+## Item group & item identity (do NOT regress)
+
+Canonical implementation: `App\Services\Items\ItemIdentityBuilder`, `App\Services\ItemService`.
+Tests: `ItemIdentityBuilderTest`, `ItemServiceTest`, `ItemGroupHierarchyTest`, `ColorwayEditTest`,
+`LegacyItemConverterTest`.
+
+**Prerequisites (merged):** PR **#575** (legacy converter writes catalog to `item_group` first;
+leftover `items.*` mirrored from group) and PR **#576** (reuse leftover slash-pcode groups when
+saving hyphen pcodes so SKUs stay on the parent page). Do not undo those behaviors.
+
+**Deferred:** normalizing legacy **three-segment asset pcodes** (e.g. `BAG-16-03`) down to two
+segments — keep them as stored; only rewrite the first segment from TYPE on **new** pcodes.
+
+### `item_group` schema & keys
+
+Production table is `item_group` (not `item_groups`). Legacy snapshot: `database/old.sql`
+(`name` was `varchar(50) UNIQUE`); widened by `2026_09_03_150000_widen_item_group_name_drop_unique`:
+
+| Column | Rule |
+|--------|------|
+| `name` | `varchar(255) NOT NULL`. **Not UNIQUE.** Bare product title, or pcode when no title. **No `legacy_name` column** — never add one. |
+| `master` | Colorway identity (see per-type shapes below). |
+| `variant` | Color segment: pcode suffix (manufactured) or warna tag code (asset lancar). |
+| `description`, `description2`, `url`, `brand`, `genre` | Shared **catalog** for every size in the colorway (`ItemCatalog::applyToGroup`). |
+
+Colorway row key is **`(master, variant)`**, not `name`. Multiple groups may share the same
+`name` (e.g. two manufactured colorways both titled `RUNNING SHIRT`).
+
+### Master / variant per item type
+
+| Type | `master` | `variant` | Example |
+|------|----------|-----------|---------|
+| Manufactured (`ItemType::ITEM`) | Full colorway **pcode** | Color number from pcode suffix | `master=CX90233-23`, `variant=23` |
+| Asset lancar (`ItemType::ASSET_LANCAR`) | **TYPE-CODE** pcode | Warna tag `code` | `master=GLOVE-01`, `variant=BLUE` |
+
+Pcode patterns (`ItemIdentityBuilder`): manufactured `[A-Z]{2,3}[0-9]{5}-[0-9]{2,3}` (slashes
+normalized to hyphens); asset `[segment]-[segment]` or three segments for legacy rows
+(`GLOVE-01`, `BAG-16-03`).
+
+Legacy manufactured groups may still have `master=CX00122` or `CX00122/03` with empty
+`variant` — `findCanonicalGroup()` / `reuseLeftoverColorwayGroup()` merge those onto the
+canonical hyphen pcode on save; **new writes** should store the full colorway on `master`.
+
+### Product name (`item_group.name`)
+
+- **Blank product name → `name` = pcode** (manufactured: normalized hyphen pcode; asset: uppercase pcode).
+- **Filled product name → `name` = bare uppercase title** — color is **not** appended to `name`.
+- **Edit must update `group.name`** when the user changes product name (`ItemService::resolveGroup`,
+  `updateColorway`, `renameGroupProductName`). Empty / pcode-like input on update means
+  `name` tracks pcode again.
+- **`uniqueStoredGroupName()` does not suffix for uniqueness** — it only trims to 255 chars.
+  Strip legacy disambiguators like ` (CX90233-23)` via `productDisplayName()` / `stripUniquenessSuffix()`.
+
+### `items.type` (`ItemType` backed enum)
+
+`Item` casts `type` to `App\Enums\ItemType` (`ITEM` = 1, `ASSET_LANCAR` = 2, `ASSET_TETAP` = 3,
+`SERVICE` = 5). On an Eloquent `Item`, **`$item->type` is already an `ItemType` instance** (or null
+for invalid legacy ints) — **do not** `(int) $item->type`; PHP cannot cast the enum object to int.
+Compare with **`$item->type === ItemType::ASSET_LANCAR`** or use **`$item->isAssetLancar()`** (see
+`transactions/show` line items: `$item->showUrl()`).
+
+- **Links to an item record:** use **`$item->showUrl()`** / **`$item->editUrl()`** on the model
+  (routes to `items`, `assetlancar`, or `assettetap` as appropriate). Do not re-derive URLs from
+  `(int) $item->type` or duplicate `ExportSellController::itemShowUrl()` unless you only have a type
+  int and id without loading `Item`.
+- Mixed input (enum, int, string): **`ItemType::coerce($value)`**.
+- Raw SQL / `DB::table('items')` rows still expose `type` as int — `ItemType::tryFrom((int) $row->type)`
+  is fine there.
+- Legacy production values (e.g. `4`) are not enum cases; `coerce` / `tryFrom` return `null`. Stats
+  and dimensions that must tolerate legacy types use **`ItemDimensionResolver::findItem()`**, not bare
+  `Item::find()`.
+
+### Addrbook parties (`customers` / sender & receiver)
+
+`Addrbook` rows power transaction **sender** and **receiver** (`$transaction->sender`,
+`$transaction->receiver`). The column `type` is stored as an int today (`Addrbook::TYPE_*` =
+`App\Enums\AddrbookType` values). Some code paths already treat it as **`AddrbookType` enum**
+(`AddrbookController` uses `$a->type instanceof AddrbookType`). **Never `(int) $addrbook->type` on
+an Eloquent model** if the column might be enum-cast — PHP throws the same “could not be converted
+to int” error as `ItemType`.
+
+- **Links on transaction show** (desktop + mobile): **`$party->transactionsUrl()`** or
+  **`Addrbook::transactionsUrlFor($party)`** (`transactions/partials/show-party.blade.php`,
+  `transactions/show.blade.php`). Do not hand-build `route('addrbook.type.transactions', …)` from
+  `(int) $party->type`.
+- **Integer type id for static helpers** (`typeIsWarehouse`, `typeLabel`, redirects):
+  **`$addrbook->typeValue()`** or **`Addrbook::typeValueFrom($mixed)`**.
+- **Enum instance:** **`AddrbookType::coerce($value)`** (alias import in models:
+  `App\Enums\AddrbookType` — not the legacy `App\Models\AddrbookType` model if present).
+- **`transactions.sender_type` / `receiver_type`** on `Transaction` are still plain ints/strings in
+  the DB; party **links** always go through the loaded **`Addrbook`** model, not those columns.
+
+### `transactions.type` (plain int)
+
+`Transaction::$casts['type']` is **`integer`**, not an enum. Use **`(int) $transaction->type`** or
+`Transaction::TYPE_*` constants. Do not assume `TransactionType` enum on the model unless a future
+migration explicitly adds that cast.
+
+### SKU code & display name (`items`)
+
+- **`items.code`:** manufactured `{TYPE}-{pcode}-{size?}` (e.g. `AJD-CX90324-05-S`); asset
+  `{pcode}-{warna}-{size?}` (e.g. `GLOVE-01-BLACK-S`). All-size (`AS`) omits the size segment.
+- **`items.name`:** `{product title} - {warna} - {size}` via `ItemIdentityBuilder::buildName()`.
+  All-size omits size: `ELBOW STRAP - BLACKWHITE`. Regenerated for every item in the group when
+  catalog/name changes (`ItemService::syncItemNamesForGroup()`).
+- **`items.legacy_code`:** see **Do NOT remove `items.legacy_code`** — snapshot old `code` on
+  first identity change; converter tooling is temporary, the column is not.
+
+### Colorway-only edit page & per-item price
+
+Route: `items-group/colorway/{group}/edit` (`ItemsController@colorwayEdit` /
+`colorwayUpdate`). View: `resources/views/items/colorway-edit.blade.php`.
+
+- **Read-only on this page:** pcode, tags, SKU `code` (identity block).
+- **Editable per colorway (stored on `item_group`):** product name → `name`, description,
+  description2, url, brand, genre, image.
+- **Editable per size (stored on each `items` row):** price, cost, restock urgent threshold.
+  Create forms set a default price; matrix edits happen here.
+
+Single-SKU create/edit forms mark shared fields with “Shared across this colorway”; price on
+create is a default for new sizes only.
+
+### Asset create UX: TYPE → pcode autofill & preview layout
+
+On asset lancar **create** (`resources/views/items/create.blade.php`):
+
+- Layout: basic + details (left), **attributes/tags (right)**, then **Item Summary Preview
+  below the grid** (`form-preview` after the 3-column section — preview sits under tags, not beside pcode).
+- Selecting **Type** rewrites a **new** pcode’s first segment to the TYPE tag code
+  (`applyAssetTypePrefixToPcode`: `gloves-03` + `GLOVE` → `GLOVE-03`). Skipped when the pcode
+  already exists on another asset row. **Three-segment pcodes are preserved** (`bag-16-03` →
+  `BAG-16-03`, not `BAG-03`).
+- Pcode blur may AJAX-load an existing product title (`items.pcode-name` → `productNameForPcode`).
+
+### Key files
+
+- `app/Services/Items/ItemIdentityBuilder.php` — pcode validation, group master/variant, code/name builders.
+- `app/Services/ItemService.php` — create/update/colorway, group resolution, legacy_code preserve.
+- `app/Services/Items/LegacyItemConverterService.php` — one-off SKU migration (group-first catalog).
+- `resources/views/items/partials/form-{basic,attributes,preview,scripts}.blade.php` — create/edit UX.
+- `database/migrations/2026_09_03_150000_widen_item_group_name_drop_unique.php` — name width + drop UNIQUE.
+
+## Reporting (L12)
+
+**Status:** Core reporting is **implemented and merged**. The maintainer is **still validating**
+figures against production expectations — **expect follow-up tasks** to adjust mappings, filters,
+labels, or formulas. Do **not** assume the current output is final; do **not** refactor reporting
+code unprompted.
+
+### Architecture (read before changing reports)
+
+- **Reporting entities** (`ReportingEntity`, `/reports/entities`) — PKP flag, bank mapping
+  (`reporting_entity_banks`), tax accounts, ledger roles, warehouse fulfillment overrides.
+  Cash-in PPN / PPh final gating uses `ReportingEntity::is_pkp` via entity banks (see **Domain rules**).
+- **Summary layer** — incremental + rebuild paths write to `reporting_*_monthly_summaries`,
+  `reporting_monthly_tax_summaries`, `reporting_monthly_inventory_values`, balance snapshots.
+  Cutover: `config('reporting.cutover_date')` (default `2025-01-01`). Live path:
+  `ReportingSummaryRecorder` (from `UpdateTransactionSummaries` / transaction observers).
+  Batch rebuild: `php artisan reporting:rebuild-summaries`, `reporting:rebuild-inventory`,
+  `reporting:snapshot-balances`.
+- **Stored tax amounts** — reports use **`transactions.ppn`** and **`transactions.total`** as persisted;
+  do not infer 11% from contact PKP flags when reconstructing (see **Do NOT use `real_total`** and
+  **PPN is not always calculated** in Domain rules).
+- **Permissions** — `report-*` Spatie names; sidebar in `resources/views/partials/sidebar-nav.blade.php`.
+  Obsolete L10 names cleaned via `ObsoleteReportPermissions` / `app:remove-obsolete-report-permissions`.
+
+### Shipped report pages (`/reports/*`)
+
+| Area | Route / permission | Notes |
+|------|-------------------|--------|
+| Warehouse | `warehouse-item`, `warehouse-arrangement`, `product-performance`, `inventory-health` | Arrangement uses `warehouse_item_monthly_stats` + refresh jobs |
+| Finance | `nett-cash-sby`, `neraca`, `laba-rugi`, `channel-pnl`, `receivables`, `payables`, `asset-tetap` | Neraca/laba rugi use summary + snapshot tables |
+| Tax | `tax/ppn`, `tax/pph`, `tax/faktur/*` | Faktur import → review → link sells / post sell; DPP on `total` |
+| Produksi | `produksi-potong`, `produksi-jahit`, `produksi-qc`, `produksi-pritil` | Date/status filters on worker totals |
+| Admin | `entities/*` | Entity + ledger role + fulfillment setup |
+| Export | `report-export-sell` → `/transactions/export-sell` | Replaces removed item-sales / purchase reports |
+
+Removed / do not restore: legacy cash-flow, expense, purchase report pages (permissions in
+`ObsoleteReportPermissions`).
+
+### Key files
+
+- `app/Http/Controllers/Reports/*`, `resources/views/reports/*`
+- `app/Services/Reporting/*` — `TaxReportService`, `PphFinalReportService`, `AgingReportService`,
+  `ReportingSummaryRecorder`, `BalanceAsOfService`, `InventoryRollForwardService`, `ReportingExcelExport`
+- `config/reporting.php` — cutover, PPh rate, supplier umum needle, channel matchers
+- Tests: `tests/Feature/*Report*`, `tests/Feature/TaxFaktur*`, `tests/Feature/ChannelPnl*`
+
+### Agent workflow for reporting tasks
+
+1. **Wait for maintainer brief** — which report, which period, expected vs actual number.
+2. Trace **summary recorder → report query → Blade**; check cutover date and entity/bank mapping.
+3. Prefer **minimal diffs**; add/adjust Pest coverage for the changed formula or filter.
+4. **Do not** change signed `transactions.total` convention or reintroduce `real_total` to fix reports.
+5. After changes, note what the maintainer should re-verify on production data.
 
 ## Jubelio stock sync (read before touching a_*/b_* columns)
 
@@ -208,8 +556,106 @@ Column meanings (A/B is sender/receiver, not debit/credit):
 - `submit_*_count` > 0 and `*_submit_by` null = **warning** (POST sent, result unclear).
   Confirm only with a real Jubelio adj number; otherwise clear and retry.
 
-A **move** is two independent adjustments, not a Jubelio transfer. Mapping lives in
-`jubeliosyncs` (Aria `warehouse_id` → `jubelio_location_id`); items need `jubelio_item_id`.
+A **move** is two independent adjustments, not a Jubelio transfer. Outbound push uses
+`jubeliosyncs` looked up by **Aria `warehouse_id`** (plus `jubelio_location_id` / `bin_id` on the
+row); items need `jubelio_item_id`. That lookup path is **not** the same as inbound order mapping
+below — do not reuse sell-transaction `sender_id` logic for outbound `AdjustStock`.
+
+### Inbound Jubelio orders (`jubelioorders` → SELL/RETURN transactions)
+
+**Do not confuse these three things:**
+
+| Concept | What maps | Used for |
+|--------|-----------|----------|
+| **`jubeliosyncs` row** | Jubelio `(jubelio_store_id, jubelio_location_id)` → Aria **`warehouse_id` + `customer_id`** (channel) | Posting inbound **SELL** and **RETURN** (`ProcessJubelioOrder`) |
+| **`jubelioorders.warehouse_id`** | Denormalized cache for list/filter; may be **wrong on RETURN** | SQL filters only — **not** authoritative for RETURN posting |
+| **Original sell `transactions` parties** | Historical `sender_id` / `receiver_id` on the linked invoice | RETURN **linkage** (invoice must exist); **not** where stock/customer come from on post |
+
+Canonical code: `App\Services\Jubelio\JubelioOrderWarehouseResolver`,
+`App\Actions\Jubelio\ProcessJubelioOrder`, `JubelioOrderShowPresenter`.
+
+#### `jubeliosyncs` lookup key (SELL and RETURN)
+
+- One row = one **store + location** pair → one Aria gudang + one channel customer.
+- Match on **`jubelio_store_id` + `jubelio_location_id`** exactly (same as L10 / `ProcessJubelioOrder`
+  `where` clauses).
+- **`jubelio_location_id` may be negative.** Production uses **`-1`** for location name **`Pusat`**
+  (Shopee/TikTok/Tokopedia/Lazada/Blibli/Zalora @ central online). Positive ids are other hubs
+  (e.g. `8` = BSD - ONLINE, `5` = CITOS - Online). **`0` = unset** in Aria only — never treat
+  `location_id <= 0` as “invalid Jubelio id”.
+- Helpers: `Jubeliosync::isMappedStoreId()` (`> 0`), `isMappedLocationId()` (`!== 0`),
+  `hasMappedStoreLocationPair()`. Use these everywhere (resolver, webhooks, refresh, Blade hints).
+- **`jubelioorders.jubelio_location_id` must be signed `INT`** (same as `jubeliosyncs`). An early L12
+  migration used `UNSIGNED`; production needs
+  `2026_09_12_190000_ensure_signed_jubelio_location_id_on_jubelioorders.php` (and/or `…150000…`)
+  or refresh/posting fails with MySQL **1264** when persisting `-1`. If migrate “succeeded” but
+  refresh still 1264, the first fix may have no-op'd on **`DB_CONNECTION=mariadb`** — run the
+  `…190000…` migration. Verify: `SHOW COLUMNS FROM jubelioorders LIKE 'jubelio_location_id';`
+  must be `int(11)` **without** `unsigned`.
+
+#### SELL (inbound)
+
+- Payload from Jubelio usually includes **`store_id`** and **`location_id`**.
+- Resolve sync: `jubeliosyncs` where `jubelio_store_id` + `jubelio_location_id` match payload
+  (including **`location_id = -1`** when Jubelio sends it).
+- Post transaction: **`warehouse_id` = sync.warehouse_id**, **`customer_id` = sync.customer_id**
+  (not inferred from addrbook PKP flags).
+- Persist on `jubelioorders`: `jubelio_store_id`, `jubelio_location_id`, `warehouse_id` from payload
+  → sync (`persistWarehouseKeysFromPayload` / webhook `sellWarehouseColumnsFromPayload`).
+- **Stock check** runs on the **mapped** warehouse before post (`validateWarehouseStock`).
+
+#### RETURN (inbound)
+
+- Payload often has **`location_name`** only (e.g. `Pusat`) and may omit or duplicate store/loc ids.
+- **Posting warehouse + customer come from the same `jubeliosync` row as SELL would** for that
+  channel/location — **not** from the original sell transaction’s `sender_id`/`receiver_id`.
+- **Original sell invoice** in Aria (`salesorder_no`) is still **required** for linkage only.
+- **No** sell-style stock shortage check on RETURN.
+- **`customer_id` on the sync row must be > 0**; `0` fails at post time.
+
+**RETURN sync resolution order** (`resolveReturnSync` — same on list, detail, refresh, process):
+
+1. Payload `store_id` / `location_id` (and aliases `source_store_id`, `warehouse_location_id`).
+2. Denormalized `jubelioorders.jubelio_store_id` / `jubelio_location_id`.
+3. Matching **SELL** `jubelioorders` row for `salesorder_no`, then that order’s Jubelio API payload
+   if keys still missing.
+4. **`location_name` → `jubeliosync`** on **all warehouses**, disambiguate with **`source_name`**
+   / `store_name` / `channel_name` when several rows share the same location name (many channels
+   use `Pusat` + `location_id -1` with different `jubelio_store_id`).
+5. Only then: `location_name` scoped to `jubelioorders.warehouse_id`, then any sync on that warehouse.
+6. Display fallback only: sell transaction parties — **do not** use for posting.
+
+**Common bugs (do not reintroduce):** filtering `jubeliosync` with `jubelio_location_id > 0` (excludes
+Pusat `-1`) — applies to RETURN mapping, **warehouse stock page** (`WarehouseJubelioStockService`),
+and Jubelio stock-check scans; using sell txn warehouse as primary RETURN filter; copying sell
+`sender_id` in `processReturn`; calling Jubelio API per row on `/jubelio` index.
+
+#### Reprocess inbound sell after a bad post (e.g. qty 0, stock not deducted)
+
+`ProcessJubelioOrder` refuses to create a second row when a **SELL** with the same `invoice` already
+exists (`Transaction sudah ada`). Editing detail qty on an already-posted Jubelio cron sell is awkward
+because stock never moved when qty was 0. **Maintainer playbook:**
+
+1. **Delete the bad transaction** in Aria (normal delete). That runs `revertTransaction` (reverses
+   channel **receivable** from header `total`; zero-qty lines revert **no** `warehouse_item` change).
+2. **Reset the `jubelioorders` row** so `jubelio:order-jubelio-to-aria` will pick it again:
+   `status = 0`, `run_count = 0`, `execute_by = NULL` (must be **NULL**, not `0` — cron uses
+   `whereNull('execute_by')`), `error = NULL`, `error_type = NULL`, `stock_error_items = NULL`.
+   Match by `invoice` = Jubelio `salesorder_no` and `type = 'SELL'`.
+3. **Re-post:** wait for cron or use **Process** on `/jubelio/{id}` after reset (manual path sets
+   `execute_by` to the user). Ship **`JubelioOrderLineQuantity`** (qty → `qty_picked` / `qty_in_base`
+   fallback) before re-running if Jubelio still sends `qty: 0`.
+
+Do **not** use `jubelio:order-jubelio-to-aria --truncate` — it bulk-deletes all `submit_type = 2`
+transactions and resets every order.
+
+#### Jubelio orders index (`/jubelio`)
+
+- **Must not call the Jubelio API per row.** Use denormalized `jubelioorders` columns +
+  `resolveForIndex()` + preloaded `jubeliosync` index.
+- List qty/total may be `—` until detail or **Refresh payload** — intentional.
+- Empty gudang hint: “store/loc kosong” only when **both** store unset (`0`) **and** location
+  unset (`0`); **`location_id = -1` is not empty**.
 
 HTTP 200 with `{message: "..."}` or a listing `{data, totalCount}` means **nothing was created**.
 The Aug 2026 move incident: Aria showed "status tidak jelas" and allowed confirm-as-success
@@ -275,8 +721,8 @@ own branch, with its own PR.
 
 - **Start a fresh chat for each new task.** Each cloud agent runs on a clean VM and re-reads this file,
   so you don't need to re-explain the project — just give the task brief.
-- **Branch naming:** `cursor/<short-kebab-name>-e924` (lowercase; the `cursor/` prefix and `-e924`
-  suffix are required by this environment).
+- **Branch naming:** `cursor/<short-kebab-name>-4b37` (lowercase; the `cursor/` prefix and environment
+  suffix are required).
 - **Base each new branch off `main` _after_ the previous PR merges.** Do not stack new work on an
   already-merged branch (it causes messy rebases). If task B truly depends on unmerged task A, say so
   explicitly and I'll branch B off A.
@@ -291,41 +737,92 @@ own branch, with its own PR.
   Notes: <constraints, edge cases, anything unusual>
   ```
 
-## Roadmap: the next two branches
+## Roadmap & open work
 
-### 1. Transaction backend (`cursor/transaction-backend-e924`)
+**Done (do not reopen unless fixing a regression):** transaction backend, expand items / `ItemCatalog`,
+item group identity (PRs #575–#587), **L12 reporting stack** (see **Reporting (L12)** — pages +
+summary tables shipped; **maintainer may still request modifications**).
 
-How a transaction is written today (trace this flow before changing it):
-`Store*Request` (validation) → `TransactionsController@store*` → an action in
-`app/Actions/Transactions/` (`CreateItemTransaction`, `CreateCashTransaction`,
-`CreateTransferTransaction`, `CreateAdjustTransaction`; shared bits under `Concerns/`) which writes the
-`Transaction` + `TransactionDetail` rows inside a DB transaction. `app/Observers/TransactionObserver.php`
-and the `app/Jobs/UpdateTransactionSummaries.php` queued job keep balances/aggregates in sync (run
-`php artisan queue:listen`). Shared logic lives in `app/Services/TransactionService.php`;
-`BookClosingService` enforces the book-closing cutoff date; `InventoryService` adjusts
-`warehouse_items` stock. Batch recompute lives in `app/Console/Commands/Recalculate*`.
-- Balances are **signed** (not debit/credit): +total = sender owes receiver; buy/return are positive,
-  sell/return-supplier negative. Types are in `App\Enums\TransactionType`; legal sender/receiver types
-  per type are in `config/transaction_rules.php`.
-- Likely goals here: solidify signed double-entry posting; **recalculate balances when a back-dated
-  transaction is inserted/edited/deleted** (later rows must re-derive their running balance); wire up
-  **Jubelio stock-sync buttons** (`app/Services/JubelioService.php`,
-  `TransactionsController@hydrateJubelioSyncData`, dormant while `JUBELIO_ACTIVE=false`).
-- Key files: `app/Http/Controllers/TransactionsController.php`, `app/Actions/Transactions/*`,
-  `app/Services/{TransactionService,BookClosingService,InventoryService,JubelioService}.php`,
-  `app/Observers/TransactionObserver.php`, `app/Jobs/UpdateTransactionSummaries.php`,
-  `app/Models/{Transaction,TransactionDetail,WarehouseItem}.php`. Cover changes with Pest feature tests
-  (see existing `tests/Feature/*Transaction*`, `TransferTest`).
+**Next major cleanup (two phases):** legacy **tables** first (audit + maintainer manual drop), then
+legacy **code and permissions**. See `database/legacy-table-audit.md` for the living drop candidate list.
 
-### 2. Expand the items table (`cursor/expand-items-table-e924`)
+**Ongoing maintainer review:** **Reporting** — numbers and entity mappings need production confirmation;
+expect targeted fix/refinement chats from the maintainer. Do not treat reporting as frozen or schedule
+large unprompted refactors.
 
-- Add columns with a **new dated migration** in `database/migrations/` (e.g.
-  `add_<cols>_to_items_table`) — do **not** edit the original `create_items_table` migration.
-- Then update `App\Models\Item` `$fillable` (and `$casts` if typed), surface the fields in the item
-  forms (`resources/views/items/*` — create/edit) and add validation in
-  `app/Http/Controllers/ItemsController.php`. Touch `app/Services/{ItemService,InventoryService}.php`
-  if a new column affects stock or pricing.
-- Current `items` columns: `id, group_id, name, code, pcode, brand, type, price, cost, qty, tag_ids,
-  description, description2, url, image_path, size, genre, jubelio_item_id, timestamps, deleted_at`.
-  Per-warehouse stock lives in `warehouse_items` (quantity + note), not on `items`.
-- Caveat: some item reports/stats use MySQL `DATE_FORMAT` and error on the SQLite dev DB only.
+### Phase 1 — Legacy table audit & manual drop
+
+**Goal:** Produce a maintainer-approved list of MySQL tables safe to drop. **No `DROP TABLE` in agent
+migrations or scripts** — the maintainer drops manually on production after sign-off.
+
+**Steps (each chat may cover one step):**
+
+1. **Pull table structure** — refresh `database/old.sql` from production (or export table list + `SHOW CREATE TABLE`).
+2. **Map models** — every `app/Models/**` `protected $table` → physical name (e.g. `customers` → `Addrbook`).
+3. **Ripgrep L12 usage** — for each `old.sql` table, search `app/`, `routes/`, `resources/views/`,
+   `database/migrations/`, `tests/` for model usage, `DB::table()`, raw SQL, `Schema::` references.
+   Exclude `database/old.sql` from hits.
+4. **Build the list** — update `database/legacy-table-audit.md`:
+   - **Strong candidates:** no model + no L12 code ref (first pass ~43 tables — Desty, ideas, promos, etc.).
+   - **Manual review:** referenced in L12 but no Eloquent model (e.g. `acl`, `roles`, `produksi` legacy names).
+   - **Active / do not drop:** has model, partitioned txn tables, Spatie tables in use (`aria_permissions`, …).
+5. **L10 check** — shared MySQL: confirm the legacy L10 app no longer reads a table before moving it to
+   **Approved to drop**.
+6. **Maintainer drops manually** — no automated drop script in the repo.
+
+Branch hint: `cursor/legacy-table-audit-4b37` (refresh audit) or per-table verification chats.
+
+### Phase 2 — Legacy code & permissions removal
+
+**Goal:** Remove L12 code paths that only existed for L10 migration / one-off conversion, and prune
+obsolete permissions — **after** Phase 1 tables are dropped or confirmed unused.
+
+**Likely removals (maintainer confirms conversion complete first):**
+
+| Area | Examples | Keep |
+|------|----------|------|
+| Item identity converter | `LegacyItemConverterService`, `LegacyItemIdentityParser`, `/items/legacy-converter`, `convert-identity` routes, `items-convert-legacy` permission | `items.legacy_code`, `preserveLegacyCode()`, Jubelio/barcode legacy lookups |
+| Legacy ACL import | `app:import-legacy-acl`, `LegacyAclMapper`, `database/acl/old_acl.sql` tests | Spatie `aria_permissions` / `aria_roles` (production permission store) |
+| Obsolete permissions | Unused `stuff-*` / L10-mapped permissions after role audit | Permissions still referenced in `Gate::`, sidebar, controllers |
+
+**Steps:**
+
+1. Ripgrep each legacy module; list routes, controllers, views, tests, permissions.
+2. Remove code + tests in focused PRs; run `./vendor/bin/pest`.
+3. Document removed permissions; maintainer may prune rows in `aria_permissions` / role pivots manually.
+4. Update this roadmap when Phase 2 is complete.
+
+Branch hint: `cursor/remove-legacy-converter-4b37` (converter first), then `cursor/remove-legacy-acl-4b37`.
+
+### Maintainer ops (not agent code)
+
+- **Production migration:** run individually on live MySQL when ready:
+  `php artisan migrate --path=database/migrations/2026_09_03_150000_widen_item_group_name_drop_unique.php`
+  (and `2026_09_03_130000_add_brand_and_genre_to_item_group_table.php` if not applied). Until then,
+  prod still has `item_group.name` varchar(50) UNIQUE.
+- **Stale group names:** no backfill migration. Rows where `item_group.name` still equals pcode while
+  items show a real title are fixed by editing via **colorway edit**
+  (`/items-group/colorway/{group}/edit`) or single-item edit with Product Name filled.
+
+### Other deferred / not built
+
+| Task | Notes |
+|------|-------|
+| **Reporting validation / tweaks** | Maintainer-driven — see **Reporting (L12)**; expect formula, filter, mapping, or UI changes |
+| **Remove legacy identity converter** | After conversion complete — branch `cursor/remove-legacy-converter-4b37`; **keep** `items.legacy_code`, `preserveLegacyCode()`, Jubelio/barcode legacy lookups |
+| 3-segment asset pcode normalization | Optional/deferred — `cursor/asset-pcode-two-segment-4b37`; see **Item group & item identity** |
+| Restock sheet Tabulator UI | Not built; other lists stay server-rendered HTML |
+
+### Reference: transaction write path (for regressions only)
+
+`Store*Request` → `TransactionsController@store*` → `app/Actions/Transactions/*` →
+`Transaction` + `TransactionDetail` inside a DB transaction. `TransactionObserver` +
+`UpdateTransactionSummaries` (queue) keep balances and aggregates in sync. Shared logic:
+`TransactionService`, `BookClosingService`, `InventoryService`. Tests:
+`tests/Feature/TransactionBalanceIntegrityTest.php`, `tests/Feature/*Transaction*`.
+
+### Reference: items schema (for new columns)
+
+Read **Item group & item identity** first — shared catalog fields belong on `item_group`, not new
+duplicate columns on `items` unless mirroring leftovers. Per-warehouse stock is `warehouse_items`
+(quantity + note), not `items.qty`. Some reports use MySQL `DATE_FORMAT` (SQLite dev errors only).

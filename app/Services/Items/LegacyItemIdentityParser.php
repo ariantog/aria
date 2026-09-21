@@ -5,6 +5,7 @@ namespace App\Services\Items;
 use App\Enums\ItemType;
 use App\Models\Item;
 use App\Models\Tag;
+use App\Support\ItemCatalog;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
 use InvalidArgumentException;
@@ -12,6 +13,8 @@ use InvalidArgumentException;
 class LegacyItemIdentityParser
 {
     public const FAILURE_SKU_UNPARSEABLE = 'SKU_UNPARSEABLE';
+
+    public const FAILURE_GROUP_NAME_TOO_LONG = 'GROUP_NAME_TOO_LONG';
 
     public const FAILURE_PCODE_INVALID = 'PCODE_INVALID';
 
@@ -27,6 +30,12 @@ class LegacyItemIdentityParser
         '0S' => 'S',
         '0M' => 'M',
         '0L' => 'L',
+    ];
+
+    /** @var array<string, string> */
+    private const WARNA_LOOKUP_ALIASES = [
+        'GREY' => 'GRAY',
+        'GRAY' => 'GREY',
     ];
 
     /** @var array<string, string> */
@@ -158,6 +167,27 @@ class LegacyItemIdentityParser
 
     public function matchSizeFromSuffix(string $remainder): ?Tag
     {
+        return $this->matchSizeToken($remainder, suffix: true);
+    }
+
+    public function matchSizeFromPrefix(string $remainder): ?Tag
+    {
+        return $this->matchSizeToken($remainder, suffix: false);
+    }
+
+    /**
+     * Canonical asset SKUs put size last (COLOR-SIZE). Some leftover codes
+     * stored size first (SIZE-COLOR). Prefer the suffix so already-canonical
+     * codes stay stable.
+     */
+    public function matchSizeFromRemainder(string $remainder): ?Tag
+    {
+        return $this->matchSizeFromSuffix($remainder)
+            ?? $this->matchSizeFromPrefix($remainder);
+    }
+
+    protected function matchSizeToken(string $remainder, bool $suffix): ?Tag
+    {
         $remainder = strtoupper(trim($remainder));
 
         if ($remainder === '') {
@@ -167,11 +197,19 @@ class LegacyItemIdentityParser
         foreach ($this->sizeTags as $tag) {
             $code = strtoupper((string) $tag->code);
 
+            if ($code === '' || $code === ItemIdentityBuilder::ALL_SIZE_CODE) {
+                continue;
+            }
+
             if ($remainder === $code) {
                 return $tag;
             }
 
-            if (str_ends_with($remainder, '-'.$code)) {
+            if ($suffix && str_ends_with($remainder, '-'.$code)) {
+                return $tag;
+            }
+
+            if (! $suffix && str_starts_with($remainder, $code.'-')) {
                 return $tag;
             }
         }
@@ -207,7 +245,7 @@ class LegacyItemIdentityParser
             return false;
         }
 
-        $sizeTag = $this->matchSizeFromSuffix($remainder);
+        $sizeTag = $this->matchSizeFromRemainder($remainder);
         $warna = $this->extractWarnaFromRemainder($remainder, $sizeTag);
 
         return $warna !== '';
@@ -265,7 +303,7 @@ class LegacyItemIdentityParser
             );
         }
 
-        $sizeTag = $this->matchSizeFromSuffix($remainder);
+        $sizeTag = $this->matchSizeFromRemainder($remainder);
         $warnaCode = $this->extractWarnaFromRemainder($remainder, $sizeTag);
 
         if ($warnaCode === '') {
@@ -458,9 +496,7 @@ class LegacyItemIdentityParser
             return ['success' => true, 'tag' => $this->warnaTagsByCode->get(strtoupper($variant))];
         }
 
-        $colorScan = $this->scanBahasaColor(
-            trim((string) $item->description).' '.trim((string) $item->description2)
-        );
+        $colorScan = $this->scanBahasaColor($this->manufacturedColorScanText($item));
 
         if ($colorScan['ambiguous']) {
             return [
@@ -479,6 +515,29 @@ class LegacyItemIdentityParser
         }
 
         return ['success' => true, 'tag' => $this->resolveWarnaTag($colorScan['code'])];
+    }
+
+    /**
+     * Prefer item_group catalog text. Fall back to leftover items.description
+     * only when the group has no colorway text yet.
+     */
+    protected function manufacturedColorScanText(Item $item): string
+    {
+        $item->loadMissing('group');
+
+        if ($item->hasCatalogGroup()) {
+            $groupText = trim(
+                (string) ($item->group->description ?? '').' '.(string) ($item->group->description2 ?? '')
+            );
+
+            if ($groupText !== '') {
+                return $groupText;
+            }
+        }
+
+        return trim(
+            ItemCatalog::leftoverDescription($item).' '.ItemCatalog::leftoverDescription2($item)
+        );
     }
 
     /**
@@ -552,9 +611,14 @@ class LegacyItemIdentityParser
     protected function resolveWarnaTag(string $warnaCode): Tag
     {
         $warnaCode = strtoupper(trim($warnaCode));
+        $aliases = array_values(array_filter([
+            self::WARNA_LOOKUP_ALIASES[$warnaCode] ?? null,
+        ]));
 
-        if ($this->warnaTagsByCode->has($warnaCode)) {
-            return $this->warnaTagsByCode->get($warnaCode);
+        foreach ([$warnaCode, ...$aliases] as $candidate) {
+            if ($this->warnaTagsByCode->has($candidate)) {
+                return $this->warnaTagsByCode->get($candidate);
+            }
         }
 
         $compact = str_replace('-', '', $warnaCode);
@@ -590,6 +654,8 @@ class LegacyItemIdentityParser
 
             if (str_ends_with($remainder, '-'.$code)) {
                 $remainder = substr($remainder, 0, -strlen('-'.$code));
+            } elseif (str_starts_with($remainder, $code.'-')) {
+                $remainder = substr($remainder, strlen($code.'-'));
             }
         }
 
@@ -654,14 +720,44 @@ class LegacyItemIdentityParser
         $name = trim((string) $item->name);
 
         if ($name !== '' && str_contains($name, ' - ')) {
-            return strtoupper(trim(explode(' - ', $name, 2)[0]));
+            return $this->stripTrailingSizeFromProductName(
+                strtoupper(trim(explode(' - ', $name, 2)[0]))
+            );
         }
 
         if ($name !== '') {
-            return strtoupper($name);
+            return $this->stripTrailingSizeFromProductName(strtoupper($name));
         }
 
         return strtoupper($pcode);
+    }
+
+    /**
+     * Size belongs on the item (tag + SKU suffix), not in item_group.name.
+     * "FABRIC BAND HEAVY" and "FABRIC BAND LIGHT" must share "FABRIC BAND".
+     */
+    protected function stripTrailingSizeFromProductName(string $product): string
+    {
+        $product = strtoupper(trim($product));
+        $tokens = preg_split('/\s+/', $product) ?: [];
+
+        if (count($tokens) < 2) {
+            return $product;
+        }
+
+        $last = (string) end($tokens);
+        $isSize = $this->sizeTags->contains(
+            fn (Tag $tag) => strtoupper((string) $tag->code) === $last
+                || strtoupper((string) $tag->name) === $last
+        );
+
+        if (! $isSize || $last === ItemIdentityBuilder::ALL_SIZE_CODE) {
+            return $product;
+        }
+
+        array_pop($tokens);
+
+        return trim(implode(' ', $tokens));
     }
 
     protected function deriveManufacturedGroupName(Item $item, string $pcode): string

@@ -6,9 +6,10 @@ use App\Models\Crongetorder;
 use App\Models\Jubelioorder;
 use App\Models\Transaction;
 use App\Services\Jubelio\JubelioOrderWarehouseResolver;
-use Carbon\Carbon;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class JubelioGetOrdersService
 {
@@ -53,37 +54,53 @@ class JubelioGetOrdersService
     public function processBatch(Crongetorder $import, int $maxPages = 10, int $maxSeconds = 50): array
     {
         $import->refresh();
-        $deadline = microtime(true) + $maxSeconds;
-        $fetchedPages = 0;
-        $ordersQueued = 0;
 
-        while ($fetchedPages < $maxPages && microtime(true) < $deadline) {
-            if ($import->total > 0 && $import->count >= $import->total) {
-                break;
-            }
-
-            $result = $this->fetchNextPage($import);
-            $fetchedPages++;
-            $ordersQueued += $result['queued'];
-            $import->refresh();
-
-            if (! $result['has_more']) {
-                break;
-            }
+        $lock = Cache::lock($this->importLockKey($import), $maxSeconds + 10);
+        if (! $lock->get()) {
+            return [
+                'fetched_pages' => 0,
+                'completed' => false,
+                'remaining' => $import->total > 0 ? max(0, $import->total - $import->count) : null,
+                'orders_queued' => 0,
+            ];
         }
 
-        $completed = false;
-        if ($import->total > 0 && $import->count >= $import->total && $import->isRunning()) {
-            $import->update(['status' => 1, 'step' => 3]);
-            $completed = true;
-        }
+        try {
+            $deadline = microtime(true) + $maxSeconds;
+            $fetchedPages = 0;
+            $ordersQueued = 0;
 
-        return [
-            'fetched_pages' => $fetchedPages,
-            'completed' => $completed,
-            'remaining' => $import->total > 0 ? max(0, $import->total - $import->count) : null,
-            'orders_queued' => $ordersQueued,
-        ];
+            while ($fetchedPages < $maxPages && microtime(true) < $deadline) {
+                if ($import->total > 0 && $import->count >= $import->total) {
+                    break;
+                }
+
+                $result = $this->fetchNextPage($import);
+                $fetchedPages++;
+                $ordersQueued += $result['queued'];
+                $import->refresh();
+
+                if (! $result['has_more']) {
+                    break;
+                }
+            }
+
+            $completed = false;
+            if ($import->total > 0 && $import->count >= $import->total && $import->isRunning()) {
+                $import->update(['status' => 1, 'step' => 3]);
+                $import->recordError(null);
+                $completed = true;
+            }
+
+            return [
+                'fetched_pages' => $fetchedPages,
+                'completed' => $completed,
+                'remaining' => $import->total > 0 ? max(0, $import->total - $import->count) : null,
+                'orders_queued' => $ordersQueued,
+            ];
+        } finally {
+            $lock->release();
+        }
     }
 
     /**
@@ -100,10 +117,11 @@ class JubelioGetOrdersService
     public function fetchNextPage(Crongetorder $import): array
     {
         $range = $import->dateRangeIso();
-        $page = $import->count + 1;
+        $page = max(1, (int) $import->count + 1);
 
         $response = $this->jubelioService->fetchSalesOrders($page, self::PAGE_SIZE, $range['from'], $range['to']);
         if (! $response) {
+            $import->recordError('Gagal mengambil halaman '.$page.' dari API Jubelio.');
             throw new \RuntimeException('Gagal mengambil data order dari API Jubelio.');
         }
 
@@ -111,6 +129,7 @@ class JubelioGetOrdersService
 
         if ($totalCount === 0) {
             $import->update(['total' => 0, 'count' => 0, 'status' => 1, 'step' => 3]);
+            $import->recordError(null);
 
             return ['has_more' => false, 'queued' => 0];
         }
@@ -119,17 +138,21 @@ class JubelioGetOrdersService
             $import->update(['total' => (int) ceil($totalCount / self::PAGE_SIZE)]);
         }
 
-        $rows = $response['data'] ?? [];
-        $queued = 0;
-        if ($rows !== []) {
-            $queued = $this->queueEligibleRows($rows);
-            $import->increment('count');
-            if ($queued > 0) {
-                $import->increment('orders_queued', $queued);
-            }
-        }
+        $rows = is_array($response['data'] ?? null) ? $response['data'] : [];
+        $queued = $rows === [] ? 0 : $this->queueEligibleRows($rows);
 
-        $import->refresh();
+        // Always advance the page cursor after a successful API response.
+        // An empty `data` array used to skip increment, so resume kept
+        // requesting the same page (e.g. 7/10) forever.
+        $this->advanceImportPage($import, $queued);
+
+        Log::info('jubelio get-orders page fetched', [
+            'import_id' => $import->id,
+            'page' => $page,
+            'total' => $import->total,
+            'rows' => count($rows),
+            'queued' => $queued,
+        ]);
 
         return [
             'has_more' => $import->count < $import->total,
@@ -148,15 +171,25 @@ class JubelioGetOrdersService
         $totalPages = null;
         $totalQueued = 0;
 
+        if ($import) {
+            $import->refresh();
+            if ($import->total > 0) {
+                $totalPages = (int) $import->total;
+            }
+            $page = max(1, (int) $import->count + 1);
+        }
+
         while (true) {
             $response = $this->jubelioService->fetchSalesOrders($page, self::PAGE_SIZE, $dateFrom, $dateTo);
             if (! $response) {
+                $import?->recordError('Gagal mengambil halaman '.$page.' dari API Jubelio.');
                 throw new \RuntimeException('Gagal mengambil data order dari API Jubelio.');
             }
 
             $totalCount = (int) ($response['totalCount'] ?? 0);
             if ($totalCount === 0) {
                 $import?->update(['total' => 0, 'count' => 0, 'status' => 1, 'step' => 3]);
+                $import?->recordError(null);
 
                 return $totalQueued;
             }
@@ -166,17 +199,12 @@ class JubelioGetOrdersService
                 $import?->update(['total' => $totalPages]);
             }
 
-            $rows = $response['data'] ?? [];
-            if ($rows !== []) {
-                $queued = $this->queueEligibleRows($rows);
-                $totalQueued += $queued;
+            $rows = is_array($response['data'] ?? null) ? $response['data'] : [];
+            $queued = $rows === [] ? 0 : $this->queueEligibleRows($rows);
+            $totalQueued += $queued;
 
-                if ($import) {
-                    $import->increment('count');
-                    if ($queued > 0) {
-                        $import->increment('orders_queued', $queued);
-                    }
-                }
+            if ($import) {
+                $this->advanceImportPage($import, $queued);
             }
 
             if ($page >= $totalPages) {
@@ -187,8 +215,24 @@ class JubelioGetOrdersService
         }
 
         $import?->update(['status' => 1, 'step' => 3]);
+        $import?->recordError(null);
 
         return $totalQueued;
+    }
+
+    protected function advanceImportPage(Crongetorder $import, int $queued): void
+    {
+        $import->increment('count');
+        if ($queued > 0) {
+            $import->increment('orders_queued', $queued);
+        }
+        $import->recordError(null);
+        $import->refresh();
+    }
+
+    protected function importLockKey(Crongetorder $import): string
+    {
+        return 'jubelio-get-orders:'.$import->id;
     }
 
     /**

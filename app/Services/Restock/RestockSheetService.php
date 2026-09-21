@@ -41,9 +41,32 @@ class RestockSheetService
   }
 
   /**
+   * Per-sheet pipeline totals for the restock front page.
+   *
+   * @return Collection<int, array{id: int, name: string, qty_restock: int, qty_production: int, qty_shipped: int}>
+   */
+  public function sheetSummaries(): Collection
+  {
+    return RestockSheet::query()
+      ->withSum('cells as qty_restock_total', 'qty_restock')
+      ->withSum('cells as qty_production_total', 'qty_production')
+      ->withSum('cells as qty_shipped_total', 'qty_shipped')
+      ->orderBy('name')
+      ->get()
+      ->map(fn (RestockSheet $sheet) => [
+        'id' => $sheet->id,
+        'name' => $sheet->name,
+        'qty_restock' => (int) $sheet->qty_restock_total,
+        'qty_production' => (int) $sheet->qty_production_total,
+        'qty_shipped' => (int) $sheet->qty_shipped_total,
+      ])
+      ->values();
+  }
+
+  /**
    * Parent pcode rows for the TYPE landing page (BELT-01, BELT-02, …).
    *
-   * @return Collection<int, array{pcode: string, name: string, image_url: string, sku_count: int, totals: array{restock: int, production: int, shipped: int}, urgent_count: int}>
+   * @return Collection<int, array{pcode: string, name: string, image_url: string, group_url: ?string, sku_count: int, totals: array{restock: int, production: int, shipped: int}, urgent_count: int}>
    */
   public function parentsForType(Tag $typeTag): Collection
   {
@@ -71,10 +94,18 @@ class RestockSheetService
           ->filter(fn (?string $n) => $n && strtoupper(trim($n)) !== strtoupper($parentPcode))
           ->first() ?? $group?->name ?? $parentPcode;
 
+        $firstItem = $items->first();
+        $groupUrl = $firstItem !== null
+          ? route('items.group-parent-detail', $this->identityBuilder->parentKeyToSlug(
+            $this->identityBuilder->itemParentKey($firstItem)
+          ))
+          : null;
+
         return [
           'pcode' => $parentPcode,
           'name' => $name,
           'image_url' => $group?->image_url ?? asset('images/default-item.svg'),
+          'group_url' => $groupUrl,
           'sku_count' => $items->count(),
           'totals' => [
             'restock' => (int) $cells->sum('qty_restock'),
@@ -103,6 +134,13 @@ class RestockSheetService
     }
 
     return $this->assetLancarItemsForType($typeTag)->exists();
+  }
+
+  public function itemBelongsToTypeCatalog(Tag $typeTag, int $itemId): bool
+  {
+    return $this->assetLancarItemsForType($typeTag)
+      ->where('items.id', $itemId)
+      ->exists();
   }
 
   public function createSheet(Tag $typeTag, User $user): RestockSheet
@@ -134,25 +172,38 @@ class RestockSheetService
   }
 
   /**
-   * @return int Number of cells added
+   * Align sheet cells with the current TYPE-tagged item catalog: add missing SKUs and
+   * remove cells whose items no longer belong to this type (e.g. after correcting tags).
+   *
+   * @return array{added: int, removed: int}
    */
-  public function syncSkus(RestockSheet $sheet): int
+  public function syncSkus(RestockSheet $sheet): array
   {
     $items = $this->assetLancarItemsForType($sheet->typeTag)
       ->with('tags')
       ->get();
 
+    $catalogItemIds = $items->pluck('id');
     $existingItemIds = $sheet->cells()->pluck('item_id');
 
     $newItems = $items->reject(fn (Item $item) => $existingItemIds->contains($item->id));
+    $staleItemIds = $existingItemIds->reject(fn (int $itemId) => $catalogItemIds->contains($itemId));
 
-    if ($newItems->isEmpty()) {
-      return 0;
+    if ($newItems->isNotEmpty()) {
+      $this->seedCells($sheet, $newItems);
     }
 
-    $this->seedCells($sheet, $newItems);
+    $removed = 0;
+    if ($staleItemIds->isNotEmpty()) {
+      $removed = $sheet->cells()->whereIn('item_id', $staleItemIds->all())->delete();
+    }
 
-    return $newItems->count();
+    $this->refreshCellMetadata($sheet, $items);
+
+    return [
+      'added' => $newItems->count(),
+      'removed' => $removed,
+    ];
   }
 
   /**
@@ -170,6 +221,28 @@ class RestockSheetService
         fn (RestockCell $cell) => $cell->size?->name ?? '',
       ])
       ->groupBy(fn (RestockCell $cell) => $this->identityBuilder->assetLancarParentPcode($cell->item));
+  }
+
+  /**
+   * @param  Collection<int, Item>  $items
+   */
+  protected function refreshCellMetadata(RestockSheet $sheet, Collection $items): void
+  {
+    foreach ($items as $item) {
+      $cell = $sheet->cells()->where('item_id', $item->id)->first();
+
+      if ($cell === null) {
+        continue;
+      }
+
+      $warnaTag = $item->tags->firstWhere('type', Tag::TYPE_WARNA);
+      $sizeTag = $item->tags->firstWhere('type', Tag::TYPE_SIZE);
+
+      $cell->update([
+        'color_id' => $warnaTag?->id,
+        'size_id' => $sizeTag && ! $this->identityBuilder->isAllSize($sizeTag) ? $sizeTag->id : null,
+      ]);
+    }
   }
 
   /**

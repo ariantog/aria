@@ -150,6 +150,6 @@ class ExportSellController extends Controller
             return null;
         }
 
-        return route('addrbook.type.show', [$addrbook->type_slug, $addrbook->id]);
+        return $addrbook->transactionsUrl();
     }
 }

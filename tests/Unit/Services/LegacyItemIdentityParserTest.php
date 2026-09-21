@@ -68,6 +68,11 @@ describe('size matching', function () {
     it('matches exact size remainder', function () {
         expect($this->parser->matchSizeFromSuffix('XL')?->code)->toBe('XL');
     });
+
+    it('matches a leftover size-before-color remainder from the prefix', function () {
+        expect($this->parser->matchSizeFromPrefix('S-BLACK')?->code)->toBe('S')
+            ->and($this->parser->matchSizeFromRemainder('BLACK-S')?->code)->toBe('S');
+    });
 });
 
 describe('asset fixtures §3.2', function () {
@@ -241,6 +246,53 @@ describe('unsupported item types', function () {
 
         expect($result->success)->toBeTrue()
             ->and($result->canonicalCode)->toBe('AJJ-PL25129-06-XL');
+    });
+});
+
+describe('manufactured warna from catalog description', function () {
+    it('scans item_group description and ignores items.description', function () {
+        $group = \App\Models\ItemGroup::factory()->create([
+            'description' => 'MIKRO MOTIF CAMO HIJAU',
+        ]);
+        $item = Item::factory()->create([
+            'type' => ItemType::ITEM,
+            'group_id' => $group->id,
+            'code' => 'AJJPL2512904S',
+            'pcode' => 'PL25129/04',
+            'description' => 'PUTIH',
+        ]);
+        $item->tags()->sync([
+            $this->typeTags->first()->id,
+            Tag::factory()->create(['type' => Tag::TYPE_JAHIT, 'code' => 'J1', 'name' => 'J1'])->id,
+        ]);
+
+        $result = $this->parser->parse($item->fresh(['tags', 'group']));
+
+        expect($result->success)->toBeTrue()
+            ->and($result->warnaCode)->toBe('GREEN');
+    });
+
+    it('falls back to leftover items.description when the group catalog is empty', function () {
+        $group = \App\Models\ItemGroup::factory()->create([
+            'description' => '',
+            'description2' => '',
+        ]);
+        $item = Item::factory()->create([
+            'type' => ItemType::ITEM,
+            'group_id' => $group->id,
+            'code' => 'AJJPL2512904S',
+            'pcode' => 'PL25129/04',
+            'description' => 'KAOS PUTIH',
+        ]);
+        $item->tags()->sync([
+            $this->typeTags->first()->id,
+            Tag::factory()->create(['type' => Tag::TYPE_JAHIT, 'code' => 'J1', 'name' => 'J1'])->id,
+        ]);
+
+        $result = $this->parser->parse($item->fresh(['tags', 'group']));
+
+        expect($result->success)->toBeTrue()
+            ->and($result->warnaCode)->toBe('WHITE');
     });
 });
 

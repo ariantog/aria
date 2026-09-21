@@ -18,7 +18,6 @@ class ItemDimensionResolver
     {
         $row = DB::table('items')
             ->where('id', $itemId)
-            ->whereNull('deleted_at')
             ->first();
 
         if (! $row) {
@@ -67,9 +66,10 @@ class ItemDimensionResolver
             ];
         }
 
-        $genreTag = $item->genre ? $this->tagFromMap($tagMap, (int) $item->genre) : null;
+        $genreId = $item->catalogGenre();
+        $genreTag = $genreId > 0 ? $this->tagFromMap($tagMap, $genreId) : null;
         $sizeTag = $item->size ? $this->tagFromMap($tagMap, (int) $item->size) : null;
-        $brand = $item->brand instanceof ItemBrand ? $item->brand->value : (is_numeric($item->brand) ? (int) $item->brand : null);
+        $brand = $item->catalogBrand();
 
         return [
             'item_type' => $typeValue,
@@ -78,7 +78,7 @@ class ItemDimensionResolver
             'type_code' => $genreTag ? strtoupper($genreTag->code) : '-',
             'warna_code' => '-',
             'size_code' => $sizeTag ? strtoupper($sizeTag->code) : '-',
-            'brand' => $brand > 0 ? $brand : null,
+            'brand' => $brand !== ItemBrand::NO_BRAND ? $brand->value : null,
         ];
     }
 
@@ -127,7 +127,6 @@ class ItemDimensionResolver
 
         $rows = DB::table('items')
             ->whereIn('id', $itemIds)
-            ->whereNull('deleted_at')
             ->get();
 
         if ($rows->isEmpty()) {
@@ -153,6 +152,7 @@ class ItemDimensionResolver
 
         $tagIds = $pivotRows->pluck('tag_id')
             ->merge($items->pluck('genre'))
+            ->merge($groups->pluck('genre'))
             ->merge($items->pluck('size'))
             ->filter(fn ($id) => (int) $id > 0)
             ->unique()

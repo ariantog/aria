@@ -25,6 +25,7 @@ it('calculates balances correctly for sequential transactions', function () {
         'sender_id' => $supplier->id,
         'sender_type' => $supplier->type,
         'real_total' => 100,
+        'total' => 100,
     ]);
     TransactionDetail::factory()->create([
         'transaction_id' => $tx1->id,
@@ -44,6 +45,7 @@ it('calculates balances correctly for sequential transactions', function () {
         'sender_id' => $supplier->id,
         'sender_type' => $supplier->type,
         'real_total' => 50,
+        'total' => 50,
     ]);
     TransactionDetail::factory()->create([
         'transaction_id' => $tx2->id,
@@ -68,12 +70,12 @@ it('recalculates balances correctly for a retroactively inserted transaction', f
     $date3 = Carbon::now()->subDays(1)->format('Y-m-d');
 
     // Setup T1 ($100 on Day 1)
-    $tx1 = Transaction::factory()->create(['type' => Transaction::TYPE_BUY, 'date' => $date1, 'sender_id' => $supplier->id, 'sender_type' => $supplier->type, 'real_total' => 100]);
+    $tx1 = Transaction::factory()->create(['type' => Transaction::TYPE_BUY, 'date' => $date1, 'sender_id' => $supplier->id, 'sender_type' => $supplier->type, 'real_total' => 100, 'total' => 100]);
     TransactionDetail::factory()->create(['transaction_id' => $tx1->id, 'item_id' => $item->id, 'quantity' => 10, 'price' => 10, 'total' => 100]);
     $service->handleTransaction($tx1);
 
     // Setup T3 ($50 on Day 5)
-    $tx3 = Transaction::factory()->create(['type' => Transaction::TYPE_BUY, 'date' => $date3, 'sender_id' => $supplier->id, 'sender_type' => $supplier->type, 'real_total' => 50]);
+    $tx3 = Transaction::factory()->create(['type' => Transaction::TYPE_BUY, 'date' => $date3, 'sender_id' => $supplier->id, 'sender_type' => $supplier->type, 'real_total' => 50, 'total' => 50]);
     TransactionDetail::factory()->create(['transaction_id' => $tx3->id, 'item_id' => $item->id, 'quantity' => 5, 'price' => 10, 'total' => 50]);
     $service->handleTransaction($tx3);
 
@@ -83,7 +85,7 @@ it('recalculates balances correctly for a retroactively inserted transaction', f
 
     // ACTION: Insert T2 retroactively ($200 on Day 3)
     $date2 = Carbon::now()->subDays(3)->format('Y-m-d');
-    $tx2 = Transaction::factory()->create(['type' => Transaction::TYPE_BUY, 'date' => $date2, 'sender_id' => $supplier->id, 'sender_type' => $supplier->type, 'real_total' => 200]);
+    $tx2 = Transaction::factory()->create(['type' => Transaction::TYPE_BUY, 'date' => $date2, 'sender_id' => $supplier->id, 'sender_type' => $supplier->type, 'real_total' => 200, 'total' => 200]);
     TransactionDetail::factory()->create(['transaction_id' => $tx2->id, 'item_id' => $item->id, 'quantity' => 20, 'price' => 10, 'total' => 200]);
 
     // Process the retroactive transaction

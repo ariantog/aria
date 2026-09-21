@@ -7,6 +7,8 @@ use App\Models\AddrbookStat;
 use App\Models\Operation;
 use App\Models\ReportingEntity;
 use App\Models\ReportingLedgerRole as ReportingLedgerRoleModel;
+use App\Models\Setting;
+use App\Models\Transaction;
 use App\Support\NewDomainChartOfAccounts;
 use Database\Seeders\AddrbookPlaceholderSeeder;
 use Database\Seeders\DatabaseSeeder;
@@ -54,6 +56,7 @@ it('seeds typical operations and ledgers with reporting roles', function () {
 
         $operation = Operation::query()->where('name', $row['operation'])->first();
         expect((int) $ledger->parent_id)->toBe($operation->id)
+            ->and($ledger->description)->toBe($row['description'])
             ->and($ledger->ledger_hint)->toBe($row['hint']);
 
         if (isset($row['role'])) {
@@ -100,11 +103,21 @@ it('refuses typical ledger seeding on the current production domain', function (
 it('runs the main new-domain seeder on an empty database', function () {
     Artisan::call('db:seed', ['--class' => NewDomainSeeder::class, '--force' => true]);
 
+    $gudang = Addrbook::query()->where('name', 'Gudang')->where('type', Addrbook::TYPE_WAREHOUSE)->first();
+    $supplier = Addrbook::query()->where('name', 'Supplier')->where('type', Addrbook::TYPE_SUPPLIER)->first();
+    $perawatan = Addrbook::query()->where('name', 'Biaya Perawatan')->first();
+
     expect(Addrbook::query()->where('name', 'Pelanggan')->where('type', Addrbook::TYPE_CUSTOMER)->exists())->toBeTrue()
         ->and(Addrbook::query()->where('name', 'Kas / Bank')->where('type', Addrbook::TYPE_BANK)->exists())->toBeTrue()
         ->and(Operation::query()->where('name', 'Gaji & Upah')->exists())->toBeTrue()
         ->and(Addrbook::query()->where('name', 'Material Produksi')->exists())->toBeTrue()
-        ->and(\App\Models\User::query()->where('username', 'superadmin')->exists())->toBeTrue();
+        ->and(\App\Models\User::query()->where('username', 'superadmin')->exists())->toBeTrue()
+        ->and(Setting::query()->where('slug', 'si_gap_weight')->exists())->toBeTrue()
+        ->and((int) Setting::getValue('restock.default_receiver_id'))->toBe($gudang->id)
+        ->and((int) Setting::getValue('restock.default_supplier_id'))->toBe($supplier->id)
+        ->and(Setting::getValue('restock.default_warehouse_ids'))->toBe([$gudang->id])
+        ->and((int) Setting::getValue('produksi.default_warehouse_id'))->toBe($gudang->id)
+        ->and((int) Setting::getValue('asset_tetap.depreciation_expense_account_id'))->toBe($perawatan->id);
 });
 
 it('does not seed from the new-domain migration during tests', function () {
@@ -122,5 +135,29 @@ it('wires typical ledgers into DatabaseSeeder for new domains', function () {
 
     expect($source)->toContain('TypicalLedgerSeeder::class')
         ->and($source)->toContain('AddrbookPlaceholderSeeder::class')
+        ->and($source)->toContain('NewDomainSettingsSeeder::class')
         ->and($source)->toContain('NewDomainInstall::allowsBaselineSeed()');
+});
+
+it('includes post-merge item_group and checklist schema in production bootstrap', function () {
+    $source = file_get_contents(base_path('database/migrations/2026_08_13_100000_production_database_bootstrap.php'));
+
+    expect($source)->toContain('2026_09_01_100000_add_soft_deletes_to_checklist_templates.php')
+        ->and($source)->toContain('2026_09_03_130000_add_brand_and_genre_to_item_group_table.php')
+        ->and($source)->toContain('2026_09_03_150000_widen_item_group_name_drop_unique.php');
+});
+
+it('signs demo transaction totals and runs after the new-domain baseline', function () {
+    Artisan::call('db:seed', ['--class' => DatabaseSeeder::class, '--force' => true]);
+
+    expect(Addrbook::query()->where('name', 'Gudang')->exists())->toBeTrue()
+        ->and(Addrbook::query()->where('name', 'BCA Operasional')->exists())->toBeTrue();
+
+    $sell = Transaction::query()->where('type', Transaction::TYPE_SELL)->first();
+    $buy = Transaction::query()->where('type', Transaction::TYPE_BUY)->first();
+
+    expect($sell)->not->toBeNull()
+        ->and((float) $sell->total)->toBeLessThan(0)
+        ->and($buy)->not->toBeNull()
+        ->and((float) $buy->total)->toBeGreaterThan(0);
 });

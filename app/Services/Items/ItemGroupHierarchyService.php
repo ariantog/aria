@@ -2,7 +2,6 @@
 
 namespace App\Services\Items;
 
-use App\Enums\AddrbookType;
 use App\Enums\ItemType;
 use App\Models\Item;
 use App\Models\ItemGroup;
@@ -19,6 +18,23 @@ class ItemGroupHierarchyService
 {
     private const SIZE_ORDER = ['S', 'M', 'L', 'XL', 'XXL'];
 
+    /**
+     * Stable HTML id for a color section on the parent group detail page.
+     */
+    public static function colorAnchorId(string $colorCode): string
+    {
+        $normalized = strtoupper(trim($colorCode));
+
+        if ($normalized === '' || $normalized === '—') {
+            return 'color-unknown';
+        }
+
+        $slug = strtolower(preg_replace('/[^A-Z0-9]+/', '-', $normalized));
+        $slug = trim($slug, '-');
+
+        return $slug !== '' ? 'color-'.$slug : 'color-unknown';
+    }
+
     public function __construct(
         protected ItemIdentityBuilder $identityBuilder,
         protected JubelioService $jubelioService,
@@ -30,19 +46,15 @@ class ItemGroupHierarchyService
      */
     public function paginateParents(array $filters, int $perPage = 20): LengthAwarePaginator
     {
-        $query = ItemGroup::query()
+        $canonicalMasterSql = $this->canonicalParentMasterSql();
+
+        $groupRowsQuery = ItemGroup::query()
             ->select([
-                'item_group.master',
-                DB::raw('MIN(item_group.name) as product_name'),
-                DB::raw('MIN(item_group.description) as description'),
-                DB::raw('MIN(item_group.id) as sample_group_id'),
-                DB::raw('COUNT(DISTINCT item_group.id) as variant_count'),
-                DB::raw('COUNT(DISTINCT items.id) as sku_count'),
+                'item_group.id',
+                'item_group.name',
+                'item_group.description',
+                DB::raw($canonicalMasterSql.' as canonical_master'),
             ])
-            ->leftJoin('items', function ($join) {
-                $join->on('items.group_id', '=', 'item_group.id')
-                    ->whereNull('items.deleted_at');
-            })
             ->whereNotNull('item_group.master')
             ->where('item_group.master', '!=', '')
             ->when(! empty($filters['kode']), fn (Builder $q) => $q->where(
@@ -59,9 +71,27 @@ class ItemGroupHierarchyService
                 'item_group.description',
                 'like',
                 '%'.$filters['desc'].'%'
-            ))
-            ->groupBy('item_group.master')
-            ->orderBy('item_group.master');
+            ));
+
+        // Compute canonical_master per row first, then aggregate — MySQL ONLY_FULL_GROUP_BY
+        // rejects GROUP BY on a CASE expression that references item_group.master when
+        // Laravel wraps the grouped query for paginate count.
+        $query = DB::query()
+            ->fromSub($groupRowsQuery, 'grouped_item_group')
+            ->leftJoin('items', function ($join) {
+                $join->on('items.group_id', '=', 'grouped_item_group.id')
+                    ->whereNull('items.deleted_at');
+            })
+            ->select([
+                'grouped_item_group.canonical_master',
+                DB::raw('MIN(grouped_item_group.name) as product_name'),
+                DB::raw('MIN(grouped_item_group.description) as description'),
+                DB::raw('MIN(grouped_item_group.id) as sample_group_id'),
+                DB::raw('COUNT(DISTINCT grouped_item_group.id) as variant_count'),
+                DB::raw('COUNT(DISTINCT items.id) as sku_count'),
+            ])
+            ->groupBy('grouped_item_group.canonical_master')
+            ->orderByDesc(DB::raw('MAX(grouped_item_group.id)'));
 
         /** @var LengthAwarePaginator $paginator */
         $paginator = $query->paginate($perPage)->withQueryString();
@@ -71,7 +101,7 @@ class ItemGroupHierarchyService
 
         $paginator->setCollection(
             collect($paginator->items())->map(function ($row) use ($samplesByGroupId) {
-                $master = (string) $row->master;
+                $master = (string) $row->canonical_master;
                 $sample = $samplesByGroupId[$row->sample_group_id] ?? null;
                 $isAsset = $this->isAssetMaster($master, $sample);
                 $parentKey = $this->parentKeyForMaster($master, $sample, $isAsset);
@@ -81,7 +111,7 @@ class ItemGroupHierarchyService
 
                 return [
                     'parent_key' => $parentKey,
-                    'parent_slug' => $this->identityBuilder->parentKeyToSlug($parentKey),
+                    'parent_group_id' => (int) $row->sample_group_id,
                     'label' => $label,
                     'product_name' => $this->resolveListProductName(
                         (string) ($row->product_name ?? ''),
@@ -135,7 +165,7 @@ class ItemGroupHierarchyService
 
         return [
             'parent_key' => $parentKey,
-            'parent_slug' => $this->identityBuilder->parentKeyToSlug($parentKey),
+            'anchor_group_id' => (int) ($groups->min('id') ?? 0),
             'label' => $label,
             'item_type' => $itemType,
             'is_asset' => $itemType === ItemType::ASSET_LANCAR,
@@ -149,6 +179,45 @@ class ItemGroupHierarchyService
             'warehouse_breakdown' => $warehouseBreakdown,
             'warehouse_names' => $warehouseNames,
         ];
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function groupIdsForParentKey(string $parentKey): array
+    {
+        return $this->groupsForParentKey($parentKey)->pluck('id')->map(fn ($id) => (int) $id)->all();
+    }
+
+    public function anchorGroupIdForParentKey(string $parentKey): ?int
+    {
+        $id = $this->groupsForParentKey($parentKey)->min('id');
+
+        return $id !== null ? (int) $id : null;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function parentDetailForAnchorGroup(ItemGroup $anchorGroup, bool $fetchJubelio = true): ?array
+    {
+        $sample = $anchorGroup->items()
+            ->whereNull('deleted_at')
+            ->with(['tags', 'group'])
+            ->orderBy('id')
+            ->first();
+
+        if ($sample === null) {
+            return null;
+        }
+
+        $detail = $this->parentDetail($this->identityBuilder->itemParentKey($sample), $fetchJubelio);
+
+        if ($detail !== null) {
+            $detail['anchor_group_id'] = (int) $anchorGroup->id;
+        }
+
+        return $detail;
     }
 
     /**
@@ -247,10 +316,7 @@ class ItemGroupHierarchyService
                     ->with([
                         'tags',
                         'warehouseItems' => fn ($wq) => $wq
-                            ->whereIn('warehouse_id', fn ($sq) => $sq->select('id')->from('customers')->whereIn('type', [
-                                AddrbookType::Warehouse->value,
-                                AddrbookType::VirtualWarehouse->value,
-                            ]))
+                            ->forAvailableStock()
                             ->with('warehouse'),
                     ]),
             ])
@@ -258,11 +324,36 @@ class ItemGroupHierarchyService
 
         if ($itemType === ItemType::ASSET_LANCAR) {
             $master = strtoupper($parts[1] ?? '');
-            $query->whereRaw('UPPER(item_group.master) = ?', [$master]);
+            $groupIdsFromItems = Item::query()
+                ->where('type', ItemType::ASSET_LANCAR)
+                ->whereNull('deleted_at')
+                ->where(function (Builder $itemQuery) use ($master) {
+                    $itemQuery->whereRaw('UPPER(TRIM(items.pcode)) = ?', [$master])
+                        ->orWhereRaw('UPPER(items.code) LIKE ?', [$master.'-%']);
+                })
+                ->pluck('group_id')
+                ->map(fn ($id) => (int) $id)
+                ->filter(fn (int $id) => $id > 0)
+                ->unique()
+                ->values()
+                ->all();
+
+            $query->where(function (Builder $masterQuery) use ($master, $groupIdsFromItems) {
+                $masterQuery->whereRaw('UPPER(TRIM(item_group.master)) = ?', [$master]);
+
+                if ($groupIdsFromItems !== []) {
+                    $masterQuery->orWhereIn('item_group.id', $groupIdsFromItems);
+                }
+            });
         } else {
             $typeCode = strtoupper($parts[1] ?? '');
-            $master = strtoupper($parts[2] ?? '');
-            $query->whereRaw('UPPER(item_group.master) = ?', [$master])
+            $master = $this->identityBuilder->canonicalManufacturedMaster((string) ($parts[2] ?? ''))
+                ?? strtoupper((string) ($parts[2] ?? ''));
+            $query->where(function (Builder $masterQuery) use ($master) {
+                $masterQuery->whereRaw('UPPER(TRIM(item_group.master)) = ?', [$master])
+                    ->orWhereRaw("UPPER(REPLACE(TRIM(item_group.master), '/', '-')) = ?", [$master])
+                    ->orWhereRaw("UPPER(REPLACE(TRIM(item_group.master), '/', '-')) LIKE ?", [$master.'-%']);
+            })
                 ->whereHas('items', function (Builder $q) use ($typeCode) {
                     $q->where(function (Builder $inner) use ($typeCode) {
                         $inner->whereHas('tags', fn (Builder $t) => $t
@@ -329,7 +420,12 @@ class ItemGroupHierarchyService
             return $isAsset ? $master : '';
         }
 
-        return $name;
+        return $this->identityBuilder->productDisplayName(
+            $isAsset ? ItemType::ASSET_LANCAR : ItemType::ITEM,
+            $name,
+            '',
+            $master,
+        );
     }
 
     /**
@@ -345,7 +441,7 @@ class ItemGroupHierarchyService
         $allSizeCodes = $this->orderedSizeCodes($allItems);
         $hasSizes = $allSizeCodes !== ['—'];
 
-        return $groups
+        $sections = $groups
             ->map(function (ItemGroup $group) use ($allSizeCodes, $hasSizes, $jubelioStocks) {
                 $colorItems = $group->items;
                 $sample = $colorItems->first();
@@ -359,6 +455,7 @@ class ItemGroupHierarchyService
                 $section = [
                     'code' => $color['code'],
                     'name' => $color['name'],
+                    'anchor_id' => self::colorAnchorId($color['code']),
                     'pcode' => $sample->pcode,
                     'group_id' => $group->id,
                     'image_url' => $this->imageResolver->resolveUrlForGroup($group, $colorItems),
@@ -381,6 +478,19 @@ class ItemGroupHierarchyService
 
                         $section['size_rows'][] = $this->buildSizeRow($item, $sizeCode, $jubelioStocks);
                     }
+
+                    $includedItemIds = collect($section['size_rows'])
+                        ->pluck('item_id')
+                        ->map(fn ($id) => (int) $id);
+
+                    foreach ($colorItems as $item) {
+                        if ($includedItemIds->contains((int) $item->id)) {
+                            continue;
+                        }
+
+                        $sizeCode = $this->identityBuilder->itemSizeCode($item) ?? '—';
+                        $section['size_rows'][] = $this->buildSizeRow($item, $sizeCode, $jubelioStocks);
+                    }
                 } else {
                     foreach ($colorItems as $item) {
                         $section['no_size_items'][] = $this->buildSizeRow($item, '—', $jubelioStocks);
@@ -390,9 +500,52 @@ class ItemGroupHierarchyService
                 return $section;
             })
             ->filter()
-            ->sortBy('code')
             ->values()
             ->all();
+
+        return $this->mergeColorSectionsByCode($sections);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $sections
+     * @return list<array<string, mixed>>
+     */
+    protected function mergeColorSectionsByCode(array $sections): array
+    {
+        $merged = [];
+
+        foreach ($sections as $section) {
+            $key = strtoupper((string) $section['code']).'|'.strtoupper((string) ($section['pcode'] ?? ''));
+
+            if (! isset($merged[$key])) {
+                $merged[$key] = $section;
+
+                continue;
+            }
+
+            $existing = $merged[$key];
+            $existing['size_rows'] = array_merge($existing['size_rows'], $section['size_rows']);
+            $existing['no_size_items'] = array_merge($existing['no_size_items'], $section['no_size_items']);
+            $existing['in_warehouse_qty'] = (float) $existing['in_warehouse_qty'] + (float) $section['in_warehouse_qty'];
+
+            $breakdown = collect($existing['warehouse_breakdown'] ?? [])->keyBy('name');
+            foreach ($section['warehouse_breakdown'] ?? [] as $row) {
+                $name = $row['name'];
+                $breakdown[$name] = [
+                    'name' => $name,
+                    'quantity' => (float) (($breakdown[$name]['quantity'] ?? 0) + $row['quantity']),
+                ];
+            }
+            $existing['warehouse_breakdown'] = $breakdown->values()->all();
+
+            if (($existing['image_url'] ?? '') === '' && ($section['image_url'] ?? '') !== '') {
+                $existing['image_url'] = $section['image_url'];
+            }
+
+            $merged[$key] = $existing;
+        }
+
+        return collect($merged)->sortBy('code')->values()->all();
     }
 
     /**
@@ -468,7 +621,14 @@ class ItemGroupHierarchyService
             fn (?string $name) => $name && strtoupper(trim($name)) !== strtoupper($parentLabel)
         );
 
-        return $preferred ?? $names->first() ?? $parentLabel;
+        $raw = $preferred ?? $names->first() ?? $parentLabel;
+
+        return $this->identityBuilder->productDisplayName(
+            ItemType::ASSET_LANCAR,
+            (string) $raw,
+            '',
+            $parentLabel,
+        );
     }
 
     /**
@@ -514,5 +674,35 @@ class ItemGroupHierarchyService
         }
 
         return '1_'.$upper;
+    }
+
+    private function canonicalParentMasterSql(): string
+    {
+        if (DB::connection()->getDriverName() === 'mysql') {
+            return <<<'SQL'
+CASE
+  WHEN UPPER(TRIM(item_group.master)) REGEXP '^[A-Z]{2,3}[0-9]{5}(/|-)[0-9]{2,3}$'
+    THEN SUBSTRING_INDEX(REPLACE(UPPER(TRIM(item_group.master)), '/', '-'), '-', 1)
+  WHEN UPPER(TRIM(item_group.master)) REGEXP '^[A-Z]{2,3}[0-9]{5}$'
+    THEN UPPER(TRIM(item_group.master))
+  WHEN INSTR(item_group.master, '/') > 0
+    THEN SUBSTR(item_group.master, 1, INSTR(item_group.master, '/') - 1)
+  ELSE UPPER(TRIM(item_group.master))
+END
+SQL;
+        }
+
+        return <<<'SQL'
+CASE
+  WHEN instr(item_group.master, '-') > 0
+    AND length(substr(item_group.master, 1, instr(item_group.master, '-') - 1)) BETWEEN 7 AND 8
+    AND substr(item_group.master, instr(item_group.master, '-') + 1) GLOB '[0-9]*'
+    AND substr(item_group.master, 1, 3) GLOB '[A-Z]*'
+    THEN substr(item_group.master, 1, instr(item_group.master, '-') - 1)
+  WHEN instr(item_group.master, '/') > 0
+    THEN substr(item_group.master, 1, instr(item_group.master, '/') - 1)
+  ELSE item_group.master
+END
+SQL;
     }
 }

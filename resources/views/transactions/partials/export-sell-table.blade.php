@@ -21,35 +21,46 @@
                 </label>
             @endforeach
         </div>
-        <a :href="exportUrl"
-           class="inline-flex items-center gap-1.5 self-end rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:self-auto"
-           data-testid="export-sell-excel-link">
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-            Export Excel
-        </a>
+        <div class="flex flex-wrap items-center gap-2 self-end sm:self-auto">
+            <button type="button"
+                    @click="copyRowsTable()"
+                    data-testid="copy-export-sell-table"
+                    title="Copy table for Excel"
+                    class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                <span x-text="copyFeedback ? 'Copied!' : 'Copy rows'"></span>
+            </button>
+            <a :href="exportUrl"
+               class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+               data-testid="export-sell-excel-link">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                Export Excel
+            </a>
+        </div>
     </div>
 
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div class="overflow-x-auto">
-            <table class="w-full min-w-[1100px] text-left text-sm">
+            <table x-ref="exportSellTable" class="w-full min-w-[1100px] text-left text-sm">
                 <thead class="border-b border-gray-200 bg-gray-50 text-[10px] uppercase tracking-wider text-gray-500">
                     <tr>
-                        <th class="px-3 py-3 font-bold">Date</th>
-                        <th class="px-3 py-3 font-bold">Type</th>
-                        <th class="px-3 py-3 font-bold">Invoice</th>
-                        <th class="px-3 py-3 font-bold">Item ID</th>
-                        <th class="px-3 py-3 font-bold">Item Code</th>
-                        <th class="px-3 py-3 text-right font-bold">Qty</th>
-                        <th class="px-3 py-3 text-right font-bold">Discount</th>
-                        <th class="px-3 py-3 text-right font-bold">Subtotal</th>
+                        <th class="px-3 py-3 font-bold" data-copy-col="date">Date</th>
+                        <th class="px-3 py-3 font-bold" data-copy-col="type">Type</th>
+                        <th class="px-3 py-3 font-bold" data-copy-col="invoice">Invoice</th>
+                        <th class="px-3 py-3 font-bold" data-copy-col="item_id">Item ID</th>
+                        <th class="px-3 py-3 font-bold" data-copy-col="item_code">Item Code</th>
+                        <th class="px-3 py-3 text-right font-bold" data-copy-col="qty">Qty</th>
+                        <th class="px-3 py-3 text-right font-bold" data-copy-col="item_discount">Discount</th>
+                        <th class="px-3 py-3 text-right font-bold" data-copy-col="subtotal">Subtotal</th>
                         @foreach($columnLabels as $columnKey => $columnLabel)
                             <th class="px-3 py-3 font-bold {{ in_array($columnKey, ['adjustment', 'discount', 'total'], true) ? 'text-right' : '' }}"
+                                data-copy-col="{{ $columnKey }}"
                                 x-show="showTx{{ \Illuminate\Support\Str::studly($columnKey) }}">
                                 {{ $columnLabel }}
                             </th>
                         @endforeach
-                        <th class="px-3 py-3 font-bold">Sender</th>
-                        <th class="px-3 py-3 font-bold">Receiver</th>
+                        <th class="px-3 py-3 font-bold" data-copy-col="sender">Sender</th>
+                        <th class="px-3 py-3 font-bold" data-copy-col="receiver">Receiver</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
@@ -68,37 +79,37 @@
                             $txDescription = $transaction?->description ?: ($transaction?->notes ?? '');
                         @endphp
                         <tr class="align-top hover:bg-gray-50">
-                            <td class="whitespace-nowrap px-3 py-2 text-gray-700">
+                            <td class="whitespace-nowrap px-3 py-2 text-gray-700" data-copy-col="date">
                                 @if($isFirstLineForTransaction && $row->date)
                                     {{ \Illuminate\Support\Carbon::parse($row->date)->format('d M Y') }}
                                 @else
                                     <span class="text-gray-400">—</span>
                                 @endif
                             </td>
-                            <td class="whitespace-nowrap px-3 py-2">
+                            <td class="whitespace-nowrap px-3 py-2" data-copy-col="type">
                                 <span class="inline-flex rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase text-blue-700">
                                     {{ \App\Models\TransactionDetail::typeLabel((int) $row->transaction_type) }}
                                 </span>
                             </td>
-                            <td class="whitespace-nowrap px-3 py-2">
+                            <td class="whitespace-nowrap px-3 py-2" data-copy-col="invoice">
                                 <a href="{{ route('transactions.show', $row->transaction_id) }}" class="font-mono text-blue-600 hover:underline">
                                     {{ $transaction?->invoice ?? '—' }}
                                 </a>
                             </td>
-                            <td class="whitespace-nowrap px-3 py-2">
+                            <td class="whitespace-nowrap px-3 py-2" data-copy-col="item_id">
                                 <a href="{{ $itemUrl }}" class="font-mono text-blue-600 hover:underline">{{ $row->item_id }}</a>
                             </td>
-                            <td class="whitespace-nowrap px-3 py-2">
+                            <td class="whitespace-nowrap px-3 py-2" data-copy-col="item_code">
                                 @if($row->item?->code)
                                     <a href="{{ $itemUrl }}" class="font-mono text-blue-600 hover:underline">{{ $row->item->code }}</a>
                                 @else
                                     <span class="text-gray-400">—</span>
                                 @endif
                             </td>
-                            <td class="whitespace-nowrap px-3 py-2 text-right font-mono">{{ format_amount($row->quantity) }}</td>
-                            <td class="whitespace-nowrap px-3 py-2 text-right font-mono">{{ format_amount($row->discount) }}%</td>
-                            <td class="whitespace-nowrap px-3 py-2 text-right font-mono">{{ format_currency($row->total) }}</td>
-                            <td class="whitespace-nowrap px-3 py-2 text-right font-mono" x-show="showTxAdjustment">
+                            <td class="whitespace-nowrap px-3 py-2 text-right font-mono" data-copy-col="qty" data-copy-value="{{ format_copy_number($row->quantity) }}">{{ format_amount($row->quantity) }}</td>
+                            <td class="whitespace-nowrap px-3 py-2 text-right font-mono" data-copy-col="item_discount" data-copy-value="{{ format_copy_number($row->discount) }}">{{ format_amount($row->discount) }}%</td>
+                            <td class="whitespace-nowrap px-3 py-2 text-right font-mono" data-copy-col="subtotal" data-copy-value="{{ format_copy_number($row->total) }}">{{ format_currency($row->total) }}</td>
+                            <td class="whitespace-nowrap px-3 py-2 text-right font-mono" data-copy-col="adjustment" data-copy-value="{{ $isFirstLineForTransaction ? format_copy_number($transaction?->adjustment ?? 0) : '' }}" x-show="showTxAdjustment">
                                 @if($isFirstLineForTransaction)
                                     <span class="{{ ($transaction?->adjustment ?? 0) < 0 ? 'text-red-600' : (($transaction?->adjustment ?? 0) > 0 ? 'text-green-600' : 'text-gray-700') }}">
                                         {{ format_currency($transaction?->adjustment ?? 0) }}
@@ -107,35 +118,35 @@
                                     <span class="text-gray-400">—</span>
                                 @endif
                             </td>
-                            <td class="whitespace-nowrap px-3 py-2 text-right font-mono" x-show="showTxDiscount">
+                            <td class="whitespace-nowrap px-3 py-2 text-right font-mono" data-copy-col="discount" data-copy-value="{{ $isFirstLineForTransaction ? format_copy_number($transaction?->discount ?? 0) : '' }}" x-show="showTxDiscount">
                                 @if($isFirstLineForTransaction)
                                     {{ format_amount($transaction?->discount ?? 0) }}%
                                 @else
                                     <span class="text-gray-400">—</span>
                                 @endif
                             </td>
-                            <td class="whitespace-nowrap px-3 py-2 text-right font-mono" x-show="showTxTotal">
+                            <td class="whitespace-nowrap px-3 py-2 text-right font-mono" data-copy-col="total" data-copy-value="{{ $isFirstLineForTransaction ? format_copy_number($transaction?->total ?? 0) : '' }}" x-show="showTxTotal">
                                 @if($isFirstLineForTransaction)
                                     {{ format_currency($transaction?->total ?? 0) }}
                                 @else
                                     <span class="text-gray-400">—</span>
                                 @endif
                             </td>
-                            <td class="max-w-[220px] px-3 py-2 text-gray-700" x-show="showTxDescription" @if($isFirstLineForTransaction && $txDescription !== '') title="{{ $txDescription }}" @endif>
+                            <td class="max-w-[220px] px-3 py-2 text-gray-700" data-copy-col="description" x-show="showTxDescription" @if($isFirstLineForTransaction && $txDescription !== '') title="{{ $txDescription }}" @endif>
                                 @if($isFirstLineForTransaction)
                                     <span class="line-clamp-2">{{ $txDescription !== '' ? $txDescription : '—' }}</span>
                                 @else
                                     <span class="text-gray-400">—</span>
                                 @endif
                             </td>
-                            <td class="px-3 py-2">
+                            <td class="px-3 py-2" data-copy-col="sender">
                                 @if($senderUrl && $sender)
                                     <a href="{{ $senderUrl }}" class="text-blue-600 hover:underline">{{ $sender->name }}</a>
                                 @else
                                     <span class="text-gray-400">—</span>
                                 @endif
                             </td>
-                            <td class="px-3 py-2">
+                            <td class="px-3 py-2" data-copy-col="receiver">
                                 @if($receiverUrl && $receiver)
                                     <a href="{{ $receiverUrl }}" class="text-blue-600 hover:underline">{{ $receiver->name }}</a>
                                 @else
@@ -179,6 +190,8 @@
             showTxDiscount: typeof saved.showTxDiscount === 'boolean' ? saved.showTxDiscount : defaults.showTxDiscount,
             showTxTotal: typeof saved.showTxTotal === 'boolean' ? saved.showTxTotal : defaults.showTxTotal,
             showTxDescription: typeof saved.showTxDescription === 'boolean' ? saved.showTxDescription : defaults.showTxDescription,
+            copyFeedback: false,
+            copyFeedbackTimer: null,
             exportUrl: baseExportUrl,
             init() {
                 this.updateExportUrl();
@@ -238,6 +251,26 @@
 
                 const query = params.toString();
                 this.exportUrl = query ? `${baseExportUrl}?${query}` : baseExportUrl;
+            },
+            showCopyFeedback() {
+                this.copyFeedback = true;
+                clearTimeout(this.copyFeedbackTimer);
+                this.copyFeedbackTimer = setTimeout(() => {
+                    this.copyFeedback = false;
+                }, 2000);
+            },
+            isCopyColumnVisible(col) {
+                if (col === 'adjustment') return this.showTxAdjustment;
+                if (col === 'discount') return this.showTxDiscount;
+                if (col === 'total') return this.showTxTotal;
+                if (col === 'description') return this.showTxDescription;
+
+                return true;
+            },
+            async copyRowsTable() {
+                if (await ariaCopyTable(this.$refs.exportSellTable, (col) => this.isCopyColumnVisible(col))) {
+                    this.showCopyFeedback();
+                }
             },
         };
     }

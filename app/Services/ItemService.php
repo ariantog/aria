@@ -8,8 +8,12 @@ use App\Models\Item;
 use App\Models\ItemGroup;
 use App\Models\Tag;
 use App\Services\Items\ItemIdentityBuilder;
+use App\Support\ItemCatalog;
+use App\Support\ItemPricing;
 use Exception;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
@@ -30,6 +34,13 @@ class ItemService
 
         return DB::transaction(function () use ($id, $input, $tags, $file, $inputType) {
             $item = Item::with(['group', 'tags'])->findOrFail($id);
+            $sourceGroupId = (int) $item->group_id;
+            $siblings = $sourceGroupId > 0
+                ? Item::with('tags')
+                    ->where('group_id', $sourceGroupId)
+                    ->where('id', '!=', $item->id)
+                    ->get()
+                : collect();
             $pcode = $this->resolvePcodeForUpdate($item, $inputType, $input);
 
             try {
@@ -74,15 +85,7 @@ class ItemService
 
             $pcode = strtoupper(trim((string) $input->pcode));
             $groupName = $this->groupNameFromInput($input, $inputType, $pcode, $item->group, $item);
-            $variant = $this->identityBuilder->groupVariant($inputType, $pcode, $warnaTag);
-            $storedName = $this->identityBuilder->storedGroupName($inputType, $groupName, $pcode, $variant);
-            $storedName = $this->ensureUniqueStoredGroupName(
-                $storedName,
-                $this->identityBuilder->parsePcode($inputType, $pcode)['master'],
-                $variant,
-            );
-            $nameChanged = strtoupper(trim((string) ($item->group?->name ?? ''))) !== strtoupper($storedName);
-            $group = $this->resolveGroup($inputType, $pcode, $groupName, $warnaTag, $input);
+            $group = $this->resolveGroup($inputType, $pcode, $groupName, $warnaTag, $input, $item);
 
             $this->applyItemIdentity(
                 $item,
@@ -103,15 +106,177 @@ class ItemService
             $item->save();
             $item->tags()->sync($tagIds);
 
-            if ($nameChanged) {
-                $this->syncItemNamesForGroup($group->fresh());
+            $this->persistGroupCatalogAttributes($group, $item, $input, $typeTag);
+            $this->persistItemLocalAttributes($item, $input);
+            $this->persistItemPricing($item, $input, defaultColorwayScope: false);
+            $item->save();
+
+            foreach ($siblings as $sibling) {
+                $this->applySharedUpdateToSibling(
+                    $sibling,
+                    $input,
+                    $inputType,
+                    $pcode,
+                    $group,
+                    $typeTag,
+                    $warnaTag,
+                    $tags,
+                    $typeId,
+                    $warnaId ?: null,
+                    $groupName,
+                );
             }
+
+            $this->syncItemNamesForGroup($group->fresh());
 
             if ($file) {
                 $this->imageService->saveImage($group, $file);
             }
 
             return $item->fresh(['group', 'tags']);
+        });
+    }
+
+    /**
+     * Update shared catalog fields on one colorway and per-SKU price / cost / restock threshold.
+     *
+     * Identity fields (pcode, tags, SKU code) are read-only on this path.
+     *
+     * @param  list<array{id: int, price?: mixed, cost?: mixed, restock_urgent_threshold?: mixed}>  $itemRows
+     *
+     * @throws Exception
+     */
+    public function updateColorway(
+        ItemGroup $group,
+        object $input,
+        array $itemRows,
+        ?UploadedFile $file = null,
+    ): ItemGroup {
+        return DB::transaction(function () use ($group, $input, $itemRows, $file) {
+            $items = Item::with('tags')->where('group_id', $group->id)->get();
+            $sample = $items->first();
+
+            if (! $sample) {
+                throw new Exception('Colorway has no items.');
+            }
+
+            $itemType = $this->resolveItemType($sample->type);
+            $pcode = strtoupper(trim((string) $sample->pcode));
+            $typeTag = $sample->tags->firstWhere('type', Tag::TYPE_TYPE);
+
+            $groupName = $this->groupNameFromInput($input, $itemType, $pcode, $group, $sample);
+            $storedName = $this->identityBuilder->uniqueStoredGroupName(
+                $this->identityBuilder->storedGroupName(
+                    $itemType,
+                    $groupName,
+                    $pcode,
+                    (string) ($group->variant ?? ''),
+                ),
+                (string) ($group->master ?? ''),
+                (string) ($group->variant ?? ''),
+            );
+
+            $group->name = $storedName;
+
+            $catalogAttributes = [
+                'brand' => isset($input->brand)
+                    ? ItemBrand::tryFrom((int) $input->brand) ?? ItemBrand::fromPcode($pcode)
+                    : ($group->brand ?? ItemBrand::fromPcode($pcode)),
+                'genre' => isset($input->genre)
+                    ? (int) $input->genre
+                    : (int) ($group->genre ?? ($typeTag?->id ?? 0)),
+            ];
+
+            if (isset($input->description)) {
+                $catalogAttributes['description'] = $input->description;
+            }
+
+            if (isset($input->description2)) {
+                $catalogAttributes['description2'] = $input->description2;
+            }
+
+            if (isset($input->url)) {
+                $catalogAttributes['url'] = $this->normalizeUrl($input->url);
+            }
+
+            ItemCatalog::applyToGroup($group, $catalogAttributes);
+
+            $mirror = [
+                'brand' => $catalogAttributes['brand'],
+                'genre' => $catalogAttributes['genre'],
+            ];
+
+            foreach ($items as $item) {
+                ItemCatalog::mirrorToItem($item, $mirror);
+                $item->save();
+            }
+
+            $this->syncItemNamesForGroup($group->fresh());
+
+            $itemsById = $items->keyBy('id');
+
+            foreach ($itemRows as $row) {
+                $itemId = (int) ($row['id'] ?? 0);
+                $item = $itemsById->get($itemId);
+
+                if (! $item) {
+                    continue;
+                }
+
+                if (array_key_exists('restock_urgent_threshold', $row)) {
+                    $item->restock_urgent_threshold = $this->normalizeRestockUrgentThreshold(
+                        $row['restock_urgent_threshold']
+                    );
+                    $item->save();
+                }
+
+                if (array_key_exists('price', $row)) {
+                    ItemPricing::apply($item, 'price', ItemPricing::SCOPE_SIZE, max(0, (float) ($row['price'] ?? 0)));
+                }
+
+                if (array_key_exists('cost', $row)) {
+                    ItemPricing::apply($item, 'cost', ItemPricing::SCOPE_SIZE, max(0, (float) ($row['cost'] ?? 0)));
+                }
+
+                if (array_key_exists('cost_cnh', $row)) {
+                    ItemPricing::apply($item, 'cost_cnh', ItemPricing::SCOPE_SIZE, max(0, (float) ($row['cost_cnh'] ?? 0)));
+                }
+
+                if (isset($row['pricing']) && is_array($row['pricing'])) {
+                    $pricingRows = [];
+                    foreach ($row['pricing'] as $field => $pricingRow) {
+                        if (! is_array($pricingRow)) {
+                            continue;
+                        }
+
+                        $scope = (string) ($pricingRow['scope'] ?? ItemPricing::SCOPE_SIZE);
+                        $value = max(0, (float) ($pricingRow['value'] ?? 0));
+
+                        if ($scope !== ItemPricing::SCOPE_SIZE && $value <= 0) {
+                            continue;
+                        }
+
+                        $pricingRows[$field] = [
+                            'scope' => $scope,
+                            'value' => $value,
+                        ];
+                    }
+
+                    if ($pricingRows !== []) {
+                        ItemPricing::applyFormRows($item, $pricingRows);
+                    }
+                }
+            }
+
+            if (isset($input->pricing) && is_array($input->pricing) && $items->isNotEmpty()) {
+                ItemPricing::applyFormRows($items->first(), $input->pricing);
+            }
+
+            if ($file) {
+                $this->imageService->saveImage($group, $file);
+            }
+
+            return $group->fresh();
         });
     }
 
@@ -131,14 +296,19 @@ class ItemService
             $itemType = $sampleItem
                 ? $this->resolveItemType($sampleItem->getAttributes()['type'] ?? $sampleItem->type)
                 : ItemType::ITEM;
-            $storedName = $this->identityBuilder->storedGroupName(
+            $productName = $this->identityBuilder->productDisplayName(
                 $itemType,
                 $productName,
-                (string) ($sampleItem?->pcode ?? ''),
                 (string) ($group->variant ?? ''),
+                (string) ($group->master ?? ''),
             );
-            $storedName = $this->ensureUniqueStoredGroupName(
-                $storedName,
+            $storedName = $this->identityBuilder->uniqueStoredGroupName(
+                $this->identityBuilder->storedGroupName(
+                    $itemType,
+                    $productName,
+                    (string) ($sampleItem?->pcode ?? ''),
+                    (string) ($group->variant ?? ''),
+                ),
                 (string) ($group->master ?? ''),
                 (string) ($group->variant ?? ''),
             );
@@ -166,6 +336,21 @@ class ItemService
 
         $tags = $this->sortTags($tags, $inputType);
         $pcode = strtoupper(trim((string) $input->pcode));
+
+        if ($inputType === ItemType::ASSET_LANCAR && ! empty($tags['types'])) {
+            $typeTag = Tag::find((int) $tags['types'][0]);
+            $submittedPcode = $pcode;
+            $pcodeAlreadyExists = Item::query()
+                ->where('type', ItemType::ASSET_LANCAR)
+                ->whereRaw('UPPER(TRIM(pcode)) = ?', [$submittedPcode])
+                ->exists();
+
+            if (! $pcodeAlreadyExists) {
+                $pcode = $this->identityBuilder->applyAssetTypePrefixToPcode($pcode, $typeTag);
+                $input->pcode = $pcode;
+            }
+        }
+
         $groupName = $this->groupNameFromInput($input, $inputType, $pcode);
 
         if ($inputType === ItemType::ITEM && count($tags['warna']) !== 1) {
@@ -182,6 +367,7 @@ class ItemService
 
         return DB::transaction(function () use ($input, $tags, $file, $inputType, $groupName, $pcode) {
             $totalCreated = 0;
+            $pricedGroupIds = [];
             $firstItemWithImage = null;
             $warnaIds = $tags['warna'];
             $typeLoops = ! empty($tags['types']) ? $tags['types'] : [0];
@@ -214,6 +400,15 @@ class ItemService
                             $warnaId ? (int) $warnaId : null,
                             $groupName,
                         );
+
+                        if (! in_array($group->id, $pricedGroupIds, true)) {
+                            $this->persistItemPricing($item, $input, defaultColorwayScope: true);
+                            $pricedGroupIds[] = $group->id;
+                        }
+
+                        $this->applySkuOverrides($item, $input);
+
+                        $this->persistGroupCatalogAttributes($group, $item, $input, $typeTag);
 
                         if ($file) {
                             if (! $firstItemWithImage) {
@@ -293,29 +488,34 @@ class ItemService
             throw new Exception("SKU already exists: {$code}");
         }
 
-        if ($isUpdate && $itemType === ItemType::ITEM) {
+        if ($isUpdate) {
             $this->preserveLegacyCode($item, $code);
         }
 
-        $displayName = $productName ?? $this->identityBuilder->productDisplayName(
+        $displayName = $this->identityBuilder->productDisplayName(
             $itemType,
-            (string) $group->name,
+            $productName ?? (string) $group->name,
             (string) ($group->variant ?? ''),
+            (string) ($group->master ?? ''),
         );
 
         $item->pcode = $pcode;
         $item->code = $code;
         $item->name = $this->identityBuilder->buildName($displayName, $warnaTag, $sizeTag);
-        $item->price = $input->price ?? $item->price ?? 0;
-        $item->cost = $input->cost ?? $item->cost ?? 0;
-        $item->description = $input->description ?? $item->description ?? '';
-        $item->description2 = $input->description2 ?? $item->description2 ?? '';
+        if (! $isUpdate) {
+            $item->price = 0;
+            $item->cost = 0;
+            $item->cost_cnh = 0;
+        }
         $item->restock_urgent_threshold = $this->normalizeRestockUrgentThreshold(
             $input->restock_urgent_threshold ?? $item->restock_urgent_threshold
         );
         $item->size = $sizeTag?->id ?? 0;
-        $item->genre = $typeTag?->id ?? 0;
-        $item->brand = $this->resolveBrand($pcode);
+        $mirror = [
+            'brand' => ItemBrand::fromPcode($pcode),
+            'genre' => $typeTag?->id ?? 0,
+        ];
+        ItemCatalog::mirrorToItem($item, $mirror);
     }
 
     protected function resolveGroup(
@@ -324,24 +524,39 @@ class ItemService
         string $groupName,
         ?Tag $warnaTag,
         object $input,
+        ?Item $sourceItem = null,
     ): ItemGroup {
-        $parsed = $this->identityBuilder->parsePcode($type, $pcode);
+        $pcode = $type === ItemType::ITEM
+            ? $this->identityBuilder->normalizeManufacturedPcode($pcode)
+            : strtoupper(trim($pcode));
+        $groupMaster = $this->identityBuilder->groupMaster($type, $pcode);
         $variant = $this->identityBuilder->groupVariant($type, $pcode, $warnaTag);
-        $storedName = $this->identityBuilder->storedGroupName($type, $groupName, $pcode, $variant);
-        $storedName = $this->ensureUniqueStoredGroupName($storedName, $parsed['master'], $variant);
-
-        $group = ItemGroup::firstOrCreate(
-            [
-                'master' => $parsed['master'],
-                'variant' => $variant,
-            ],
-            [
-                'name' => $storedName,
-                'description' => isset($input->description) ? strtoupper($input->description) : null,
-                'description2' => isset($input->description2) ? strtoupper($input->description2) : null,
-                'url' => $this->normalizeUrl($input->url ?? null),
-            ],
+        $storedName = $this->identityBuilder->uniqueStoredGroupName(
+            $this->identityBuilder->storedGroupName($type, $groupName, $pcode, $variant),
+            $groupMaster,
+            $variant,
         );
+
+        $group = $this->identityBuilder->findCanonicalGroup($groupMaster, $variant)
+            ?? $this->reuseLeftoverColorwayGroup($sourceItem, $pcode, $groupMaster, $variant);
+
+        if ($group) {
+            $group->master = $groupMaster;
+            $group->variant = $variant;
+        } else {
+            $group = ItemGroup::firstOrCreate(
+                [
+                    'master' => $groupMaster,
+                    'variant' => $variant,
+                ],
+                [
+                    'name' => $storedName,
+                    'description' => isset($input->description) ? strtoupper($input->description) : null,
+                    'description2' => isset($input->description2) ? strtoupper($input->description2) : null,
+                    'url' => $this->normalizeUrl($input->url ?? null),
+                ],
+            );
+        }
 
         if (strtoupper(trim((string) $group->name)) !== strtoupper($storedName)) {
             $group->name = $storedName;
@@ -364,20 +579,45 @@ class ItemService
         return $group;
     }
 
-    protected function ensureUniqueStoredGroupName(string $storedName, string $master, string $variant): string
-    {
-        $existing = ItemGroup::query()->where('name', $storedName)->first();
+    /**
+     * Leftover colorways stored the slash pcode on item_group.master or name
+     * (CX00122/03). Reuse that row when saving the hyphenated pcode so SKUs
+     * stay on the same group instead of disappearing from the parent page.
+     */
+    protected function reuseLeftoverColorwayGroup(
+        ?Item $sourceItem,
+        string $pcode,
+        string $groupMaster,
+        string $variant,
+    ): ?ItemGroup {
+        $group = $sourceItem?->group;
 
-        if (! $existing) {
-            return $storedName;
+        if (! $group) {
+            return null;
         }
 
-        if (strtoupper((string) $existing->master) === strtoupper($master)
-            && strtoupper((string) $existing->variant) === strtoupper($variant)) {
-            return $storedName;
+        $normalizedMaster = $this->identityBuilder->normalizeManufacturedPcode((string) ($group->master ?? ''));
+        $normalizedName = $this->identityBuilder->normalizeManufacturedPcode((string) ($group->name ?? ''));
+        $normalizedItemPcode = $this->identityBuilder->normalizeManufacturedPcode((string) ($sourceItem->pcode ?? ''));
+        $productionMaster = $this->identityBuilder->canonicalManufacturedMaster($groupMaster);
+
+        if ($normalizedMaster === $pcode || $normalizedName === $pcode) {
+            return $group;
         }
 
-        return strtoupper(trim("{$storedName} ({$master}/{$variant})"));
+        if ($normalizedItemPcode === $pcode && (
+            $normalizedMaster === ''
+            || $normalizedMaster === $groupMaster
+            || ($productionMaster !== null && $this->identityBuilder->canonicalManufacturedMaster((string) ($group->master ?? '')) === $productionMaster)
+        )) {
+            $groupVariant = strtoupper(trim((string) ($group->variant ?? '')));
+
+            if ($groupVariant === '' || $groupVariant === $variant || $this->identityBuilder->normalizeManufacturedPcode($groupVariant) === $pcode) {
+                return $group;
+            }
+        }
+
+        return null;
     }
 
     protected function groupNameFromInput(
@@ -389,8 +629,23 @@ class ItemService
     ): string {
         $name = trim((string) ($input->product_name ?? $input->alias ?? $input->name ?? ''));
 
-        if ($name !== '') {
-            return $name;
+        if ($name !== '' && ! $this->isPcodeLikeProductName($name, $pcode, $item)) {
+            return $this->identityBuilder->productDisplayName(
+                $type,
+                $name,
+                (string) ($existing?->variant ?? ''),
+                (string) ($existing?->master ?? ''),
+            );
+        }
+
+        // Create: inherit a custom title already stored for this pcode.
+        // Update: an empty / pcode-like name means group.name tracks pcode.
+        if ($item === null) {
+            $fromPcode = $this->productNameForPcode($type, $pcode);
+
+            if ($fromPcode !== null && ! $this->isPcodeLikeProductName($fromPcode, $pcode, null)) {
+                return $fromPcode;
+            }
         }
 
         if ($type === ItemType::ITEM) {
@@ -400,14 +655,19 @@ class ItemService
         $fallback = trim((string) ($existing?->name ?? ''));
 
         if ($fallback !== '') {
-            return $fallback;
+            return $this->identityBuilder->productDisplayName(
+                $type,
+                $fallback,
+                (string) ($existing?->variant ?? ''),
+                (string) ($existing?->master ?? ''),
+            );
         }
 
         if ($item !== null) {
             $derived = $this->deriveLegacyAssetProductName($item);
 
             if ($derived !== '') {
-                return $derived;
+                return $this->identityBuilder->productDisplayName($type, $derived, '', '');
             }
         }
 
@@ -415,8 +675,359 @@ class ItemService
     }
 
     /**
-     * Snapshot the pre-identity SKU for Jubelio before code changes on manufactured items.
-     * Never overwrites an existing legacy_code.
+     * Bare product title already stored for this pcode, if any.
+     */
+    public function productNameForPcode(ItemType $type, string $pcode): ?string
+    {
+        return $this->catalogHintsForPcode($type, $pcode)['product_name'] ?? null;
+    }
+
+    /**
+     * Shared colorway catalog hints from an existing pcode (title + group details).
+     *
+     * @return array{
+     *     product_name: ?string,
+     *     description: string,
+     *     description2: string,
+     *     url: string,
+     *     reseller_price: float,
+     * }|null
+     */
+    public function catalogHintsForPcode(ItemType $type, string $pcode, ?string $typeCode = null): ?array
+    {
+        $pcode = strtoupper(trim($pcode));
+
+        if ($pcode === '') {
+            return null;
+        }
+
+        $normalizedPcode = $type === ItemType::ITEM
+            ? $this->identityBuilder->normalizeManufacturedPcode($pcode)
+            : $pcode;
+
+        $item = Item::query()
+            ->where('type', $type)
+            ->where(function (Builder $query) use ($pcode, $normalizedPcode, $type) {
+                $query->whereRaw('UPPER(TRIM(pcode)) = ?', [$pcode]);
+
+                if ($type === ItemType::ITEM && $normalizedPcode !== $pcode) {
+                    $query->orWhereRaw('UPPER(REPLACE(TRIM(pcode), "/", "-")) = ?', [$normalizedPcode]);
+                }
+            })
+            ->with(['group', 'tags'])
+            ->orderByDesc('id')
+            ->first();
+
+        $catalog = $item !== null
+            ? $this->catalogHintsFromItem($type, $pcode, $item)
+            : null;
+
+        if ($type === ItemType::ITEM) {
+            $resolvedTypeCode = $this->normalizeManufacturedTypeCodeHint($typeCode)
+                ?? ($item !== null ? $this->identityBuilder->manufacturedTypeCode($item) : null);
+
+            $catalogProductName = $catalog['product_name'] ?? null;
+            $needsParent = $catalog === null
+                || $catalogProductName === null
+                || $this->isPcodeLikeProductName((string) $catalogProductName, $normalizedPcode, $item);
+
+            if ($needsParent) {
+                $parent = $this->manufacturedParentCatalogHints($normalizedPcode, $resolvedTypeCode);
+
+                if ($parent !== null) {
+                    if ($catalog !== null
+                        && $catalogProductName !== null
+                        && $this->isPcodeLikeProductName((string) $catalogProductName, $normalizedPcode, $item)) {
+                        $catalog['product_name'] = null;
+                    }
+
+                    $catalog = $catalog === null
+                        ? $parent
+                        : $this->mergeCatalogHints($catalog, $parent);
+                }
+            }
+        }
+
+        return $catalog;
+    }
+
+    public function productNameIsPcodePlaceholder(ItemType $type, string $name, string $pcode, ?Item $item = null): bool
+    {
+        if ($type === ItemType::ITEM) {
+            $pcode = $this->identityBuilder->normalizeManufacturedPcode($pcode);
+        }
+
+        return $this->isPcodeLikeProductName($name, $pcode, $item);
+    }
+
+    /**
+     * @return array{
+     *     product_name: ?string,
+     *     description: string,
+     *     description2: string,
+     *     url: string,
+     *     reseller_price: float,
+     * }
+     */
+    protected function catalogHintsFromItem(ItemType $type, string $pcode, Item $item): array
+    {
+        $productName = null;
+
+        if ($item->group) {
+            $fromGroup = $this->identityBuilder->productDisplayName(
+                $type,
+                (string) $item->group->name,
+                (string) ($item->group->variant ?? ''),
+                (string) ($item->group->master ?? ''),
+            );
+
+            if ($fromGroup !== '' && $fromGroup !== $pcode) {
+                $productName = $fromGroup;
+            }
+        }
+
+        if ($productName === null) {
+            $fromItem = $type === ItemType::ASSET_LANCAR
+                ? $this->deriveLegacyAssetProductName($item)
+                : strtoupper(trim(explode(' - ', (string) $item->name, 2)[0]));
+
+            if ($fromItem !== '' && $fromItem !== $pcode) {
+                $productName = $this->identityBuilder->productDisplayName($type, $fromItem, '', '');
+            }
+        }
+
+        if ($type === ItemType::ITEM
+            && $productName !== null
+            && $this->isPcodeLikeProductName($productName, $pcode, $item)) {
+            $productName = null;
+        }
+
+        $group = $item->group;
+
+        return [
+            'product_name' => $productName,
+            'description' => $group
+                ? trim((string) ($group->description ?? ''))
+                : ItemCatalog::description($item),
+            'description2' => $group
+                ? trim((string) ($group->description2 ?? ''))
+                : ItemCatalog::description2($item),
+            'url' => $group
+                ? trim((string) ($group->url ?? ''))
+                : '',
+            'reseller_price' => (float) ($group?->reseller_price ?? $item->reseller_price ?? 0),
+        ];
+    }
+
+    /**
+     * @param  array{
+     *     product_name: ?string,
+     *     description: string,
+     *     description2: string,
+     *     url: string,
+     *     reseller_price: float,
+     * }  $primary
+     * @param  array{
+     *     product_name: ?string,
+     *     description: string,
+     *     description2: string,
+     *     url: string,
+     *     reseller_price: float,
+     * }  $fallback
+     * @return array{
+     *     product_name: ?string,
+     *     description: string,
+     *     description2: string,
+     *     url: string,
+     *     reseller_price: float,
+     * }
+     */
+    protected function mergeCatalogHints(array $primary, array $fallback): array
+    {
+        if (($primary['product_name'] ?? null) === null && ($fallback['product_name'] ?? null) !== null) {
+            $primary['product_name'] = $fallback['product_name'];
+        }
+
+        foreach (['description', 'description2', 'url'] as $field) {
+            if (trim((string) ($primary[$field] ?? '')) === '' && trim((string) ($fallback[$field] ?? '')) !== '') {
+                $primary[$field] = $fallback[$field];
+            }
+        }
+
+        if ((float) ($primary['reseller_price'] ?? 0) === 0.0 && (float) ($fallback['reseller_price'] ?? 0) !== 0.0) {
+            $primary['reseller_price'] = $fallback['reseller_price'];
+        }
+
+        return $primary;
+    }
+
+    protected function normalizeManufacturedTypeCodeHint(?string $typeCode): ?string
+    {
+        $typeCode = strtoupper(trim((string) $typeCode));
+
+        if ($typeCode === '' || $typeCode === '???' || $typeCode === 'UNK') {
+            return null;
+        }
+
+        return $typeCode;
+    }
+
+    /**
+     * Product title and shared catalog from sibling colorways under the same production master (e.g. CX00122).
+     *
+     * @return array{
+     *     product_name: ?string,
+     *     description: string,
+     *     description2: string,
+     *     url: string,
+     *     reseller_price: float,
+     * }|null
+     */
+    protected function manufacturedParentCatalogHints(string $pcode, ?string $typeCode = null): ?array
+    {
+        $master = $this->identityBuilder->canonicalManufacturedMaster($pcode);
+
+        if ($master === null) {
+            return null;
+        }
+
+        $groups = collect();
+        $productName = null;
+        $typeScopes = $typeCode !== null ? [$typeCode, null] : [null];
+
+        foreach ($typeScopes as $scope) {
+            $groups = $this->manufacturedGroupsForParentMaster($master, $scope);
+
+            if ($groups->isEmpty()) {
+                continue;
+            }
+
+            $productName = $this->resolveManufacturedParentProductName($groups, $master, $pcode);
+
+            if ($productName !== null) {
+                break;
+            }
+        }
+
+        if ($groups->isEmpty()) {
+            return null;
+        }
+
+        $description = $this->firstNonEmptyGroupField($groups, 'description');
+        $description2 = $this->firstNonEmptyGroupField($groups, 'description2');
+        $url = $this->firstNonEmptyGroupField($groups, 'url');
+        $resellerPrice = (float) $groups
+            ->map(fn (ItemGroup $group) => (float) ($group->reseller_price ?? 0))
+            ->filter(fn (float $value) => $value !== 0.0)
+            ->first() ?? 0.0;
+
+        if ($productName === null
+            && $description === ''
+            && $description2 === ''
+            && $url === ''
+            && $resellerPrice === 0.0) {
+            return null;
+        }
+
+        return [
+            'product_name' => $productName,
+            'description' => $description,
+            'description2' => $description2,
+            'url' => $url,
+            'reseller_price' => $resellerPrice,
+        ];
+    }
+
+    /**
+     * @return Collection<int, ItemGroup>
+     */
+    protected function manufacturedGroupsForParentMaster(string $master, ?string $typeCode = null): Collection
+    {
+        $query = ItemGroup::query()
+            ->whereHas('items', fn (Builder $q) => $q
+                ->where('type', ItemType::ITEM)
+                ->whereNull('deleted_at'))
+            ->where(function (Builder $outer) use ($master) {
+                $outer->where(function (Builder $masterQuery) use ($master) {
+                    $masterQuery->whereRaw('UPPER(TRIM(item_group.master)) = ?', [$master])
+                        ->orWhereRaw("UPPER(REPLACE(TRIM(item_group.master), '/', '-')) = ?", [$master])
+                        ->orWhereRaw("UPPER(REPLACE(TRIM(item_group.master), '/', '-')) LIKE ?", [$master.'-%'])
+                        ->orWhereRaw("UPPER(REPLACE(TRIM(item_group.master), '/', '-')) LIKE ?", ['%-'.$master])
+                        ->orWhereRaw("UPPER(REPLACE(TRIM(item_group.master), '/', '-')) LIKE ?", ['%-'.$master.'-%']);
+                })->orWhereHas('items', function (Builder $itemQuery) use ($master) {
+                    $itemQuery->where('type', ItemType::ITEM)
+                        ->whereNull('deleted_at')
+                        ->where(function (Builder $pcodeQuery) use ($master) {
+                            $pcodeQuery->whereRaw('UPPER(REPLACE(TRIM(items.pcode), "/", "-")) LIKE ?', [$master.'-%'])
+                                ->orWhereRaw('UPPER(REPLACE(TRIM(items.pcode), "/", "-")) = ?', [$master]);
+                        });
+                });
+            });
+
+        if ($typeCode !== null) {
+            $query->whereHas('items', function (Builder $q) use ($typeCode) {
+                $q->where(function (Builder $inner) use ($typeCode) {
+                    $inner->whereHas('tags', fn (Builder $t) => $t
+                        ->where('tags.type', Tag::TYPE_TYPE)
+                        ->whereRaw('UPPER(tags.code) = ?', [$typeCode]))
+                        ->orWhereRaw('UPPER(items.code) LIKE ?', [$typeCode.'-%']);
+                });
+            });
+        }
+
+        return $query->get();
+    }
+
+    /**
+     * @param  Collection<int, ItemGroup>  $groups
+     */
+    protected function resolveManufacturedParentProductName(Collection $groups, string $master, string $pcode): ?string
+    {
+        $names = $groups
+            ->map(fn (ItemGroup $group) => trim((string) ($group->name ?? '')))
+            ->filter()
+            ->unique()
+            ->values();
+
+        $preferred = $names->first(
+            fn (string $name) => strtoupper($name) !== $master
+                && strtoupper($name) !== strtoupper($pcode)
+        );
+
+        $raw = $preferred ?? $names->first();
+
+        if ($raw === null || $raw === '') {
+            return null;
+        }
+
+        $display = $this->identityBuilder->productDisplayName(
+            ItemType::ITEM,
+            $raw,
+            '',
+            $master,
+        );
+
+        if ($display === '' || strtoupper($display) === $master || strtoupper($display) === strtoupper($pcode)) {
+            return null;
+        }
+
+        return $display;
+    }
+
+    /**
+     * @param  Collection<int, ItemGroup>  $groups
+     */
+    protected function firstNonEmptyGroupField(Collection $groups, string $field): string
+    {
+        return (string) $groups
+            ->map(fn (ItemGroup $group) => trim((string) ($group->{$field} ?? '')))
+            ->filter(fn (string $value) => $value !== '')
+            ->first() ?? '';
+    }
+
+    /**
+     * Snapshot the previous SKU for Jubelio before code changes on edit
+     * (manufactured items and asset lancar). Never overwrites an existing legacy_code.
      */
     protected function preserveLegacyCode(Item $item, string $newCode): void
     {
@@ -438,6 +1049,10 @@ class ItemService
     protected function resolvePcodeForUpdate(Item $item, ItemType $type, object $input): string
     {
         $pcode = strtoupper(trim((string) ($input->pcode ?? '')));
+
+        if ($type === ItemType::ITEM && $pcode !== '') {
+            $pcode = $this->identityBuilder->normalizeManufacturedPcode($pcode);
+        }
 
         if ($pcode !== '') {
             try {
@@ -486,6 +1101,7 @@ class ItemService
             $sampleType,
             (string) $group->name,
             (string) ($group->variant ?? ''),
+            (string) ($group->master ?? ''),
         );
 
         foreach ($items as $item) {
@@ -523,20 +1139,240 @@ class ItemService
         return $tagIds;
     }
 
-    protected function resolveBrand(string $pcode): ItemBrand
-    {
-        $brandStr = strtoupper(substr($pcode, 0, 2));
-        if ($brandStr === 'CX') {
-            $brandStr = strtoupper(substr($pcode, 0, 3));
+    protected function applySharedUpdateToSibling(
+        Item $sibling,
+        object $input,
+        ItemType $itemType,
+        string $pcode,
+        ItemGroup $group,
+        ?Tag $typeTag,
+        ?Tag $warnaTag,
+        array $tags,
+        int $typeId,
+        ?int $warnaId,
+        string $groupName,
+    ): void {
+        $sizeTag = $sibling->tags->firstWhere('type', Tag::TYPE_SIZE);
+        if (! $sizeTag && (int) $sibling->size > 0) {
+            $sizeTag = Tag::find((int) $sibling->size);
         }
 
-        foreach (ItemBrand::cases() as $brandCase) {
-            if ($brandCase->label() === $brandStr) {
-                return $brandCase;
+        $targetCode = $this->identityBuilder->buildCode($itemType, $pcode, $typeTag, $warnaTag, $sizeTag);
+
+        if (Item::query()->whereSku($targetCode)->where('id', '!=', $sibling->id)->exists()) {
+            return;
+        }
+
+        $siblingInput = clone $input;
+        $siblingInput->price = $sibling->price;
+        $siblingInput->cost = $sibling->cost;
+        $siblingInput->restock_urgent_threshold = $sibling->restock_urgent_threshold;
+
+        $sibling->group_id = $group->id;
+
+        $this->applyItemIdentity(
+            $sibling,
+            $itemType,
+            $pcode,
+            $group,
+            $typeTag,
+            $warnaTag,
+            $sizeTag,
+            $siblingInput,
+            isUpdate: true,
+            productName: $groupName,
+        );
+
+        $sizeId = (int) ($sizeTag?->id ?? 0);
+        $tagIds = $this->collectTagIds($tags, $typeId, $sizeId, $warnaId);
+        $sibling->tag_ids = implode(',', $tagIds);
+        $sibling->save();
+        $sibling->tags()->sync($tagIds);
+    }
+
+    protected function persistGroupCatalogAttributes(ItemGroup $group, Item $item, object $input, ?Tag $typeTag): void
+    {
+        $attributes = [
+            'brand' => $item->brand instanceof ItemBrand
+                ? $item->brand
+                : ItemBrand::fromPcode((string) $item->pcode),
+            'genre' => (int) ($typeTag?->id ?? $item->catalogGenre()),
+        ];
+
+        if (isset($input->description)) {
+            $attributes['description'] = $input->description;
+        }
+
+        if (isset($input->description2)) {
+            $attributes['description2'] = $input->description2;
+        }
+
+        if (isset($input->reseller_price)) {
+            $attributes['reseller_price'] = $input->reseller_price;
+        }
+
+        if (isset($input->url)) {
+            $attributes['url'] = $this->normalizeUrl($input->url);
+        }
+
+        ItemCatalog::applyToGroup($group, $attributes);
+    }
+
+    protected function persistItemPricing(Item $item, object $input, bool $defaultColorwayScope = false): void
+    {
+        if (isset($input->pricing) && is_array($input->pricing)) {
+            ItemPricing::applyFormRows($item, $input->pricing);
+
+            return;
+        }
+
+        $legacyRows = [];
+        $legacyScope = $defaultColorwayScope
+            ? ItemPricing::SCOPE_COLORWAY
+            : ItemPricing::SCOPE_SIZE;
+
+        foreach (ItemPricing::FIELDS as $field) {
+            if ($field === 'reseller_price' && ! $defaultColorwayScope) {
+                continue;
+            }
+
+            if (! property_exists($input, $field) && ! isset($input->{$field})) {
+                continue;
+            }
+
+            $value = max(0, (float) ($input->{$field} ?? 0));
+            if ($value <= 0) {
+                continue;
+            }
+
+            $legacyRows[$field] = [
+                'scope' => $legacyScope,
+                'value' => $value,
+            ];
+        }
+
+        if ($legacyRows !== []) {
+            ItemPricing::applyFormRows($item, $legacyRows);
+        }
+
+        if (! $defaultColorwayScope && (property_exists($input, 'item_reseller_price') || isset($input->item_reseller_price))) {
+            ItemPricing::apply(
+                $item,
+                'reseller_price',
+                ItemPricing::SCOPE_SIZE,
+                max(0, (float) ($input->item_reseller_price ?? 0)),
+            );
+        }
+    }
+
+    protected function persistItemLocalAttributes(Item $item, object $input): void
+    {
+        $attributes = [];
+
+        if (property_exists($input, 'item_description') || isset($input->item_description)) {
+            $attributes['description'] = strtoupper((string) ($input->item_description ?? ''));
+        }
+
+        if (property_exists($input, 'item_description2') || isset($input->item_description2)) {
+            $attributes['description2'] = strtoupper((string) ($input->item_description2 ?? ''));
+        }
+
+        if ($attributes === []) {
+            return;
+        }
+
+        ItemCatalog::mirrorToItem($item, $attributes);
+    }
+
+    protected function applySkuOverrides(Item $item, object $input): void
+    {
+        $overrides = $input->sku_overrides ?? null;
+        if (! is_array($overrides)) {
+            return;
+        }
+
+        $code = strtoupper(trim((string) $item->code));
+        $row = $overrides[$code] ?? null;
+        if (! is_array($row)) {
+            return;
+        }
+
+        $local = [];
+
+        $pricingRow = [];
+        foreach (ItemPricing::FIELDS as $field) {
+            if (! array_key_exists($field, $row) || $row[$field] === '' || $row[$field] === null) {
+                continue;
+            }
+
+            $pricingRow[$field] = [
+                'scope' => ItemPricing::SCOPE_SIZE,
+                'value' => max(0, (float) $row[$field]),
+            ];
+        }
+
+        if ($pricingRow !== []) {
+            ItemPricing::applyFormRows($item, $pricingRow);
+        }
+
+        if (array_key_exists('description', $row)) {
+            $local['description'] = strtoupper(trim((string) ($row['description'] ?? '')));
+        }
+
+        if (array_key_exists('description2', $row)) {
+            $local['description2'] = strtoupper(trim((string) ($row['description2'] ?? '')));
+        }
+
+        if (array_key_exists('restock_urgent_threshold', $row) && $row['restock_urgent_threshold'] !== '' && $row['restock_urgent_threshold'] !== null) {
+            $item->restock_urgent_threshold = $this->normalizeRestockUrgentThreshold($row['restock_urgent_threshold']);
+        }
+
+        if ($local !== []) {
+            ItemCatalog::mirrorToItem($item, $local);
+        }
+
+        $item->save();
+    }
+
+    /**
+     * Group name that is only the shared pcode (slash or hyphen form).
+     */
+    protected function isPcodeLikeProductName(string $name, string $pcode, ?Item $item): bool
+    {
+        $normalize = static fn (string $value): string => strtoupper(str_replace(['/', ' '], ['-', ''], trim($value)));
+        $nameNorm = $normalize($name);
+        $pcodeNorm = $normalize($pcode);
+
+        foreach (array_filter([$pcode, (string) ($item?->pcode ?? '')]) as $candidate) {
+            if ($nameNorm === $normalize((string) $candidate)) {
+                return true;
             }
         }
 
-        return ItemBrand::NO_BRAND;
+        $master = $this->identityBuilder->canonicalManufacturedMaster($pcodeNorm);
+
+        if ($master !== null && $nameNorm === $normalize($master)) {
+            return true;
+        }
+
+        foreach (array_filter([$pcodeNorm, $normalize((string) ($item?->pcode ?? ''))]) as $candidate) {
+            $candidateMaster = $this->identityBuilder->canonicalManufacturedMaster($candidate);
+
+            if ($candidateMaster !== null && $nameNorm === $normalize($candidateMaster)) {
+                return true;
+            }
+        }
+
+        return $this->isPlaceholderProductName(
+            $item?->type instanceof ItemType ? $item->type : ItemType::ITEM,
+            $name,
+            $pcodeNorm,
+        );
+    }
+
+    protected function resolveBrand(string $pcode): ItemBrand
+    {
+        return ItemBrand::fromPcode($pcode);
     }
 
     protected function sortTags(array $tags, ItemType $type): array

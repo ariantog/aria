@@ -109,7 +109,7 @@ $td = 'px-1.5 py-2 align-top';
                 <tbody class="divide-y divide-gray-100">
                     @forelse($orders as $order)
                     @php
-                        $summary = $order->payloadSummary();
+                        $summary = $order->list_summary ?? $order->payloadSummary();
                         $payloadDate = $summary['transaction_date'];
                     @endphp
                     <tr class="hover:bg-gray-50">
@@ -152,7 +152,7 @@ $td = 'px-1.5 py-2 align-top';
                                     <span class="font-medium text-gray-700">{{ $order->aria_warehouse ?: '—' }}</span>
                                     @if(!$order->aria_warehouse)
                                     <div class="mt-0.5 text-[10px] leading-tight text-amber-700" title="Cek mapping di Jubelio Sync">
-                                        @if(($order->payload_store_id ?? 0) > 0 && ($order->payload_location_id ?? 0) > 0)
+                                        @if(($order->payload_store_id ?? 0) > 0 && ($order->payload_location_id ?? 0) != 0)
                                             store {{ $order->payload_store_id }} / loc {{ $order->payload_location_id }} — belum di-sync
                                         @else
                                             store/loc kosong di payload Jubelio
@@ -178,9 +178,14 @@ $td = 'px-1.5 py-2 align-top';
                         </td>
                         <td class="{{ $td }}" data-testid="jubelio-orders-sync-status">
                             <div class="flex min-w-0 flex-col items-start gap-0.5">
-                                @include('jubelio.partials.sync-status-badge', ['status' => $order->status, 'errorType' => $order->error_type, 'executeBy' => $order->user->name ?? null])
+                                @include('jubelio.partials.sync-status-badge', ['status' => $order->status, 'errorType' => $order->error_type, 'executeBy' => $order->user->name ?? null, 'orderType' => $order->type])
                                 <form method="POST" action="{{ route('jubelio.refresh-payload', $order) }}" class="inline">
                                     @csrf
+                                    <input type="hidden" name="return_to_index" value="1">
+                                    <input type="hidden" name="return_status" value="{{ $filters['status'] ?? '' }}">
+                                    <input type="hidden" name="return_invoice" value="{{ $filters['invoice'] ?? '' }}">
+                                    <input type="hidden" name="return_warehouse_id" value="{{ $filters['warehouse_id'] ?? '' }}">
+                                    <input type="hidden" name="return_page" value="{{ $orders->currentPage() }}">
                                     <button type="submit"
                                             class="text-[10px] font-medium text-gray-500 hover:text-blue-600"
                                             title="Ambil ulang payload dari Jubelio API dan perbarui mapping gudang"
@@ -190,7 +195,7 @@ $td = 'px-1.5 py-2 align-top';
                                 </form>
                                 @if($order->hasStockError())
                                 @include('jubelio.partials.stock-error-items', ['stockErrorItems' => $order->stockErrorItemsList()])
-                                @elseif(((($order->status == 1 && $order->error_type == 1)) || ($order->status == 2 && $order->error_type == 2)) && $order->error)
+                                @elseif(\App\Services\Jubelio\JubelioOrderSyncStatus::shouldShowErrorLine($order))
                                 <p class="max-w-full truncate text-[10px] text-red-600" title="{{ $order->error }}">{{ $order->error }}</p>
                                 @endif
                             </div>

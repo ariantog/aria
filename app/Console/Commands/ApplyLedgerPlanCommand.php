@@ -8,6 +8,7 @@ use App\Models\ReportingEntity;
 use App\Models\ReportingTaxAccount;
 use App\Support\LedgerDuplicateMergePlan;
 use App\Support\OperationSimplificationPlan;
+use App\Support\ProductionLedgerCopy;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -15,16 +16,13 @@ class ApplyLedgerPlanCommand extends Command
 {
     protected $signature = 'reporting:apply-ledger-plan {--dry-run : Show changes without applying}';
 
-    protected $description = 'Rename ledgers and operations, merge maps, and soft-delete obsolete accounts per reporting plan';
+    protected $description = 'Rename/merge ledgers, fill descriptions, map reporting roles, and soft-delete obsolete accounts';
 
     public function handle(): int
     {
         $dry = $this->option('dry-run');
 
-        $softDelete = [
-            817, 1644, 2731, // Gaji Harian, Plotter, Pendapatan FitBox
-            2805, 2806, 2808, 2809, // PT Core tax ledgers (entity retired)
-        ];
+        $softDelete = ProductionLedgerCopy::softDeleteIds();
 
         if ($dry) {
             $this->info('Dry run — no changes applied.');
@@ -48,6 +46,16 @@ class ApplyLedgerPlanCommand extends Command
 
             $this->retirePtCoreEntity($dry);
             $this->applyOperationPlan($dry);
+
+            ProductionLedgerCopy::apply($dry, function (string $message): void {
+                $this->line($message);
+            });
+            ProductionLedgerCopy::applyRoles($dry, function (string $message): void {
+                $this->line($message);
+            });
+            ProductionLedgerCopy::applyTaxMaps($dry, function (string $message): void {
+                $this->line($message);
+            });
         });
 
         $this->info($dry ? 'Dry run complete.' : 'Ledger plan applied.');

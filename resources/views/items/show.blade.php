@@ -10,30 +10,80 @@ $breadcrumbs = [
     ['title' => 'Detail', 'href' => '#'],
 ];
 $warehouseItems = $activeWarehouseItems ?? collect();
+$virtualWarehouseItems = $virtualWarehouseItems ?? collect();
 $deletedWarehouseItems = $deletedWarehouseItems ?? collect();
 $activeStock = (float) ($activeStock ?? $warehouseItems->sum('quantity'));
+$virtualStock = (float) ($virtualStock ?? $virtualWarehouseItems->sum('quantity'));
 $deletedStock = (float) ($deletedStock ?? $deletedWarehouseItems->sum('quantity'));
+$canRecalculateQty = $canRecalculateQty ?? false;
+$recalculateQtyRoute = $isAsset ? route('assetlancar.recalculate-qty', $item) : route('items.recalculate-qty', $item);
+$storedQty = (float) $item->qty;
+$qtyOutOfSync = abs($storedQty - $activeStock) > 0.0001;
 $groupProductName = optional($item->group)->name ?? '-';
-$desc = optional($item->group)->description ?? ($item->description ?? '-');
-$nb = optional($item->group)->description2 ?? ($item->description2 ?? '-');
+$desc = $item->catalogDescription() !== '' ? $item->catalogDescription() : '-';
+$nb = $item->catalogDescription2() !== '' ? $item->catalogDescription2() : '-';
+$legacyCode = $item->distinctLegacyCode();
+$createPermission = $isAsset
+    ? \App\Models\Item::getPermissions()['asset-lancar-create']
+    : \App\Models\Item::getPermissions()['create'];
+$canDuplicate = \Illuminate\Support\Facades\Gate::check($createPermission);
+$canDelete = $canDelete ?? false;
+$canEditLegacyCode = $canEditLegacyCode ?? false;
+$destroyRoute = $isAsset ? route('assetlancar.destroy', $item) : route('items.destroy', $item);
+$legacyCodeUpdateRoute = $isAsset
+    ? route('assetlancar.update-legacy-code', $item)
+    : route('items.update-legacy-code', $item);
 @endphp
 
-<div class="p-4 sm:p-6" x-data="{ showZero: false, showDeletedWarehouses: false }">
+<div class="p-4 sm:p-6" x-data="{ showZero: false, showVirtualWarehouses: false, showDeletedWarehouses: false, legacyModalOpen: {{ $errors->has('legacy_code') ? 'true' : 'false' }} }">
     {{-- Header --}}
     <div class="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
             <h1 class="mb-1 text-2xl font-bold text-gray-900">Detail Item #{{ $item->code }}</h1>
             <p class="text-sm text-gray-500">Last updated {{ optional($item->updated_at)->format('d/m/Y H:i') ?? 'recently' }}</p>
         </div>
-        <div class="flex gap-3">
+        <div class="flex flex-wrap gap-3">
+            @if($canRecalculateQty)
+            <form method="POST" action="{{ $recalculateQtyRoute }}" class="inline">
+                @csrf
+                <button type="submit"
+                        id="recalculate-qty"
+                        data-testid="recalculate-qty"
+                        class="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    Recalculate qty
+                </button>
+            </form>
+            @endif
             <button type="button" onclick="window.print()" class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
                 Print Label
             </button>
+            @if($canDuplicate)
+            <a href="{{ route($isAsset ? 'assetlancar.duplicate' : 'items.duplicate', $item) }}"
+               data-testid="duplicate-sku"
+               class="inline-flex items-center gap-2 rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-900 hover:bg-blue-100">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                Duplicate SKU
+            </a>
+            @endif
             <a href="{{ $base }}/{{ $item->id }}/edit" class="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                 Edit Details
             </a>
+            @if($canDelete)
+            <form method="POST" action="{{ $destroyRoute }}" class="inline"
+                  onsubmit="return confirm('Archive this SKU? It will be hidden from lists and autocomplete, but past transactions and reports stay unchanged.');">
+                @csrf
+                @method('DELETE')
+                <button type="submit"
+                        data-testid="archive-item"
+                        class="inline-flex items-center gap-2 rounded-lg border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-medium text-rose-900 hover:bg-rose-100">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    Archive SKU
+                </button>
+            </form>
+            @endif
         </div>
     </div>
 
@@ -47,6 +97,37 @@ $nb = optional($item->group)->description2 ?? ($item->description2 ?? '-');
     @endif
 
     @include('items.partials.identity-convert', ['identityConvert' => $identityConvert ?? null])
+
+    @if($canEditLegacyCode)
+    <div x-show="legacyModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+         @keydown.window.escape="legacyModalOpen = false">
+        <div @click.away="legacyModalOpen = false" class="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+            <h3 class="text-lg font-semibold text-gray-900">Edit Legacy Code</h3>
+            <p class="mt-1 text-sm text-gray-500">Preserved pre-conversion SKU used by Jubelio order matching. Leave blank to clear.</p>
+            <form method="POST" action="{{ $legacyCodeUpdateRoute }}" class="mt-4 space-y-4">
+                @csrf
+                @method('PATCH')
+                <div>
+                    <label for="item-legacy-code-input" class="mb-1 block text-sm font-medium text-gray-700">Legacy code</label>
+                    <input type="text" id="item-legacy-code-input" name="legacy_code" maxlength="255"
+                           value="{{ old('legacy_code', $item->legacy_code) }}"
+                           data-testid="item-legacy-code-input"
+                           placeholder="Previous SKU before identity conversion"
+                           class="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                    @error('legacy_code')
+                        <p class="mt-2 text-sm text-rose-600">{{ $message }}</p>
+                    @enderror
+                </div>
+                <div class="flex justify-end gap-2">
+                    <button type="button" @click="legacyModalOpen = false"
+                            class="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
+                    <button type="submit" data-testid="item-legacy-code-save"
+                            class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    @endif
 
     <div class="grid grid-cols-1 gap-6 xl:grid-cols-12">
         {{-- Image --}}
@@ -78,6 +159,24 @@ $nb = optional($item->group)->description2 ?? ($item->description2 ?? '-');
                         <div>
                             <p class="mb-1 text-[10px] font-bold uppercase tracking-widest text-gray-500">SKU Reference</p>
                             <span class="inline-block rounded border border-blue-200 bg-blue-50 px-2 py-1 font-mono text-sm text-blue-600">{{ $item->code }}</span>
+                            @if($legacyCode || $canEditLegacyCode)
+                                <div class="mt-3">
+                                    <p class="mb-1 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                                        Legacy Code
+                                        @if($canEditLegacyCode)
+                                        <button type="button" @click="legacyModalOpen = true" data-testid="edit-item-legacy-code"
+                                                class="inline-flex items-center rounded border border-gray-300 bg-white px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-gray-600 hover:bg-gray-50">
+                                            Edit
+                                        </button>
+                                        @endif
+                                    </p>
+                                    @if($legacyCode)
+                                        <span data-testid="item-legacy-code" class="inline-block rounded border border-amber-200 bg-amber-50 px-2 py-1 font-mono text-sm text-amber-800">{{ $legacyCode }}</span>
+                                    @elseif($canEditLegacyCode)
+                                        <span class="text-sm text-gray-400">—</span>
+                                    @endif
+                                </div>
+                            @endif
                         </div>
                     </div>
 
@@ -95,7 +194,7 @@ $nb = optional($item->group)->description2 ?? ($item->description2 ?? '-');
                     <div class="grid grid-cols-1 gap-4 border-t border-gray-100 pt-4">
                         <div>
                             <p class="mb-1 text-[10px] font-bold uppercase tracking-tight text-gray-500">Description</p>
-                            <p class="text-xs leading-relaxed text-gray-600">{{ $desc }}</p>
+                            <p class="text-xs leading-relaxed text-gray-600" data-testid="item-catalog-description">{{ $desc }}</p>
                         </div>
                         <div>
                             <p class="mb-1 text-[10px] font-bold uppercase tracking-tight text-gray-500">NB</p>
@@ -118,8 +217,14 @@ $nb = optional($item->group)->description2 ?? ($item->description2 ?? '-');
                     <div class="grid grid-cols-1 gap-6 border-t border-gray-100 pt-4 md:grid-cols-2">
                         <div>
                             <p class="mb-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">Pricing</p>
-                            <p class="text-2xl font-black tracking-tight text-gray-900">Rp {{ format_amount($item->price, 0) }}</p>
-                            <p class="mt-1 text-[10px] text-gray-500">Base Cost: <span class="text-gray-700">Rp {{ format_amount($item->cost, 0) }}</span></p>
+                            <p class="text-2xl font-black tracking-tight text-gray-900">Rp {{ format_amount($item->effectivePrice(), 0) }}</p>
+                            <p class="mt-1 text-[10px] text-gray-500">Base Cost: <span class="text-gray-700">Rp {{ format_amount($item->effectiveCost(), 0) }}</span></p>
+                            @if($item->isAssetLancar() && (float) $item->effectiveCostCnh() > 0)
+                            <p class="mt-0.5 text-[10px] text-gray-500">Cost (CNY): <span class="text-gray-700">{{ format_amount($item->effectiveCostCnh(), 2) }}</span></p>
+                            @endif
+                            @if((float) $item->catalogResellerPrice() > 0)
+                            <p class="mt-0.5 text-[10px] text-gray-500">Reseller: <span class="text-gray-700">Rp {{ format_amount($item->catalogResellerPrice(), 0) }}</span></p>
+                            @endif
                         </div>
                         <div>
                             <p class="mb-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">Group &amp; Tags</p>
@@ -128,6 +233,9 @@ $nb = optional($item->group)->description2 ?? ($item->description2 ?? '-');
                                 <a href="{{ $groupUrl }}" class="rounded border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-100 hover:underline">{{ $item->group->name }}</a>
                                 @elseif($item->group)
                                 <span class="text-xs font-medium text-gray-700">{{ $item->group->name }}</span>
+                                @endif
+                                @if(!empty($colorwayEditUrl))
+                                <a href="{{ $colorwayEditUrl }}" class="rounded border border-indigo-200 bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100 hover:underline">Edit colorway</a>
                                 @endif
                                 @forelse($item->tags as $tag)
                                 <a href="{{ $tag->itemsIndexFilterUrl($item->type) }}" class="rounded border border-blue-200 bg-blue-50 px-2 py-1 text-[9px] font-bold uppercase tracking-tighter text-blue-600 hover:bg-blue-100 hover:underline">{{ $tag->name }}</a>
@@ -152,9 +260,17 @@ $nb = optional($item->group)->description2 ?? ($item->description2 ?? '-');
                         <input type="checkbox" x-model="showZero" class="rounded border-gray-300"> Show empty warehouses
                     </label>
                     <div class="text-xs font-medium text-gray-500">
-                        Active Stock:
-                        <span class="text-gray-900">{{ format_amount($activeStock, 0) }} Units</span>
-                        @if($deletedStock > 0)
+                        Available:
+                        <span class="text-gray-900" data-testid="available-stock">{{ format_amount($activeStock, 0) }} Units</span>
+                        @if($qtyOutOfSync)
+                            <span class="text-gray-400">·</span>
+                            <span class="text-amber-700" data-testid="stored-qty">Stored qty {{ format_amount($storedQty, 0) }}</span>
+                        @endif
+                        @if($virtualStock != 0)
+                            <span class="text-gray-400">·</span>
+                            <span class="text-violet-700">{{ format_amount($virtualStock, 0) }} in virtual warehouses</span>
+                        @endif
+                        @if($deletedStock != 0)
                             <span class="text-gray-400">·</span>
                             <span class="text-rose-700">{{ format_amount($deletedStock, 0) }} in deleted warehouses</span>
                         @endif
@@ -165,8 +281,28 @@ $nb = optional($item->group)->description2 ?? ($item->description2 ?? '-');
                 @include('items.partials.warehouse-stock-grid', [
                     'warehouseItems' => $warehouseItems,
                     'showZero' => 'showZero',
-                    'deleted' => false,
+                    'variant' => 'physical',
+                    'testId' => 'item-availability',
                 ])
+
+                @if($virtualWarehouseItems->isNotEmpty())
+                <div class="mt-6 border-t border-gray-100 pt-4">
+                    <button type="button"
+                            @click="showVirtualWarehouses = !showVirtualWarehouses"
+                            class="flex w-full items-center justify-between rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 text-left text-sm font-semibold text-violet-800 hover:bg-violet-100">
+                        <span>Virtual Warehouses ({{ format_amount($virtualStock, 0) }} units, excluded from available)</span>
+                        <svg class="h-4 w-4 transition-transform" :class="showVirtualWarehouses ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <div x-show="showVirtualWarehouses" x-cloak class="mt-4">
+                        @include('items.partials.warehouse-stock-grid', [
+                            'warehouseItems' => $virtualWarehouseItems,
+                            'showZero' => 'showZero',
+                            'variant' => 'virtual',
+                            'testId' => 'item-availability-virtual',
+                        ])
+                    </div>
+                </div>
+                @endif
 
                 @if($deletedWarehouseItems->isNotEmpty())
                 <div class="mt-6 border-t border-gray-100 pt-4">
@@ -180,7 +316,8 @@ $nb = optional($item->group)->description2 ?? ($item->description2 ?? '-');
                         @include('items.partials.warehouse-stock-grid', [
                             'warehouseItems' => $deletedWarehouseItems,
                             'showZero' => 'showZero',
-                            'deleted' => true,
+                            'variant' => 'deleted',
+                            'testId' => 'item-availability-deleted',
                         ])
                     </div>
                 </div>

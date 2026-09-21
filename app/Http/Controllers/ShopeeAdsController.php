@@ -110,6 +110,7 @@ class ShopeeAdsController extends Controller
             'item_split_mid' => ['required', 'integer', 'min:0', 'max:100'],
             'item_split_low' => ['required', 'integer', 'min:0', 'max:100'],
             'item_roas_off_threshold' => ['required', 'numeric', 'min:0'],
+            'item_replenish_min_roas' => ['required', 'numeric', 'min:0'],
             'item_off_after_checks' => ['required', 'integer', 'min:1'],
             'item_new_roas_target' => ['required', 'numeric', 'min:0'],
             'item_replenish_max_per_run' => ['required', 'integer', 'min:1'],

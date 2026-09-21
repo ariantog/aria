@@ -20,7 +20,16 @@ $fmt = fn ($n) => format_currency($n);
             </a>
             <div>
                 <h1 class="text-2xl font-bold tracking-tight">Invoice Detail</h1>
-                <p class="text-sm text-gray-500">{{ $invoice->number }} · {{ $invoice->formattedDate() }}</p>
+                <p class="flex flex-wrap items-center gap-1.5 text-sm text-gray-500">
+                    <span>{{ $invoice->number }}</span>
+                    @include('partials.copy-button', [
+                        'value' => $invoice->number,
+                        'testid' => 'copy-invoice-number',
+                        'label' => 'Copy',
+                        'showLabel' => true,
+                    ])
+                    <span>· {{ $invoice->formattedDate() }}</span>
+                </p>
                 <div class="mt-1">
                     @include('invoice-maker.partials.status-badge', [
                         'status' => $settlement['status'],
@@ -164,6 +173,10 @@ $fmt = fn ($n) => format_currency($n);
             @include('invoice-maker.partials.settlement-card', [
                 'settlement' => $settlement,
                 'canEdit' => $can['edit'] ?? false,
+            ])
+            @include('transactions.partials.sell-cash-in', [
+                'transaction' => $sellCashInTransaction ?? null,
+                'sellCashIn' => $sellCashIn ?? null,
             ])
             @if($invoice->notes)
             <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm text-sm">

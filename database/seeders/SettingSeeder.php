@@ -27,20 +27,28 @@ class SettingSeeder extends Seeder
         }
 
         foreach (SettingRegistry::definitions() as $slug => $definition) {
-            $attributes = [
+            $metadata = [
                 'group' => $definition['group'],
                 'name' => $definition['name'],
-                'value' => $definition['default'],
             ];
 
             if (Schema::hasColumn('settings', 'location_id')) {
-                $attributes['location_id'] = 0;
+                $metadata['location_id'] = 0;
             }
 
-            \App\Models\Setting::updateOrCreate(
-                ['slug' => $slug],
-                $attributes
-            );
+            $existing = \App\Models\Setting::query()->where('slug', $slug)->first();
+
+            if ($existing) {
+                // Keep operator-configured values; only refresh registry metadata.
+                $existing->update($metadata);
+
+                continue;
+            }
+
+            \App\Models\Setting::create(array_merge($metadata, [
+                'slug' => $slug,
+                'value' => $definition['default'],
+            ]));
         }
     }
 }

@@ -100,7 +100,7 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
                     <div>
                         <dt class="text-sm text-gray-400">Sync Status</dt>
                         <dd class="text-sm font-medium">
-                            @include('jubelio.partials.sync-status-badge', ['status' => $order->status, 'errorType' => $order->error_type, 'executeBy' => $order->user->name ?? null])
+                            @include('jubelio.partials.sync-status-badge', ['status' => $order->status, 'errorType' => $order->error_type, 'executeBy' => $order->user->name ?? null, 'orderType' => $order->type])
                         </dd>
                     </div>
                     <div>
@@ -196,7 +196,7 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
                         <thead class="border-b border-gray-100 text-xs font-semibold uppercase text-gray-500">
                             <tr>
                                 <th class="px-3 py-2">SKU</th>
-                                @if($parties['warehouse'])
+                                @if($parties['warehouse'] && $order->type === 'SELL')
                                 <th class="px-3 py-2 text-right">Stok Aria</th>
                                 @endif
                                 <th class="px-3 py-2 text-right">Qty</th>
@@ -207,7 +207,7 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
                         <tbody class="divide-y divide-gray-50">
                             @foreach($items as $item)
                             @php $lineTotal = (float) $item['quantity'] * (float) ($item['price'] ?? 0); @endphp
-                            <tr>
+                            <tr data-testid="jubelio-item-row" data-sku="{{ $item['item_code'] }}">
                                 <td class="px-3 py-2 font-mono text-xs">
                                     @if($item['item_url'])
                                     <a href="{{ $item['item_url'] }}" class="text-blue-700 hover:underline">{{ $item['item_code'] }}</a>
@@ -218,7 +218,7 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
                                     {{ $item['item_code'] }}
                                     @endif
                                 </td>
-                                @if($parties['warehouse'])
+                                @if($parties['warehouse'] && $order->type === 'SELL')
                                 <td class="px-3 py-2 text-right font-mono text-xs {{ isset($item['aria_stock']) && (float) $item['quantity'] > (float) $item['aria_stock'] ? 'text-red-600 font-semibold' : '' }}">
                                     {{ $item['aria_stock'] !== null ? format_amount((float) $item['aria_stock'], 0) : '—' }}
                                 </td>
@@ -239,7 +239,17 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
             @if($order->error)
             <div class="rounded-xl border border-red-900/30 bg-red-50 p-6 shadow-sm">
                 <h2 class="mb-2 text-lg font-semibold text-red-600">Error Details</h2>
-                @if($order->status === 1)
+                @if($order->status === 1 && $order->error_type === \App\Services\Jubelio\JubelioOrderSyncStatus::ERROR_PAYLOAD && $order->type === 'SELL')
+                <p class="mb-4 text-sm text-red-700">
+                    Aria tidak mendapat data order dari API Jubelio saat diproses (bukan karena JSON di database kosong).
+                    Periksa <strong>Jubelio Token</strong>, klik <strong>Refresh payload</strong>, lalu <strong>Buat Transaksi Manual</strong>.
+                </p>
+                @elseif($order->status === 1 && $order->error_type === \App\Services\Jubelio\JubelioOrderSyncStatus::ERROR_PAYLOAD && $order->type === 'RETURN')
+                <p class="mb-4 text-sm text-red-700">
+                    Retur ini membutuhkan transaksi <strong>jual asal</strong> dengan invoice yang sama sudah ada di Aria.
+                    Posting jual dari Jubelio terlebih dahulu, lalu proses retur lagi.
+                </p>
+                @elseif($order->status === 1 && $order->type === 'SELL')
                 <p class="mb-4 text-sm text-red-700">
                     Biasanya terjadi karena stok di Aria tidak cukup di gudang yang dipetakan
                     @if($parties['warehouse'])
@@ -247,6 +257,11 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
                     @endif
                     — Jubelio masih punya stok, tapi gudang Aria sudah 0 atau kurang.
                     Perbaiki stok di Aria terlebih dahulu, lalu klik <strong>Buat Transaksi Manual</strong> di atas.
+                </p>
+                @elseif($order->status === 1 && $order->type === 'RETURN')
+                <p class="mb-4 text-sm text-red-700">
+                    Retur memakai gudang dan pelanggan dari <strong>Jubelio Sync</strong> (store/location di payload),
+                    bukan saldo stok gudang. Pastikan mapping store/location sudah benar dan pelanggan channel terisi di Jubelio Sync.
                 </p>
                 @endif
                 @if($order->hasStockError())

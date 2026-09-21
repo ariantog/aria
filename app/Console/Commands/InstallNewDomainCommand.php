@@ -9,6 +9,8 @@ use Illuminate\Console\Command;
 /**
  * Migrate + seed a brand-new subdomain database.
  *
+ * Guide: doc/new-domain-install.md
+ *
  * Refuses to run on the current production domain (aria.corenationactive.com
  * or a Crystal production fingerprint). --force skips confirmation only; it
  * never bypasses that guard.

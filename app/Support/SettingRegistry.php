@@ -44,6 +44,13 @@ class SettingRegistry
                 'default' => '11',
                 'hint' => 'VAT percentage applied to taxable transaction lines.',
             ],
+            'transactions.default_ppn_included' => [
+                'group' => 'Accounting',
+                'name' => 'Default PPN Mode',
+                'type' => 'boolean',
+                'default' => true,
+                'hint' => 'When a taxable counterparty has no PPN pricing preference, new Buy / Sell / Return / Return Supplier forms start with prices included or excluded.',
+            ],
             'batas_cuti_tahunan' => [
                 'group' => 'HR',
                 'name' => 'Batas Cuti Tahunan',
@@ -65,10 +72,17 @@ class SettingRegistry
             ],
             'payroll.jam_kerja_per_hari' => [
                 'group' => 'HR',
-                'name' => 'Jam Kerja per Hari',
+                'name' => 'Jam Kerja per Hari (default)',
                 'type' => 'number',
                 'default' => '8',
-                'hint' => 'Digunakan untuk hitung tarif per jam (telat & lembur).',
+                'hint' => 'Fallback jika jam_kerja karyawan kosong. Bisa 7 / 8 / 10 per orang di data karyawan.',
+            ],
+            'payroll.hari_kerja' => [
+                'group' => 'HR',
+                'name' => 'Hari Kerja (ISO 1–7)',
+                'type' => 'text',
+                'default' => '1,2,3,4,5,6',
+                'hint' => 'Hari kerja reguler: 1=Senin … 7=Minggu. Default Senin–Sabtu. Minggu dan hari libur tidak dihitung sebagai jam wajib; absen di hari itu tetap menambah jam aktual (tukar hari).',
             ],
             'payroll.lembur_multiplier' => [
                 'group' => 'HR',
@@ -97,6 +111,17 @@ class SettingRegistry
                 'type' => 'warehouse_ids',
                 'default' => [],
                 'hint' => 'Stock column on the restock sheet sums qty from these warehouses only. Leave all unchecked to sum every warehouse.',
+            ],
+            'restock.export_cost_field' => [
+                'group' => 'Restock',
+                'name' => 'Export cost column',
+                'type' => 'select',
+                'default' => 'cost',
+                'options' => [
+                    'cost' => 'Cost (IDR)',
+                    'cost_cnh' => 'Cost (CNY / CNH)',
+                ],
+                'hint' => 'Unit cost column included in restock Excel exports.',
             ],
             'asset_tetap.depreciation_expense_account_id' => [
                 'group' => 'Accounting',

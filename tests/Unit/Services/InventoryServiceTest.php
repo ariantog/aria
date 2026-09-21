@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\ItemType;
+use App\Exceptions\InsufficientWarehouseStockException;
 use App\Models\Addrbook;
 use App\Models\Item;
 use App\Services\InventoryService;
@@ -35,14 +36,16 @@ test('it deducts stock from addrbook', function () {
     expect($wi->quantity)->toEqual(15);
 });
 
-test('it prevents negative stock by default', function () {
+test('it prevents negative stock on physical warehouses', function () {
     $this->inventoryService->add($this->addrbook->id, $this->item, 5);
 
     $this->inventoryService->deduct($this->addrbook->id, $this->item, 10);
-})->throws(Exception::class); // Expects "cuma ada X..."
+})->throws(InsufficientWarehouseStockException::class);
 
-test('it allows negative stock when flag is true', function () {
-    $wi = $this->inventoryService->deduct($this->addrbook->id, $this->item, 5, true);
+test('it allows negative stock on virtual warehouses', function () {
+    $virtual = Addrbook::factory()->create(['type' => Addrbook::TYPE_V_WAREHOUSE]);
+
+    $wi = $this->inventoryService->deduct($virtual->id, $this->item, 5);
 
     expect($wi->quantity)->toEqual(-5);
 });

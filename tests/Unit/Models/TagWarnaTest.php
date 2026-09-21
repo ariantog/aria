@@ -13,11 +13,11 @@ function enforceProductionTagsNameUnique(): void
     });
 }
 
-it('syncs warna tag code to uppercase name on save', function () {
+it('normalizes warna tag name and defaults empty code from name on save', function () {
     $tag = Tag::create([
         'type' => Tag::TYPE_WARNA,
         'name' => 'blue',
-        'code' => 'old-code',
+        'code' => '',
         'item_type' => 0,
     ]);
 
@@ -26,14 +26,41 @@ it('syncs warna tag code to uppercase name on save', function () {
         ->code->toBe('BLUE');
 });
 
+it('preserves warna tag code when it differs from name', function () {
+    $tag = Tag::create([
+        'type' => Tag::TYPE_WARNA,
+        'name' => 'GREYWHITE',
+        'code' => 'GW',
+        'item_type' => 0,
+    ]);
+
+    expect($tag->fresh())
+        ->name->toBe('GREYWHITE')
+        ->code->toBe('GW');
+
+    $tag->update(['code' => 'BLACKWHITE']);
+
+    expect($tag->fresh()->code)->toBe('BLACKWHITE');
+});
+
 it('normalizes warna attributes via helper', function () {
     $normalized = Tag::normalizeWarnaAttributes([
         'type' => Tag::TYPE_WARNA,
         'name' => 'pink',
-        'code' => 'ignored',
+        'code' => 'PK',
     ]);
 
     expect($normalized)
+        ->name->toBe('PINK')
+        ->code->toBe('PK');
+
+    $defaulted = Tag::normalizeWarnaAttributes([
+        'type' => Tag::TYPE_WARNA,
+        'name' => 'pink',
+        'code' => '',
+    ]);
+
+    expect($defaulted)
         ->name->toBe('PINK')
         ->code->toBe('PINK');
 });

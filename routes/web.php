@@ -66,17 +66,20 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::post('items/legacy-converter/purge-useless', [App\Http\Controllers\LegacyItemConverterController::class, 'purgeUseless'])->name('items.legacy-converter.purge-useless');
     Route::post('items/legacy-converter/run', [App\Http\Controllers\LegacyItemConverterController::class, 'run'])->name('items.legacy-converter.run');
     Route::post('items/legacy-converter/{item}/run', [App\Http\Controllers\LegacyItemConverterController::class, 'runItem'])->name('items.legacy-converter.run-item');
-    Route::get('items/special-converter', [App\Http\Controllers\SpecialSkuConverterController::class, 'index'])->name('items.special-converter');
-    Route::post('items/special-converter/preview', [App\Http\Controllers\SpecialSkuConverterController::class, 'preview'])->name('items.special-converter.preview');
-    Route::post('items/special-converter/run', [App\Http\Controllers\SpecialSkuConverterController::class, 'run'])->name('items.special-converter.run');
-    Route::post('items/special-converter/{item}/run', [App\Http\Controllers\SpecialSkuConverterController::class, 'runItem'])->name('items.special-converter.run-item');
+    Route::get('items/party-lookup', [App\Http\Controllers\ItemsController::class, 'partyLookup'])->name('items.party-lookup');
+    Route::get('items/pcode-name', [App\Http\Controllers\ItemsController::class, 'pcodeName'])->name('items.pcode-name');
     Route::get('items/{item}/transactions', [App\Http\Controllers\ItemsController::class, 'itemTransactions'])->name('items.transactions');
     Route::get('items/{item}/stats', [App\Http\Controllers\ItemsController::class, 'itemStats'])->name('items.stats');
     Route::get('items/{item}/jubelio', [App\Http\Controllers\ItemsController::class, 'jubelio'])->name('items.jubelio');
     Route::get('items/{item}/jubelio-search', [App\Http\Controllers\ItemsController::class, 'getJubelioItems'])->name('items.jubelio-search');
     Route::post('items/{item}/jubelio-link', [App\Http\Controllers\ItemsController::class, 'updateJubelioId'])->name('items.jubelio-link');
     Route::post('items/{item}/convert-identity', [App\Http\Controllers\ItemIdentityConvertController::class, 'store'])->name('items.convert-identity');
+    Route::post('items/{item}/recalculate-qty', [App\Http\Controllers\ItemsController::class, 'recalculateQuantity'])->name('items.recalculate-qty');
+    Route::patch('items/{item}/legacy-code', [App\Http\Controllers\ItemsController::class, 'updateLegacyCode'])->name('items.update-legacy-code');
+    Route::get('items/{item}/duplicate', [App\Http\Controllers\ItemsController::class, 'duplicate'])->name('items.duplicate');
     Route::resource('items', App\Http\Controllers\ItemsController::class);
+    Route::get('jubelio/item-links', [App\Http\Controllers\JubelioItemLinkController::class, 'index'])->name('jubelio.item-links.index');
+    Route::get('jubelio/item-links/parent/{group}', [App\Http\Controllers\JubelioItemLinkController::class, 'showGroup'])->whereNumber('group')->name('jubelio.item-links.group');
     Route::get('jubelio/order/cek', [App\Http\Controllers\JubelioController::class, 'cekOrder'])->name('jubelio.order.cek');
     Route::post('jubelio/order/cek/queue', [App\Http\Controllers\JubelioController::class, 'queueCekOrder'])->name('jubelio.order.cek.queue');
     Route::get('jubelio/token', [App\Http\Controllers\JubelioTokenController::class, 'index'])->name('jubelio.token.index');
@@ -93,6 +96,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::post('jubelio-returns/{jubelioReturn}/solve', [App\Http\Controllers\JubelioReturnController::class, 'markSolved'])->name('jubelio.returns.solve');
     Route::get('jubelio-get-orders', [App\Http\Controllers\JubelioGetOrderController::class, 'index'])->name('jubelio.get-orders.index');
     Route::post('jubelio-get-orders', [App\Http\Controllers\JubelioGetOrderController::class, 'store'])->name('jubelio.get-orders.store');
+    Route::post('jubelio-get-orders/resume', [App\Http\Controllers\JubelioGetOrderController::class, 'resume'])->name('jubelio.get-orders.resume');
     Route::post('jubelio-get-orders/reset', [App\Http\Controllers\JubelioGetOrderController::class, 'reset'])->name('jubelio.get-orders.reset');
     Route::get('jubelio-transaction/sync', [App\Http\Controllers\JubelioController::class, 'transactionSync'])->name('jubelio.transaction.sync');
     Route::get('jubelio-transaction/{transaction}/detail-sync', [App\Http\Controllers\JubelioController::class, 'detailJubelioSync'])->name('jubelio.transaction.detail-sync');
@@ -122,6 +126,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('addrbook/{addrbook}/item-sales', [App\Http\Controllers\AddrbookController::class, 'itemSales'])->name('addrbook.item-sales');
     Route::get('addrbook/{addrbook}/item-sales/export', [App\Http\Controllers\AddrbookController::class, 'itemSalesExport'])->name('addrbook.item-sales.export');
     Route::get('addrbook/{addrbook}/stats', [App\Http\Controllers\AddrbookController::class, 'stat'])->name('addrbook.stats');
+    Route::post('addrbook/{addrbook}/restore', [App\Http\Controllers\AddrbookController::class, 'restore'])->name('addrbook.restore');
     Route::get('system-settings/invoice/branding', [App\Http\Controllers\InvoiceSettingsController::class, 'edit'])->name('invoice-settings.edit');
     Route::put('system-settings/invoice/branding', [App\Http\Controllers\InvoiceSettingsController::class, 'update'])->name('invoice-settings.update');
     Route::get('system-settings/lookup/{type}', [App\Http\Controllers\SettingController::class, 'lookup'])->name('system-settings.lookup');
@@ -134,6 +139,10 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::post('warehouse-stat-backfill/resume', [App\Http\Controllers\WarehouseStatBackfillController::class, 'resume'])->name('warehouse-stat-backfill.resume');
     Route::post('warehouse-stat-backfill/run-batch', [App\Http\Controllers\WarehouseStatBackfillController::class, 'runBatch'])->name('warehouse-stat-backfill.run-batch');
 
+    Route::get('recalculate-running-balances', [App\Http\Controllers\RecalculateRunningBalancesController::class, 'index'])->name('recalculate-running-balances.index');
+    Route::get('recalculate-running-balances/lookup', [App\Http\Controllers\RecalculateRunningBalancesController::class, 'lookup'])->name('recalculate-running-balances.lookup');
+    Route::post('recalculate-running-balances', [App\Http\Controllers\RecalculateRunningBalancesController::class, 'run'])->name('recalculate-running-balances.run');
+
     // Data retention (archive copy + live cleanup)
     Route::get('data-retention', [App\Http\Controllers\DataRetentionController::class, 'index'])->name('data-retention.index');
     Route::post('data-retention/preview-archive', [App\Http\Controllers\DataRetentionController::class, 'previewArchive'])->name('data-retention.preview-archive');
@@ -145,6 +154,10 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::post('data-retention/purge-orphan-addrbooks/{type}', [App\Http\Controllers\DataRetentionController::class, 'purgeOrphanAddrbooks'])->name('data-retention.purge-orphan-addrbooks');
     Route::get('data-retention/item-purge', [App\Http\Controllers\ItemPurgeController::class, 'index'])->name('data-retention.item-purge.index');
     Route::post('data-retention/item-purge', [App\Http\Controllers\ItemPurgeController::class, 'purge'])->name('data-retention.item-purge.purge');
+    Route::get('data-retention/addrbook-purge', [App\Http\Controllers\AddrbookPurgeController::class, 'index'])->name('data-retention.addrbook-purge.index');
+    Route::get('data-retention/addrbook-purge/lookup', [App\Http\Controllers\AddrbookPurgeController::class, 'lookup'])->name('data-retention.addrbook-purge.lookup');
+    Route::post('data-retention/addrbook-purge', [App\Http\Controllers\AddrbookPurgeController::class, 'destroy'])->name('data-retention.addrbook-purge.destroy');
+    Route::post('data-retention/addrbook-purge/purge', [App\Http\Controllers\AddrbookPurgeController::class, 'purge'])->name('data-retention.addrbook-purge.purge');
 
     // Archive (read-only)
     Route::get('archive', [App\Http\Controllers\ArchiveDashboardController::class, 'index'])->name('archive.index');
@@ -223,6 +236,9 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('assetlancar/{item}/transactions', [App\Http\Controllers\ItemsController::class, 'itemTransactions'])->name('assetlancar.transactions');
     Route::get('assetlancar/{item}/stats', [App\Http\Controllers\ItemsController::class, 'itemStats'])->name('assetlancar.stats');
     Route::post('assetlancar/{item}/convert-identity', [App\Http\Controllers\ItemIdentityConvertController::class, 'store'])->name('assetlancar.convert-identity');
+    Route::post('assetlancar/{item}/recalculate-qty', [App\Http\Controllers\ItemsController::class, 'recalculateQuantity'])->name('assetlancar.recalculate-qty');
+    Route::patch('assetlancar/{item}/legacy-code', [App\Http\Controllers\ItemsController::class, 'updateLegacyCode'])->name('assetlancar.update-legacy-code');
+    Route::get('assetlancar/{item}/duplicate', [App\Http\Controllers\ItemsController::class, 'duplicateAsset'])->name('assetlancar.duplicate');
 
     Route::get('assettetap', [App\Http\Controllers\AssetTetapController::class, 'index'])->name('assettetap.index');
     Route::get('assettetap/create', [App\Http\Controllers\AssetTetapController::class, 'create'])->name('assettetap.create');
@@ -238,9 +254,12 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
 
     // Item Group Routes
     Route::get('items-group', [App\Http\Controllers\ItemsController::class, 'group'])->name('items.group');
-    Route::get('items-group/parent/{parentSlug}', [App\Http\Controllers\ItemsController::class, 'groupParentDetail'])->name('items.group-parent-detail');
-    Route::get('items-group/parent/{parentSlug}/export', [App\Http\Controllers\ItemsController::class, 'exportGroupParent'])->name('items.group-parent-export');
-    Route::put('items-group/parent/{parentSlug}', [App\Http\Controllers\ItemsController::class, 'updateGroupParent'])->name('items.group-parent-update');
+    Route::get('items-group/parent/{group}', [App\Http\Controllers\ItemsController::class, 'groupParentDetail'])->whereNumber('group')->name('items.group-parent-detail');
+    Route::get('items-group/parent/{group}/export', [App\Http\Controllers\ItemsController::class, 'exportGroupParent'])->whereNumber('group')->name('items.group-parent-export');
+    Route::put('items-group/parent/{group}', [App\Http\Controllers\ItemsController::class, 'updateGroupParent'])->whereNumber('group')->name('items.group-parent-update');
+    Route::get('items-group/parent/{parentSlug}', [App\Http\Controllers\ItemsController::class, 'redirectLegacyGroupParent'])->name('items.group-parent-legacy');
+    Route::get('items-group/colorway/{group}/edit', [App\Http\Controllers\ItemsController::class, 'colorwayEdit'])->name('items.colorway-edit');
+    Route::put('items-group/colorway/{group}', [App\Http\Controllers\ItemsController::class, 'colorwayUpdate'])->name('items.colorway-update');
     Route::get('items-group/{group}', [App\Http\Controllers\ItemsController::class, 'groupDetail'])->name('items.group-detail');
     Route::put('items-group/{group}', [App\Http\Controllers\ItemsController::class, 'updateGroup'])->name('items.group-update');
     Route::get('items-group/{group}/stats', [App\Http\Controllers\ItemsController::class, 'groupStats'])->name('items.group-stats');
@@ -363,8 +382,15 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
 
     // Modul Karyawan, Cuti, dan Gaji
     Route::resource('karyawan', \App\Http\Controllers\KaryawanController::class);
+    Route::get('cuti', [\App\Http\Controllers\CutiController::class, 'index'])->name('cuti.index');
+    Route::get('cuti/create', [\App\Http\Controllers\CutiController::class, 'create'])->name('cuti.create');
+    Route::post('cuti', [\App\Http\Controllers\CutiController::class, 'store'])->name('cuti.store');
+    Route::get('cuti/{cuti}/edit', [\App\Http\Controllers\CutiController::class, 'edit'])->name('cuti.edit');
+    Route::put('cuti/{cuti}', [\App\Http\Controllers\CutiController::class, 'update'])->name('cuti.update');
+    Route::delete('cuti/{cuti}', [\App\Http\Controllers\CutiController::class, 'destroy'])->name('cuti.destroy');
     Route::get('karyawan/{karyawan}/cuti/create', [\App\Http\Controllers\CutiController::class, 'create'])->name('karyawan.cuti.create');
     Route::post('karyawan/{karyawan}/cuti', [\App\Http\Controllers\CutiController::class, 'store'])->name('karyawan.cuti.store');
+    Route::patch('karyawan/{karyawan}/cuti-sisa', [\App\Http\Controllers\CutiSisaController::class, 'update'])->name('karyawan.cuti-sisa.update');
 
     Route::get('gaji', [\App\Http\Controllers\GajiController::class, 'index'])->name('gaji.index');
     Route::get('gaji/{gaji}/edit', [\App\Http\Controllers\GajiController::class, 'edit'])->name('gaji.edit');
@@ -372,6 +398,15 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::delete('gaji/{gaji}', [\App\Http\Controllers\GajiController::class, 'destroy'])->name('gaji.destroy');
     Route::get('karyawan/{karyawan}/gaji/create', [\App\Http\Controllers\GajiController::class, 'create'])->name('karyawan.gaji.create');
     Route::post('karyawan/{karyawan}/gaji', [\App\Http\Controllers\GajiController::class, 'store'])->name('karyawan.gaji.store');
+
+    Route::get('hari-libur', [\App\Http\Controllers\HariLiburController::class, 'index'])->name('hari-libur.index');
+    Route::post('hari-libur', [\App\Http\Controllers\HariLiburController::class, 'store'])->name('hari-libur.store');
+    Route::delete('hari-libur/{hari_libur}', [\App\Http\Controllers\HariLiburController::class, 'destroy'])->name('hari-libur.destroy');
+
+    Route::get('absensi', [\App\Http\Controllers\AbsensiController::class, 'index'])->name('absensi.index');
+    Route::get('absensi/import', [\App\Http\Controllers\AbsensiController::class, 'create'])->name('absensi.create');
+    Route::post('absensi/import', [\App\Http\Controllers\AbsensiController::class, 'store'])->name('absensi.store');
+    Route::get('absensi/{absensi}', [\App\Http\Controllers\AbsensiController::class, 'show'])->name('absensi.show');
 
     Route::prefix('reports')->name('reports.')->group(function () {
         Route::get('/nett-cash-sby', \App\Http\Controllers\Reports\NettCashController::class)->name('nett-cash-sby');
@@ -386,10 +421,15 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::post('/warehouse-arrangement/tick-refresh', [\App\Http\Controllers\Reports\WarehouseArrangementController::class, 'tickRefresh'])->name('warehouse-arrangement.tick-refresh');
         Route::get('/product-performance', [\App\Http\Controllers\Reports\ProductPerformanceController::class, 'index'])->name('product-performance');
         Route::get('/inventory-health', [\App\Http\Controllers\Reports\InventoryHealthController::class, 'index'])->name('inventory-health');
+        Route::get('/item-insights', [\App\Http\Controllers\Reports\ItemInsightsController::class, 'index'])->name('item-insights');
+        Route::post('/item-insights/recalculate', [\App\Http\Controllers\Reports\ItemInsightsController::class, 'recalculate'])->name('item-insights.recalculate');
         Route::get('/produksi-potong', \App\Http\Controllers\Reports\ProduksiPotongReportController::class)->name('produksi-potong');
+        Route::get('/produksi-jahit', \App\Http\Controllers\Reports\ProduksiJahitReportController::class)->name('produksi-jahit');
         Route::get('/produksi-qc', \App\Http\Controllers\Reports\ProduksiQcReportController::class)->name('produksi-qc');
+        Route::get('/produksi-pritil', \App\Http\Controllers\Reports\ProduksiPritilReportController::class)->name('produksi-pritil');
         Route::get('/neraca', \App\Http\Controllers\Reports\NeracaReportController::class)->name('neraca');
         Route::get('/laba-rugi', \App\Http\Controllers\Reports\LabaRugiReportController::class)->name('laba-rugi');
+        Route::get('/channel-pnl', \App\Http\Controllers\Reports\ChannelPnlReportController::class)->name('channel-pnl');
         Route::get('/receivables', \App\Http\Controllers\Reports\ReceivablesReportController::class)->name('receivables');
         Route::get('/payables', \App\Http\Controllers\Reports\PayablesReportController::class)->name('payables');
         Route::get('/tax/ppn', \App\Http\Controllers\Reports\TaxPpnReportController::class)->name('tax.ppn');
@@ -398,11 +438,14 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::get('/tax/faktur/create', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'create'])->name('tax.faktur.create');
         Route::post('/tax/faktur/parse', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'parse'])->name('tax.faktur.parse');
         Route::get('/tax/faktur/review', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'review'])->name('tax.faktur.review');
+        Route::get('/tax/faktur/counterparty-lookup', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'counterpartyLookup'])->name('tax.faktur.counterparty-lookup');
         Route::get('/tax/faktur/cash-in-suggestions', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'cashInSuggestions'])->name('tax.faktur.cash-in-suggestions');
         Route::get('/tax/faktur/sell-suggestions', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'sellSuggestions'])->name('tax.faktur.sell-suggestions');
         Route::post('/tax/faktur', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'store'])->name('tax.faktur.store');
         Route::get('/tax/faktur/{import}', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'show'])->name('tax.faktur.show');
+        Route::delete('/tax/faktur/{import}', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'destroy'])->name('tax.faktur.destroy');
         Route::patch('/tax/faktur/{import}/payment', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'updatePayment'])->name('tax.faktur.payment.update');
+        Route::post('/tax/faktur/{import}/cash-in', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'storeCashIn'])->middleware('prevent.duplicate')->name('tax.faktur.cash-in.store');
         Route::post('/tax/faktur/{import}/link-sells', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'linkSells'])->name('tax.faktur.link-sells');
         Route::delete('/tax/faktur/{import}/sells/{transaction}', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'unlinkSell'])->name('tax.faktur.unlink-sell');
         Route::post('/tax/faktur/{import}/post-sell', [\App\Http\Controllers\Reports\TaxFakturImportController::class, 'postSell'])->name('tax.faktur.post-sell');
@@ -429,6 +472,9 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     // Restock Module
     Route::prefix('restock')->name('restock.')->group(function () {
         Route::get('/', [App\Http\Controllers\Restock\RestockTypeController::class, 'index'])->name('index');
+        Route::get('/recommendations', [App\Http\Controllers\Restock\RestockRecommendationController::class, 'index'])->name('recommendations');
+        Route::post('/recommendations/apply-to-sheets', [App\Http\Controllers\Restock\RestockRecommendationController::class, 'applyToSheets'])->name('recommendations.apply');
+        Route::post('/export', [App\Http\Controllers\Restock\RestockTypeController::class, 'exportBulk'])->name('export');
         Route::get('/missing', [App\Http\Controllers\Restock\RestockMissingController::class, 'index'])->name('missing.index');
         Route::get('/type/{typeTag:code}/missing', [App\Http\Controllers\Restock\RestockMissingController::class, 'forType'])->name('type.missing');
         Route::post('/missing/{cell}/found', [App\Http\Controllers\Restock\RestockMissingController::class, 'markFound'])->name('missing.found');

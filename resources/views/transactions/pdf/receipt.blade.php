@@ -150,7 +150,7 @@
         @endif
         <tr>
             <td class="label"><strong>Grand Total:</strong></td>
-            <td class="text-right"><strong>Rp{{ number_format(abs((float) $transaction->real_total), 0, ',', '.') }}</strong></td>
+            <td class="text-right"><strong>Rp{{ number_format($transaction->displayGrandTotal(), 0, ',', '.') }}</strong></td>
         </tr>
     </table>
 

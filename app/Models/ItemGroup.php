@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ItemBrand;
 use App\Support\FillsProductionColumnDefaults;
 use App\Support\ItemImageResolver;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -10,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ItemGroup extends Model
 {
-    use HasFactory, FillsProductionColumnDefaults;
+    use FillsProductionColumnDefaults, HasFactory;
 
     protected $table = 'item_group';
 
@@ -22,10 +23,28 @@ class ItemGroup extends Model
         'name',
         'description',
         'description2',
+        'reseller_price',
+        'price',
+        'cost',
+        'cost_cnh',
         'url',
         'master',
         'variant',
+        'brand',
+        'genre',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'brand' => ItemBrand::class,
+            'genre' => 'integer',
+            'reseller_price' => 'decimal:2',
+            'price' => 'decimal:2',
+            'cost' => 'decimal:2',
+            'cost_cnh' => 'decimal:2',
+        ];
+    }
 
     public static function getPermissions(): array
     {

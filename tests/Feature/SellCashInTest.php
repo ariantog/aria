@@ -88,7 +88,6 @@ it('creates a cash in from a sell with the same invoice and sell receiver as sen
         ->and((int) $cashIn->receiver_id)->toBe($this->bank->id)
         ->and((int) $cashIn->receiver_type)->toBe(Addrbook::TYPE_BANK)
         ->and((float) $cashIn->total)->toBe(1_250_000.0)
-        ->and((float) $cashIn->real_total)->toBe(1_250_000.0)
         ->and($cashIn->date->toDateString())->toBe('2026-08-15')
         ->and($cashIn->invoice)->toBe($this->sell->invoice);
 });
@@ -164,6 +163,105 @@ it('defaults the cash in amount to the invoice remaining when invoice maker is l
         ->getContent();
 
     expect($html)->toContain('amount: 1100000');
+});
+
+it('shows all linked cash-ins on a sell and defaults the next amount to the sell remaining', function () {
+    Transaction::factory()->create([
+        'type' => Transaction::TYPE_CASH_IN,
+        'invoice' => $this->sell->invoice,
+        'sender_type' => (string) Addrbook::TYPE_CUSTOMER,
+        'sender_id' => $this->customer->id,
+        'receiver_type' => (string) Addrbook::TYPE_BANK,
+        'receiver_id' => $this->bank->id,
+        'total' => 400_000,
+        'real_total' => 400_000,
+        'status' => Transaction::STATUS_COMPLETED,
+        'user_id' => $this->user->id,
+    ]);
+
+    $secondCashIn = Transaction::factory()->create([
+        'type' => Transaction::TYPE_CASH_IN,
+        'invoice' => $this->sell->invoice,
+        'sender_type' => (string) Addrbook::TYPE_CUSTOMER,
+        'sender_id' => $this->customer->id,
+        'receiver_type' => (string) Addrbook::TYPE_BANK,
+        'receiver_id' => $this->bank->id,
+        'total' => 250_000,
+        'real_total' => 250_000,
+        'status' => Transaction::STATUS_COMPLETED,
+        'user_id' => $this->user->id,
+    ]);
+
+    $html = $this->actingAs($this->user)
+        ->get(route('transactions.show', $this->sell))
+        ->assertOk()
+        ->assertSee('Linked cash-in (2)', false)
+        ->assertSee('data-testid="sell-cash-in-summary"', false)
+        ->assertSee(route('transactions.show', $secondCashIn), false)
+        ->getContent();
+
+    expect($html)->toContain('amount: 850000')
+        ->and($html)->toContain('Remaining')
+        ->and($html)->toContain('Paid');
+});
+
+it('hides the cash in create form when the sell is fully paid by linked cash-ins', function () {
+    Transaction::factory()->create([
+        'type' => Transaction::TYPE_CASH_IN,
+        'invoice' => $this->sell->invoice,
+        'sender_type' => (string) Addrbook::TYPE_CUSTOMER,
+        'sender_id' => $this->customer->id,
+        'receiver_type' => (string) Addrbook::TYPE_BANK,
+        'receiver_id' => $this->bank->id,
+        'total' => 900_000,
+        'real_total' => 900_000,
+        'status' => Transaction::STATUS_COMPLETED,
+        'user_id' => $this->user->id,
+    ]);
+
+    Transaction::factory()->create([
+        'type' => Transaction::TYPE_CASH_IN,
+        'invoice' => $this->sell->invoice,
+        'sender_type' => (string) Addrbook::TYPE_CUSTOMER,
+        'sender_id' => $this->customer->id,
+        'receiver_type' => (string) Addrbook::TYPE_BANK,
+        'receiver_id' => $this->bank->id,
+        'total' => 600_000,
+        'real_total' => 600_000,
+        'status' => Transaction::STATUS_COMPLETED,
+        'user_id' => $this->user->id,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.show', $this->sell))
+        ->assertOk()
+        ->assertSee('Linked cash-in (2)', false)
+        ->assertDontSee('data-testid="sell-cash-in-switch"', false)
+        ->assertDontSee('data-testid="sell-cash-in-submit"', false);
+});
+
+it('allows a second partial cash in from a sell', function () {
+    $this->actingAs($this->user)
+        ->post(route('transactions.sell-cash-in.store', $this->sell), [
+            'amount' => 500_000,
+            'account_id' => $this->bank->id,
+            'date' => '2026-08-15',
+        ])
+        ->assertRedirect(route('transactions.show', $this->sell));
+
+    $this->actingAs($this->user)
+        ->post(route('transactions.sell-cash-in.store', $this->sell), [
+            'amount' => 1_000_000,
+            'account_id' => $this->bank->id,
+            'date' => '2026-08-16',
+        ])
+        ->assertRedirect(route('transactions.show', $this->sell))
+        ->assertSessionHas('success', 'Cash In created.');
+
+    expect(Transaction::query()
+        ->where('type', Transaction::TYPE_CASH_IN)
+        ->where('invoice', $this->sell->invoice)
+        ->count())->toBe(2);
 });
 
 it('forbids creating cash in from a sell without cash-in permission', function () {
@@ -299,6 +397,78 @@ it('creates a matching cash in when the sell form switch is on', function () {
         ->and((int) $cashIn->receiver_id)->toBe($this->otherBank->id)
         ->and((float) $cashIn->total)->toBe(80_000.0)
         ->and($cashIn->date->toDateString())->toBe('2026-08-20');
+});
+
+it('shows the cash in switch when the sell receiver is soft-deleted', function () {
+    $this->customer->delete();
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.show', $this->sell->fresh()))
+        ->assertOk()
+        ->assertSee('data-testid="sell-cash-in-switch"', false)
+        ->assertSee('data-testid="sell-cash-in-card"', false);
+});
+
+it('shows the cash in switch on a pending sell', function () {
+    $this->sell->update(['status' => Transaction::STATUS_PENDING]);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.show', $this->sell->fresh()))
+        ->assertOk()
+        ->assertSee('data-testid="sell-cash-in-switch"', false);
+});
+
+it('hides the cash in switch on a cancelled sell', function () {
+    $this->sell->update(['status' => Transaction::STATUS_CANCELLED]);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.show', $this->sell->fresh()))
+        ->assertOk()
+        ->assertDontSee('data-testid="sell-cash-in-switch"', false);
+});
+
+it('creates a cash in from a pending sell and a soft-deleted receiver', function () {
+    $this->sell->update(['status' => Transaction::STATUS_PENDING]);
+    $this->customer->delete();
+
+    $this->actingAs($this->user)
+        ->post(route('transactions.sell-cash-in.store', $this->sell->fresh()), [
+            'amount' => 250_000,
+            'account_id' => $this->bank->id,
+            'date' => '2026-08-18',
+        ])
+        ->assertRedirect(route('transactions.show', $this->sell));
+
+    $cashIn = Transaction::query()
+        ->where('type', Transaction::TYPE_CASH_IN)
+        ->where('invoice', $this->sell->invoice)
+        ->first();
+
+    expect($cashIn)->not->toBeNull()
+        ->and((int) $cashIn->sender_id)->toBe($this->customer->id)
+        ->and((int) $cashIn->sender_type)->toBe(Addrbook::TYPE_CUSTOMER)
+        ->and((float) $cashIn->total)->toBe(250_000.0);
+});
+
+it('shows the cash in switch on invoice maker when a sell is linked', function () {
+    $invoice = StandaloneInvoice::factory()->create([
+        'number' => $this->sell->invoice,
+        'subtotal' => 1_500_000,
+        'discount_amount' => 0,
+        'user_id' => $this->user->id,
+    ]);
+    StandaloneInvoiceLine::factory()->create([
+        'standalone_invoice_id' => $invoice->id,
+        'quantity' => 1,
+        'price' => 1_500_000,
+        'total' => 1_500_000,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('invoice-maker.show', $invoice))
+        ->assertOk()
+        ->assertSee('data-testid="sell-cash-in-switch"', false)
+        ->assertSee('data-testid="sell-cash-in-card"', false);
 });
 
 it('does not create cash in when the sell form switch is off', function () {

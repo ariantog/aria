@@ -455,7 +455,8 @@ it('renders selective item purge with keep checkboxes and pagination', function 
         ->assertSee('Selective Item Purge')
         ->assertSee('Max item id')
         ->assertSee('Keep')
-        ->assertSee('#'.$orphan->id)
+        ->assertSee('>'.$orphan->id.'</a>', false)
+        ->assertDontSee('#'.$orphan->id.'</a>', false)
         ->assertSee('Purge 1 on this page')
         ->assertSee('this page only');
 });

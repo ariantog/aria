@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\UpdateScheduledTaskRequest;
 use App\Models\ScheduledTask;
+use App\Support\CronManager;
 use App\Support\SchedulerHealth;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -30,7 +31,13 @@ class ScheduledTaskController extends Controller
     {
         Gate::authorize(ScheduledTask::getPermissions()['edit']);
 
-        $scheduledTask->update($request->validated());
+        $validated = $request->validated();
+
+        if ($validated['active'] && ($reason = CronManager::cronManagerBlockReason($scheduledTask->command))) {
+            return back()->with('error', $reason);
+        }
+
+        $scheduledTask->update($validated);
 
         try {
             Artisan::call('schedule:clear-cache');
@@ -44,6 +51,10 @@ class ScheduledTaskController extends Controller
     public function toggle(ScheduledTask $scheduledTask): RedirectResponse
     {
         Gate::authorize(ScheduledTask::getPermissions()['edit']);
+
+        if (! $scheduledTask->active && ($reason = CronManager::cronManagerBlockReason($scheduledTask->command))) {
+            return back()->with('error', $reason);
+        }
 
         $scheduledTask->update([
             'active' => ! $scheduledTask->active,

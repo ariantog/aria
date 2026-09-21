@@ -6,6 +6,10 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', config('app.name')) - {{ config('app.name') }}</title>
 
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
     {{-- Tailwind CDN (v4 play CDN covers all utilities) --}}
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -37,6 +41,15 @@
             }
         })();
     </script>
+    <script>
+        (function () {
+            if (!window.matchMedia('(min-width: 1024px)').matches) {
+                return;
+            }
+
+            document.documentElement.dataset.sidebarDesktop = localStorage.getItem('sidebarOpen') !== 'false' ? 'open' : 'collapsed';
+        })();
+    </script>
 
     @stack('head-css')
     <style>
@@ -47,13 +60,39 @@
             --sidebar-accent-foreground: 240 5.9% 10%;
             --sidebar-border: 220 13% 91%;
             --radius: 0.5rem;
+            --app-font-size: {{ $fontSizePixels ?? '14px' }};
         }
-        body { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        html { font-size: var(--app-font-size); }
+        body {
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+        }
+        /*
+         * All table columns use the body font. font-mono resolves to Consolas on Windows (slashed zero).
+         * !important wins over Tailwind CDN utilities injected after this block.
+         */
+        table :where(th, td, th *, td *) {
+            font-family: inherit !important;
+        }
+        :where([data-copy-col], [data-copy-col] *) {
+            font-family: inherit !important;
+        }
+        .tabulator :where(.tabulator-cell, .tabulator-col-title, .tabulator-header-filter input) {
+            font-family: inherit !important;
+        }
         [x-cloak] { display: none !important; }
 
-        /* Sidebar transition (desktop only — mobile opens/closes instantly) */
+        /*
+         * Desktop first paint: seed width/margin from localStorage before Alpine hydrates.
+         * Without this, Alpine applies w-64/w-14 while #sidebar already has a CSS transition,
+         * so every page load animates the sidebar open or closed.
+         */
         @media (min-width: 1024px) {
-            #sidebar { transition: width 0.2s ease, transform 0.2s ease; }
+            html[data-sidebar-desktop="open"] #sidebar { width: 16rem; }
+            html[data-sidebar-desktop="collapsed"] #sidebar { width: 3.5rem; }
+            html[data-sidebar-desktop="open"] #main-content { margin-left: 16rem; }
+            html[data-sidebar-desktop="collapsed"] #main-content { margin-left: 3.5rem; }
+
+            #sidebar.anim-ready { transition: width 0.2s ease, transform 0.2s ease; }
             #main-content.anim-ready { transition: margin-left 0.2s ease; }
         }
 
@@ -152,6 +191,7 @@
     {{-- SIDEBAR --}}
     <aside id="sidebar"
            :class="sidebarClass()"
+           x-init="$nextTick(() => $el.classList.add('anim-ready'))"
            class="fixed left-0 top-0 z-30 flex h-full flex-col border-r border-gray-200 bg-white overflow-hidden">
 
         {{-- Sidebar header --}}
@@ -327,6 +367,115 @@ function formatNumberId(value) {
     return Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
 }
 
+function ariaFormatCopyNumber(raw) {
+    return raw == null ? '' : String(raw);
+}
+
+function ariaCopyCellText(cell) {
+    if (cell.hasAttribute('data-copy-value')) {
+        return ariaFormatCopyNumber(cell.getAttribute('data-copy-value'));
+    }
+
+    const img = cell.querySelector('img');
+    if (img && cell.querySelectorAll('a').length === 0) {
+        return (img.getAttribute('alt') || img.getAttribute('src') || '').trim();
+    }
+
+    const link = cell.querySelector('a');
+    if (link) {
+        return link.innerText.replace(/\s+/g, ' ').trim();
+    }
+
+    return cell.innerText.replace(/\s+/g, ' ').trim();
+}
+
+function ariaPrepareCopyTable(table, isColumnVisible) {
+    const clone = table.cloneNode(true);
+    const liveCells = table.querySelectorAll('[data-copy-col]');
+
+    clone.querySelectorAll('[data-copy-col]').forEach((cell, index) => {
+        const live = liveCells[index] ?? cell;
+
+        if (typeof isColumnVisible === 'function' && !isColumnVisible(cell.dataset.copyCol)) {
+            cell.remove();
+            return;
+        }
+
+        cell.textContent = ariaCopyCellText(live);
+    });
+
+    return clone;
+}
+
+function ariaTableToTsv(table, isColumnVisible) {
+    const rows = [];
+
+    table.querySelectorAll('thead tr, tbody tr').forEach((row) => {
+        const values = [];
+
+        row.querySelectorAll('[data-copy-col]').forEach((cell) => {
+            if (typeof isColumnVisible === 'function' && !isColumnVisible(cell.dataset.copyCol)) {
+                return;
+            }
+
+            values.push(ariaCopyCellText(cell));
+        });
+
+        if (values.length) {
+            rows.push(values.join('\t'));
+        }
+    });
+
+    return rows.join('\n');
+}
+
+async function ariaCopyText(text) {
+    if (!text) {
+        return false;
+    }
+
+    try {
+        await navigator.clipboard.writeText(text);
+        return true;
+    } catch (e) {
+        console.error('Failed to copy text', e);
+        return false;
+    }
+}
+
+async function ariaCopyTable(table, isColumnVisible) {
+    if (!table) {
+        return false;
+    }
+
+    const plain = ariaTableToTsv(table, isColumnVisible);
+    const clone = ariaPrepareCopyTable(table, isColumnVisible);
+    const html = clone.outerHTML;
+
+    try {
+        if (window.ClipboardItem && navigator.clipboard?.write) {
+            await navigator.clipboard.write([
+                new ClipboardItem({
+                    'text/plain': new Blob([plain], { type: 'text/plain' }),
+                    'text/html': new Blob([html], { type: 'text/html' }),
+                }),
+            ]);
+        } else {
+            await navigator.clipboard.writeText(plain);
+        }
+
+        return true;
+    } catch (e) {
+        try {
+            await navigator.clipboard.writeText(plain);
+            return true;
+        } catch (fallbackError) {
+            console.error('Failed to copy table', fallbackError);
+            return false;
+        }
+    }
+}
+
 function appShell() {
     const isMobileViewport = () => window.innerWidth < 1024;
     const savedDesktopOpen = () => localStorage.getItem('sidebarOpen') !== 'false';
@@ -348,6 +497,7 @@ function appShell() {
         persistSidebarOpen() {
             if (!this.isMobile) {
                 localStorage.setItem('sidebarOpen', this.sidebarOpen);
+                document.documentElement.dataset.sidebarDesktop = this.sidebarOpen ? 'open' : 'collapsed';
             }
         },
         matchesNav(...labels) {
@@ -446,6 +596,48 @@ function isFieldNavigationSuppressed() {
     return Date.now() < (window._suppressFieldNavUntil || 0);
 }
 
+// Android Chrome IME keydown is keyCode 229 / key Unidentified while e.code still
+// names the physical key. Treating that as Enter makes the later real Enter a
+// second navigation. Callers that need a keyup fallback should use this.
+function isImePlaceholderKey(e) {
+    if (!e) return false;
+    const kc = e.keyCode || e.which;
+    return kc === 229 || e.key === 'Unidentified' || e.key === 'Process';
+}
+
+// True only for a real Enter (not the IME 229 placeholder that still has e.code).
+function isConfirmedEnterKey(e) {
+    if (!e || isImePlaceholderKey(e)) return false;
+    return normalizeNavigationKey(e) === 'Enter';
+}
+
+// Android/Gboard needs a few hundred ms to collapse a duplicate Enter pair.
+// Desktop Chrome sends one keydown+keyup per press, so a long lock would swallow
+// the next intentional Enter (invoice → note → total).
+function enterFieldNavClaimMs() {
+    try {
+        if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
+            return 300;
+        }
+    } catch (e) {}
+    const ua = (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : '';
+    if (/Android|iPhone|iPad|iPod|Mobile/i.test(ua)) {
+        return 300;
+    }
+    return 0;
+}
+
+// One successful Enter field-advance per short window. Duplicate keydown/keyup
+// pairs from Android Chrome Gboard collapse here instead of skipping a field.
+function claimEnterFieldNavigation(ms) {
+    if (isFieldNavigationSuppressed()) return false;
+    const wait = typeof ms === 'number' ? ms : enterFieldNavClaimMs();
+    if (wait > 0) {
+        suppressFieldNavigation(wait);
+    }
+    return true;
+}
+
 // Defer focus until after keyup: $nextTick runs as a microtask before keyup on
 // Android/external keyboards, so the same Enter's keyup lands on the next field.
 function deferFocusElement(id, select = true) {
@@ -458,7 +650,7 @@ function deferFocusElement(id, select = true) {
     }, 0);
 }
 
-// ─── Filter form Enter → next field (selects included) ───────────────────────
+// ─── Filter form Enter → submit (selects included) ───────────────────────────
 function filterFormFocusables(form) {
     const nodes = form.querySelectorAll(
         'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([disabled]),' +
@@ -547,12 +739,8 @@ function processFilterEnterNav(e) {
         return false;
     }
 
-    if (el.matches('[data-filter-enter-submit]') && el.matches('input, select')) {
-        return submitFilterForm(form);
-    }
-
     if (el.matches('input, select')) {
-        return focusNextInFilterForm(form, el);
+        return submitFilterForm(form);
     }
 
     return false;
@@ -930,8 +1118,7 @@ function asyncCombobox(config) {
             if (key === 'Enter') {
                 const filterForm = this.$el.closest('form.filter-enter-nav');
                 if (filterForm && !this.open) {
-                    const input = this.$el.querySelector('input[type="text"], input:not([type="hidden"])');
-                    if (input && focusNextInFilterForm(filterForm, input)) {
+                    if (submitFilterForm(filterForm)) {
                         return true;
                     }
                 }

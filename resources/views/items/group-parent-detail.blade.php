@@ -12,7 +12,7 @@ $breadcrumbs = [
 $fmt = fn ($v) => format_amount($v, 0);
 @endphp
 
-<div class="p-4 sm:p-6" x-data="groupWarehousePicker(@js($detail['warehouse_names']), @js($detail['parent_slug']))">
+<div class="p-4 sm:p-6" x-data="groupWarehousePicker(@js($detail['warehouse_names']), @js($detail['anchor_group_id']))">
     <div class="mb-4">
         <a href="{{ route('items.group') }}" class="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-100">
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
@@ -69,18 +69,29 @@ $fmt = fn ($v) => format_amount($v, 0);
                     <div class="border-t border-gray-100 pt-4 md:col-span-2">
                         <p class="mb-2 text-sm font-semibold uppercase tracking-wider text-gray-500">Rename Product</p>
                         <p class="mb-3 text-sm text-gray-600">Updates the product name for every color variant under this parent group.</p>
-                        <form method="POST" action="{{ route('items.group-parent-update', $detail['parent_slug']) }}" class="flex flex-col gap-3 sm:flex-row sm:items-end">
+                        <form method="POST" action="{{ route('items.group-parent-update', $detail['anchor_group_id']) }}" class="space-y-6">
                             @csrf
                             @method('PUT')
-                            <div class="flex-1">
-                                <label for="group-product-name" class="sr-only">Product name</label>
-                                <input id="group-product-name" type="text" name="name"
-                                       value="{{ old('name', $detail['uses_placeholder'] ? '' : $detail['product_name']) }}"
-                                       placeholder="{{ $detail['label'] }}"
-                                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('name') border-red-500 @enderror">
-                                @error('name')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+                            <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+                                <div class="flex-1">
+                                    <label for="group-product-name" class="mb-1 block text-sm font-medium text-gray-700">Product name</label>
+                                    <input id="group-product-name" type="text" name="name"
+                                           value="{{ old('name', $detail['uses_placeholder'] ? '' : $detail['product_name']) }}"
+                                           placeholder="{{ $detail['label'] }}"
+                                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('name') border-red-500 @enderror">
+                                    @error('name')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+                                </div>
                             </div>
-                            <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Save Product Name</button>
+
+                            @include('items.partials.form-pricing-scopes', [
+                                'pricingState' => $parentPricingState ?? [],
+                                'pricingPrefix' => 'pricing',
+                                'pricingIdPrefix' => 'group-parent-pricing',
+                            ])
+
+                            <div>
+                                <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Save group catalog</button>
+                            </div>
                         </form>
                     </div>
                     @endif
@@ -89,7 +100,7 @@ $fmt = fn ($v) => format_amount($v, 0);
                         <label class="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
                             <input type="checkbox" x-model="showZero" class="rounded border-gray-300"> Show 0 Quantity
                         </label>
-                        <a href="{{ route('items.group-parent-export', $detail['parent_slug']) }}"
+                        <a href="{{ route('items.group-parent-export', $detail['anchor_group_id']) }}"
                            class="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
                             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                             Export Excel
@@ -185,7 +196,7 @@ $fmt = fn ($v) => format_amount($v, 0);
 
     <div class="space-y-8">
         @foreach($detail['colors'] as $color)
-        <section class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <section id="{{ $color['anchor_id'] }}" class="scroll-mt-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
             <div class="border-b-4 border-purple-300 bg-purple-50 px-6 py-4">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div class="flex items-start gap-4">
@@ -208,6 +219,12 @@ $fmt = fn ($v) => format_amount($v, 0);
                             'align' => 'left',
                         ])
                     </div>
+                    @if($canEditGroup && !empty($color['group_id']))
+                    <a href="{{ route('items.colorway-edit', $color['group_id']) }}"
+                       class="inline-flex shrink-0 items-center gap-2 rounded-lg border border-purple-300 bg-white px-3 py-2 text-sm font-medium text-purple-800 hover:bg-purple-100">
+                        Edit colorway
+                    </a>
+                    @endif
                 </div>
             </div>
 
@@ -313,14 +330,14 @@ $fmt = fn ($v) => format_amount($v, 0);
 
 @push('scripts')
 <script>
-function groupWarehousePicker(warehouseNames, parentSlug) {
+function groupWarehousePicker(warehouseNames, parentGroupId) {
     return {
-        showZero: false,
+        showZero: true,
         warehouseFocusOpen: false,
         warehouseNames,
         selectedWarehouses: [],
-        storageKey: 'aria-item-group-wh-' + parentSlug,
-        openStorageKey: 'aria-item-group-wh-open-' + parentSlug,
+        storageKey: 'aria-item-group-wh-' + parentGroupId,
+        openStorageKey: 'aria-item-group-wh-open-' + parentGroupId,
         init() {
             try {
                 const saved = JSON.parse(localStorage.getItem(this.storageKey) || '[]');

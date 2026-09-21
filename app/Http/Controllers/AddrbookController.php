@@ -12,7 +12,6 @@ use App\Models\Location;
 use App\Models\Operation;
 use App\Models\ReportingEntity;
 use App\Models\ReportingLedgerRole;
-use App\Models\StatSell;
 use App\Models\Tag;
 use App\Services\ExportSellExportService;
 use App\Services\ExportSellQueryService;
@@ -63,11 +62,12 @@ class AddrbookController extends Controller
                     ->orWhere('address', 'like', $pattern)
                 );
             })
-            ->when(in_array($type, ['bank', 'warehouse'], true), fn ($q) => $q->orderBy('name'), fn ($q) => $q->latest());
+            ->orderBy('name')
+            ->orderBy('id');
 
         // Combobox / autocomplete requests (?json=1)
         if ($this->isJsonRequest()) {
-            return $q->limit(20)->get(['id', 'code', 'name', 'alias', 'ppn']);
+            return $q->limit(20)->get(['id', 'code', 'name', 'alias', 'ppn', 'ppn_included', 'description', 'ledger_hint']);
         }
 
         $can = [
@@ -419,7 +419,7 @@ class AddrbookController extends Controller
             }
 
             $cat = $this->categorizeAddrbook($op);
-            $amt = (float) $t->real_total;
+            $amt = (float) $t->total;
             $txType = $t->type instanceof TransactionType ? $t->type->value : $t->type;
 
             if ($txType == TransactionType::CashIn->value) {
@@ -458,6 +458,21 @@ class AddrbookController extends Controller
         $a->delete();
 
         return redirect()->to(Addrbook::typeIndexRoute((int) $a->type))->with('success', 'Deleted.');
+    }
+
+    public function restore(Addrbook $addrbook)
+    {
+        $a = $addrbook;
+        Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['edit']);
+        $this->authorizeAddrbookLocation($a);
+
+        if (! $a->trashed()) {
+            return redirect()->back()->with('error', 'Entry is not deleted.');
+        }
+
+        $a->restore();
+
+        return redirect()->to(Addrbook::typeIndexRoute((int) $a->type))->with('success', 'Restored.');
     }
 
     private function tagGroupsForWarehouseItems(): \Illuminate\Support\Collection

@@ -14,16 +14,19 @@ use App\Http\Requests\StoreSellCashInRequest;
 use App\Http\Requests\StoreTransferRequest;
 use App\Models\DeletedTransaction;
 use App\Models\DeletedTransactionDetail;
+use App\Models\Addrbook;
 use App\Models\Transaction;
 use App\Services\BookClosingService;
 use App\Services\Jubelio\JubelioTransactionSyncPresenter;
 use App\Services\Reporting\ReportingSummaryRecorder;
+use App\Services\SellCashInPresenter;
 use App\Services\StandaloneInvoiceSettlement;
 use App\Services\TransactionInvoiceService;
 use App\Services\TransactionListExportService;
 use App\Services\TransactionReturnDraftService;
 use App\Services\TransactionService;
 use App\Services\UserPreferenceService;
+use App\Services\WarehouseItemStatsRecorder;
 use App\Support\PpnAmounts;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -46,7 +49,7 @@ class TransactionsController extends Controller
         } else {
             $transactions->orderBy('date', 'desc')->orderBy('id', 'desc');
         }
-        $filters = $request->only(['from', 'to', 'sort', 'direction', 'type', 'invoice', 'min_total', 'max_total', 'per_page']);
+        $filters = $request->only(['from', 'to', 'sort', 'direction', 'type', 'invoice', 'total', 'per_page']);
         $can = $this->transactionPermissions();
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json($transactions->paginate($perPage)->withQueryString());
@@ -84,6 +87,11 @@ class TransactionsController extends Controller
         if (! $config) {
             abort(404, "Transaction type '{$type}' not supported.");
         }
+        if ($type === 'move') {
+            $partyTypes = Transaction::movePartyAddrbookTypeIds(Auth::user());
+            $config['sender_type'] = $partyTypes;
+            $config['receiver_type'] = $partyTypes;
+        }
         $config['sender_route'] = route('transactions.lookup', ['type' => $type, 'role' => 'sender', 'addrbook_type' => $config['sender_type'] ?? null]);
         $config['receiver_route'] = route('transactions.lookup', ['type' => $type, 'role' => 'receiver', 'addrbook_type' => $config['receiver_type'] ?? null]);
         $getLabel = function ($role) use ($config) {
@@ -107,7 +115,8 @@ class TransactionsController extends Controller
             'min_date' => $bookClosingService->getMinAllowedDate()->toDateString(),
             'prefill' => $this->resolveCreatePrefill($type, $request, $draftService, $userPreferences),
             'jubelio_sync' => $jubelioSyncPresenter->createFormSyncConfig(),
-            'sellCashIn' => $type === 'sell' ? $this->sellCashInFormData(Auth::user()) : null,
+            'sellCashIn' => $type === 'sell' ? app(SellCashInPresenter::class)->formData(Auth::user()) : null,
+            'ppn_included_system_default' => Addrbook::defaultPpnIncluded(),
         ]);
     }
 
@@ -159,13 +168,16 @@ class TransactionsController extends Controller
      */
     private function itemLookupPayload(\App\Models\Item $item): array
     {
+        $item->loadMissing(['warehouseItems', 'group']);
+
         return [
             'id' => $item->id,
             'code' => $item->getItemCode(),
             'name' => $item->name ?: $item->getItemName(),
             'type' => $item->type->value,
-            'price' => (float) $item->price,
-            'cost' => (float) $item->cost,
+            'price' => $item->effectivePrice(),
+            'reseller_sell_price' => $item->resellerSellPrice(),
+            'cost' => $item->effectiveCost(),
             'jubelio_item_id' => (int) ($item->jubelio_item_id ?? 0),
             'warehouse_item' => $item->warehouseItems->map(fn ($wi) => [
                 'warehouse_id' => (string) $wi->warehouse_id,
@@ -186,6 +198,12 @@ class TransactionsController extends Controller
             );
         }
         $transaction = $action->execute($request);
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'redirect' => route('transactions.show', $transaction, absolute: false),
+            ], 201);
+        }
 
         return redirect()->route('transactions.show', $transaction)->with('success', 'Transaction created.');
     }
@@ -223,7 +241,7 @@ class TransactionsController extends Controller
         $this->authorizeTransactionView($transaction);
         Gate::authorize(Transaction::getPermissions()['type-cash-in']);
         abort_unless((int) $transaction->type === Transaction::TYPE_SELL, 422, 'Cash in can only be created from a sell.');
-        abort_unless((int) $transaction->status === Transaction::STATUS_COMPLETED, 422, 'Cash in can only be created from a completed sell.');
+        abort_unless((int) $transaction->status !== Transaction::STATUS_CANCELLED, 422, 'Cash in cannot be created from a cancelled sell.');
 
         $date = $request->validated('date') ?: now()->toDateString();
         $bookClosingService->validateDate($date);
@@ -309,6 +327,7 @@ class TransactionsController extends Controller
             403
         );
         $transaction->load(['details.item.group', 'sender', 'receiver', 'user', 'submitByA', 'submitByB']);
+        $transaction->sortDetailsBySku();
         $typeSlug = $this->resolveTypeSlug($transaction);
         $config = config("transaction_rules.{$typeSlug}");
         $getLabel = function ($role) use ($config) {
@@ -326,7 +345,16 @@ class TransactionsController extends Controller
         $invoiceService = app(TransactionInvoiceService::class);
         $canDraftReturn = $this->canDraftReturn($transaction);
         $invoiceSettlement = app(StandaloneInvoiceSettlement::class)->snapshotForTransaction($transaction);
-        $sellCashIn = $this->sellCashInShowData($transaction, $invoiceSettlement);
+        $sellCashInPresenter = app(SellCashInPresenter::class);
+        $sellCashIn = $sellCashInPresenter->forSell($transaction, Auth::user(), $invoiceSettlement);
+        $invoiceLinked = match ((int) $transaction->type) {
+            Transaction::TYPE_CASH_IN => $invoiceSettlement
+                ? null
+                : $sellCashInPresenter->forCashIn($transaction),
+            Transaction::TYPE_CASH_OUT => $sellCashInPresenter->forCashOut($transaction),
+            Transaction::TYPE_BUY => $sellCashInPresenter->forBuy($transaction),
+            default => null,
+        };
         $cashBankId = match ((int) $transaction->type) {
             Transaction::TYPE_CASH_IN => (int) $transaction->receiver_id,
             Transaction::TYPE_CASH_OUT => (int) $transaction->sender_id,
@@ -353,6 +381,7 @@ class TransactionsController extends Controller
             ],
             'invoiceSettlement' => $invoiceSettlement,
             'sellCashIn' => $sellCashIn,
+            'invoiceLinked' => $invoiceLinked,
             'flash' => [
                 'success' => session('success'),
                 'error' => session('errorMessage') ?? session('error'),
@@ -669,7 +698,7 @@ class TransactionsController extends Controller
                 'pph' => $transaction->pph !== null ? (float) $transaction->pph : null,
                 'record_ppn' => (float) $transaction->ppn > 0,
                 'record_pph' => (float) ($transaction->pph ?? 0) > 0,
-                'display_ppn' => format_amount($transaction->ppn),
+                'display_ppn' => format_amount($transaction->displaySignedPpn()),
                 'display_dpp' => $transaction->ppn_dpp !== null ? format_amount($transaction->ppn_dpp) : '-',
                 'display_pph' => $transaction->pph !== null ? format_amount($transaction->pph) : '-',
             ]);
@@ -681,35 +710,42 @@ class TransactionsController extends Controller
     public function destroy(Transaction $transaction, TransactionService $service, BookClosingService $bookClosingService)
     {
         Gate::authorize(Transaction::getPermissions()['delete']);
-        if ($transaction->isFromJubelio()) {
-            return back()->with('error', 'Jubelio-synced transactions cannot be deleted.');
-        }
 
-        $transaction->load(['details', 'sender', 'receiver']);
-        $sender = $transaction->sender;
-        $receiver = $transaction->receiver;
+        $transactionId = (int) $transaction->id;
         $invoiceNumber = (string) $transaction->invoice;
         $bookClosingService->validateDate($transaction->date->format('Y-m-d'));
 
-        DB::transaction(function () use ($transaction, $service, $sender, $receiver) {
+        $completed = false;
+
+        DB::transaction(function () use ($transactionId, $service, &$completed) {
+            $transaction = Transaction::query()
+                ->whereKey($transactionId)
+                ->lockForUpdate()
+                ->with(['details', 'sender', 'receiver'])
+                ->first();
+
+            if ($transaction === null) {
+                $completed = DeletedTransaction::query()->whereKey($transactionId)->exists();
+
+                return;
+            }
+
+            $sender = $transaction->sender;
+            $receiver = $transaction->receiver;
+
             $deletedColumns = array_flip(Schema::getColumnListing((new DeletedTransaction)->getTable()));
-            $transactionData = array_intersect_key($transaction->getAttributes(), $deletedColumns);
-            $transactionData['deleted_at'] = now();
+            $transactionData = $this->attributesForArchiveTable($transaction->getAttributes(), $deletedColumns);
 
             $deletedDetailColumns = array_flip(Schema::getColumnListing((new DeletedTransactionDetail)->getTable()));
             $detailRows = [];
             foreach ($transaction->details as $detail) {
-                $detailData = array_intersect_key($detail->getAttributes(), $deletedDetailColumns);
-                $detailData['deleted_at'] = now();
-                $detailRows[] = $detailData;
+                $detailRows[] = $this->attributesForArchiveTable($detail->getAttributes(), $deletedDetailColumns);
             }
 
             $service->revertTransaction($transaction);
+            app(WarehouseItemStatsRecorder::class)->revertTransaction($transaction);
 
-            DeletedTransaction::create($transactionData);
-            foreach ($detailRows as $detailData) {
-                DeletedTransactionDetail::create($detailData);
-            }
+            $this->archiveTransactionToDeleted($transactionData, $detailRows);
 
             $transaction->details()->delete();
             $transaction->delete();
@@ -720,7 +756,13 @@ class TransactionsController extends Controller
             if ($receiver instanceof \App\Models\Addrbook) {
                 $service->syncStatFromLatestTransaction($receiver);
             }
+
+            $completed = true;
         });
+
+        if (! $completed) {
+            return back()->with('error', 'Transaction could not be deleted.');
+        }
 
         app(StandaloneInvoiceSettlement::class)->reconcileByNumber($invoiceNumber, Auth::user());
 
@@ -728,69 +770,47 @@ class TransactionsController extends Controller
     }
 
     /**
-     * @return array{
-     *     can_create: bool,
-     *     banks: \Illuminate\Support\Collection<int, \App\Models\Addrbook>,
-     *     default_account: array{id: int, name: string}|null,
-     *     min_date: string,
-     *     default_date: string,
-     *     default_amount: float,
-     *     linked: \Illuminate\Support\Collection<int, Transaction>
-     * }
+     * Copy a live transaction onto `deleted` / `deleted_details`, skipping rows
+     * that were already archived (e.g. concurrent delete or a prior partial run).
+     *
+     * @param  array<string, mixed>  $transactionData
+     * @param  array<int, array<string, mixed>>  $detailRows
      */
-    private function sellCashInFormData(?\App\Models\User $user, float $defaultAmount = 0.0): array
+    private function archiveTransactionToDeleted(array $transactionData, array $detailRows): void
     {
-        $today = now()->toDateString();
-        $minDate = app(BookClosingService::class)->getMinAllowedDate()->toDateString();
+        $transactionId = (int) $transactionData['id'];
 
-        return [
-            'can_create' => $user !== null
-                && $user->can(Transaction::getPermissions()['type-cash-in']),
-            'banks' => \App\Models\Addrbook::query()
-                ->where('type', \App\Models\Addrbook::TYPE_BANK)
-                ->orderBy('name')
-                ->get(),
-            'default_account' => $user
-                ? app(UserPreferenceService::class)->defaultCashAccount($user, true)
-                : null,
-            'min_date' => $minDate,
-            'default_date' => $today < $minDate ? $minDate : $today,
-            'default_amount' => $defaultAmount,
-            'linked' => collect(),
-        ];
+        if (! DeletedTransaction::query()->whereKey($transactionId)->exists()) {
+            DeletedTransaction::create($transactionData);
+        }
+
+        foreach ($detailRows as $detailData) {
+            $detailId = (int) ($detailData['id'] ?? 0);
+            if ($detailId > 0 && DeletedTransactionDetail::query()->whereKey($detailId)->exists()) {
+                continue;
+            }
+
+            DeletedTransactionDetail::create($detailData);
+        }
     }
 
     /**
-     * @param  array<string, mixed>|null  $invoiceSettlement
-     * @return array<string, mixed>|null
+     * Copy live transaction attributes onto `deleted` / `deleted_details`.
+     *
+     * Production archive tables match the live L10 shape: `deleted_details` has
+     * no created_at, updated_at, or deleted_at. Only write columns that exist.
+     *
+     * @param  array<string, mixed>  $attributes
+     * @param  array<string, int>  $columnMap
+     * @return array<string, mixed>
      */
-    private function sellCashInShowData(Transaction $transaction, ?array $invoiceSettlement): ?array
+    private function attributesForArchiveTable(array $attributes, array $columnMap): array
     {
-        if ((int) $transaction->type !== Transaction::TYPE_SELL) {
-            return null;
+        if (array_key_exists('deleted_at', $columnMap)) {
+            $attributes['deleted_at'] = now();
         }
 
-        $defaultAmount = $transaction->displayGrandTotal();
-        if ($invoiceSettlement && (float) ($invoiceSettlement['remaining'] ?? 0) > 0.009) {
-            $defaultAmount = (float) $invoiceSettlement['remaining'];
-        }
-
-        $data = $this->sellCashInFormData(Auth::user(), $defaultAmount);
-        $receiver = $transaction->receiver;
-        $receiverOk = $receiver && in_array((int) $receiver->type, \App\Models\Addrbook::cashPartyTypes(), true);
-        $data['can_create'] = $data['can_create']
-            && (int) $transaction->status === Transaction::STATUS_COMPLETED
-            && $receiverOk;
-        $data['linked'] = Transaction::query()
-            ->with(['sender', 'receiver'])
-            ->where('type', Transaction::TYPE_CASH_IN)
-            ->where('invoice', $transaction->invoice)
-            ->where('status', Transaction::STATUS_COMPLETED)
-            ->orderBy('date')
-            ->orderBy('id')
-            ->get();
-
-        return $data;
+        return array_intersect_key($attributes, $columnMap);
     }
 
     private function authorizeTransactionType(string $type): void
@@ -862,8 +882,7 @@ class TransactionsController extends Controller
             ->visibleToUser(Auth::user())
             ->when($request->invoice, fn ($q, $v) => $q->where('invoice', 'like', "%{$v}%"))
             ->when($request->type, fn ($q, $v) => $q->where('type', $v))
-            ->when($request->min_total, fn ($q, $v) => $q->where('total', '>=', $v))
-            ->when($request->max_total, fn ($q, $v) => $q->where('total', '<=', $v))
+            ->when($request->filled('total'), fn ($q) => $q->where('total', '=', $request->input('total')))
             ->when($request->from, fn ($q, $v) => $q->whereDate('date', '>=', $v))
             ->when($request->to, fn ($q, $v) => $q->whereDate('date', '<=', $v));
     }

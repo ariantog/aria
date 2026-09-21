@@ -9,6 +9,8 @@ class UserPreferenceRegistry
 {
     public const APPEARANCE_SLUG = 'ui.appearance';
 
+    public const FONT_SIZE_SLUG = 'ui.font_size';
+
     public const FAVORITES_SLUG = 'sidebar.favorites';
 
     public const FAVORITES_MAX = 5;
@@ -19,6 +21,26 @@ class UserPreferenceRegistry
     public static function appearanceOptions(): array
     {
         return ['light', 'dark', 'system'];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function fontSizeOptions(): array
+    {
+        return ['small', 'default', 'large'];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function fontSizePixels(): array
+    {
+        return [
+            'small' => '13px',
+            'default' => '14px',
+            'large' => '16px',
+        ];
     }
 
     /**

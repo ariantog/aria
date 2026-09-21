@@ -110,6 +110,18 @@ $receiverInitial = $settings['receiver']
                 @error('default_warehouse_ids')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
             </div>
 
+            <div>
+                <label class="mb-1 block text-sm font-medium text-gray-700" for="restock-export-cost-field">Excel export cost column</label>
+                <p class="mb-2 text-xs text-gray-500">Unit cost shown in restock Excel exports (per SKU / size).</p>
+                <select id="restock-export-cost-field" name="export_cost_field"
+                        @disabled(!$canEdit)
+                        class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 disabled:bg-gray-50">
+                    <option value="cost" @selected(old('export_cost_field', $settings['export_cost_field']) === 'cost')>Cost (IDR) — items.cost</option>
+                    <option value="cost_cnh" @selected(old('export_cost_field', $settings['export_cost_field']) === 'cost_cnh')>Cost (CNY) — items.cost_cnh</option>
+                </select>
+                @error('export_cost_field')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+            </div>
+
             @if($canEdit)
             <div class="flex justify-end gap-3 border-t border-gray-100 pt-4">
                 <button type="submit" class="rounded-lg bg-blue-700 px-6 py-2 text-sm font-medium text-white hover:bg-blue-800">

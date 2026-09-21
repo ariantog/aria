@@ -48,6 +48,15 @@ class DispatchScheduledTasks extends Command
                 continue;
             }
 
+            if ($reason = CronManager::cronManagerBlockReason($task->command)) {
+                Log::error('Scheduled task blocked: manual items.qty sync command', [
+                    'command' => $task->command,
+                    'reason' => $reason,
+                ]);
+
+                continue;
+            }
+
             if (! $this->shouldRun($task)) {
                 continue;
             }

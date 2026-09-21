@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\AddrbookType;
 use App\Http\Requests\StoreLocationRequest;
 use App\Http\Requests\UpdateLocationRequest;
 use App\Models\Addrbook;
@@ -86,14 +85,14 @@ class LocationController extends Controller
         $search = trim((string) request()->query('q', ''));
 
         $assigned = $location->customers()
-            ->where('type', AddrbookType::Customer)
+            ->withoutLedgers()
             ->orderBy('name')
             ->get();
 
         $candidates = collect();
         if ($search !== '') {
             $candidates = Addrbook::query()
-                ->where('type', AddrbookType::Customer)
+                ->withoutLedgers()
                 ->whereNotIn('id', $assigned->pluck('id'))
                 ->where(fn ($q) => $q
                     ->where('name', 'like', "%{$search}%")
@@ -122,21 +121,18 @@ class LocationController extends Controller
         ]);
 
         $addrbook = Addrbook::query()->findOrFail($data['customer_id']);
-        $type = $addrbook->type instanceof AddrbookType
-            ? $addrbook->type
-            : AddrbookType::tryFrom((int) $addrbook->type);
 
-        if ($type !== AddrbookType::Customer) {
+        if (Addrbook::typeIsLedger((int) $addrbook->type)) {
             return redirect()
                 ->route('locations.customers', $location)
-                ->with('error', 'Only customers can be linked to a location.');
+                ->with('error', 'Ledger accounts cannot be linked to a location.');
         }
 
         $location->customers()->syncWithoutDetaching([$addrbook->id]);
 
         return redirect()
             ->route('locations.customers', $location)
-            ->with('success', 'Customer linked to location.');
+            ->with('success', 'Contact linked to location.');
     }
 
     public function detachAddrbook(Location $location, Addrbook $addrbook)
@@ -147,6 +143,6 @@ class LocationController extends Controller
 
         return redirect()
             ->route('locations.customers', $location)
-            ->with('success', 'Customer removed from location.');
+            ->with('success', 'Contact removed from location.');
     }
 }

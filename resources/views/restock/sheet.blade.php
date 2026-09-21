@@ -3,18 +3,31 @@
 @push('head-css')
 <link href="{{ asset('vendor/tabulator/tabulator.min.css') }}" rel="stylesheet">
 <style>
+    /* Native horizontal scroll on the wrapper — whole grid (header + rows) moves together. */
     .restock-grid-wrap {
         overflow-x: auto;
+        overflow-y: visible;
+        max-width: 100%;
+        min-width: 0;
         background: transparent;
+        -webkit-overflow-scrolling: touch;
     }
     .restock-grid-wrap .tabulator {
         display: inline-block;
         vertical-align: top;
         font-size: 13px;
         border-radius: 0.375rem;
-        width: auto;
-        max-width: 100%;
+        width: max-content;
+        max-width: none;
+        overflow: visible !important;
         background: transparent;
+    }
+    .restock-grid-wrap .tabulator .tabulator-header,
+    .restock-grid-wrap .tabulator .tabulator-header .tabulator-header-contents,
+    .restock-grid-wrap .tabulator .tabulator-tableholder {
+        overflow: visible !important;
+        height: auto !important;
+        max-height: none !important;
     }
     .restock-grid-wrap .tabulator .tabulator-tableholder,
     .restock-grid-wrap .tabulator .tabulator-header,
@@ -70,6 +83,35 @@
     html.dark .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-stock { background: #14532d; }
     .restock-grid-wrap .tabulator-cell.tabulator-editing { border: 2px solid #2563eb !important; }
 
+    .restock-grid-wrap .tabulator .tabulator-row.restock-data-row.tabulator-selected {
+        background-color: #dbeafe;
+    }
+    .restock-grid-wrap .tabulator .tabulator-row.restock-data-row.tabulator-selected > .tabulator-cell {
+        background-color: #dbeafe !important;
+    }
+    .restock-grid-wrap .tabulator .tabulator-row.restock-data-row.tabulator-selected > .tabulator-cell.restock-urgent-cell {
+        background-color: #bfdbfe !important;
+        color: #991b1b;
+    }
+    .restock-grid-wrap .tabulator .tabulator-row.restock-data-row.tabulator-selected > .tabulator-cell.restock-na-cell {
+        background-color: #cbd5e1 !important;
+        color: #64748b !important;
+    }
+    html.dark .restock-grid-wrap .tabulator .tabulator-row.restock-data-row.tabulator-selected {
+        background-color: #1e3a5f;
+    }
+    html.dark .restock-grid-wrap .tabulator .tabulator-row.restock-data-row.tabulator-selected > .tabulator-cell {
+        background-color: #1e3a5f !important;
+    }
+    html.dark .restock-grid-wrap .tabulator .tabulator-row.restock-data-row.tabulator-selected > .tabulator-cell.restock-urgent-cell {
+        background-color: #1e40af !important;
+        color: #fecaca;
+    }
+    html.dark .restock-grid-wrap .tabulator .tabulator-row.restock-data-row.tabulator-selected > .tabulator-cell.restock-na-cell {
+        background-color: #334155 !important;
+        color: #94a3b8 !important;
+    }
+
     .restock-grid-wrap .tabulator .tabulator-row.restock-data-row .tabulator-cell {
         padding: 5px 8px;
     }
@@ -116,6 +158,9 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+    }
+    .restock-section-image {
+        cursor: pointer;
     }
     .restock-sheet-actions {
         position: sticky;
@@ -191,10 +236,12 @@ $breadcrumbs = [
                     </button>
                 </form>
                 @endcan
+                @can('restock-export')
                 <a href="{{ route('restock.sheets.export', $sheet) }}"
                    class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
                     Export Excel
                 </a>
+                @endcan
                 <a href="{{ route('restock.type.missing', $sheet->typeTag) }}"
                    class="rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-800 hover:bg-red-100">
                     Missing SKUs
@@ -216,7 +263,7 @@ $breadcrumbs = [
 
     <div class="flex flex-col gap-4 p-4 pt-3">
     @forelse($grid['blocks'] as $block)
-        <section class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <section class="min-w-0 rounded-xl border border-gray-200 bg-white shadow-sm">
             @if(count($grid['blocks']) > 1)
                 <div class="border-b border-gray-100 bg-gray-50 px-4 py-2">
                     <h2 class="text-sm font-semibold text-gray-700">{{ $block['title'] }}</h2>
@@ -287,6 +334,25 @@ $breadcrumbs = [
             </div>
         </div>
     </div>
+
+    <div x-show="imagePreviewOpen" x-cloak data-testid="restock-image-preview-dialog"
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+         @click.self="closeSectionImagePreview()"
+         @keydown.escape.window="imagePreviewOpen && closeSectionImagePreview()">
+        <div class="relative max-h-[90vh] max-w-[min(90vw,42rem)] rounded-xl border border-gray-200 bg-white p-4 shadow-xl"
+             role="dialog" aria-modal="true" :aria-label="imagePreviewTitle || 'Product image'">
+            <button type="button" @click="closeSectionImagePreview()"
+                    class="absolute right-3 top-3 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    aria-label="Close image preview">
+                Close
+            </button>
+            <p x-show="imagePreviewTitle" class="mb-3 max-w-[calc(90vw-5rem)] truncate pr-20 text-sm font-medium text-gray-900"
+               x-text="imagePreviewTitle"></p>
+            <img :src="imagePreviewUrl" alt=""
+                 class="mx-auto max-h-[min(80vh,36rem)] w-auto max-w-full rounded-lg object-contain"
+                 x-on:error="imagePreviewUrl = defaultImageUrl">
+        </div>
+    </div>
 </div>
 @endsection
 
@@ -308,6 +374,9 @@ function restockSheetPage() {
         moving: false,
         receiving: false,
         receiveModalOpen: false,
+        imagePreviewOpen: false,
+        imagePreviewUrl: '',
+        imagePreviewTitle: '',
         receiveLines: [],
         receiveForm: {
             date: @json(now()->toDateString()),
@@ -333,7 +402,6 @@ function restockSheetPage() {
                         index: '_rowKey',
                         renderVertical: 'basic',
                         layout: 'fitDataTable',
-                        height: this.tableHeightForBlock(block),
                         columnHeaderVertAlign: 'middle',
                         selectableRows: this.canEdit,
                         selectableRowsCheck: (row) => row.getData()._type === 'data',
@@ -346,9 +414,14 @@ function restockSheetPage() {
 
                     this.tables[block.id] = table;
                     if (isMatrix) {
-                        table.on('tableBuilt', () => this.collapseMatrixSubHeader(table));
                         table.on('columnResized', () => this.collapseMatrixSubHeader(table));
                     }
+                    table.on('tableBuilt', () => {
+                        if (isMatrix) {
+                            this.collapseMatrixSubHeader(table);
+                        }
+                        this.releaseTabulatorInternalScroll(table);
+                    });
                     table.on('rowSelectionChanged', () => {
                         this.syncSelectionCount();
                         this.syncCheckboxCells(table);
@@ -357,11 +430,28 @@ function restockSheetPage() {
             });
         },
 
-        tableHeightForBlock(block) {
-            const rows = block?.rows ?? [];
-            const isMatrix = block?.kind === 'matrix';
+        releaseTabulatorInternalScroll(table) {
+            const root = table.element;
+            if (!root) {
+                return;
+            }
 
-            return Math.max(160, rows.length * 34 + (isMatrix ? 40 : 48));
+            root.style.overflow = 'visible';
+            root.querySelectorAll('.tabulator-header, .tabulator-header-contents, .tabulator-tableholder').forEach((el) => {
+                el.style.overflow = 'visible';
+                el.style.height = 'auto';
+                el.style.maxHeight = 'none';
+            });
+        },
+
+        openSectionImagePreview(url, title) {
+            this.imagePreviewUrl = url || this.defaultImageUrl;
+            this.imagePreviewTitle = title || '';
+            this.imagePreviewOpen = true;
+        },
+
+        closeSectionImagePreview() {
+            this.imagePreviewOpen = false;
         },
 
         async parseJsonResponse(res) {
@@ -452,8 +542,13 @@ function restockSheetPage() {
             const img = document.createElement('img');
             img.src = data.image_url || this.defaultImageUrl;
             img.alt = '';
-            img.className = 'h-9 w-9 rounded border border-gray-200 object-cover';
+            img.className = 'restock-section-image h-9 w-9 rounded border border-gray-200 object-cover';
             img.onerror = () => { img.onerror = null; img.src = this.defaultImageUrl; };
+            img.addEventListener('click', (event) => {
+                event.stopPropagation();
+                const title = data.name || data.pcode || '';
+                this.openSectionImagePreview(data.image_url, title);
+            });
 
             return img;
         },
@@ -516,8 +611,20 @@ function restockSheetPage() {
 
                 const name = document.createElement('div');
                 name.className = 'restock-section-title font-semibold text-gray-900 leading-tight';
-                name.textContent = data.name || data.pcode || '';
-                name.title = data.name || data.pcode || '';
+                const displayName = data.name || data.pcode || '';
+                name.title = displayName;
+
+                if (data.group_url) {
+                    const link = document.createElement('a');
+                    link.href = data.group_url;
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    link.className = 'text-blue-700 hover:text-blue-900 hover:underline';
+                    link.textContent = displayName;
+                    name.appendChild(link);
+                } else {
+                    name.textContent = displayName;
+                }
 
                 const pcode = document.createElement('div');
                 pcode.className = 'restock-section-title font-mono text-xs text-gray-500';
@@ -528,7 +635,20 @@ function restockSheetPage() {
                 return wrap;
             }
 
-            return document.createTextNode(data.color_name ?? '');
+            const label = data.color_name ?? '';
+
+            if (data.color_url) {
+                const link = document.createElement('a');
+                link.href = data.color_url;
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                link.className = 'text-blue-700 hover:text-blue-900 hover:underline';
+                link.textContent = label;
+
+                return link;
+            }
+
+            return document.createTextNode(label);
         },
 
         buildMatrixColumns(sizes) {
@@ -742,10 +862,10 @@ function restockSheetPage() {
 
                 const rows = block.rows ?? [];
                 const isMatrix = block.kind === 'matrix';
-                table.setHeight(this.tableHeightForBlock(block));
 
                 table.replaceData(rows).then(() => {
                     if (isMatrix) this.collapseMatrixSubHeader(table);
+                    this.releaseTabulatorInternalScroll(table);
                     table.redraw(true);
                     table.deselectRow();
                     for (const row of table.getRows()) {

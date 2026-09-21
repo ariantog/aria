@@ -18,6 +18,8 @@ class Gaji extends Model
     {
         return [
             'jam_lembur' => 'float',
+            'jam_kerja_aktual' => 'float',
+            'jam_kerja_ekspektasi' => 'float',
         ];
     }
 

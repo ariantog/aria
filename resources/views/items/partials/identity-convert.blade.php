@@ -11,22 +11,7 @@
         </p>
     </div>
     <div class="space-y-4 px-6 py-4">
-        @if($identityConvert['special_family'])
-            <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
-                <p class="font-semibold">Special SKU — do not use generic conversion</p>
-                <p class="mt-1">{{ $identityConvert['message'] }}</p>
-                <p class="mt-2 text-red-800">
-                    Example: legacy
-                    <span class="font-mono">{{ $identityConvert['special_family']['legacy_example'] }}</span>
-                    → canonical
-                    <span class="font-mono">{{ $identityConvert['special_family']['canonical_example'] }}</span>
-                </p>
-                <a href="{{ route('items.special-converter') }}"
-                   class="mt-3 inline-flex items-center rounded-lg bg-red-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-800">
-                    Open Special SKU Converter
-                </a>
-            </div>
-        @elseif(! ($identityConvert['convertible'] ?? false))
+        @if(! ($identityConvert['convertible'] ?? false))
             <div class="rounded-lg border border-amber-300 bg-white px-4 py-3 text-sm text-amber-900">
                 <p class="font-semibold">Cannot convert from this page</p>
                 <p class="mt-1">{{ $identityConvert['message'] ?? 'SKU is not eligible for conversion.' }}</p>

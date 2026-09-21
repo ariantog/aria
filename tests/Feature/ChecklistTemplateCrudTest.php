@@ -13,18 +13,18 @@ beforeEach(function () {
     $this->seed(\Database\Seeders\SuperAdminSeeder::class);
     $this->seed(StaffRoleChecklistSeeder::class);
 
-    Permission::firstOrCreate(['name' => 'users-staff-roles-view', 'guard_name' => 'web']);
+    Permission::firstOrCreate(['name' => 'staff-checklists-view', 'guard_name' => 'web']);
     Permission::firstOrCreate(['name' => 'checklist-templates-edit', 'guard_name' => 'web']);
     Permission::firstOrCreate(['name' => 'checklist-templates-delete', 'guard_name' => 'web']);
 
     $this->viewer = User::factory()->create(['username' => 'tpl_viewer']);
-    $this->viewer->givePermissionTo('users-staff-roles-view');
+    $this->viewer->givePermissionTo('staff-checklists-view');
 
     $this->editor = User::factory()->create(['username' => 'tpl_editor']);
-    $this->editor->givePermissionTo(['users-staff-roles-view', 'checklist-templates-edit']);
+    $this->editor->givePermissionTo(['staff-checklists-view', 'checklist-templates-edit']);
 
     $this->deleter = User::factory()->create(['username' => 'tpl_deleter']);
-    $this->deleter->givePermissionTo(['users-staff-roles-view', 'checklist-templates-delete']);
+    $this->deleter->givePermissionTo(['staff-checklists-view', 'checklist-templates-delete']);
 });
 
 it('requires view permission to list templates', function () {

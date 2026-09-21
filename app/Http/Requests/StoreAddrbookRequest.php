@@ -36,6 +36,7 @@ class StoreAddrbookRequest extends FormRequest
             'arrangement_source_ids' => 'nullable|array',
             'arrangement_source_ids.*' => 'integer|exists:customers,id',
             'ppn' => 'boolean',
+            'ppn_included' => 'boolean',
             'initial_balance' => 'nullable|numeric',
             'location_ids' => 'nullable|array',
             'location_ids.*' => 'integer|exists:locations,id',

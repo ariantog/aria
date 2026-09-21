@@ -29,7 +29,7 @@ $tb = $typeBadges[$transaction->type] ?? ['Unknown', 'border-gray-200 bg-white t
     <div class="grid gap-4 lg:grid-cols-3">
         <div class="rounded-xl border bg-white p-4 shadow-sm lg:col-span-1">
             <div class="text-xs font-medium uppercase tracking-wide text-gray-500">Grand Total</div>
-            <div class="mt-1 text-2xl font-bold tabular-nums text-gray-900">{{ $fmt($transaction->total) }}</div>
+            <div class="mt-1 text-2xl font-bold tabular-nums text-gray-900">{{ $fmt($transaction->displaySignedGrandTotal()) }}</div>
             <dl class="mt-4 space-y-2 text-sm">
                 <div class="flex justify-between"><dt class="text-gray-500">Date</dt><dd class="font-medium">{{ $fmtDate($transaction->date) }}</dd></div>
                 <div class="flex justify-between"><dt class="text-gray-500">Type</dt><dd><span class="inline-flex rounded border px-2 py-0.5 text-xs font-medium {{ $tb[1] }}">{{ $tb[0] }}</span></dd></div>
@@ -58,7 +58,7 @@ $tb = $typeBadges[$transaction->type] ?? ['Unknown', 'border-gray-200 bg-white t
                                 @if($detail->item)
                                 <a href="{{ route('archive.items.show', $detail->item_id) }}" class="font-medium text-blue-600 hover:underline">{{ $detail->item->name }}</a>
                                 @else
-                                <span class="text-gray-500">Item #{{ $detail->item_id }}</span>
+                                <span class="text-gray-500">Item {{ $detail->item_id }}</span>
                                 @endif
                             </td>
                             <td class="px-3 py-2 font-mono text-xs">{{ $detail->item?->code ?? '—' }}</td>

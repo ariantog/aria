@@ -34,4 +34,14 @@ class AddrbookFactory extends Factory
     {
         return $this->state(fn () => ['type' => Addrbook::TYPE_SUPPLIER]);
     }
+
+    public function bank(): static
+    {
+        return $this->state(fn () => ['type' => Addrbook::TYPE_BANK]);
+    }
+
+    public function account(): static
+    {
+        return $this->state(fn () => ['type' => Addrbook::TYPE_ACCOUNT]);
+    }
 }

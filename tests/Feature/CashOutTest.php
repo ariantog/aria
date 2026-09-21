@@ -31,7 +31,6 @@ test('cash out transaction can be stored', function () {
         'sender_id' => $bank->id,    // Cashier/Bank is sender in Cash Out
         'receiver_id' => $recipient->id,
         'total' => -1000,
-        'real_total' => -1000,
     ]);
 
     // Check balance updates (AddrbookStat)
@@ -104,7 +103,6 @@ test('cash out accepts decimal totals', function () {
     $this->assertDatabaseHas('transactions', [
         'type' => Transaction::TYPE_CASH_OUT,
         'total' => -99.75,
-        'real_total' => -99.75,
     ]);
 });
 

@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Services\UserPreferenceService;
+use App\Support\UserPreferenceRegistry;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
@@ -18,13 +19,18 @@ class HandleAppearance
      */
     public function handle(Request $request, Closure $next): Response
     {
+        $preferences = app(UserPreferenceService::class);
         $appearance = $request->cookie('appearance') ?? 'system';
+        $fontSize = $request->cookie('font_size') ?? 'default';
 
         if ($request->user() && Schema::hasTable('user_preferences')) {
-            $appearance = app(UserPreferenceService::class)->appearanceFor($request->user());
+            $appearance = $preferences->appearanceFor($request->user());
+            $fontSize = $preferences->fontSizeFor($request->user());
         }
 
         View::share('appearance', $appearance);
+        View::share('fontSize', $fontSize);
+        View::share('fontSizePixels', UserPreferenceRegistry::fontSizePixels()[$fontSize] ?? '14px');
 
         return $next($request);
     }

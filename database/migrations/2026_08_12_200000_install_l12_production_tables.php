@@ -133,7 +133,7 @@ return new class extends Migration
                 $table->id();
                 $table->smallInteger('year');
                 $table->tinyInteger('month');
-                $table->integer('customer_id');
+                $this->legacyReferenceIdColumn($table, 'customer_id');
                 $table->decimal('cash_in', 15, 2)->default(0);
                 $table->decimal('cash_out', 15, 2)->default(0);
                 $table->decimal('sell', 15, 2)->default(0);
@@ -142,7 +142,7 @@ return new class extends Migration
 
                 $table->unique(['year', 'month', 'customer_id'], 'account_summary_unique');
                 $table->index(['year', 'month']);
-                $table->foreign('customer_id')->references('id')->on('customers')->cascadeOnDelete();
+                $this->addLegacyCustomerForeignKey($table, 'customer_id');
             });
         }
 
@@ -169,8 +169,8 @@ return new class extends Migration
             Schema::create('daily_inventory_summaries', function (Blueprint $table) {
                 $table->id();
                 $table->date('date');
-                $table->integer('warehouse_id');
-                $table->integer('item_id');
+                $this->legacyReferenceIdColumn($table, 'warehouse_id');
+                $this->legacyReferenceIdColumn($table, 'item_id');
                 $table->decimal('qty_sell', 15, 2)->default(0);
                 $table->decimal('qty_buy', 15, 2)->default(0);
                 $table->decimal('qty_move_in', 15, 2)->default(0);
@@ -185,8 +185,8 @@ return new class extends Migration
                 $table->unique(['date', 'warehouse_id', 'item_id'], 'inventory_summary_unique');
                 $table->index('date');
                 $table->index(['warehouse_id', 'item_id']);
-                $table->foreign('warehouse_id')->references('id')->on('customers')->cascadeOnDelete();
-                $table->foreign('item_id')->references('id')->on('items')->cascadeOnDelete();
+                $this->addLegacyCustomerForeignKey($table, 'warehouse_id');
+                $this->addLegacyItemForeignKey($table, 'item_id');
             });
         }
     }
@@ -201,16 +201,16 @@ return new class extends Migration
             $table->id();
             $table->smallInteger('year');
             $table->tinyInteger('month');
-            $table->integer('group_id')->nullable();
-            $table->integer('customer_id')->nullable();
+            $this->legacyReferenceIdColumn($table, 'group_id', true);
+            $this->legacyReferenceIdColumn($table, 'customer_id', true);
             $table->decimal('qty_net', 15, 2)->default(0);
             $table->decimal('amount_net', 15, 2)->default(0);
             $table->timestamps();
 
             $table->unique(['year', 'month', 'group_id', 'customer_id'], 'item_sale_cust_unique');
             $table->index(['year', 'month']);
-            $table->foreign('group_id')->references('id')->on('item_group')->nullOnDelete();
-            $table->foreign('customer_id')->references('id')->on('customers')->nullOnDelete();
+            $this->addLegacyItemGroupForeignKey($table, 'group_id', true);
+            $this->addLegacyCustomerForeignKey($table, 'customer_id', true);
         });
     }
 
@@ -221,9 +221,9 @@ return new class extends Migration
                 $table->id();
                 $table->timestamp('generet_at');
                 $table->string('type');
-                $table->integer('generet_by')->nullable();
+                $this->legacyReferenceIdColumn($table, 'generet_by', true);
                 $table->timestamps();
-                $table->foreign('generet_by')->references('id')->on('users')->nullOnDelete();
+                $this->addLegacyUserForeignKey($table, 'generet_by', true);
             });
         }
 
@@ -231,26 +231,26 @@ return new class extends Migration
             Schema::create('stock_data', function (Blueprint $table) {
                 $table->id();
                 $table->foreignId('id_stock_report')->constrained('stok_reports')->cascadeOnDelete();
-                $table->integer('item_id');
+                $this->legacyReferenceIdColumn($table, 'item_id');
                 $table->string('item_name');
                 $table->decimal('score', 8, 4);
                 $table->string('performance_key');
                 $table->string('performance_level');
                 $table->integer('gap_days')->nullable();
-                $table->integer('current_warehouse_id');
+                $this->legacyReferenceIdColumn($table, 'current_warehouse_id');
                 $table->string('current_warehouse_name');
                 $table->integer('current_warehouse_qty');
                 $table->string('current_warehouse_last_sale')->nullable();
                 $table->integer('current_warehouse_days_ago')->nullable();
-                $table->integer('best_performing_warehouse_id')->nullable();
+                $this->legacyReferenceIdColumn($table, 'best_performing_warehouse_id', true);
                 $table->string('best_performing_warehouse_name')->nullable();
                 $table->string('best_performing_warehouse_last_sale')->nullable();
                 $table->integer('best_performing_warehouse_days_ago')->nullable();
                 $table->integer('best_performing_warehouse_qty')->nullable();
                 $table->timestamps();
-                $table->foreign('item_id')->references('id')->on('items')->cascadeOnDelete();
-                $table->foreign('current_warehouse_id')->references('id')->on('customers')->cascadeOnDelete();
-                $table->foreign('best_performing_warehouse_id')->references('id')->on('customers')->nullOnDelete();
+                $this->addLegacyItemForeignKey($table, 'item_id');
+                $this->addLegacyCustomerForeignKey($table, 'current_warehouse_id');
+                $this->addLegacyCustomerForeignKey($table, 'best_performing_warehouse_id', true);
             });
         }
     }
@@ -263,8 +263,8 @@ return new class extends Migration
 
         Schema::create('warehouse_item_monthly_stats', function (Blueprint $table) {
             $table->id();
-            $table->integer('warehouse_id');
-            $table->integer('item_id');
+            $this->legacyReferenceIdColumn($table, 'warehouse_id');
+            $this->legacyReferenceIdColumn($table, 'item_id');
             $table->unsignedSmallInteger('month');
             $table->unsignedSmallInteger('year');
             $table->decimal('sold_qty', 15, 2)->default(0);
@@ -272,7 +272,7 @@ return new class extends Migration
             $table->decimal('sold_value', 15, 2)->default(0);
             $table->decimal('returned_value', 15, 2)->default(0);
             $table->unsignedTinyInteger('item_type')->nullable();
-            $table->integer('group_id')->nullable();
+            $this->legacyReferenceIdColumn($table, 'group_id', true);
             $table->string('pcode', 64)->nullable();
             $table->string('type_code', 64)->default('-');
             $table->string('warna_code', 64)->default('-');
@@ -283,9 +283,9 @@ return new class extends Migration
             $table->unique(['warehouse_id', 'item_id', 'month', 'year'], 'wh_item_monthly_unique');
             $table->index(['warehouse_id', 'year', 'month'], 'wh_item_monthly_wh_period');
             $table->index(['item_id', 'year', 'month'], 'wh_item_monthly_item_period');
-            $table->foreign('warehouse_id')->references('id')->on('customers')->cascadeOnDelete();
-            $table->foreign('item_id')->references('id')->on('items')->cascadeOnDelete();
-            $table->foreign('group_id')->references('id')->on('item_group')->nullOnDelete();
+            $this->addLegacyCustomerForeignKey($table, 'warehouse_id');
+            $this->addLegacyItemForeignKey($table, 'item_id');
+            $this->addLegacyItemGroupForeignKey($table, 'group_id', true);
         });
     }
 
@@ -299,7 +299,7 @@ return new class extends Migration
             $table->id();
             $table->unsignedSmallInteger('period_days');
             $table->string('lens', 20);
-            $table->integer('warehouse_id')->default(0);
+            $this->legacyReferenceIdColumn($table, 'warehouse_id', false, 0);
             $table->string('grain', 32);
             $table->string('dimension_key', 191);
             $table->unsignedTinyInteger('item_type')->nullable();
@@ -324,22 +324,20 @@ return new class extends Migration
         if (! Schema::hasTable('warehouse_arrangement_sources')) {
             Schema::create('warehouse_arrangement_sources', function (Blueprint $table) {
                 $table->id();
-                $table->integer('destination_warehouse_id');
-                $table->integer('source_warehouse_id');
+                $this->legacyReferenceIdColumn($table, 'destination_warehouse_id');
+                $this->legacyReferenceIdColumn($table, 'source_warehouse_id');
                 $table->timestamps();
 
                 $table->unique(['destination_warehouse_id', 'source_warehouse_id'], 'arr_src_dest_src_unique');
-                $table->foreign('destination_warehouse_id', 'arr_src_dest_fk')
-                    ->references('id')->on('customers')->cascadeOnDelete();
-                $table->foreign('source_warehouse_id', 'arr_src_source_fk')
-                    ->references('id')->on('customers')->cascadeOnDelete();
+                $this->addLegacyCustomerForeignKey($table, 'destination_warehouse_id', false, 'arr_src_dest_fk');
+                $this->addLegacyCustomerForeignKey($table, 'source_warehouse_id', false, 'arr_src_source_fk');
             });
         }
 
         if (! Schema::hasTable('warehouse_arrangement_pcode_snapshots')) {
             Schema::create('warehouse_arrangement_pcode_snapshots', function (Blueprint $table) {
                 $table->id();
-                $table->integer('destination_warehouse_id');
+                $this->legacyReferenceIdColumn($table, 'destination_warehouse_id');
                 $table->string('pcode');
                 $table->string('master')->nullable();
                 $table->string('master_name')->nullable();
@@ -353,16 +351,15 @@ return new class extends Migration
                 $table->timestamps();
 
                 $table->unique(['destination_warehouse_id', 'pcode'], 'arr_pcode_dest_pcode_unique');
-                $table->foreign('destination_warehouse_id', 'arr_pcode_snap_dest_fk')
-                    ->references('id')->on('customers')->cascadeOnDelete();
+                $this->addLegacyCustomerForeignKey($table, 'destination_warehouse_id', false, 'arr_pcode_snap_dest_fk');
             });
         }
 
         if (! Schema::hasTable('warehouse_arrangement_candidates')) {
             Schema::create('warehouse_arrangement_candidates', function (Blueprint $table) {
                 $table->id();
-                $table->integer('destination_warehouse_id');
-                $table->integer('item_id');
+                $this->legacyReferenceIdColumn($table, 'destination_warehouse_id');
+                $this->legacyReferenceIdColumn($table, 'item_id');
                 $table->string('pcode')->nullable();
                 $table->string('master')->nullable();
                 $table->string('item_code')->nullable();
@@ -378,10 +375,8 @@ return new class extends Migration
 
                 $table->unique(['destination_warehouse_id', 'item_id'], 'arr_candidate_dest_item_unique');
                 $table->index(['destination_warehouse_id', 'pcode'], 'arr_candidate_dest_pcode_idx');
-                $table->foreign('destination_warehouse_id', 'arr_cand_dest_fk')
-                    ->references('id')->on('customers')->cascadeOnDelete();
-                $table->foreign('item_id', 'arr_cand_item_fk')
-                    ->references('id')->on('items')->cascadeOnDelete();
+                $this->addLegacyCustomerForeignKey($table, 'destination_warehouse_id', false, 'arr_cand_dest_fk');
+                $this->addLegacyItemForeignKey($table, 'item_id', false, 'arr_cand_item_fk');
             });
         }
 
@@ -389,7 +384,7 @@ return new class extends Migration
             Schema::create('warehouse_arrangement_candidate_sources', function (Blueprint $table) {
                 $table->id();
                 $table->foreignId('candidate_id');
-                $table->integer('source_warehouse_id');
+                $this->legacyReferenceIdColumn($table, 'source_warehouse_id');
                 $table->unsignedInteger('source_stock')->default(0);
                 $table->unsignedInteger('suggested_qty')->default(1);
                 $table->timestamps();
@@ -397,8 +392,7 @@ return new class extends Migration
                 $table->unique(['candidate_id', 'source_warehouse_id'], 'arr_cand_src_unique');
                 $table->foreign('candidate_id', 'arr_cand_src_cand_fk')
                     ->references('id')->on('warehouse_arrangement_candidates')->cascadeOnDelete();
-                $table->foreign('source_warehouse_id', 'arr_cand_src_wh_fk')
-                    ->references('id')->on('customers')->cascadeOnDelete();
+                $this->addLegacyCustomerForeignKey($table, 'source_warehouse_id', false, 'arr_cand_src_wh_fk');
             });
         }
     }
@@ -439,11 +433,11 @@ return new class extends Migration
                 $table->unsignedInteger('success_count')->default(0);
                 $table->unsignedInteger('failed_count')->default(0);
                 $table->unsignedInteger('skipped_count')->default(0);
-                $table->integer('user_id')->nullable();
+                $this->legacyReferenceIdColumn($table, 'user_id', true);
                 $table->timestamp('started_at')->nullable();
                 $table->timestamp('finished_at')->nullable();
                 $table->timestamps();
-                $table->foreign('user_id')->references('id')->on('users')->nullOnDelete();
+                $this->addLegacyUserForeignKey($table, 'user_id', true);
             });
         }
 
@@ -451,7 +445,7 @@ return new class extends Migration
             Schema::create('item_identity_conversion_results', function (Blueprint $table) {
                 $table->id();
                 $table->foreignId('run_id')->constrained('item_identity_conversion_runs')->cascadeOnDelete();
-                $table->integer('item_id');
+                $this->legacyReferenceIdColumn($table, 'item_id');
                 $table->string('status', 20);
                 $table->string('failure_code', 40)->nullable();
                 $table->text('detail')->nullable();
@@ -460,7 +454,7 @@ return new class extends Migration
 
                 $table->index(['item_id', 'status']);
                 $table->index('failure_code');
-                $table->foreign('item_id')->references('id')->on('items')->cascadeOnDelete();
+                $this->addLegacyItemForeignKey($table, 'item_id');
             });
         }
     }
@@ -473,19 +467,19 @@ return new class extends Migration
             Schema::create('restock_sheets', function (Blueprint $table) {
                 $table->id();
                 $table->string('name');
-                $table->integer('type_tag_id');
-                $table->integer('representative_group_id')->nullable();
-                $table->integer('created_by');
+                $this->legacyReferenceIdColumn($table, 'type_tag_id');
+                $this->legacyReferenceIdColumn($table, 'representative_group_id', true);
+                $this->legacyReferenceIdColumn($table, 'created_by');
                 $table->timestamp('last_saved_at')->nullable();
-                $table->integer('last_saved_by')->nullable();
+                $this->legacyReferenceIdColumn($table, 'last_saved_by', true);
                 $table->timestamps();
 
                 $table->unique('type_tag_id');
                 $table->index('type_tag_id');
-                $table->foreign('type_tag_id')->references('id')->on('tags')->cascadeOnDelete();
-                $table->foreign('representative_group_id')->references('id')->on('item_group')->nullOnDelete();
-                $table->foreign('created_by')->references('id')->on('users')->cascadeOnDelete();
-                $table->foreign('last_saved_by')->references('id')->on('users')->nullOnDelete();
+                $this->addLegacyTagForeignKey($table, 'type_tag_id');
+                $this->addLegacyItemGroupForeignKey($table, 'representative_group_id', true);
+                $this->addLegacyUserForeignKey($table, 'created_by');
+                $this->addLegacyUserForeignKey($table, 'last_saved_by', true);
             });
         }
 
@@ -493,9 +487,9 @@ return new class extends Migration
             Schema::create('restock_cells', function (Blueprint $table) {
                 $table->id();
                 $table->foreignId('restock_sheet_id')->constrained()->cascadeOnDelete();
-                $table->integer('item_id');
-                $table->integer('color_id')->nullable();
-                $table->integer('size_id')->nullable();
+                $this->legacyReferenceIdColumn($table, 'item_id');
+                $this->legacyReferenceIdColumn($table, 'color_id', true);
+                $this->legacyReferenceIdColumn($table, 'size_id', true);
                 $table->unsignedInteger('qty_restock')->default(0);
                 $table->unsignedInteger('qty_production')->default(0);
                 $table->unsignedInteger('qty_shipped')->default(0);
@@ -508,9 +502,9 @@ return new class extends Migration
 
                 $table->unique(['restock_sheet_id', 'item_id']);
                 $table->index(['restock_sheet_id', 'color_id', 'size_id']);
-                $table->foreign('item_id')->references('id')->on('items')->cascadeOnDelete();
-                $table->foreign('color_id')->references('id')->on('tags')->nullOnDelete();
-                $table->foreign('size_id')->references('id')->on('tags')->nullOnDelete();
+                $this->addLegacyItemForeignKey($table, 'item_id');
+                $this->addLegacyTagForeignKey($table, 'color_id', true);
+                $this->addLegacyTagForeignKey($table, 'size_id', true);
             });
         }
 
@@ -522,14 +516,14 @@ return new class extends Migration
                 $table->integer('qty_before')->default(0);
                 $table->integer('qty_after')->default(0);
                 $table->string('action');
-                $table->integer('user_id');
-                $table->integer('transaction_id')->nullable();
+                $this->legacyReferenceIdColumn($table, 'user_id');
+                $this->legacyReferenceIdColumn($table, 'transaction_id', true);
                 $table->string('note')->nullable();
                 $table->timestamps();
 
                 $table->index(['restock_cell_id', 'created_at']);
                 $table->index('transaction_id');
-                $table->foreign('user_id')->references('id')->on('users')->cascadeOnDelete();
+                $this->addLegacyUserForeignKey($table, 'user_id');
                 // No FK to transactions — production table is RANGE-partitioned by date (MySQL errno 150).
             });
         }
@@ -572,7 +566,11 @@ return new class extends Migration
 
         Schema::table('sessions', function (Blueprint $table) {
             if (! Schema::hasColumn('sessions', 'user_id')) {
-                $table->integer('user_id')->nullable()->index()->after('id');
+                if ($this->usesGreenfieldBigintPrimaryKeys()) {
+                    $table->unsignedBigInteger('user_id')->nullable()->index()->after('id');
+                } else {
+                    $table->integer('user_id')->nullable()->index()->after('id');
+                }
             }
             if (! Schema::hasColumn('sessions', 'ip_address')) {
                 $table->string('ip_address', 45)->nullable()->after('user_id');
@@ -586,10 +584,16 @@ return new class extends Migration
     /**
      * A failed first run may leave tables with BIGINT FK columns that cannot reference
      * production INT(11) primary keys. Drop and recreate on retry.
+     *
+     * Greenfield installs keep Laravel BIGINT primary keys on legacy tables — skip drops.
      */
     private function dropTablesWithLegacyFkTypeMismatch(): void
     {
         if (Schema::getConnection()->getDriverName() !== 'mysql') {
+            return;
+        }
+
+        if ($this->usesGreenfieldBigintPrimaryKeys()) {
             return;
         }
 
@@ -611,6 +615,8 @@ return new class extends Migration
             'restock_cell_histories' => 'user_id',
         ];
 
+        $tablesToDrop = [];
+
         foreach ($checks as $table => $column) {
             if (! Schema::hasTable($table) || ! Schema::hasColumn($table, $column)) {
                 continue;
@@ -623,8 +629,111 @@ return new class extends Migration
             );
 
             if ($row && stripos($row->COLUMN_TYPE, 'bigint') !== false) {
-                Schema::dropIfExists($table);
+                $tablesToDrop[] = $table;
             }
         }
+
+        if ($tablesToDrop === []) {
+            return;
+        }
+
+        // Drop children before parents (e.g. stock_data → stok_reports).
+        $dropOrder = [
+            'stock_data',
+            'stok_reports',
+            'restock_cell_histories',
+            'restock_cells',
+            'restock_sheets',
+            'warehouse_arrangement_candidate_sources',
+            'warehouse_arrangement_candidates',
+            'warehouse_arrangement_pcode_snapshots',
+            'warehouse_arrangement_sources',
+            'item_identity_conversion_results',
+            'item_identity_conversion_runs',
+            'warehouse_item_monthly_stats',
+            'monthly_item_sales',
+            'daily_inventory_summaries',
+            'monthly_account_summaries',
+        ];
+
+        $ordered = array_values(array_intersect($dropOrder, $tablesToDrop));
+        $remaining = array_values(array_diff($tablesToDrop, $ordered));
+
+        Schema::disableForeignKeyConstraints();
+
+        try {
+            foreach (array_merge($ordered, $remaining) as $table) {
+                Schema::dropIfExists($table);
+            }
+        } finally {
+            Schema::enableForeignKeyConstraints();
+        }
+    }
+
+    private function usesGreenfieldBigintPrimaryKeys(): bool
+    {
+        if (Schema::getConnection()->getDriverName() !== 'mysql' || ! Schema::hasTable('customers')) {
+            return false;
+        }
+
+        $row = DB::selectOne(
+            'SELECT COLUMN_TYPE FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+            ['customers', 'id']
+        );
+
+        return $row && stripos($row->COLUMN_TYPE, 'bigint') !== false;
+    }
+
+    private function legacyReferenceIdColumn(Blueprint $table, string $column, bool $nullable = false, ?int $default = null): void
+    {
+        if ($this->usesGreenfieldBigintPrimaryKeys()) {
+            $definition = $table->unsignedBigInteger($column);
+        } else {
+            $definition = $table->integer($column);
+        }
+
+        if ($nullable) {
+            $definition->nullable();
+        }
+
+        if ($default !== null) {
+            $definition->default($default);
+        }
+    }
+
+    private function addLegacyCustomerForeignKey(Blueprint $table, string $column, bool $nullable = false, ?string $name = null): void
+    {
+        $fk = $name !== null ? $table->foreign($column, $name) : $table->foreign($column);
+        $fk->references('id')->on('customers');
+        $nullable ? $fk->nullOnDelete() : $fk->cascadeOnDelete();
+    }
+
+    private function addLegacyItemForeignKey(Blueprint $table, string $column, bool $nullable = false, ?string $name = null): void
+    {
+        $fk = $name !== null ? $table->foreign($column, $name) : $table->foreign($column);
+        $fk->references('id')->on('items');
+        $nullable ? $fk->nullOnDelete() : $fk->cascadeOnDelete();
+    }
+
+    private function addLegacyItemGroupForeignKey(Blueprint $table, string $column, bool $nullable = false, ?string $name = null): void
+    {
+        $fk = $name !== null ? $table->foreign($column, $name) : $table->foreign($column);
+        $fk->references('id')->on('item_group');
+        $nullable ? $fk->nullOnDelete() : $fk->cascadeOnDelete();
+    }
+
+    private function addLegacyUserForeignKey(Blueprint $table, string $column, bool $nullable = false, ?string $name = null): void
+    {
+        $fk = $name !== null ? $table->foreign($column, $name) : $table->foreign($column);
+        $fk->references('id')->on('users');
+        $nullable ? $fk->nullOnDelete() : $fk->cascadeOnDelete();
+    }
+
+    private function addLegacyTagForeignKey(Blueprint $table, string $column, bool $nullable = false, ?string $name = null): void
+    {
+        $fk = $name !== null ? $table->foreign($column, $name) : $table->foreign($column);
+        $fk->references('id')->on('tags');
+        $nullable ? $fk->nullOnDelete() : $fk->cascadeOnDelete();
     }
 };
