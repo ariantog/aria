@@ -586,10 +586,16 @@ return new class extends Migration
     /**
      * A failed first run may leave tables with BIGINT FK columns that cannot reference
      * production INT(11) primary keys. Drop and recreate on retry.
+     *
+     * Greenfield installs keep Laravel BIGINT primary keys on legacy tables — skip drops.
      */
     private function dropTablesWithLegacyFkTypeMismatch(): void
     {
         if (Schema::getConnection()->getDriverName() !== 'mysql') {
+            return;
+        }
+
+        if ($this->usesGreenfieldBigintPrimaryKeys()) {
             return;
         }
 
@@ -611,6 +617,8 @@ return new class extends Migration
             'restock_cell_histories' => 'user_id',
         ];
 
+        $tablesToDrop = [];
+
         foreach ($checks as $table => $column) {
             if (! Schema::hasTable($table) || ! Schema::hasColumn($table, $column)) {
                 continue;
@@ -623,8 +631,59 @@ return new class extends Migration
             );
 
             if ($row && stripos($row->COLUMN_TYPE, 'bigint') !== false) {
-                Schema::dropIfExists($table);
+                $tablesToDrop[] = $table;
             }
         }
+
+        if ($tablesToDrop === []) {
+            return;
+        }
+
+        // Drop children before parents (e.g. stock_data → stok_reports).
+        $dropOrder = [
+            'stock_data',
+            'stok_reports',
+            'restock_cell_histories',
+            'restock_cells',
+            'restock_sheets',
+            'warehouse_arrangement_candidate_sources',
+            'warehouse_arrangement_candidates',
+            'warehouse_arrangement_pcode_snapshots',
+            'warehouse_arrangement_sources',
+            'item_identity_conversion_results',
+            'item_identity_conversion_runs',
+            'warehouse_item_monthly_stats',
+            'monthly_item_sales',
+            'daily_inventory_summaries',
+            'monthly_account_summaries',
+        ];
+
+        $ordered = array_values(array_intersect($dropOrder, $tablesToDrop));
+        $remaining = array_values(array_diff($tablesToDrop, $ordered));
+
+        Schema::disableForeignKeyConstraints();
+
+        try {
+            foreach (array_merge($ordered, $remaining) as $table) {
+                Schema::dropIfExists($table);
+            }
+        } finally {
+            Schema::enableForeignKeyConstraints();
+        }
+    }
+
+    private function usesGreenfieldBigintPrimaryKeys(): bool
+    {
+        if (! Schema::hasTable('customers')) {
+            return false;
+        }
+
+        $row = DB::selectOne(
+            'SELECT COLUMN_TYPE FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+            ['customers', 'id']
+        );
+
+        return $row && stripos($row->COLUMN_TYPE, 'bigint') !== false;
     }
 };
