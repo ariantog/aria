@@ -279,9 +279,9 @@ test('it applies per-sku overrides when creating asset lancar variants', functio
         ->and($blueSmall->description)->toBe('BLUE S ONLY')
         ->and($blueSmall->description2)->toBe('BLUE S NB')
         ->and((float) $pinkMedium->price)->toBe(5200000.0)
-        ->and((float) $pinkMedium->cost)->toBe(3000000.0)
+        ->and($pinkMedium->effectiveCost())->toBe(3000000.0)
         ->and(trim((string) ($pinkMedium->description ?? '')))->toBe('')
-        ->and((float) $blueMedium->price)->toBe(5000000.0);
+        ->and($blueMedium->effectivePrice())->toBe(5000000.0);
 });
 
 test('it rewrites asset lancar pcode prefix from the selected type tag on create', function () {
@@ -790,15 +790,22 @@ test('it stores brand and genre on the item group and mirrors them on each size'
         'pcode' => 'CX90233-23',
         'brand' => \App\Enums\ItemBrand::CX9->value,
         'genre' => $this->typeTag->id,
-        'price' => 100000,
+        'price' => 0,
     ]);
     $this->assertDatabaseHas('items', [
         'code' => 'AJD-CX90233-23-M',
         'pcode' => 'CX90233-23',
         'brand' => \App\Enums\ItemBrand::CX9->value,
         'genre' => $this->typeTag->id,
-        'price' => 100000,
+        'price' => 0,
     ]);
+
+    $small = Item::where('code', 'AJD-CX90233-23-S')->firstOrFail();
+    $medium = Item::where('code', 'AJD-CX90233-23-M')->firstOrFail();
+
+    expect($small->effectivePrice())->toBe(100000.0)
+        ->and($medium->effectivePrice())->toBe(100000.0)
+        ->and((float) $group->price)->toBe(100000.0);
 });
 
 test('it syncs shared colorway attributes to every size when one item is edited', function () {
@@ -845,7 +852,8 @@ test('it syncs shared colorway attributes to every size when one item is edited'
         ->and($group->brand)->toBe(\App\Enums\ItemBrand::CX9)
         ->and($group->genre)->toBe($this->typeTag->id)
         ->and((float) $small->price)->toBe(175000.0)
-        ->and((float) $medium->price)->toBe(100000.0)
+        ->and($medium->effectivePrice())->toBe(100000.0)
+        ->and((float) $medium->price)->toBe(0.0)
         ->and((string) $small->description)->toBe('')
         ->and((string) $medium->description)->toBe('')
         ->and($small->catalogDescription())->toBe('MIKRO MOTIF CAMO HIJAU')
@@ -1004,7 +1012,12 @@ test('it keeps a custom group title when product name is not the pcode', functio
 
     $this->assertDatabaseHas('item_group', ['name' => 'SLASH RUNNING SHIRT', 'master' => 'CX90233-23', 'variant' => '23']);
     $this->assertDatabaseHas('items', ['code' => 'AJD-CX90233-23-S', 'name' => 'SLASH RUNNING SHIRT - BLUE - S', 'price' => 120000]);
-    $this->assertDatabaseHas('items', ['code' => 'AJD-CX90233-23-M', 'name' => 'SLASH RUNNING SHIRT - BLUE - M', 'price' => 100000]);
+
+    $medium = Item::where('code', 'AJD-CX90233-23-M')->firstOrFail();
+
+    expect($medium->name)->toBe('SLASH RUNNING SHIRT - BLUE - M')
+        ->and($medium->effectivePrice())->toBe(100000.0)
+        ->and((float) $medium->price)->toBe(0.0);
 });
 
 test('it updates group name from pcode placeholder when product_name is set on edit', function () {
@@ -1196,7 +1209,8 @@ test('it does not copy asset cost or price onto sibling sizes when one sku is ed
     $medium->refresh();
 
     expect((float) $small->price)->toBe(550000.0)
-        ->and((float) $medium->price)->toBe(500000.0)
+        ->and($medium->effectivePrice())->toBe(500000.0)
+        ->and((float) $medium->price)->toBe(0.0)
         ->and((float) $small->cost)->toBe(305000.0)
         ->and((float) $medium->cost)->toBe(310000.0)
         ->and($small->name)->toBe('BOXING GLOVES - BLUE - S')
