@@ -112,7 +112,7 @@ class ItemsController extends Controller
                     'code' => $item->code,
                     'pcode' => $item->pcode,
                     'name' => $item->name,
-                    'price' => $item->price,
+                    'price' => $item->effectivePrice(),
                     'qty' => $item->qty,
                     'image_url' => $item->image_url,
                     'jubelio_item_id' => $item->jubelio_item_id,

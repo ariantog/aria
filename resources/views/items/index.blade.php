@@ -122,7 +122,7 @@ $columnsStorageKey = $isAsset ? 'aria-assetlancar-index-columns' : 'aria-items-i
                         <td class="max-w-[200px] px-3 py-2.5 text-gray-700" data-testid="item-list-desc-{{ $item->id }}" x-show="showDesc">
                             <div class="truncate" title="{{ $item->catalogDescription() }}">{{ $item->catalogDescription() ?: '-' }}</div>
                         </td>
-                        <td class="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-gray-800">{{ $idr($item->price) }}</td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-gray-800">{{ $idr($item->effectivePrice()) }}</td>
                         @if($isAsset)
                         <td class="max-w-[200px] px-3 py-2.5 text-gray-500" x-show="showNb">
                             <div class="truncate" title="{{ $item->catalogDescription2() }}">{{ $item->catalogDescription2() ?: '--' }}</div>
