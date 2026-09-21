@@ -404,6 +404,7 @@ class RestockRecommendationService
                 'qty_restock' => 0,
                 'qty_production' => 0,
                 'qty_shipped' => 0,
+                'sheet_links' => [],
             ];
 
             return array_merge($row, $pipe);

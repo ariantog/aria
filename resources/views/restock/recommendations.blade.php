@@ -169,7 +169,10 @@ $salesWindowLinkQuery = fn (string $windowValue) => array_filter([
                                 <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['stock_qty'], 0) }}</td>
                                 <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['display_monthly_net'] ?? $row['monthly_net'] ?? 0, 1) }}</td>
                                 <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['display_net_sold'] ?? $row['net_period'], 0) }}</td>
-                                <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['qty_restock'] ?? 0, 0) }}</td>
+                                <td class="px-3 py-2 text-right">
+                                    <div class="tabular-nums">{{ number_format($row['qty_restock'] ?? 0, 0) }}</div>
+                                    @include('restock.partials.sheet-links', ['links' => $row['sheet_links'] ?? [], 'itemId' => $row['item_id']])
+                                </td>
                                 <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['qty_production'] ?? 0, 0) }}</td>
                                 <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['qty_shipped'] ?? 0, 0) }}</td>
                                 <td class="px-3 py-2 text-right tabular-nums">{{ $fmtCover($row['days_of_cover']) }}</td>
@@ -241,7 +244,10 @@ $salesWindowLinkQuery = fn (string $windowValue) => array_filter([
                                     <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['display_monthly_net'] ?? 0, 1) }}</td>
                                     <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['display_net_sold'] ?? 0, 0) }}</td>
                                 @endif
-                                <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['qty_restock'] ?? 0, 0) }}</td>
+                                <td class="px-3 py-2 text-right">
+                                    <div class="tabular-nums">{{ number_format($row['qty_restock'] ?? 0, 0) }}</div>
+                                    @include('restock.partials.sheet-links', ['links' => $row['sheet_links'] ?? [], 'itemId' => $row['item_id']])
+                                </td>
                                 <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['qty_production'] ?? 0, 0) }}</td>
                                 <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['qty_shipped'] ?? 0, 0) }}</td>
                                 <td class="px-3 py-2 text-right tabular-nums">{{ $fmtCover($row['days_of_cover']) }}</td>
