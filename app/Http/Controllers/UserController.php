@@ -194,8 +194,8 @@ class UserController extends Controller
     }
 
     /**
-     * Legacy production stores "no location restriction" as 0, not NULL.
-     * Greenfield SQLite uses NULL (FK to locations does not allow 0).
+     * Unrestricted location access: NULL when the column allows it (greenfield FK installs,
+     * SQLite tests); legacy Crystal MySQL uses NOT NULL DEFAULT 0 with no FK.
      */
     private function normalizedLocationId(mixed $locationId): ?int
     {
@@ -212,7 +212,29 @@ class UserController extends Controller
 
     private function unrestrictedLocationIdValue(): ?int
     {
-        return Schema::getConnection()->getDriverName() === 'mysql' ? 0 : null;
+        return $this->usersLocationIdAllowsNull() ? null : 0;
+    }
+
+    private function usersLocationIdAllowsNull(): bool
+    {
+        static $allowsNull;
+
+        if ($allowsNull !== null) {
+            return $allowsNull;
+        }
+
+        if (Schema::getConnection()->getDriverName() !== 'mysql') {
+            return $allowsNull = true;
+        }
+
+        if (! Schema::hasColumn('users', 'location_id')) {
+            return $allowsNull = true;
+        }
+
+        $column = collect(Schema::getConnection()->getSchemaBuilder()->getColumns('users'))
+            ->firstWhere('name', 'location_id');
+
+        return $allowsNull = $column !== null && ($column['nullable'] ?? false);
     }
 
     /**
