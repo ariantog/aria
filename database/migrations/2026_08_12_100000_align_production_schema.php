@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\GreenfieldMysqlSchema;
 use App\Support\ProductionMysqlCompat;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -195,7 +196,11 @@ return new class extends Migration
         ProductionMysqlCompat::alterTable('sessions', function () {
             Schema::table('sessions', function (Blueprint $blueprint) {
                 if (! Schema::hasColumn('sessions', 'user_id')) {
-                    $blueprint->integer('user_id')->nullable()->index()->after('id');
+                    if (GreenfieldMysqlSchema::usesBigintLegacyPrimaryKeys()) {
+                        $blueprint->unsignedBigInteger('user_id')->nullable()->index()->after('id');
+                    } else {
+                        $blueprint->integer('user_id')->nullable()->index()->after('id');
+                    }
                 }
                 if (! Schema::hasColumn('sessions', 'ip_address')) {
                     $blueprint->string('ip_address', 45)->nullable()->after('user_id');

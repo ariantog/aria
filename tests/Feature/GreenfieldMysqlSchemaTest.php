@@ -13,3 +13,9 @@ it('documents production bootstrap skips greenfield mysql in migration source', 
 
     expect($source)->toContain('GreenfieldMysqlSchema::usesBigintLegacyPrimaryKeys()');
 });
+
+it('documents reapply production defaults skips greenfield mysql in migration source', function () {
+    $source = file_get_contents(base_path('database/migrations/2026_08_21_100000_reapply_production_defaults_and_int_keys.php'));
+
+    expect($source)->toContain('GreenfieldMysqlSchema::usesBigintLegacyPrimaryKeys()');
+});

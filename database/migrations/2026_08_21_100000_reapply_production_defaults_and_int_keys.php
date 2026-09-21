@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\GreenfieldMysqlSchema;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -22,6 +23,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (GreenfieldMysqlSchema::usesBigintLegacyPrimaryKeys()) {
+            return;
+        }
+
         (require __DIR__.'/2026_08_13_120000_add_production_not_null_column_defaults.php')->up();
         (require __DIR__.'/2026_08_13_130000_fix_production_bigint_columns_to_int.php')->up();
         $this->alignStandaloneInvoiceKeyColumns();

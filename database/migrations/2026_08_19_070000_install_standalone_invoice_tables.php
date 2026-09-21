@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\GreenfieldMysqlSchema;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -34,7 +35,8 @@ return new class extends Migration
                 $table->string('number');
                 $table->date('date');
                 $table->text('recipient');
-                $table->unsignedInteger('sender_addrbook_id')->nullable()->index();
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'sender_addrbook_id', true);
+                $table->index('sender_addrbook_id');
                 $table->string('template', 32)->default('classic');
                 $table->string('preset_id', 64)->nullable();
                 $table->text('terms_of_payment')->nullable();
@@ -46,7 +48,8 @@ return new class extends Migration
                 $table->decimal('subtotal', 16, 2)->default(0);
                 $table->decimal('dp_amount', 16, 2)->nullable();
                 $table->text('notes')->nullable();
-                $table->unsignedInteger('user_id')->nullable()->index();
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'user_id', true);
+                $table->index('user_id');
                 $table->timestamps();
 
                 $table->index('date');
@@ -95,7 +98,8 @@ return new class extends Migration
                 $table->text('recipient');
             }
             if (! Schema::hasColumn('standalone_invoices', 'sender_addrbook_id')) {
-                $table->unsignedInteger('sender_addrbook_id')->nullable()->index();
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'sender_addrbook_id', true);
+                $table->index('sender_addrbook_id');
             }
             if (! Schema::hasColumn('standalone_invoices', 'template')) {
                 $table->string('template', 32)->default('classic');
@@ -131,7 +135,8 @@ return new class extends Migration
                 $table->text('notes')->nullable();
             }
             if (! Schema::hasColumn('standalone_invoices', 'user_id')) {
-                $table->unsignedInteger('user_id')->nullable()->index();
+                GreenfieldMysqlSchema::legacyReferenceIdColumn($table, 'user_id', true);
+                $table->index('user_id');
             }
         });
 
