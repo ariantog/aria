@@ -72,6 +72,7 @@ function restockHealthLine(
 beforeEach(function () {
     $this->user = User::factory()->create();
     Permission::firstOrCreate(['name' => 'restock-list', 'guard_name' => 'web']);
+    Permission::firstOrCreate(['name' => 'restock-edit', 'guard_name' => 'web']);
     $this->user->givePermissionTo('restock-list');
 
     $this->warehouse = Addrbook::factory()->warehouse()->create();
@@ -170,6 +171,54 @@ it('filters recommendations by item type', function () {
     expect(collect($assetsOnly['fast_moving']->items())->pluck('item_id'))
         ->toContain($asset->id)
         ->not->toContain($manufactured->id);
+});
+
+it('applies one month sell rate to the matching restock sheet', function () {
+    $this->travelTo('2026-05-15');
+    $item = restockHealthItem('Apply SKU', 'APPLY-1', ItemType::ASSET_LANCAR);
+    restockHealthStock($item, $this->warehouse, 1);
+    restockHealthLine(
+        $this->user,
+        $this->warehouse,
+        $this->customer,
+        $item,
+        Transaction::TYPE_SELL,
+        45,
+        now()->subDays(3)->toDateString(),
+        'APPLY-1-INV',
+    );
+
+    $typeTag = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'code' => 'APLY',
+        'name' => 'Apply Type',
+        'item_type' => ItemType::ASSET_LANCAR->value,
+    ]);
+    $item->tags()->attach($typeTag->id);
+
+    $sheet = RestockSheet::create([
+        'name' => 'Apply Type',
+        'type_tag_id' => $typeTag->id,
+        'created_by' => $this->user->id,
+    ]);
+    $cell = RestockCell::create([
+        'restock_sheet_id' => $sheet->id,
+        'item_id' => $item->id,
+        'qty_restock' => 2,
+    ]);
+
+    $this->user->givePermissionTo('restock-edit');
+
+    $this->actingAs($this->user)
+        ->post(route('restock.recommendations.apply'), [
+            'item_ids' => [$item->id],
+            'tab' => 'fast',
+        ])
+        ->assertRedirect(route('restock.recommendations', ['tab' => 'fast']))
+        ->assertSessionHas('success');
+
+    $cell->refresh();
+    expect($cell->qty_restock)->toBeGreaterThanOrEqual(40);
 });
 
 it('shows restock sheet pipeline qty on recommendation rows', function () {
