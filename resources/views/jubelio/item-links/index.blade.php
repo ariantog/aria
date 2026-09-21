@@ -17,7 +17,7 @@ $itemsTabUrl = route('jubelio.item-links.index', array_filter([
     'view' => 'items',
     'q' => $view === 'items' ? ($filters['q'] ?? '') : null,
     'link' => $view === 'items' ? ($filters['link'] ?? 'all') : null,
-]));
+], fn ($v) => $v !== null && $v !== ''));
 @endphp
 
 <div class="p-4 sm:p-6">
@@ -114,6 +114,9 @@ $itemsTabUrl = route('jubelio.item-links.index', array_filter([
                     <option value="all" @selected(($filters['link'] ?? 'all') === 'all')>Semua</option>
                     <option value="linked" @selected(($filters['link'] ?? '') === 'linked')>Sudah linked</option>
                     <option value="unlinked" @selected(($filters['link'] ?? '') === 'unlinked')>Belum linked</option>
+                    <option value="auto_linked" @selected(($filters['link'] ?? '') === 'auto_linked')>Auto-linked</option>
+                    <option value="auto_failed" @selected(($filters['link'] ?? '') === 'auto_failed')>Auto-link gagal (5x)</option>
+                    <option value="ambiguous" @selected(($filters['link'] ?? '') === 'ambiguous')>Ambiguous</option>
                 </select>
             </div>
             <div class="flex gap-2">
@@ -131,6 +134,7 @@ $itemsTabUrl = route('jubelio.item-links.index', array_filter([
                             <th class="px-6 py-3 font-bold">Name</th>
                             <th class="px-6 py-3 font-bold">Jubelio ID</th>
                             <th class="px-6 py-3 font-bold">Status</th>
+                            <th class="px-6 py-3 font-bold">Auto-link</th>
                             <th class="px-6 py-3 font-bold text-right">Aksi</th>
                         </tr>
                     </thead>
@@ -149,12 +153,22 @@ $itemsTabUrl = route('jubelio.item-links.index', array_filter([
                                     <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">Not linked</span>
                                 @endif
                             </td>
+                            <td class="px-6 py-3 text-xs text-gray-600">
+                                @if($item['auto_link_outcome'] ?? null)
+                                    <span class="font-mono">{{ $item['auto_link_outcome'] }}</span>
+                                    @if($item['auto_link_checked_at'] ?? null)
+                                        <div class="text-gray-400">{{ $item['auto_link_checked_at'] }}</div>
+                                    @endif
+                                @else
+                                    —
+                                @endif
+                            </td>
                             <td class="px-6 py-3 text-right">
                                 <a href="{{ $item['jubelio_url'] }}" class="text-xs font-medium text-blue-600 hover:underline">Kelola link</a>
                             </td>
                         </tr>
                         @empty
-                        <tr><td colspan="5" class="px-6 py-12 text-center text-gray-500">Tidak ada item yang cocok.</td></tr>
+                        <tr><td colspan="6" class="px-6 py-12 text-center text-gray-500">Tidak ada item yang cocok.</td></tr>
                         @endforelse
                     </tbody>
                 </table>

@@ -5,10 +5,13 @@ namespace App\Services\Jubelio;
 use App\Enums\ItemType;
 use App\Models\Item;
 use App\Models\ItemGroup;
+use App\Models\JubelioItemLinkAttempt;
 use App\Services\Items\ItemGroupHierarchyService;
+use App\Services\Jubelio\JubelioItemAutoLinkService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class JubelioItemLinkCheckService
 {
@@ -146,6 +149,7 @@ class JubelioItemLinkCheckService
         $linkFilter = (string) ($filters['link'] ?? 'all');
 
         return Item::query()
+            ->with(['latestJubelioLinkAttempt'])
             ->whereNull('deleted_at')
             ->whereIn('type', [ItemType::ITEM->value, ItemType::ASSET_LANCAR->value])
             ->when($search !== '', function (Builder $query) use ($search) {
@@ -162,11 +166,46 @@ class JubelioItemLinkCheckService
                         ->orWhere('jubelio_item_id', '<=', 0);
                 });
             })
+            ->when($linkFilter === 'auto_failed', function (Builder $q) {
+                $q->whereNull('jubelio_item_id')
+                    ->whereRaw(
+                        '(select count(*) from jubelio_item_link_attempts where jubelio_item_link_attempts.item_id = items.id and outcome in (?, ?, ?)) >= ?',
+                        [
+                            JubelioItemLinkAttempt::OUTCOME_NO_MATCH,
+                            JubelioItemLinkAttempt::OUTCOME_AMBIGUOUS,
+                            JubelioItemLinkAttempt::OUTCOME_API_ERROR,
+                            JubelioItemAutoLinkService::MAX_ATTEMPTS,
+                        ],
+                    );
+            })
+            ->when($linkFilter === 'ambiguous', function (Builder $q) {
+                $q->whereExists(function ($sub) {
+                    $sub->select(DB::raw(1))
+                        ->from('jubelio_item_link_attempts as latest_amb')
+                        ->whereColumn('latest_amb.item_id', 'items.id')
+                        ->where('latest_amb.outcome', JubelioItemLinkAttempt::OUTCOME_AMBIGUOUS)
+                        ->whereRaw(
+                            'latest_amb.id = (select max(id) from jubelio_item_link_attempts where item_id = items.id)',
+                        );
+                });
+            })
+            ->when($linkFilter === 'auto_linked', function (Builder $q) {
+                $q->where('jubelio_item_id', '>', 0)
+                    ->whereExists(function ($sub) {
+                        $sub->select(DB::raw(1))
+                            ->from('jubelio_item_link_attempts')
+                            ->whereColumn('jubelio_item_link_attempts.item_id', 'items.id')
+                            ->where('outcome', JubelioItemLinkAttempt::OUTCOME_LINKED);
+                    });
+            })
             ->orderBy('code')
             ->paginate($perPage)
             ->withQueryString()
             ->through(function (Item $item) {
                 $linked = self::isLinked($item->jubelio_item_id);
+                $latestAttempt = $item->relationLoaded('latestJubelioLinkAttempt')
+                    ? $item->latestJubelioLinkAttempt
+                    : null;
 
                 return [
                     'id' => $item->id,
@@ -175,6 +214,8 @@ class JubelioItemLinkCheckService
                     'type' => $item->type,
                     'jubelio_item_id' => $linked ? (int) $item->jubelio_item_id : null,
                     'linked' => $linked,
+                    'auto_link_outcome' => $latestAttempt?->outcome,
+                    'auto_link_checked_at' => $latestAttempt?->created_at?->toDateTimeString(),
                     'show_url' => $item->showUrl(),
                     'jubelio_url' => route('items.jubelio', $item->id),
                 ];

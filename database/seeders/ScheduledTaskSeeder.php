@@ -201,6 +201,16 @@ class ScheduledTaskSeeder extends Seeder
         );
 
         \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'app:jubelio-auto-link-items'],
+            [
+                'name' => 'Jubelio Auto Link Items',
+                'frequency' => 'everyMinute',
+                'active' => true,
+                'description' => 'Searches Jubelio to-stock for unlinked SKUs (exact code match). Batched to ~200 API calls/hour; stock required in Jubelio-mapped warehouses.',
+            ]
+        );
+
+        \App\Models\ScheduledTask::updateOrCreate(
             ['command' => 'shopee-ads:process'],
             [
                 'name' => 'Shopee Ads Process',
