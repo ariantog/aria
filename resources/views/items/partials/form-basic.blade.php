@@ -72,6 +72,9 @@
             'pricingPrefix' => 'pricing',
             'pricingIdPrefix' => 'item-form-pricing',
             'showEffective' => isset($item),
+            'pricingIntro' => $editingItem
+                ? 'Each radio sets where that amount is stored for this SKU, colorway, or product group.'
+                : 'New SKUs inherit amounts from the scope you pick (SKU, colorway, or whole group).',
         ])
     </div>
 </div>

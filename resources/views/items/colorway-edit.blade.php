@@ -140,6 +140,7 @@ $previewRows = collect($sizeRows)->map(fn ($row) => [
                     'pricingState' => $pricingState ?? [],
                     'pricingPrefix' => 'pricing',
                     'pricingIdPrefix' => 'colorway-pricing',
+                    'pricingIntro' => 'Defaults for every size in this color. Use the matrix below for one-off SKU overrides.',
                 ])
 
                 {{-- Per-size matrix --}}
