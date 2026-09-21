@@ -160,6 +160,15 @@ On a **failed halfway** database:
 
 Simplest recovery on a new host: empty the database (or create a fresh schema) and re-run install after deploying the fix.
 
+## If `install_l12_production_tables` fails dropping `stok_reports` (errno 1451)
+
+That migration only **drops** BIGINT FK tables when fixing a **production INT(11)** clone. On a **greenfield** database (`customers.id` is still BIGINT from Laravel migrations), it should **skip** those drops and keep the tables created earlier in the same `migrate` run.
+
+If you still see errno 1451 on drop, deploy the current fix and either:
+
+1. Empty the database and run `php artisan migrate --force` again, or  
+2. Drop child tables first (`stock_data`, then `stok_reports`), then re-run migrate.
+
 ## Current production (Crystal)
 
 ```bash
