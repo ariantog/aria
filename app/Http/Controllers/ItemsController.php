@@ -389,6 +389,10 @@ class ItemsController extends Controller
             'tags.warna.required' => 'Please select a color (warna).',
             'tags.types.required' => 'Please select a type (SKU prefix).',
             'tags.jahit.required' => 'Please select a jahit tag.',
+            'pricing.cost.value.required_without' => 'Cost price is required for asset lancar.',
+            'pricing.cost.value.min' => 'Cost price is required for asset lancar.',
+            'cost.required_without' => 'Cost price is required for asset lancar.',
+            'cost.min' => 'Cost price is required for asset lancar.',
         ]);
 
         try {
@@ -1013,10 +1017,18 @@ class ItemsController extends Controller
             $rules["pricing.{$field}.scope"] = ['nullable', 'in:size,colorway,group'];
             $valueRules = ['nullable', 'numeric', 'min:0'];
             if ($requireAssetCost && $field === 'cost') {
-                $valueRules = ['required', 'numeric', 'min:0.01'];
+                $valueRules = ['required_without:cost', 'nullable', 'numeric', 'min:0.01'];
             }
             $rules["pricing.{$field}.value"] = $valueRules;
         }
+
+        $rules['price'] = ['nullable', 'numeric', 'min:0'];
+        $rules['cost_cnh'] = ['nullable', 'numeric', 'min:0'];
+        $rules['reseller_price'] = ['nullable', 'numeric', 'min:0'];
+        $rules['item_reseller_price'] = ['nullable', 'numeric', 'min:0'];
+        $rules['cost'] = $requireAssetCost
+            ? ['required_without:pricing.cost.value', 'nullable', 'numeric', 'min:0.01']
+            : ['nullable', 'numeric', 'min:0'];
 
         return $rules;
     }

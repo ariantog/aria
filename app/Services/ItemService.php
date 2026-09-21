@@ -400,13 +400,13 @@ class ItemService
                             $groupName,
                         );
 
-                        $this->applySkuOverrides($item, $input);
-
-                        $this->persistGroupCatalogAttributes($group, $item, $input, $typeTag);
-
                         if ($totalCreated === 0) {
                             $this->persistItemPricing($item, $input, defaultColorwayScope: true);
                         }
+
+                        $this->applySkuOverrides($item, $input);
+
+                        $this->persistGroupCatalogAttributes($group, $item, $input, $typeTag);
 
                         if ($file) {
                             if (! $firstItemWithImage) {
@@ -1228,6 +1228,10 @@ class ItemService
             : ItemPricing::SCOPE_SIZE;
 
         foreach (ItemPricing::FIELDS as $field) {
+            if ($field === 'reseller_price' && ! $defaultColorwayScope) {
+                continue;
+            }
+
             if (! property_exists($input, $field) && ! isset($input->{$field})) {
                 continue;
             }
@@ -1245,6 +1249,15 @@ class ItemService
 
         if ($legacyRows !== []) {
             ItemPricing::applyFormRows($item, $legacyRows);
+        }
+
+        if (! $defaultColorwayScope && (property_exists($input, 'item_reseller_price') || isset($input->item_reseller_price))) {
+            ItemPricing::apply(
+                $item,
+                'reseller_price',
+                ItemPricing::SCOPE_SIZE,
+                max(0, (float) ($input->item_reseller_price ?? 0)),
+            );
         }
     }
 

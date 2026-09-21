@@ -211,7 +211,7 @@ it('shows separate global and per-sku description fields on asset lancar edit pa
         ->get(route('assetlancar.edit', $item))
         ->assertOk()
         ->assertSee('name="item_description"', false)
-        ->assertSee('name="item_reseller_price"', false)
+        ->assertSee('data-testid="item-form-pricing-reseller_price-scope-size"', false)
         ->assertSee('data-testid="item-form-sku-details"', false)
         ->assertSee('Optional per-SKU overrides for rare cases', false)
         ->assertSee('GROUP DESC', false)
@@ -362,6 +362,7 @@ it('stores per-sku overrides when creating multiple asset lancar sizes', functio
         ->and((float) $small->price)->toBe(110000.0)
         ->and($small->description)->toBe('SMALL ONLY')
         ->and((float) $small->reseller_price)->toBe(95000.0)
-        ->and((float) $medium->price)->toBe(100000.0)
+        ->and($small->effectivePrice())->toBe(110000.0)
+        ->and($medium->effectivePrice())->toBe(100000.0)
         ->and(trim((string) ($medium->description ?? '')))->toBe('');
 });
