@@ -367,6 +367,7 @@ class ItemService
 
         return DB::transaction(function () use ($input, $tags, $file, $inputType, $groupName, $pcode) {
             $totalCreated = 0;
+            $pricedGroupIds = [];
             $firstItemWithImage = null;
             $warnaIds = $tags['warna'];
             $typeLoops = ! empty($tags['types']) ? $tags['types'] : [0];
@@ -400,8 +401,9 @@ class ItemService
                             $groupName,
                         );
 
-                        if ($totalCreated === 0) {
+                        if (! in_array($group->id, $pricedGroupIds, true)) {
                             $this->persistItemPricing($item, $input, defaultColorwayScope: true);
+                            $pricedGroupIds[] = $group->id;
                         }
 
                         $this->applySkuOverrides($item, $input);
@@ -500,9 +502,11 @@ class ItemService
         $item->pcode = $pcode;
         $item->code = $code;
         $item->name = $this->identityBuilder->buildName($displayName, $warnaTag, $sizeTag);
-        $item->price = 0;
-        $item->cost = 0;
-        $item->cost_cnh = 0;
+        if (! $isUpdate) {
+            $item->price = 0;
+            $item->cost = 0;
+            $item->cost_cnh = 0;
+        }
         $item->restock_urgent_threshold = $this->normalizeRestockUrgentThreshold(
             $input->restock_urgent_threshold ?? $item->restock_urgent_threshold
         );
