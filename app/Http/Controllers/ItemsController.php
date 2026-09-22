@@ -71,12 +71,9 @@ class ItemsController extends Controller
         // Combobox / autocomplete JSON (unpaginated, limited) — used by asyncCombobox.
         if ($this->isJson($request) && ! $request->boolean('table')) {
             if ($request->filled('id') || $request->filled('code')) {
-                return $q->with(['warehouseItems', 'group'])->limit(8)->get()->map(function ($item) {
-                    $payload = $item->toArray();
-                    $payload['reseller_sell_price'] = $item->resellerSellPrice();
-
-                    return $payload;
-                })->values();
+                return $q->with(['warehouseItems', 'group'])->limit(8)->get()->map(
+                    fn ($item) => $item->toItemSearchJson()
+                )->values();
             }
 
             $search = trim((string) $request->input('search', ''));
@@ -84,12 +81,9 @@ class ItemsController extends Controller
                 return response()->json([]);
             }
 
-            return $q->with(['warehouseItems', 'group'])->limit(8)->get()->map(function ($item) {
-                $payload = $item->toArray();
-                $payload['reseller_sell_price'] = $item->resellerSellPrice();
-
-                return $payload;
-            })->values();
+            return $q->with(['warehouseItems', 'group'])->limit(8)->get()->map(
+                fn ($item) => $item->toItemSearchJson()
+            )->values();
         }
 
         // Tabulator remote pagination JSON.

@@ -157,6 +157,54 @@ it('finds an item by numeric id through the items id json endpoint', function ()
         ->and($match['code'])->toBe('WH-TEE-01');
 });
 
+it('items autocomplete json uses effective price and cost from colorway when sku columns are zero', function () {
+    $this->user->givePermissionTo('items-list');
+
+    $group = \App\Models\ItemGroup::factory()->create([
+        'price' => 185_000,
+        'cost' => 92_000,
+    ]);
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'name' => 'Cascade Priced Tee',
+        'code' => 'AJD-CASCADE-01-S',
+        'price' => 0,
+        'cost' => 0,
+    ]);
+
+    $match = collect($this->actingAs($this->user)
+        ->getJson('/items?search=Cascade&json=1')
+        ->assertSuccessful()
+        ->json())->first(fn ($row) => $row['id'] === $item->id);
+
+    expect($match)->not->toBeNull()
+        ->and((float) $match['price'])->toBe(185_000.0)
+        ->and((float) $match['cost'])->toBe(92_000.0);
+});
+
+it('transaction item lookup uses effective sell price and cost from colorway', function () {
+    Permission::firstOrCreate(['name' => 'transactions-type-buy']);
+    $this->user->givePermissionTo('transactions-type-buy');
+
+    $group = \App\Models\ItemGroup::factory()->create([
+        'price' => 210_000,
+        'cost' => 105_000,
+    ]);
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'code' => 'AJD-TX-LOOKUP-S',
+        'price' => 0,
+        'cost' => 0,
+    ]);
+
+    $response = $this->actingAs($this->user)
+        ->getJson(route('transactions.item-by-code', ['type' => 'buy', 'code' => 'AJD-TX-LOOKUP-S']));
+
+    $response->assertSuccessful();
+    expect((float) $response->json('item.price'))->toBe(210_000.0)
+        ->and((float) $response->json('item.cost'))->toBe(105_000.0);
+});
+
 it('resolves an item by canonical code for transaction rows', function () {
     $this->user->givePermissionTo('transactions-type-sell');
 
