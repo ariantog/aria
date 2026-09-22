@@ -1,6 +1,7 @@
 @php
     $perPage = $perPage ?? (int) request()->query('per_page', 100);
     $selectedType = (string) ($selectedType ?? ($filters['type'] ?? ''));
+    $showInvoiceFilter = $showInvoiceFilter ?? true;
     $showPartyFilters = $showPartyFilters ?? false;
     $showWarehouseFilter = $showWarehouseFilter ?? false;
     $warehouseOptions = $warehouseOptions ?? [];
@@ -28,11 +29,13 @@
         @endforeach
     </select>
 </div>
+@if($showInvoiceFilter)
 <div class="flex flex-col gap-1">
     <label class="text-xs font-medium uppercase text-gray-500">Invoice</label>
     <input type="text" name="invoice" value="{{ $filters['invoice'] ?? '' }}" placeholder="Invoice…"
            class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
 </div>
+@endif
 @include('transactions.partials.export-sell-item-combobox', [
     'endpoint' => $itemLookupUrl ?? route('items.index'),
     'initial' => $selectedItem ?? null,
