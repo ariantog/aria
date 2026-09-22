@@ -111,3 +111,35 @@ test('warehouse compare grid shows stock across selected warehouses', function (
         ->assertSee('Pivot', false)
         ->assertSee('Branch', false);
 });
+
+test('warehouse compare paginates large pivot sku lists', function () {
+    $pivot = Addrbook::factory()->create(['type' => AddrbookType::Warehouse, 'name' => 'Pivot WH']);
+
+    $group = ItemGroup::factory()->create([
+        'name' => 'BULK TEST',
+        'master' => 'GLOVE-99',
+        'variant' => 'BLACK',
+    ]);
+
+    for ($i = 1; $i <= 105; $i++) {
+        $item = Item::factory()->create([
+            'group_id' => $group->id,
+            'type' => ItemType::ASSET_LANCAR,
+            'pcode' => 'GLOVE-99',
+            'code' => 'GLOVE-99-BLK-'.sprintf('%03d', $i),
+        ]);
+        WarehouseItem::create(['warehouse_id' => $pivot->id, 'item_id' => $item->id, 'quantity' => $i]);
+    }
+
+    $this->actingAs($this->user)
+        ->get(route('reports.warehouse-compare', [
+            'warehouse_ids' => [$pivot->id],
+            'item_type' => ItemType::ASSET_LANCAR->value,
+            'sort' => WarehouseCompareService::SORT_ITEM_CODE,
+            'per_page' => 100,
+            'page' => 1,
+        ]))
+        ->assertOk()
+        ->assertSee('data-testid="warehouse-compare-pagination"', false)
+        ->assertSee('SKUs 1–100 of 105', false);
+});

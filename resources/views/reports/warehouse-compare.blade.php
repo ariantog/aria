@@ -7,15 +7,22 @@ $breadcrumbs = [
     ['title' => 'Reports', 'href' => '#'],
     ['title' => 'Warehouse stock compare', 'href' => route('reports.warehouse-compare')],
 ];
-$buildQuery = function (array $overrides = []) use ($selectedWarehouseIds, $itemType, $sort) {
+$buildQuery = function (array $overrides = []) use ($selectedWarehouseIds, $itemType, $sort, $perPage, $pagination) {
     $ids = $overrides['warehouse_ids'] ?? $selectedWarehouseIds;
     unset($overrides['warehouse_ids']);
 
-    return array_filter(array_merge([
+    $base = [
         'warehouse_ids' => $ids,
         'item_type' => (string) $itemType->value,
         'sort' => $sort,
-    ], $overrides), fn ($v) => $v !== null && $v !== '' && $v !== []);
+        'per_page' => $perPage,
+    ];
+
+    if (! array_key_exists('page', $overrides)) {
+        $base['page'] = $pagination['page'] ?? 1;
+    }
+
+    return array_filter(array_merge($base, $overrides), fn ($v) => $v !== null && $v !== '' && $v !== []);
 };
 @endphp
 
@@ -61,7 +68,15 @@ $buildQuery = function (array $overrides = []) use ($selectedWarehouseIds, $item
         </div>
     @endif
 
-    <form method="GET" action="{{ route('reports.warehouse-compare') }}" class="space-y-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm" id="warehouse-compare-form">
+    <details class="rounded-xl border border-gray-200 bg-white shadow-sm group" open data-testid="warehouse-compare-controls">
+        <summary class="cursor-pointer list-none px-4 py-3 text-sm font-medium text-gray-900 marker:content-none flex items-center justify-between gap-2">
+            <span>Warehouses &amp; sort</span>
+            <span class="text-xs font-normal text-gray-500 group-open:hidden">Show settings</span>
+            <span class="text-xs font-normal text-gray-500 hidden group-open:inline">Hide settings</span>
+        </summary>
+        <div class="border-t border-gray-200 px-4 pb-4 pt-3">
+    <form method="GET" action="{{ route('reports.warehouse-compare') }}" class="space-y-4" id="warehouse-compare-form">
+        <input type="hidden" name="page" value="1">
         <div class="grid gap-4 lg:grid-cols-2">
             <div>
                 <p class="mb-2 text-sm font-medium text-gray-900">Warehouses <span class="font-normal text-gray-500">(first = pivot SKU list)</span></p>
@@ -96,6 +111,15 @@ $buildQuery = function (array $overrides = []) use ($selectedWarehouseIds, $item
                         @endforeach
                     </select>
                 </div>
+                <div>
+                    <label for="warehouse-compare-per-page" class="mb-1 block text-sm font-medium text-gray-700">Page size</label>
+                    <select id="warehouse-compare-per-page" name="per_page"
+                            class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        @foreach($perPageOptions as $value => $label)
+                            <option value="{{ $value }}" @selected((int) $perPage === (int) $value)>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </div>
                 <input type="hidden" name="item_type" id="warehouse-compare-item-type" value="{{ $itemType->value }}">
                 <div class="flex flex-wrap gap-2 pt-1">
                     <button type="submit"
@@ -114,7 +138,7 @@ $buildQuery = function (array $overrides = []) use ($selectedWarehouseIds, $item
         </div>
     </form>
 
-    <form method="POST" action="{{ route('reports.warehouse-compare.save') }}" id="warehouse-compare-save-form">
+    <form method="POST" action="{{ route('reports.warehouse-compare.save') }}" id="warehouse-compare-save-form" class="mt-3">
         @csrf
         @foreach($selectedWarehouseIds as $wid)
             <input type="hidden" name="warehouse_ids[]" value="{{ $wid }}">
@@ -127,11 +151,13 @@ $buildQuery = function (array $overrides = []) use ($selectedWarehouseIds, $item
             Save current view as my default
         </button>
     </form>
+        </div>
+    </details>
 
     <div class="flex flex-wrap items-center gap-2">
         <span class="text-xs font-medium uppercase tracking-wide text-gray-500">Item type</span>
         @foreach($itemTypeOptions as $value => $label)
-            <a href="{{ route('reports.warehouse-compare', $buildQuery(['item_type' => (string) $value])) }}"
+            <a href="{{ route('reports.warehouse-compare', $buildQuery(['item_type' => (string) $value, 'page' => 1])) }}"
                class="rounded-lg px-3 py-1.5 text-sm font-medium {{ (string) $itemType->value === (string) $value ? 'bg-gray-900 text-white' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50' }}"
                data-testid="warehouse-compare-type-{{ $value }}">
                 {{ $label }}
@@ -153,7 +179,26 @@ $buildQuery = function (array $overrides = []) use ($selectedWarehouseIds, $item
         <p class="text-sm text-gray-600">
             Pivot: <span class="font-medium text-gray-900">{{ $pivotWarehouse->name }}</span>
             · {{ count($grid['warehouses'] ?? []) }} warehouse column group(s)
+            @if(($pagination['total'] ?? 0) > 0)
+                · SKUs {{ number_format($pagination['from']) }}–{{ number_format($pagination['to']) }} of {{ number_format($pagination['total']) }}
+            @endif
         </p>
+
+        @if(($pagination['last_page'] ?? 1) > 1)
+            <nav class="flex flex-wrap items-center gap-2 text-sm" aria-label="Pagination" data-testid="warehouse-compare-pagination">
+                @if($pagination['page'] > 1)
+                    <a href="{{ route('reports.warehouse-compare', $buildQuery(['page' => $pagination['page'] - 1])) }}"
+                       class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-gray-700 hover:bg-gray-50">Previous</a>
+                @endif
+                <span class="text-gray-600">
+                    Page {{ $pagination['page'] }} / {{ $pagination['last_page'] }}
+                </span>
+                @if($pagination['page'] < $pagination['last_page'])
+                    <a href="{{ route('reports.warehouse-compare', $buildQuery(['page' => $pagination['page'] + 1])) }}"
+                       class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-gray-700 hover:bg-gray-50">Next</a>
+                @endif
+            </nav>
+        @endif
 
         @foreach($grid['blocks'] as $block)
             @include('reports.partials.warehouse-compare-table', [

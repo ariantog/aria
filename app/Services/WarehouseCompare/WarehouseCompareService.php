@@ -17,15 +17,22 @@ class WarehouseCompareService
 {
     public const SORT_SKU = 'sku';
 
+    public const SORT_ITEM_CODE = 'item_code';
+
     public const SORT_GROUP = 'group';
 
     public const SORT_SOLD = 'sold';
 
     public const SORT_RECOMMENDATION = 'recommendation';
 
+    public const PER_PAGE_DEFAULT = 100;
+
+    public const PER_PAGE_LARGE = 200;
+
     public function __construct(
         protected WarehouseComparePreferenceService $preferences,
         protected WarehouseCompareGridBuilder $gridBuilder,
+        protected WarehouseComparePaginator $paginator,
         protected LocationAccessService $locationAccess,
         protected RestockRollingYearStatsByItem $rollingYearStats,
     ) {}
@@ -37,6 +44,7 @@ class WarehouseCompareService
     {
         return [
             self::SORT_SKU,
+            self::SORT_ITEM_CODE,
             self::SORT_GROUP,
             self::SORT_SOLD,
             self::SORT_RECOMMENDATION,
@@ -49,10 +57,22 @@ class WarehouseCompareService
     public static function sortLabels(): array
     {
         return [
-            self::SORT_SKU => 'SKU (code)',
+            self::SORT_SKU => 'Product pcode',
+            self::SORT_ITEM_CODE => 'Item code (SKU)',
             self::SORT_GROUP => 'Product group',
             self::SORT_SOLD => 'Sold qty (12 mo)',
             self::SORT_RECOMMENDATION => 'Low stock (< 2)',
+        ];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public static function perPageOptions(): array
+    {
+        return [
+            self::PER_PAGE_DEFAULT => '100 SKUs per page',
+            self::PER_PAGE_LARGE => '200 SKUs per page',
         ];
     }
 
@@ -75,16 +95,19 @@ class WarehouseCompareService
      *     item_type: ItemType,
      *     sort: string,
      *     grid: array<string, mixed>,
-     *     sold_by_item: array<int, float>
+     *     sold_by_item: array<int, float>,
+     *     pagination: array{total: int, page: int, per_page: int, from: ?int, to: ?int, last_page: int}
      * }
      */
-    public function buildPage(Request $request, User $user): array
+    public function buildPage(Request $request, User $user, bool $paginate = true): array
     {
         $defaults = $this->preferences->defaults($user);
         $warehouseIds = $this->resolveWarehouseIds($request, $defaults['warehouse_ids'], $user);
         $itemType = ItemType::coerce($request->query('item_type', $defaults['item_type']))
             ?? ItemType::ASSET_LANCAR;
         $sort = $this->preferences->normalizeSort($request->query('sort', $defaults['sort']));
+        $perPage = $this->resolvePerPage($request);
+        $page = max(1, (int) $request->query('page', 1));
 
         $warehouses = $this->loadWarehouses($warehouseIds, $user);
         $pivot = $warehouses->first();
@@ -94,11 +117,41 @@ class WarehouseCompareService
             'warehouses' => [],
         ];
         $soldByItem = [];
+        $pagination = [
+            'total' => 0,
+            'page' => $page,
+            'per_page' => $perPage,
+            'from' => null,
+            'to' => null,
+            'last_page' => 1,
+        ];
 
         if ($pivot !== null) {
-            $items = $this->loadPivotItems($pivot->id, $itemType, $warehouseIds);
+            $allItems = $this->loadPivotItems($pivot->id, $itemType, $warehouseIds);
+            $allItemIds = $allItems->pluck('id')->map(fn ($id) => (int) $id)->all();
+            $soldByItem = $this->soldTotalsByItem($allItemIds, $pivot->id);
+            $pivotStock = $this->pivotStockByItem($allItemIds, $pivot->id);
+
+            if ($paginate) {
+                [$items, $total, $page, $perPage, $parentKeyOrder] = $this->paginator->sliceForPage(
+                    $allItems,
+                    $sort,
+                    $itemType,
+                    $page,
+                    $perPage,
+                    $soldByItem,
+                    $pivotStock,
+                );
+                $pagination = $this->paginationMeta($total, $page, $perPage);
+                $this->loadWarehouseStockForItems($items, $warehouseIds);
+            } else {
+                $items = $allItems;
+                $parentKeyOrder = null;
+                $pagination['total'] = count($allItemIds);
+                $this->loadWarehouseStockForItems($items, $warehouseIds);
+            }
+
             $itemIds = $items->pluck('id')->map(fn ($id) => (int) $id)->all();
-            $soldByItem = $this->soldTotalsByItem($itemIds, $pivot->id);
             $stockByWarehouse = $this->stockMatrix($itemIds, $warehouseIds);
 
             $grid = $this->gridBuilder->build(
@@ -109,6 +162,7 @@ class WarehouseCompareService
                 $sort,
                 $itemType,
                 $pivot->id,
+                $parentKeyOrder,
             );
         }
 
@@ -118,9 +172,61 @@ class WarehouseCompareService
             'pivot_warehouse' => $pivot,
             'item_type' => $itemType,
             'sort' => $sort,
+            'per_page' => $perPage,
             'grid' => $grid,
             'sold_by_item' => $soldByItem,
+            'pagination' => $pagination,
         ];
+    }
+
+    public function resolvePerPage(Request $request): int
+    {
+        $raw = (int) $request->query('per_page', self::PER_PAGE_DEFAULT);
+
+        return $raw === self::PER_PAGE_LARGE ? self::PER_PAGE_LARGE : self::PER_PAGE_DEFAULT;
+    }
+
+    /**
+     * @return array{total: int, page: int, per_page: int, from: ?int, to: ?int, last_page: int}
+     */
+    protected function paginationMeta(int $total, int $page, int $perPage): array
+    {
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $page = min($page, $lastPage);
+        $from = $total === 0 ? null : (($page - 1) * $perPage) + 1;
+        $to = $total === 0 ? null : min($total, $page * $perPage);
+
+        return [
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
+            'from' => $from,
+            'to' => $to,
+            'last_page' => $lastPage,
+        ];
+    }
+
+    /**
+     * @param  list<int>  $itemIds
+     * @return array<int, int>
+     */
+    protected function pivotStockByItem(array $itemIds, int $pivotWarehouseId): array
+    {
+        if ($itemIds === []) {
+            return [];
+        }
+
+        $rows = DB::table('warehouse_item')
+            ->where('warehouse_id', $pivotWarehouseId)
+            ->whereIn('item_id', $itemIds)
+            ->get(['item_id', 'quantity']);
+
+        $out = [];
+        foreach ($rows as $row) {
+            $out[(int) $row->item_id] = (int) $row->quantity;
+        }
+
+        return $out;
     }
 
     /**
@@ -192,10 +298,24 @@ class WarehouseCompareService
             ->with([
                 'group',
                 'tags',
-                'warehouseItems' => fn ($q) => $q->whereIn('warehouse_id', $warehouseIds),
             ])
             ->orderBy('code')
             ->get();
+    }
+
+    /**
+     * @param  Collection<int, Item>  $items
+     * @param  list<int>  $warehouseIds
+     */
+    protected function loadWarehouseStockForItems(Collection $items, array $warehouseIds): void
+    {
+        if ($items->isEmpty()) {
+            return;
+        }
+
+        $items->load([
+            'warehouseItems' => fn ($q) => $q->whereIn('warehouse_id', $warehouseIds),
+        ]);
     }
 
     /**
