@@ -199,6 +199,48 @@ it('uses header transaction type when legacy detail transaction_type is unset', 
     expect($meta[$item->id]['last_inbound_date'])->toBe('2025-11-20');
 });
 
+it('treats production into the warehouse as inbound', function () {
+    User::factory()->create();
+    $user = User::factory()->create();
+    $user->givePermissionTo('addrbook-warehouse-items');
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $item = Item::factory()->create(['code' => 'PROD-IN']);
+
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $item->id,
+        'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 10,
+    ]);
+
+    $txn = Transaction::factory()->create([
+        'type' => Transaction::TYPE_PRODUCTION,
+        'date' => '2026-04-01',
+        'receiver_id' => $warehouse->id,
+        'sender_id' => 0,
+    ]);
+    DB::table('transaction_details')->insert([
+        'transaction_id' => $txn->id,
+        'item_id' => $item->id,
+        'quantity' => 10,
+        'price' => 0,
+        'discount' => 0,
+        'total' => 0,
+        'date' => '2026-04-01',
+        'transaction_type' => Transaction::TYPE_PRODUCTION,
+        'sender_id' => 0,
+        'receiver_id' => $warehouse->id,
+        'transaction_disc' => 0,
+    ]);
+
+    $meta = app(WarehouseItemAgeService::class)->decorateRows(
+        app(WarehouseItemAgeService::class)->paginate($warehouse, request(), $user)->getCollection(),
+    );
+
+    expect($meta[$item->id]['last_inbound_date'])->toBe('2026-04-01');
+});
+
 it('marks stale when inbound and last sell are both older than the window', function () {
     $this->travelTo('2026-06-15');
     User::factory()->create();

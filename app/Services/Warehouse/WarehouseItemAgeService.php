@@ -143,7 +143,7 @@ class WarehouseItemAgeService
 
     private function lastInboundSubquery(int $warehouseId, ?User $user): QueryBuilder
     {
-        $inboundTypes = [Transaction::TYPE_BUY, Transaction::TYPE_MOVE];
+        $inboundTypes = [Transaction::TYPE_BUY, Transaction::TYPE_MOVE, Transaction::TYPE_PRODUCTION];
 
         return DB::table('transaction_details as td')
             ->join('transactions as t', 't.id', '=', 'td.transaction_id')
