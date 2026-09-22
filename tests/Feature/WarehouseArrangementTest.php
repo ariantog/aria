@@ -10,7 +10,6 @@ use App\Models\WarehouseItem;
 use App\Models\WarehouseItemMonthlyStat;
 use App\Models\WarehouseArrangementCandidate;
 use App\Models\WarehouseArrangementRefreshJob;
-use App\Jobs\ProcessWarehouseArrangementRefreshBatch;
 use App\Services\WarehouseArrangementService;
 use Illuminate\Support\Facades\Queue;
 use App\Services\WarehouseArrangementSyncService;
@@ -860,9 +859,7 @@ it('skips legacy transaction details with zero or orphaned warehouse ids when re
     expect((float) $stats->first()->sold_qty)->toBe(2.0);
 });
 
-it('queues a background refresh job from the report page', function () {
-    Queue::fake();
-
+it('creates a refresh job from the report page and completes via the refresh processor', function () {
     $source = Addrbook::factory()->warehouse()->create(['name' => 'Source WH']);
     $destination = Addrbook::factory()->warehouse()->create([
         'name' => 'Flagship WH',
@@ -920,10 +917,6 @@ it('queues a background refresh job from the report page', function () {
     expect($job)->not->toBeNull();
     expect($job->user_id)->toBe($this->user->id);
     expect($job->status)->toBe(WarehouseArrangementRefreshJob::STATUS_CREATED);
-
-    Queue::assertPushed(ProcessWarehouseArrangementRefreshBatch::class, fn ($queued) => $queued->refreshJobId === $job->id);
-
-    Queue::fake(false);
 
     $this->artisan('app:process-warehouse-arrangement-refresh')->assertSuccessful();
 

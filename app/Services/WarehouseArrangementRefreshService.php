@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Models\Transaction;
 use App\Models\WarehouseArrangementRefreshJob;
 use App\Models\WarehouseItemMonthlyStat;
-use App\Jobs\ProcessWarehouseArrangementRefreshBatch;
 use App\Services\Items\ItemDimensionResolver;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -66,8 +65,6 @@ class WarehouseArrangementRefreshService
         ]);
 
         $this->rememberItemIds($job->id, $itemIds);
-
-        ProcessWarehouseArrangementRefreshBatch::dispatch($job->id);
 
         return $job;
     }

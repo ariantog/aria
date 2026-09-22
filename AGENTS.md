@@ -688,8 +688,12 @@ Three layers keep stats current:
 
 Manual / on-demand tools:
 
-- **Warehouse Arrangement** report has a "Rebuild stats & refresh" button (runs recalculate +
-  `app:sync-warehouse-arrangement` for the selected destination).
+- **Warehouse Arrangement** report **Rebuild stats & refresh** queues a per-destination job
+  (rebuild `warehouse_item_monthly_stats` from sell/return lines, then
+  `app:sync-warehouse-arrangement` for that destination). Cron
+  **`app:process-warehouse-arrangement-refresh`** (every minute, separate from
+  `app:process-queue`) advances those jobs; the report **tick** endpoint can also advance
+  while the page is open.
 - **CLI:** `app:recalculate-warehouse-item-stats --months=N` or `--since=Y-m-d` for bounded
   rebuilds; `app:backfill-warehouse-item-stats --status` to inspect backfill state.
 - **Arrangement cache:** `app:sync-warehouse-arrangement` (daily cron) reads the stats table and
