@@ -26,6 +26,8 @@ class RestockRecommendationController extends Controller
             ? (string) RestockRecommendationService::SALES_WINDOW_YEAR
             : '';
 
+        $healthWarehouseId = $service->resolveHealthWarehouseId($request);
+
         return view('restock.recommendations', [
             'tab' => $payload['tab'],
             'salesWindow' => $salesWindow,
@@ -41,9 +43,11 @@ class RestockRecommendationController extends Controller
             'fastMoving' => $payload['fast_moving'],
             'highMargin' => $payload['high_margin'],
             'defaultHealthWindow' => $service->defaultHealthWindowLabels(),
-            'inventoryHealthUrl' => route('reports.inventory-health', [
+            'healthWarehouseId' => $healthWarehouseId,
+            'inventoryHealthUrl' => route('reports.inventory-health', array_filter([
                 'status' => \App\Services\InventoryHealth\InventoryHealthClassifier::LOW,
-            ]),
+                'warehouse_id' => $healthWarehouseId,
+            ])),
             'itemInsightsUrl' => $payload['insight_period']
                 ? route('reports.item-insights', [
                     'period' => $payload['insight_period']->periodLabel(),
