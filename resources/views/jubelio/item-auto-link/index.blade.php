@@ -17,7 +17,7 @@ $breadcrumbs = [
         <h1 class="text-2xl font-bold text-gray-900">Jubelio Auto Link</h1>
         <p class="mt-1 text-sm text-gray-500">
             Cron searches <span class="font-mono">inventory/items/to-stock</span> and links when Jubelio <span class="font-mono">item_code</span> matches exactly.
-            SKUs need stock in a Jubelio-mapped warehouse, are at least 1 day old, and get up to 5 attempts (1 day apart).
+            Only the newest <strong>{{ number_format($stats['rolling_window_size']) }}</strong> item rows (by id, from #{{ number_format($stats['rolling_window_min_id']) }}) with stock in a Jubelio-mapped warehouse; up to 5 attempts (1 day apart).
         </p>
     </div>
 
@@ -60,13 +60,9 @@ $breadcrumbs = [
                 <div class="text-lg font-bold text-red-700">{{ $stats['api_error_today'] }}</div>
                 <div class="text-xs text-gray-500">API errors today</div>
             </div>
-            <div class="rounded-lg bg-gray-50 p-3 text-center">
-                <div class="text-lg font-bold text-blue-700">{{ $stats['eligible_recent'] }}</div>
-                <div class="text-xs text-gray-500">Eligible ≤30d</div>
-            </div>
-            <div class="rounded-lg bg-gray-50 p-3 text-center">
-                <div class="text-lg font-bold text-blue-600">{{ $stats['eligible_rolling'] }}</div>
-                <div class="text-xs text-gray-500">Eligible older</div>
+            <div class="rounded-lg bg-gray-50 p-3 text-center md:col-span-2">
+                <div class="text-lg font-bold text-blue-700">{{ $stats['eligible_in_window'] }}</div>
+                <div class="text-xs text-gray-500">Unlinked eligible in rolling window</div>
             </div>
         </div>
 

@@ -76,17 +76,18 @@ it('auto-links when jubelio returns one exact item_code match', function () {
         ->and($item->fresh()->jubelio_item_id)->toBe(88001);
 });
 
-it('tries legacy_code first for items newer than 30 days', function () {
+it('tries legacy_code first for items inside the rolling id window', function () {
     $warehouse = seedJubelioMappedWarehouse();
 
     $item = Item::factory()->create([
         'code' => 'NEW-CODE-01',
         'legacy_code' => 'OLD-LEGACY-01',
         'jubelio_item_id' => null,
-        'created_at' => now()->subDays(5),
     ]);
 
     seedAutoLinkStock($item, $warehouse);
+
+    expect($item->id)->toBeGreaterThanOrEqual(app(JubelioItemAutoLinkService::class)->rollingWindowMinItemId());
 
     $this->mock(JubelioService::class, function (MockInterface $mock) {
         $mock->shouldReceive('get')
@@ -142,6 +143,30 @@ it('renders auto link dashboard for jubelio viewers', function () {
         ->get(route('jubelio.auto-link.index'))
         ->assertSuccessful()
         ->assertSee('Jubelio Auto Link');
+});
+
+it('picks higher item id before lower id in the rolling window', function () {
+    $warehouse = seedJubelioMappedWarehouse();
+    $service = app(JubelioItemAutoLinkService::class);
+
+    $older = Item::factory()->create([
+        'code' => 'OLD-LOW-ID',
+        'jubelio_item_id' => null,
+    ]);
+    seedAutoLinkStock($older, $warehouse);
+
+    $newer = Item::factory()->create([
+        'code' => 'NEW-HIGH-ID',
+        'jubelio_item_id' => null,
+    ]);
+    seedAutoLinkStock($newer, $warehouse);
+
+    expect($newer->id)->toBeGreaterThan($older->id);
+
+    $picked = $service->pickNextItem();
+
+    expect($picked)->not->toBeNull()
+        ->and($picked->id)->toBe($newer->id);
 });
 
 it('filters auto failed items on item links sku view', function () {
