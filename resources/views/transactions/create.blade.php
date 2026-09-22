@@ -203,7 +203,17 @@
             <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
                 <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
                     <h3 class="text-sm font-semibold text-gray-900">🛒 Line Items</h3>
-                    <div class="flex gap-2">
+                    <div class="flex flex-wrap gap-2">
+                        @if(in_array($type, ['sell', 'move'], true))
+                        <button type="button"
+                                @click="copyRowsTable()"
+                                data-testid="copy-line-items-table"
+                                title="Copy line items for Excel"
+                                class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                            <span x-text="copyFeedback ? 'Copied!' : 'Copy rows'"></span>
+                        </button>
+                        @endif
                         <label class="flex cursor-pointer items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50">
                             <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
                             Batch CSV
@@ -368,6 +378,37 @@
                         </div>
                     </template>
                 </div>
+
+                @if(in_array($type, ['sell', 'move'], true))
+                <table x-ref="lineItemsTable" class="sr-only" aria-hidden="true">
+                    <thead>
+                        <tr>
+                            <th data-copy-col="code">Code / Barcode</th>
+                            <th data-copy-col="name">Item Name</th>
+                            <th data-copy-col="qty">Qty</th>
+                            @unless($isMove)
+                            <th data-copy-col="disc">Disc %</th>
+                            @endunless
+                            <th data-copy-col="price">Price</th>
+                            <th data-copy-col="subtotal">Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="item in lineItemsCopyRows()" :key="'copy-' + item.uid">
+                            <tr>
+                                <td data-copy-col="code" :data-copy-value="String(item.code || '')" x-text="item.code || ''"></td>
+                                <td data-copy-col="name" :data-copy-value="String(item.name || '')" x-text="item.name || ''"></td>
+                                <td data-copy-col="qty" :data-copy-value="formatCopyNumber(item.quantity)" x-text="item.quantity ?? ''"></td>
+                                @unless($isMove)
+                                <td data-copy-col="disc" :data-copy-value="formatCopyNumber(item.discount)" x-text="item.discount ?? ''"></td>
+                                @endunless
+                                <td data-copy-col="price" :data-copy-value="formatCopyNumber(item.price)" x-text="item.price ?? ''"></td>
+                                <td data-copy-col="subtotal" :data-copy-value="formatCopyNumber(item.subtotal)" x-text="item.subtotal ?? ''"></td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+                @endif
             </div>
         </div>
 
@@ -566,6 +607,20 @@ function filterBackCameras(cameras) {
     return back.length ? back : list;
 }
 
+function formatCopyNumber(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) {
+        return '0';
+    }
+
+    let formatted = n.toFixed(2);
+    if (formatted.includes('.')) {
+        formatted = formatted.replace(/0+$/, '').replace(/\.$/, '');
+    }
+
+    return formatted;
+}
+
 async function loadBarcodeScannerLib() {
     if (window.ZXingBrowser) return;
     await new Promise((resolve, reject) => {
@@ -594,6 +649,8 @@ function createTransaction() {
         serverErrors: [],
         barcodeError: '',
         dismissJubelioWarning: false,
+        copyFeedback: false,
+        copyFeedbackTimer: null,
         scannerOpen: false,
         scannerIdx: null,
         scannerLoading: false,
@@ -806,6 +863,38 @@ function createTransaction() {
         itemValid(i) { return !!i.item_id && Number(i.quantity) >= 0.01 && this.priceIsSet(i.price) && Number(i.price) >= 0; },
         itemInvalid(i) { return this.itemStarted(i) && !this.itemValid(i); },
         validItems() { return this.form.items.filter(i => this.itemValid(i)); },
+
+        lineItemsCopyRows() {
+            return this.form.items.filter((row) => {
+                return row.item_id
+                    || String(row.code || '').trim() !== ''
+                    || String(row.name || '').trim() !== '';
+            });
+        },
+
+        showCopyFeedback() {
+            this.copyFeedback = true;
+            clearTimeout(this.copyFeedbackTimer);
+            this.copyFeedbackTimer = setTimeout(() => {
+                this.copyFeedback = false;
+            }, 2000);
+        },
+
+        isCopyColumnVisible(col) {
+            if (col === 'disc' && _TxType === 'move') {
+                return false;
+            }
+
+            return true;
+        },
+
+        async copyRowsTable() {
+            if (await ariaCopyTable(this.$refs.lineItemsTable, (col) => this.isCopyColumnVisible(col))) {
+                this.showCopyFeedback();
+            }
+        },
+
+        formatCopyNumber,
         cashInDateValid() {
             if (!_CanSellCashIn || !this.form.cash_in_enabled) return true;
             if (!this.form.cash_in_date) return false;
