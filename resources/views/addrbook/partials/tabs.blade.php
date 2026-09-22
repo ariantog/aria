@@ -18,6 +18,7 @@
     <a href="/{{ $slug }}/{{ $id }}/transactions" class="{{ $tabBase }} {{ $active === 'transactions' ? $tabActive : $tabIdle }}">Transaction</a>
     @if($canWarehouseItems)
         <a href="/{{ $slug }}/{{ $id }}/items" class="{{ $tabBase }} {{ $active === 'items' ? $tabActive : $tabIdle }}">Items</a>
+        <a href="/{{ $slug }}/{{ $id }}/item-age" class="{{ $tabBase }} {{ $active === 'item-age' ? $tabActive : $tabIdle }}">Item age</a>
     @endif
     @if($hasWarehouseStock)
         <a href="/{{ $slug }}/{{ $id }}/stats" class="{{ $tabBase }} {{ $active === 'stats' ? $tabActive : $tabIdle }}">Stats</a>

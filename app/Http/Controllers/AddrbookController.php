@@ -18,6 +18,8 @@ use App\Services\ExportSellQueryService;
 use App\Services\ItemListFilter;
 use App\Services\WarehouseJubelioStockService;
 use App\Services\WarehouseStockExportService;
+use App\Services\BookClosingService;
+use App\Services\Warehouse\WarehouseItemAgeService;
 use App\Services\WarehouseStockQueryService;
 use App\Support\LikeSearch;
 use Illuminate\Http\Request;
@@ -196,6 +198,37 @@ class AddrbookController extends Controller
     public function itemsTypeExport(string $type, Addrbook $addrbook)
     {
         return app()->call([$this, 'itemsExport'], ['id' => $addrbook->id]);
+    }
+
+    public function itemAge($id, Request $request, WarehouseItemAgeService $ageService, BookClosingService $bookClosing)
+    {
+        $a = Addrbook::withTrashed()->findOrFail($id);
+        if (! Addrbook::typeHasWarehouseStock((int) $a->type)) {
+            abort(404);
+        }
+        Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['warehouse-items']);
+        $this->authorizeAddrbookLocation($a);
+
+        $items = $ageService->paginate($a, $request, $request->user());
+        $ageMeta = $ageService->decorateRows($items->getCollection());
+
+        return view('addrbook.item-age', [
+            'addrbook' => $a,
+            'items' => $items,
+            'ageMeta' => $ageMeta,
+            'perPage' => $ageService->resolvePerPage($request),
+            'filters' => $request->only(['sort', 'show0']),
+            'bookClosingMinDate' => $bookClosing->getMinAllowedDate(),
+            'can' => [
+                'bank_hidden_balance' => ! (request()->user()?->is_superadmin ?? false) && (request()->user()?->can('addrbook-bank-account-hidden-balance') ?? false),
+            ],
+            'flash' => ['success' => session('success'), 'error' => session('error')],
+        ]);
+    }
+
+    public function itemAgeType(string $type, Addrbook $addrbook)
+    {
+        return app()->call([$this, 'itemAge'], ['id' => $addrbook->id]);
     }
 
     public function edit(Addrbook $addrbook)

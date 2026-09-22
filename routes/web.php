@@ -215,6 +215,10 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         ->where('type', $addrbookTypes)
         ->name('addrbook.type.items.export');
 
+    Route::get('/{type}/{addrbook}/item-age', [App\Http\Controllers\AddrbookController::class, 'itemAgeType'])
+        ->where('type', $addrbookTypes)
+        ->name('addrbook.type.item-age');
+
     Route::get('/{type}/{addrbook}/stats', [App\Http\Controllers\AddrbookController::class, 'statType'])
         ->where('type', $addrbookTypes)
         ->name('addrbook.type.stats');
