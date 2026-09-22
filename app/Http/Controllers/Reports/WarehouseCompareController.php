@@ -54,24 +54,40 @@ class WarehouseCompareController extends Controller
     {
         Gate::authorize(Report::getPermissions()['view-warehouse-compare']);
 
+        $warehouseIds = $preferences->normalizeWarehouseIds(
+            $request->input('warehouse_ids', []),
+            $request->user(),
+            strict: true,
+        );
+
         $validated = $request->validate([
-            'warehouse_ids' => ['required', 'array', 'min:1', 'max:'.\App\Support\UserPreferenceRegistry::WAREHOUSE_COMPARE_MAX_WAREHOUSES],
-            'warehouse_ids.*' => ['integer', 'exists:customers,id'],
             'item_type' => ['required'],
             'sort' => ['required', 'string'],
         ]);
 
+        if ($warehouseIds === []) {
+            return back()
+                ->withErrors(['warehouse_ids' => 'Select at least one warehouse (pivot).'])
+                ->withInput();
+        }
+
+        $payload = [
+            'warehouse_ids' => $warehouseIds,
+            'item_type' => $validated['item_type'],
+            'sort' => $validated['sort'],
+        ];
+
         try {
-            $preferences->save($request->user(), $validated);
+            $preferences->save($request->user(), $payload);
         } catch (\InvalidArgumentException $e) {
             return back()->with('error', $e->getMessage());
         }
 
         return redirect()
             ->route('reports.warehouse-compare', [
-                'warehouse_ids' => $validated['warehouse_ids'],
-                'item_type' => $validated['item_type'],
-                'sort' => $validated['sort'],
+                'warehouse_ids' => $warehouseIds,
+                'item_type' => $payload['item_type'],
+                'sort' => $payload['sort'],
             ])
             ->with('success', 'Display settings saved.');
     }
