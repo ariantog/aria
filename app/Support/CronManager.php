@@ -49,7 +49,6 @@ class CronManager
         return [
             'app:process-queue',
             'app:dispatch-scheduled-tasks',
-            // Already invoked every minute by app:process-queue.
             'app:process-warehouse-arrangement-refresh',
         ];
     }

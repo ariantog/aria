@@ -38,8 +38,8 @@ class ScheduledTaskSeeder extends Seeder
             [
                 'name' => 'Process Warehouse Arrangement Refresh',
                 'frequency' => 'everyMinute',
-                'active' => false,
-                'description' => 'Handled by Process Queue Jobs each minute. Kept for manual runs only.',
+                'active' => true,
+                'description' => 'Advances queued Warehouse Arrangement “Rebuild stats & refresh” jobs (~300 SKUs per destination per run). Runs on the scheduler, not inside app:process-queue.',
             ]
         );
 
@@ -67,12 +67,6 @@ class ScheduledTaskSeeder extends Seeder
                 'description' => 'Rebuilds older months a batch at a time. Idle until a backfill is started from the Warehouse Stats Backfill page.',
             ]
         );
-
-        // Legacy row — deactivate if still present from older seeds.
-        \App\Models\ScheduledTask::query()
-            ->where('command', 'app:process-warehouse-arrangement-refresh')
-            ->where('active', true)
-            ->update(['active' => false]);
 
         \App\Models\ScheduledTask::updateOrCreate(
             ['command' => 'app:sync-warehouse-arrangement'],

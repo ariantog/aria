@@ -18,8 +18,6 @@ class ProcessQueue extends Command
             '--max-time' => 55,
         ]);
 
-        $this->call('app:process-warehouse-arrangement-refresh');
-
         ScheduledTask::query()
             ->where('command', 'app:process-queue')
             ->update(['last_run_at' => now()]);
