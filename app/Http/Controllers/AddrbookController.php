@@ -18,7 +18,6 @@ use App\Services\ExportSellQueryService;
 use App\Services\ItemListFilter;
 use App\Services\WarehouseJubelioStockService;
 use App\Services\WarehouseStockExportService;
-use App\Services\BookClosingService;
 use App\Services\Warehouse\WarehouseItemAgeService;
 use App\Services\WarehouseStockQueryService;
 use App\Support\LikeSearch;
@@ -200,7 +199,7 @@ class AddrbookController extends Controller
         return app()->call([$this, 'itemsExport'], ['id' => $addrbook->id]);
     }
 
-    public function itemAge($id, Request $request, WarehouseItemAgeService $ageService, BookClosingService $bookClosing)
+    public function itemAge($id, Request $request, WarehouseItemAgeService $ageService)
     {
         $a = Addrbook::withTrashed()->findOrFail($id);
         if (! Addrbook::typeHasWarehouseStock((int) $a->type)) {
@@ -209,16 +208,17 @@ class AddrbookController extends Controller
         Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['warehouse-items']);
         $this->authorizeAddrbookLocation($a);
 
+        $staleMonths = $ageService->resolveStaleMonths($request);
         $items = $ageService->paginate($a, $request, $request->user());
-        $ageMeta = $ageService->decorateRows($items->getCollection());
+        $ageMeta = $ageService->decorateRows($items->getCollection(), null, $staleMonths);
 
         return view('addrbook.item-age', [
             'addrbook' => $a,
             'items' => $items,
             'ageMeta' => $ageMeta,
+            'staleMonths' => $staleMonths,
             'perPage' => $ageService->resolvePerPage($request),
-            'filters' => $request->only(['sort', 'show0']),
-            'bookClosingMinDate' => $bookClosing->getMinAllowedDate(),
+            'filters' => $request->only(['sort', 'show0', 'stale_months', 'stale_only']),
             'can' => [
                 'bank_hidden_balance' => ! (request()->user()?->is_superadmin ?? false) && (request()->user()?->can('addrbook-bank-account-hidden-balance') ?? false),
             ],

@@ -86,7 +86,7 @@ it('shows calendar age from last buy or move into the warehouse', function () {
         ->assertOk()
         ->assertSee('data-testid="warehouse-item-age-table"', false)
         ->assertSee('Item age', false)
-        ->assertSee('Book closing', false);
+        ->assertSee('Stale', false);
 
     $html = $response->getContent();
 
@@ -99,9 +99,9 @@ it('shows calendar age from last buy or move into the warehouse', function () {
 
     $paginator = app(WarehouseItemAgeService::class)->paginate($warehouse, request(), $user);
     $meta = app(WarehouseItemAgeService::class)->decorateRows($paginator->getCollection());
-    expect($meta[$oldInboundItem->id]['age_days'])->toBe(14)
-        ->and($meta[$recentItem->id]['age_days'])->toBe(5)
-        ->and($meta[$legacyItem->id]['age_days'])->toBeGreaterThan(600);
+    expect($meta[$oldInboundItem->id]['inbound_age_days'])->toBe(14)
+        ->and($meta[$recentItem->id]['inbound_age_days'])->toBe(5)
+        ->and($meta[$legacyItem->id]['inbound_age_days'])->toBeGreaterThan(600);
 });
 
 it('sorts by age descending with unknown inbound first', function () {
@@ -197,6 +197,74 @@ it('uses header transaction type when legacy detail transaction_type is unset', 
     $meta = app(WarehouseItemAgeService::class)->decorateRows($paginator->getCollection());
 
     expect($meta[$item->id]['last_inbound_date'])->toBe('2025-11-20');
+});
+
+it('marks stale when inbound and last sell are both older than the window', function () {
+    $this->travelTo('2026-06-15');
+    User::factory()->create();
+    $user = User::factory()->create();
+    $user->givePermissionTo('addrbook-warehouse-items');
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->customer()->create();
+    $supplier = Addrbook::factory()->supplier()->create();
+
+    $staleSku = Item::factory()->create(['code' => 'STALE-YES']);
+    $activeSku = Item::factory()->create(['code' => 'STALE-NO']);
+
+    foreach ([$staleSku, $activeSku] as $sku) {
+        WarehouseItem::create([
+            'warehouse_id' => $warehouse->id,
+            'item_id' => $sku->id,
+            'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+            'quantity' => 4,
+        ]);
+    }
+
+    $seedLine = function (Item $item, int $type, string $date, Addrbook $sender, Addrbook $receiver) {
+        $txn = Transaction::factory()->create([
+            'type' => $type,
+            'date' => $date,
+            'sender_id' => $sender->id,
+            'receiver_id' => $receiver->id,
+        ]);
+        DB::table('transaction_details')->insert([
+            'transaction_id' => $txn->id,
+            'item_id' => $item->id,
+            'quantity' => 1,
+            'price' => 100,
+            'discount' => 0,
+            'total' => 100,
+            'date' => $date,
+            'transaction_type' => $type,
+            'sender_id' => $sender->id,
+            'receiver_id' => $receiver->id,
+            'transaction_disc' => 0,
+        ]);
+    };
+
+    $seedLine($staleSku, Transaction::TYPE_BUY, '2025-11-01', $supplier, $warehouse);
+    $seedLine($staleSku, Transaction::TYPE_SELL, '2025-12-01', $warehouse, $customer);
+
+    $seedLine($activeSku, Transaction::TYPE_BUY, '2025-11-01', $supplier, $warehouse);
+    $seedLine($activeSku, Transaction::TYPE_SELL, '2026-05-20', $warehouse, $customer);
+
+    $service = app(WarehouseItemAgeService::class);
+    $request = request()->merge(['stale_months' => 6]);
+    $meta = $service->decorateRows(
+        $service->paginate($warehouse, $request, $user)->getCollection(),
+        null,
+        6,
+    );
+
+    expect($meta[$staleSku->id]['stale_unsold'])->toBeTrue()
+        ->and($meta[$activeSku->id]['stale_unsold'])->toBeFalse();
+
+    $this->actingAs($user)
+        ->get(route('addrbook.type.item-age', ['warehouse', $warehouse->id, 'stale_only' => 1, 'stale_months' => 6]))
+        ->assertOk()
+        ->assertSee('STALE-YES')
+        ->assertDontSee('STALE-NO');
 });
 
 it('exposes item age tab on warehouse addrbook pages', function () {
