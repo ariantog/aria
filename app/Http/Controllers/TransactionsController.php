@@ -518,7 +518,10 @@ class TransactionsController extends Controller
             $itemsQuery->with(['warehouseItems' => fn ($q) => $q->where('warehouse_id', $whid)]);
         }
         $items = $itemsQuery->with('group')->get()->keyBy('id');
-        $priceSource = config('transaction_rules.'.$validated['type'].'.price_source', 'price');
+        $type = (string) ($validated['type'] ?? '');
+        $priceSource = $type !== ''
+            ? config('transaction_rules.'.$type.'.price_source', 'price')
+            : 'price';
         $dataList = [];
         foreach ($array as $row) {
             $resolved = $itemsBySku->get(strtoupper($row['code']));
@@ -537,7 +540,6 @@ class TransactionsController extends Controller
                 $catalogUnitPrice = $priceSource === 'cost'
                     ? $item->effectiveCost()
                     : $item->effectivePrice();
-                $type = $validated['type'] ?? '';
                 $unitPrice = $type === 'move' ? $catalogUnitPrice : $csvPrice;
                 $dataList[] = [
                     'id' => (string) $item->id,
