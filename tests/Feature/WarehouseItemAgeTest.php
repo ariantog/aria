@@ -156,6 +156,49 @@ it('sorts by age descending with unknown inbound first', function () {
     expect(strpos($html, 'SORT-UNK'))->toBeLessThan(strpos($html, 'SORT-OLD'));
 });
 
+it('uses header transaction type when legacy detail transaction_type is unset', function () {
+    User::factory()->create();
+    $user = User::factory()->create();
+    $user->givePermissionTo('addrbook-warehouse-items');
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $supplier = Addrbook::factory()->supplier()->create();
+    $item = Item::factory()->create(['code' => 'LEG-TYPE-0']);
+
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $item->id,
+        'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 2,
+    ]);
+
+    $txn = Transaction::factory()->create([
+        'type' => Transaction::TYPE_BUY,
+        'date' => '2025-11-20',
+        'sender_id' => $supplier->id,
+        'receiver_id' => $warehouse->id,
+        'status' => Transaction::STATUS_PENDING,
+    ]);
+    DB::table('transaction_details')->insert([
+        'transaction_id' => $txn->id,
+        'item_id' => $item->id,
+        'quantity' => 2,
+        'price' => 100,
+        'discount' => 0,
+        'total' => 200,
+        'date' => '2025-11-20',
+        'transaction_type' => 0,
+        'sender_id' => $supplier->id,
+        'receiver_id' => 0,
+        'transaction_disc' => 0,
+    ]);
+
+    $paginator = app(WarehouseItemAgeService::class)->paginate($warehouse, request(), $user);
+    $meta = app(WarehouseItemAgeService::class)->decorateRows($paginator->getCollection());
+
+    expect($meta[$item->id]['last_inbound_date'])->toBe('2025-11-20');
+});
+
 it('exposes item age tab on warehouse addrbook pages', function () {
     User::factory()->create();
     $user = User::factory()->create();

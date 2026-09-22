@@ -5,17 +5,21 @@ namespace App\Services\Warehouse;
 use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\Transaction;
-use App\Models\TransactionDetail;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+
 class WarehouseItemAgeService
 {
     public const PER_PAGE = 1000;
 
     /**
+     * Inbound = completed/pending Buy or Move where this gudang is receiver (header or line).
+     *
      * @return LengthAwarePaginator<int, Item>
      */
     public function paginate(Addrbook $warehouse, Request $request, ?User $user): LengthAwarePaginator
@@ -44,9 +48,7 @@ class WarehouseItemAgeService
 
         $this->applySort($query, (string) $request->input('sort', 'agedesc'));
 
-        $perPage = self::PER_PAGE;
-
-        return $query->paginate($perPage)->withQueryString();
+        return $query->paginate(self::PER_PAGE)->withQueryString();
     }
 
     /**
@@ -78,33 +80,28 @@ class WarehouseItemAgeService
         return $map;
     }
 
-    private function lastInboundSubquery(int $warehouseId, ?User $user): Builder
+    private function lastInboundSubquery(int $warehouseId, ?User $user): QueryBuilder
     {
-        return $this->inboundDetailBase($warehouseId, $user)
-            ->groupBy('transaction_details.item_id')
-            ->select('transaction_details.item_id')
-            ->selectRaw('MAX(transaction_details.date) as last_inbound_date');
-    }
+        $inboundTypes = [Transaction::TYPE_BUY, Transaction::TYPE_MOVE];
 
-    private function inboundDetailBase(int $warehouseId, ?User $user): Builder
-    {
-        $buy = Transaction::TYPE_BUY;
-        $move = Transaction::TYPE_MOVE;
+        $visibleTransactions = Transaction::query()
+            ->visibleToUser($user)
+            ->countsInReporting()
+            ->select('transactions.id');
 
-        return TransactionDetail::query()
-            ->whereIn('transaction_details.transaction_type', [$buy, $move])
-            ->whereNotNull('transaction_details.date')
-            ->where('transaction_details.date', '!=', '0000-00-00')
-            ->where(function (Builder $receiver) use ($warehouseId): void {
-                $receiver
-                    ->where('transaction_details.receiver_id', $warehouseId)
-                    ->orWhereHas('transaction', fn (Builder $tq) => $tq->where('receiver_id', $warehouseId));
+        return DB::table('transaction_details as td')
+            ->join('transactions as t', 't.id', '=', 'td.transaction_id')
+            ->whereIn('td.transaction_id', $visibleTransactions)
+            ->whereNotNull('td.date')
+            ->where('td.date', '!=', '0000-00-00')
+            ->where(function (QueryBuilder $typeMatch) use ($inboundTypes): void {
+                $typeMatch
+                    ->whereIn('t.type', $inboundTypes)
+                    ->orWhereIn('td.transaction_type', $inboundTypes);
             })
-            ->whereHas('transaction', function (Builder $transaction) use ($user): void {
-                $transaction
-                    ->visibleToUser($user)
-                    ->where('status', Transaction::STATUS_COMPLETED);
-            });
+            ->whereRaw('COALESCE(NULLIF(td.receiver_id, 0), t.receiver_id) = ?', [$warehouseId])
+            ->groupBy('td.item_id')
+            ->selectRaw('td.item_id as item_id, MAX(td.date) as last_inbound_date');
     }
 
     private function applySort(Builder $query, string $sort): void
