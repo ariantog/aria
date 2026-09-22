@@ -34,6 +34,9 @@ class WarehouseCompareController extends Controller
             'sortOptions' => WarehouseCompareService::sortLabels(),
             'itemTypeOptions' => WarehouseCompareService::itemTypeLabels(),
             'maxWarehouses' => \App\Support\UserPreferenceRegistry::WAREHOUSE_COMPARE_MAX_WAREHOUSES,
+            'perPage' => $page['per_page'],
+            'perPageOptions' => WarehouseCompareService::perPageOptions(),
+            'pagination' => $page['pagination'],
         ]);
     }
 
@@ -44,7 +47,7 @@ class WarehouseCompareController extends Controller
     ): StreamedResponse {
         Gate::authorize(Report::getPermissions()['view-warehouse-compare']);
 
-        $page = $compareService->buildPage($request, $request->user());
+        $page = $compareService->buildPage($request, $request->user(), paginate: false);
         $pivotName = $page['pivot_warehouse']?->name ?? 'warehouse-compare';
 
         return $exportService->download($page['grid'], 'warehouse-compare-'.$pivotName);

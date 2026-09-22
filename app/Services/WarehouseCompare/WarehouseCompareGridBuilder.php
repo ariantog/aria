@@ -34,6 +34,7 @@ class WarehouseCompareGridBuilder
         string $sort,
         ItemType $itemType,
         int $pivotWarehouseId,
+        ?array $parentKeyOrder = null,
     ): array {
         $warehouseMeta = $warehouses
             ->map(fn (Addrbook $w) => ['id' => (int) $w->id, 'name' => $w->name])
@@ -65,14 +66,15 @@ class WarehouseCompareGridBuilder
                     'rows' => $rows,
                     'sort_sold' => $this->parentSoldTotal($parentItems, $soldByItem),
                     'sort_pivot_stock' => $this->parentMinPivotStock($parentItems, $stockByWarehouse, $pivotWarehouseId),
+                    'sort_min_code' => $this->parentMinItemCode($parentItems),
                 ];
             })
             ->values();
 
-        $parents = $this->sortParents($parents, $sort);
+        $parents = $this->sortParents($parents, $sort, $parentKeyOrder);
 
         $parentsPayload = $parents
-            ->map(fn (array $parent) => collect($parent)->except(['parent_key', 'sort_sold', 'sort_pivot_stock'])->all())
+            ->map(fn (array $parent) => collect($parent)->except(['parent_key', 'sort_sold', 'sort_pivot_stock', 'sort_min_code'])->all())
             ->all();
 
         return [
@@ -98,10 +100,19 @@ class WarehouseCompareGridBuilder
     /**
      * @param  Collection<int, \Illuminate\Support\Collection<int, array<string, mixed>>>  $parents
      */
-    protected function sortParents(Collection $parents, string $sort): Collection
+    protected function sortParents(Collection $parents, string $sort, ?array $parentKeyOrder = null): Collection
     {
+        if ($parentKeyOrder !== null && $parentKeyOrder !== []) {
+            $rank = array_flip($parentKeyOrder);
+
+            return $parents
+                ->sortBy(fn (array $p) => $rank[$p['parent_key']] ?? PHP_INT_MAX)
+                ->values();
+        }
+
         return match ($sort) {
             WarehouseCompareService::SORT_GROUP => $parents->sortBy(fn (array $p) => strtoupper($p['name']).':'.$p['pcode'])->values(),
+            WarehouseCompareService::SORT_ITEM_CODE => $parents->sortBy(fn (array $p) => $p['sort_min_code'] ?? $p['pcode'])->values(),
             WarehouseCompareService::SORT_SOLD => $parents->sortByDesc('sort_sold')->values(),
             WarehouseCompareService::SORT_RECOMMENDATION => $parents
                 ->sortBy(fn (array $p) => sprintf('%09d:%s', $p['sort_pivot_stock'], $p['pcode']))
@@ -479,5 +490,19 @@ class WarehouseCompareGridBuilder
         }
 
         return (int) $items->min(fn (Item $item) => $stockByWarehouse[(int) $item->id][$pivotWarehouseId] ?? 0);
+    }
+
+    /**
+     * @param  Collection<int, Item>  $items
+     */
+    protected function parentMinItemCode(Collection $items): string
+    {
+        $codes = $items
+            ->map(fn (Item $item) => strtoupper((string) $item->code))
+            ->filter(fn (string $code) => $code !== '')
+            ->sort()
+            ->values();
+
+        return $codes->first() ?? '';
     }
 }
