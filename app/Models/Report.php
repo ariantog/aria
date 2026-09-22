@@ -18,6 +18,7 @@ class Report
             'view-asset-tetap' => 'report-asset-tetap',
             'view-warehouse-item' => 'report-warehouse-item',
             'view-warehouse-arrangement' => 'report-warehouse-arrangement',
+            'view-warehouse-compare' => 'report-warehouse-compare',
             'view-product-performance' => 'report-product-performance',
             'view-inventory-health' => 'report-inventory-health',
             'view-item-insights' => 'report-item-insights',

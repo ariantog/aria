@@ -15,6 +15,10 @@ class UserPreferenceRegistry
 
     public const FAVORITES_MAX = 5;
 
+    public const WAREHOUSE_COMPARE_SLUG = 'warehouse_compare.display';
+
+    public const WAREHOUSE_COMPARE_MAX_WAREHOUSES = 10;
+
     /**
      * @return list<string>
      */

@@ -191,6 +191,7 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'settings profile' => 'settings/profile',
     'settings transaction defaults' => 'settings/transaction-defaults',
     'settings favorites' => 'settings/favorites',
+    'settings warehouse compare' => 'settings/warehouse-compare',
     'settings password' => 'settings/password',
     'settings appearance' => 'settings/appearance',
 
@@ -206,6 +207,7 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'asset tetap depreciate' => 'assettetap/depreciate',
     'report nett-cash-sby' => 'reports/nett-cash-sby',
     'report warehouse-arrangement' => 'reports/warehouse-arrangement',
+    'report warehouse-compare' => 'reports/warehouse-compare',
     'stock notifications' => 'stock-notifications',
     'report product-performance' => 'reports/product-performance',
     'report inventory-health' => 'reports/inventory-health',

@@ -232,6 +232,15 @@ class SidebarFavoriteRegistry
                 'active_prefix' => '/reports/warehouse-arrangement',
             ],
             [
+                'key' => 'report-warehouse-compare',
+                'label' => 'Warehouse Stock Compare',
+                'group' => 'Reports',
+                'permission' => 'report-warehouse-compare',
+                'route' => 'reports.warehouse-compare',
+                'params' => [],
+                'active_prefix' => '/reports/warehouse-compare',
+            ],
+            [
                 'key' => 'report-product-performance',
                 'label' => 'Product Performance',
                 'group' => 'Reports',

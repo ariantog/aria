@@ -21,6 +21,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('settings/favorites', [FavoritesController::class, 'edit'])->name('favorites.edit');
     Route::put('settings/favorites', [FavoritesController::class, 'update'])->name('favorites.update');
 
+    Route::get('settings/warehouse-compare', [\App\Http\Controllers\Settings\WarehouseCompareSettingsController::class, 'edit'])->name('warehouse-compare-settings.edit');
+    Route::put('settings/warehouse-compare', [\App\Http\Controllers\Settings\WarehouseCompareSettingsController::class, 'update'])->name('warehouse-compare-settings.update');
+
     Route::get('settings/appearance', [AppearanceController::class, 'edit'])->name('appearance.edit');
     Route::patch('settings/appearance', [AppearanceController::class, 'update'])->name('appearance.update');
 });
