@@ -178,7 +178,7 @@ $td = 'px-1.5 py-2 align-top';
                         </td>
                         <td class="{{ $td }}" data-testid="jubelio-orders-sync-status">
                             <div class="flex min-w-0 flex-col items-start gap-0.5">
-                                @include('jubelio.partials.sync-status-badge', ['status' => $order->status, 'errorType' => $order->error_type, 'executeBy' => $order->user->name ?? null, 'orderType' => $order->type])
+                                @include('jubelio.partials.sync-status-badge', ['status' => $order->status, 'errorType' => $order->error_type, 'executeBy' => $order->user->name ?? null, 'orderType' => $order->type, 'error' => $order->error])
                                 <form method="POST" action="{{ route('jubelio.refresh-payload', $order) }}" class="inline">
                                     @csrf
                                     <input type="hidden" name="return_to_index" value="1">
