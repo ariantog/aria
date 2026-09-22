@@ -127,19 +127,19 @@ it('serves the default report from snapshots without transaction details', funct
     expect($html)->toMatch('/data-testid="inventory-health-status-'.$item->id.'"[^>]*>Fast Moving \/ Low Stock/');
 });
 
-it('keeps invoice and custom-date filters on the live transaction path', function () {
+it('uses live transaction aggregation for custom date ranges', function () {
     $cached = healthStatItem('Cached Live Split', 'SNAP-CACHE');
     healthOnHand($cached, $this->warehouse, 8);
     healthMonthlyStat($cached, $this->warehouse, 4, 0);
 
-    $liveOnly = healthStatItem('Invoice Only Sku', 'SNAP-LIVE');
+    $liveOnly = healthStatItem('Live Path Sku', 'SNAP-LIVE');
     healthLiveLine(
         $this->user,
         $this->warehouse,
         $this->customer,
         $liveOnly,
         12,
-        'SNAP-INV-99',
+        'SNAP-LIVE-1',
     );
 
     app(InventoryHealthSyncService::class)->syncAll();
@@ -148,13 +148,16 @@ it('keeps invoice and custom-date filters on the live transaction path', functio
         ->get(route('reports.inventory-health'))
         ->assertOk()
         ->assertSee('Cached Live Split', false)
-        ->assertDontSee('Invoice Only Sku', false)
+        ->assertDontSee('Live Path Sku', false)
         ->assertSee('data-source="snapshot"', false);
 
+    $customFrom = now()->subDays(10)->toDateString();
+    $customTo = now()->toDateString();
+
     $this->actingAs($this->user)
-        ->get(route('reports.inventory-health', ['invoice' => 'SNAP-INV-99']))
+        ->get(route('reports.inventory-health', ['from' => $customFrom, 'to' => $customTo]))
         ->assertOk()
-        ->assertSee('Invoice Only Sku', false)
+        ->assertSee('Live Path Sku', false)
         ->assertSee('data-source="live"', false);
 });
 

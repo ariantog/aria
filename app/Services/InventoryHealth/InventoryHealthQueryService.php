@@ -8,7 +8,6 @@ use App\Models\Item;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use App\Models\User;
-use App\Support\LikeSearch;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Http\Request;
@@ -76,7 +75,6 @@ class InventoryHealthQueryService
             'from' => $resolved['period_from'],
             'to' => $resolved['period_to'],
             'type' => $request->query('type', ''),
-            'invoice' => $request->query('invoice', ''),
             'item_id' => $request->query('item_id', ''),
             'qty_min' => $request->query('qty_min', ''),
             'qty_max' => $request->query('qty_max', ''),
@@ -163,10 +161,6 @@ class InventoryHealthQueryService
     public function canUseSnapshot(Request $request): bool
     {
         if (! $this->snapshotsReady()) {
-            return false;
-        }
-
-        if ($request->filled('invoice')) {
             return false;
         }
 
@@ -495,14 +489,10 @@ class InventoryHealthQueryService
             ->where('transaction_details.date', '!=', '0000-00-00')
             ->whereDate('transaction_details.date', '>=', $extendedFrom)
             ->whereDate('transaction_details.date', '<=', $periodTo)
-            ->whereHas('transaction', function (Builder $transaction) use ($user, $request) {
+            ->whereHas('transaction', function (Builder $transaction) use ($user) {
                 $transaction
                     ->visibleToUser($user)
                     ->where('status', Transaction::STATUS_COMPLETED);
-
-                if ($request->filled('invoice')) {
-                    $transaction->where('invoice', 'like', LikeSearch::contains((string) $request->query('invoice')));
-                }
             })
             ->tap(fn (Builder $q) => $this->applyWarehouseSalesScope($q, $request))
             ->groupBy('transaction_details.item_id')

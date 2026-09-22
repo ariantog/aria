@@ -57,7 +57,7 @@ $fmtCover = function (?float $cover, float $stock, float $netPeriod) {
                     <span class="text-amber-700">May be stale — wait for the daily cron or run <code class="text-xs">app:sync-inventory-health</code>.</span>
                 @endif
             @elseif($hasSnapshots)
-                Live query (invoice or a custom date range).
+                Live query (custom date range).
                 The default 30-day view uses the daily snapshot.
             @else
                 <span class="text-amber-700">No snapshot yet — this page is scanning transactions. Run <code class="text-xs">php artisan app:sync-inventory-health</code> or wait for the daily cron.</span>
@@ -95,6 +95,7 @@ $fmtCover = function (?float $cover, float $stock, float $netPeriod) {
         'typeOptions' => $typeOptions,
         'selectedType' => $filters['type'] ?? '',
         'perPage' => $perPage,
+        'showInvoiceFilter' => false,
         'showPartyFilters' => false,
         'showWarehouseFilter' => true,
         'warehouseOptions' => $warehouseOptions,
