@@ -9,9 +9,7 @@ use App\Models\JubelioItemLinkRunner;
 use App\Models\Jubeliosync;
 use App\Models\WarehouseItem;
 use App\Services\JubelioService;
-use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -23,13 +21,14 @@ class JubelioItemAutoLinkService
 
     public const RETRY_SPACING_HOURS = 24;
 
-    public const MIN_ITEM_AGE_HOURS = 24;
-
-    public const RECENT_MAX_DAYS = 30;
+    /** How many newest item rows (by id) are in the auto-link rolling window. */
+    public const ROLLING_WINDOW_SIZE = 3000;
 
     public const HOURLY_CALL_CAP = 200;
 
     public const DEFAULT_BATCH_PER_RUN = 4;
+
+    protected ?int $cachedRollingMinId = null;
 
     public function __construct(
         protected JubelioService $jubelio,
@@ -171,10 +170,9 @@ class JubelioItemAutoLinkService
     {
         $code = trim((string) $item->code);
         $legacy = trim((string) ($item->legacy_code ?? ''));
-        $isRecent = $item->created_at instanceof CarbonInterface
-            && $item->created_at->gte(now()->subDays(self::RECENT_MAX_DAYS));
+        $inRollingWindow = (int) $item->id >= $this->rollingWindowMinItemId();
 
-        if ($isRecent && $legacy !== '' && strcasecmp($legacy, $code) !== 0) {
+        if ($inRollingWindow && $legacy !== '' && strcasecmp($legacy, $code) !== 0) {
             $last = $this->lastAttempt($item->id);
             if ($last !== null
                 && strcasecmp($last->search_q, $legacy) === 0
@@ -199,7 +197,7 @@ class JubelioItemAutoLinkService
             return false;
         }
 
-        if ($item->created_at === null || $item->created_at->gt(now()->subHours(self::MIN_ITEM_AGE_HOURS))) {
+        if ((int) $item->id < $this->rollingWindowMinItemId()) {
             return false;
         }
 
@@ -297,36 +295,45 @@ class JubelioItemAutoLinkService
                         ->where('outcome', '!=', JubelioItemLinkAttempt::OUTCOME_SKIPPED);
                 });
             })
-            ->orderBy('id')
+            ->orderByDesc('id')
             ->first();
 
         if ($zeroRetry !== null) {
             return $zeroRetry;
         }
 
-        $recent = $this->eligibleUnlinkedQuery()
-            ->where('created_at', '>=', now()->subDays(self::RECENT_MAX_DAYS))
-            ->orderBy('created_at', 'desc')
+        return $this->eligibleUnlinkedQuery()
+            ->orderByDesc('id')
             ->first();
+    }
 
-        if ($recent !== null) {
-            return $recent;
+    public function rollingWindowMinItemId(): int
+    {
+        if ($this->cachedRollingMinId !== null) {
+            return $this->cachedRollingMinId;
         }
 
-        return $this->eligibleUnlinkedQuery()
-            ->where('created_at', '<', now()->subDays(self::RECENT_MAX_DAYS))
-            ->orderBy('id')
-            ->first();
+        $minId = Item::query()
+            ->whereNull('deleted_at')
+            ->whereIn('type', [ItemType::ITEM->value, ItemType::ASSET_LANCAR->value])
+            ->orderByDesc('id')
+            ->skip(self::ROLLING_WINDOW_SIZE - 1)
+            ->value('id');
+
+        $this->cachedRollingMinId = (int) ($minId ?? 0);
+
+        return $this->cachedRollingMinId;
     }
 
     protected function eligibleBaseQuery(): Builder
     {
         $warehouseIds = $this->mappedWarehouseIds();
+        $minId = $this->rollingWindowMinItemId();
 
         return Item::query()
             ->whereNull('deleted_at')
             ->whereIn('type', [ItemType::ITEM->value, ItemType::ASSET_LANCAR->value])
-            ->where('created_at', '<=', now()->subHours(self::MIN_ITEM_AGE_HOURS))
+            ->when($minId > 0, fn (Builder $query) => $query->where('items.id', '>=', $minId))
             ->when($warehouseIds !== [], function (Builder $query) use ($warehouseIds) {
                 $query->whereExists(function ($sub) use ($warehouseIds) {
                     $sub->select(DB::raw(1))
@@ -441,8 +448,9 @@ class JubelioItemAutoLinkService
      *     no_match_today: int,
      *     ambiguous_today: int,
      *     api_error_today: int,
-     *     eligible_recent: int,
-     *     eligible_rolling: int,
+     *     rolling_window_size: int,
+     *     rolling_window_min_id: int,
+     *     eligible_in_window: int,
      *     zero_retry_due: int,
      * }
      */
@@ -457,8 +465,9 @@ class JubelioItemAutoLinkService
             'no_match_today' => JubelioItemLinkAttempt::query()->where('outcome', JubelioItemLinkAttempt::OUTCOME_NO_MATCH)->where('created_at', '>=', $today)->count(),
             'ambiguous_today' => JubelioItemLinkAttempt::query()->where('outcome', JubelioItemLinkAttempt::OUTCOME_AMBIGUOUS)->where('created_at', '>=', $today)->count(),
             'api_error_today' => JubelioItemLinkAttempt::query()->where('outcome', JubelioItemLinkAttempt::OUTCOME_API_ERROR)->where('created_at', '>=', $today)->count(),
-            'eligible_recent' => $this->eligibleUnlinkedQuery()->where('created_at', '>=', now()->subDays(self::RECENT_MAX_DAYS))->count(),
-            'eligible_rolling' => $this->eligibleUnlinkedQuery()->where('created_at', '<', now()->subDays(self::RECENT_MAX_DAYS))->count(),
+            'rolling_window_size' => self::ROLLING_WINDOW_SIZE,
+            'rolling_window_min_id' => $this->rollingWindowMinItemId(),
+            'eligible_in_window' => $this->eligibleUnlinkedQuery()->count(),
             'zero_retry_due' => $this->eligibleBaseQuery()->where('jubelio_item_id', 0)->count(),
         ];
     }
