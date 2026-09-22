@@ -37,7 +37,7 @@ $healthBase = route('reports.inventory-health');
             <h1 class="text-2xl font-bold text-gray-900">Warehouse item age</h1>
             <p class="text-sm text-gray-500">
                 Per SKU at <span class="text-blue-600">{{ $addrbook->name }}</span>:
-                when stock last came in (Buy/Move) and when it last sold out of this gudang (Sell).
+                when stock last came in (Buy, Move, or Production) and when it last sold out of this gudang (Sell).
             </p>
             <p class="mt-2 max-w-3xl text-xs text-gray-500">
                 <span class="font-medium text-gray-700">Stale</span> = last inbound at least {{ $staleMonths }} months ago
