@@ -8,8 +8,8 @@ use Illuminate\Support\Facades\Schema;
 use Spatie\Permission\PermissionRegistrar;
 
 /**
- * Leftover Spatie names from removed /reports/cash-flow, /expense, /purchase pages
- * and the L10 ACL action "cash-flow" (now mapped to report-laba-rugi).
+ * Leftover Spatie names from removed report pages (cash-flow, expense, purchase,
+ * legacy /reports/compare) and the L10 ACL action "cash-flow" (now report-laba-rugi).
  */
 class ObsoleteReportPermissions
 {
@@ -20,6 +20,7 @@ class ObsoleteReportPermissions
         'report-cash-flow',
         'report-expense',
         'report-purchase',
+        'report-compare',
         'cash-flow',
     ];
 

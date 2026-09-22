@@ -31,6 +31,7 @@ it('lists leftover report permissions without deleting on dry-run', function () 
 
     $this->artisan('app:remove-obsolete-report-permissions', ['--dry-run' => true])
         ->expectsOutputToContain('report-cash-flow')
+        ->expectsOutputToContain('report-compare')
         ->expectsOutputToContain('cash-flow')
         ->expectsOutputToContain('Dry run')
         ->assertSuccessful();
@@ -44,7 +45,7 @@ it('deletes leftover report permissions via artisan and leaves live reports inta
     $role = seedObsoleteReportPermissions();
 
     $this->artisan('app:remove-obsolete-report-permissions')
-        ->expectsOutputToContain('Deleted 4 leftover report permission(s).')
+        ->expectsOutputToContain('Deleted '.count(ObsoleteReportPermissions::NAMES).' leftover report permission(s).')
         ->assertSuccessful();
 
     foreach (ObsoleteReportPermissions::NAMES as $name) {
