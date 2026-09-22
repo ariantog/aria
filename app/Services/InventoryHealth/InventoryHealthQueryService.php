@@ -80,8 +80,7 @@ class InventoryHealthQueryService
             'item_id' => $request->query('item_id', ''),
             'qty_min' => $request->query('qty_min', ''),
             'qty_max' => $request->query('qty_max', ''),
-            'sender' => $request->query('sender', ''),
-            'receiver' => $request->query('receiver', ''),
+            'warehouse_id' => $this->warehouseFilterQueryValue($request),
             'status' => $request->query('status', ''),
             'per_page' => $this->resolvePerPage($request),
             'sort' => $sort['column'],
@@ -167,12 +166,7 @@ class InventoryHealthQueryService
             return false;
         }
 
-        if ($request->filled('invoice') || $request->filled('receiver')) {
-            return false;
-        }
-
-        $sender = trim((string) $request->query('sender', ''));
-        if ($sender !== '' && $this->warehouseIdFromSender($request) === null) {
+        if ($request->filled('invoice')) {
             return false;
         }
 
@@ -223,10 +217,68 @@ class InventoryHealthQueryService
     /**
      * @return Collection<int, Item>
      */
+    /**
+     * Snapshot warehouse key: 0 = company rollup, otherwise a gudang id.
+     */
+    public function resolveSnapshotWarehouseId(Request $request): int
+    {
+        return $this->resolveWarehouseId($request);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function warehouseOptionsForFilter(?User $user = null): array
+    {
+        return Addrbook::query()
+            ->visibleToUser($user)
+            ->whereIn('type', [Addrbook::TYPE_WAREHOUSE, Addrbook::TYPE_V_WAREHOUSE])
+            ->orderBy('name')
+            ->pluck('name', 'id')
+            ->all();
+    }
+
+    /**
+     * Query value for warehouse filter (empty string = all gudang / company rollup).
+     */
+    public function warehouseFilterQueryValue(Request $request): string
+    {
+        $raw = trim((string) $request->query('warehouse_id', ''));
+
+        if ($raw === '' || $raw === '0') {
+            return '';
+        }
+
+        if (! ctype_digit($raw)) {
+            return '';
+        }
+
+        $id = (int) $raw;
+        if ($id === InventoryHealthSyncService::COMPANY_WAREHOUSE_ID) {
+            return '';
+        }
+
+        $addrbook = Addrbook::query()->find($id);
+        if (! $addrbook || ! Addrbook::typeIsWarehouse(Addrbook::typeValueFrom($addrbook->type))) {
+            return '';
+        }
+
+        return (string) $id;
+    }
+
+    /**
+     * Snapshot / filter warehouse: 0 = all gudang rollup, otherwise one gudang.
+     */
+    public function resolveWarehouseId(Request $request): int
+    {
+        $filter = $this->warehouseFilterQueryValue($request);
+
+        return $filter === '' ? InventoryHealthSyncService::COMPANY_WAREHOUSE_ID : (int) $filter;
+    }
+
     private function snapshotItems(Request $request): Collection
     {
-        $warehouseId = $this->warehouseIdFromSender($request);
-        $snapshotWarehouseId = $warehouseId ?? InventoryHealthSyncService::COMPANY_WAREHOUSE_ID;
+        $snapshotWarehouseId = $this->resolveSnapshotWarehouseId($request);
 
         return Item::query()
             ->join('inventory_health_snapshots as snap', 'snap.item_id', '=', 'items.id')
@@ -415,10 +467,7 @@ class InventoryHealthQueryService
             'returned' => [(float) ($item->returned_period ?? 0), false],
             'net' => [(float) ($item->net_period ?? 0), false],
             'stock' => [(float) ($item->current_stock ?? 0), false],
-            'cover' => [
-                $item->health['days_of_cover'] ?? null,
-                ($item->health['days_of_cover'] ?? null) === null,
-            ],
+            'cover' => $this->sortCoverTuple($item),
             'last_sold' => [
                 $item->last_sold_at ? Carbon::parse($item->last_sold_at)->timestamp : null,
                 $item->last_sold_at === null || $item->last_sold_at === '',
@@ -455,11 +504,7 @@ class InventoryHealthQueryService
                     $transaction->where('invoice', 'like', LikeSearch::contains((string) $request->query('invoice')));
                 }
             })
-            ->tap(fn (Builder $q) => $this->applySenderConstraint($q, $request))
-            ->when(
-                $request->filled('receiver'),
-                fn (Builder $q) => $this->applyPartyFilter($q, 'receiver', (string) $request->query('receiver')),
-            )
+            ->tap(fn (Builder $q) => $this->applyWarehouseSalesScope($q, $request))
             ->groupBy('transaction_details.item_id')
             ->select('transaction_details.item_id')
             ->selectRaw(
@@ -488,7 +533,7 @@ class InventoryHealthQueryService
 
     private function stockSubquery(Request $request): QueryBuilder
     {
-        $warehouseId = $this->warehouseIdFromSender($request);
+        $warehouseId = $this->resolvePhysicalWarehouseId($request);
 
         return DB::table('warehouse_item')
             ->select('item_id', DB::raw('COALESCE(SUM(quantity), 0) as current_stock'))
@@ -554,15 +599,41 @@ class InventoryHealthQueryService
         };
     }
 
-    private function applySenderConstraint(Builder $query, Request $request): Builder
+    /**
+     * @return array{0: mixed, 1: bool}
+     */
+    private function sortCoverTuple(Item $item): array
     {
-        $warehouseId = $this->warehouseIdFromSender($request);
-        if ($warehouseId !== null) {
-            return $this->applyWarehouseActivityFilter($query, $warehouseId);
+        $stock = (float) ($item->current_stock ?? 0);
+        $netPeriod = (float) ($item->net_period ?? 0);
+
+        if (InventoryHealthClassifier::coverIsInfinite($stock, $netPeriod)) {
+            return [PHP_FLOAT_MAX, false];
         }
 
-        if ($request->filled('sender')) {
-            return $this->applyPartyFilter($query, 'sender', (string) $request->query('sender'));
+        $cover = $item->health['days_of_cover'] ?? null;
+        if ($cover === null || $stock <= 0.0) {
+            return [null, true];
+        }
+
+        return [(float) $cover, false];
+    }
+
+    private function resolvePhysicalWarehouseId(Request $request): ?int
+    {
+        $id = $this->resolveWarehouseId($request);
+        if ($id === InventoryHealthSyncService::COMPANY_WAREHOUSE_ID) {
+            return null;
+        }
+
+        return $id;
+    }
+
+    private function applyWarehouseSalesScope(Builder $query, Request $request): Builder
+    {
+        $warehouseId = $this->resolvePhysicalWarehouseId($request);
+        if ($warehouseId !== null) {
+            return $this->applyWarehouseActivityFilter($query, $warehouseId);
         }
 
         return $this->restrictToWarehouseParties($query);
@@ -615,51 +686,6 @@ class InventoryHealthQueryService
                         ->whereHas('receiver', fn (Builder $receiver) => $receiver->whereIn('type', $warehouseTypes));
                 });
         });
-    }
-
-    private function applyPartyFilter(Builder $query, string $role, string $term): Builder
-    {
-        $term = trim($term);
-        if ($term === '') {
-            return $query;
-        }
-
-        $detailColumn = $role === 'sender' ? 'transaction_details.sender_id' : 'transaction_details.receiver_id';
-        $transactionColumn = $role === 'sender' ? 'sender_id' : 'receiver_id';
-
-        if (ctype_digit($term)) {
-            $partyId = (int) $term;
-
-            return $query->where(function (Builder $partyQuery) use ($detailColumn, $transactionColumn, $partyId) {
-                $partyQuery
-                    ->where($detailColumn, $partyId)
-                    ->orWhereHas('transaction', fn (Builder $tq) => $tq->where($transactionColumn, $partyId));
-            });
-        }
-
-        $pattern = LikeSearch::contains($term);
-        $transactionRelation = 'transaction.'.$role;
-
-        return $query->where(function (Builder $partyQuery) use ($role, $transactionRelation, $pattern) {
-            $partyQuery
-                ->whereHas($role, fn (Builder $sq) => $sq->where('customers.name', 'like', $pattern))
-                ->orWhereHas($transactionRelation, fn (Builder $sq) => $sq->where('customers.name', 'like', $pattern));
-        });
-    }
-
-    private function warehouseIdFromSender(Request $request): ?int
-    {
-        $term = trim((string) $request->query('sender', ''));
-        if ($term === '' || ! ctype_digit($term)) {
-            return null;
-        }
-
-        $addrbook = Addrbook::query()->find((int) $term);
-        if (! $addrbook || ! Addrbook::typeIsWarehouse((int) $addrbook->type)) {
-            return null;
-        }
-
-        return (int) $addrbook->id;
     }
 
     private function parseDate(mixed $value): ?string

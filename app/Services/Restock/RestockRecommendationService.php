@@ -185,16 +185,34 @@ class RestockRecommendationService
     }
 
     /**
+     * Gudang used for inventory-health rows on this page (query param or first restock stock-display warehouse).
+     */
+    public function resolveHealthWarehouseId(Request $request): ?int
+    {
+        $filter = $this->inventoryHealth->warehouseFilterQueryValue($request);
+        if ($filter !== '') {
+            return (int) $filter;
+        }
+
+        $defaults = app(RestockSettingsService::class)->stockDisplayWarehouseIds();
+
+        return $defaults[0] ?? null;
+    }
+
+    /**
      * Reuse default inventory-health windows (last 30 days) unless the user set an explicit range.
      */
     private function healthRequest(Request $request): Request
     {
+        $warehouseId = $this->resolveHealthWarehouseId($request);
+
         $health = Request::create(
             $request->url(),
             $request->method(),
             array_filter([
                 'from' => $request->query('from'),
                 'to' => $request->query('to'),
+                'warehouse_id' => $warehouseId,
             ], fn ($value) => $value !== null && $value !== ''),
         );
         $health->setUserResolver(fn () => $request->user());

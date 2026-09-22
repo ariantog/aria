@@ -170,7 +170,7 @@ it('filters snapshot rows to the selected warehouse', function () {
     app(InventoryHealthSyncService::class)->syncAll();
 
     $this->actingAs($this->user)
-        ->get(route('reports.inventory-health', ['sender' => $this->warehouse->id]))
+        ->get(route('reports.inventory-health', ['warehouse_id' => $this->warehouse->id]))
         ->assertOk()
         ->assertSee('Here Snapshot Sku', false)
         ->assertDontSee('There Snapshot Sku', false)

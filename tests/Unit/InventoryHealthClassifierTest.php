@@ -81,3 +81,9 @@ it('nets negative activity to zero before classifying', function () {
 
     expect($status['key'])->toBe(InventoryHealthClassifier::DEAD);
 });
+
+it('treats stock with no period sales as infinite cover for display', function () {
+    expect(InventoryHealthClassifier::coverIsInfinite(5, 0))->toBeTrue()
+        ->and(InventoryHealthClassifier::formatCover(null, 5, 0))->toBe('∞')
+        ->and(InventoryHealthClassifier::formatCover(null, 0, 0))->toBe('—');
+});

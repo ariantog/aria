@@ -31,12 +31,8 @@ $breadcrumbs = [
 ];
 
 $fmtNum = fn ($v) => format_amount($v, 0);
-$fmtCover = function (?float $cover) {
-    if ($cover === null) {
-        return '—';
-    }
-
-    return format_amount($cover, 1).'d';
+$fmtCover = function (?float $cover, float $stock, float $netPeriod) {
+    return InventoryHealthClassifier::formatCover($cover, $stock, $netPeriod);
 };
 @endphp
 
@@ -44,7 +40,8 @@ $fmtCover = function (?float $cover) {
     <div>
         <h1 class="text-2xl font-bold tracking-tight text-gray-900">Inventory Health</h1>
         <p class="mt-0.5 text-sm text-gray-500">
-            Net sell quantity (sell minus return) versus current stock.
+            Net sell quantity (sell minus return) versus current stock at the selected gudang.
+            Age is days of cover (∞ when stock is on hand but nothing sold in the window).
             Cover under {{ InventoryHealthClassifier::LOW_COVER_DAYS }} days is low stock;
             over {{ InventoryHealthClassifier::OVERSTOCK_COVER_DAYS }} days is overstock.
             Window {{ $windows['period_from'] }} → {{ $windows['period_to'] }}
@@ -60,7 +57,7 @@ $fmtCover = function (?float $cover) {
                     <span class="text-amber-700">May be stale — wait for the daily cron or run <code class="text-xs">app:sync-inventory-health</code>.</span>
                 @endif
             @elseif($hasSnapshots)
-                Live query (invoice, receiver, non-warehouse sender, or a custom date range).
+                Live query (invoice or a custom date range).
                 The default 30-day view uses the daily snapshot.
             @else
                 <span class="text-amber-700">No snapshot yet — this page is scanning transactions. Run <code class="text-xs">php artisan app:sync-inventory-health</code> or wait for the daily cron.</span>
@@ -98,17 +95,14 @@ $fmtCover = function (?float $cover) {
         'typeOptions' => $typeOptions,
         'selectedType' => $filters['type'] ?? '',
         'perPage' => $perPage,
-        'showPartyFilters' => true,
+        'showPartyFilters' => false,
+        'showWarehouseFilter' => true,
+        'warehouseOptions' => $warehouseOptions,
+        'selectedWarehouseId' => $selectedWarehouseId,
         'showStatusFilter' => true,
         'statusOptions' => $statusOptions,
         'selectedStatus' => $filters['status'] ?? '',
         'defaultOpen' => true,
-        'senderLookupUrl' => $senderLookupUrl,
-        'receiverLookupUrl' => $receiverLookupUrl,
-        'senderLabel' => $senderLabel,
-        'receiverLabel' => $receiverLabel,
-        'selectedSender' => $selectedSender,
-        'selectedReceiver' => $selectedReceiver,
         'itemLookupUrl' => $itemLookupUrl,
         'selectedItem' => $selectedItem,
         'hiddenFields' => [
@@ -138,7 +132,7 @@ $fmtCover = function (?float $cover) {
                             <a href="{{ $sortLink('stock') }}" class="inline-flex items-center justify-end gap-1 hover:text-gray-900" data-testid="inventory-health-sort-stock">Stock @if($sort === 'stock')<span class="text-blue-600">{{ $direction === 'asc' ? '↑' : '↓' }}</span>@endif</a>
                         </th>
                         <th class="px-3 py-2 text-right font-medium text-gray-600">
-                            <a href="{{ $sortLink('cover') }}" class="inline-flex items-center justify-end gap-1 hover:text-gray-900" data-testid="inventory-health-sort-cover">Cover @if($sort === 'cover')<span class="text-blue-600">{{ $direction === 'asc' ? '↑' : '↓' }}</span>@endif</a>
+                            <a href="{{ $sortLink('cover') }}" class="inline-flex items-center justify-end gap-1 hover:text-gray-900" data-testid="inventory-health-sort-cover">Age (cover) @if($sort === 'cover')<span class="text-blue-600">{{ $direction === 'asc' ? '↑' : '↓' }}</span>@endif</a>
                         </th>
                         <th class="px-3 py-2 font-medium text-gray-600">
                             <a href="{{ $sortLink('last_sold') }}" class="inline-flex items-center gap-1 hover:text-gray-900" data-testid="inventory-health-sort-last-sold">Last Sold @if($sort === 'last_sold')<span class="text-blue-600">{{ $direction === 'asc' ? '↑' : '↓' }}</span>@endif</a>
@@ -167,7 +161,7 @@ $fmtCover = function (?float $cover) {
                         <td class="px-3 py-2 text-right tabular-nums">{{ $fmtNum($item->returned_period ?? 0) }}</td>
                         <td class="px-3 py-2 text-right font-medium tabular-nums">{{ $fmtNum($item->net_period ?? 0) }}</td>
                         <td class="px-3 py-2 text-right font-bold tabular-nums">{{ $fmtNum($item->current_stock ?? 0) }}</td>
-                        <td class="px-3 py-2 text-right tabular-nums">{{ $fmtCover($health['days_of_cover'] ?? null) }}</td>
+                        <td class="px-3 py-2 text-right tabular-nums">{{ $fmtCover($health['days_of_cover'] ?? null, (float) ($item->current_stock ?? 0), (float) ($item->net_period ?? 0)) }}</td>
                         <td class="px-3 py-2 text-sm">
                             {{ $item->last_sold_at ? \Illuminate\Support\Carbon::parse($item->last_sold_at)->format('d M Y') : '—' }}
                         </td>

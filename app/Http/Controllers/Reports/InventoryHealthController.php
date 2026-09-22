@@ -5,10 +5,8 @@ namespace App\Http\Controllers\Reports;
 use App\Enums\ItemType;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\ExportSellController;
-use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\Report;
-use App\Services\ExportSellQueryService;
 use App\Services\InventoryHealth\InventoryHealthClassifier;
 use App\Services\InventoryHealth\InventoryHealthQueryService;
 use Illuminate\Contracts\View\View;
@@ -27,7 +25,6 @@ class InventoryHealthController extends Controller
         $sort = $queryService->resolveSort($request);
         $rows = $queryService->paginate($request, Auth::user());
         $meta = $queryService->pageMeta($request);
-        $partyLookups = self::partyLookups();
 
         return view('reports.inventory-health', [
             'rows' => $rows,
@@ -42,67 +39,16 @@ class InventoryHealthController extends Controller
             'perPage' => $queryService->resolvePerPage($request),
             'typeOptions' => $queryService->typeOptions(),
             'statusOptions' => InventoryHealthClassifier::statusOptions(),
-            'senderLookupUrl' => $partyLookups['sender_route'],
-            'receiverLookupUrl' => $partyLookups['receiver_route'],
-            'senderLabel' => 'Sender',
-            'receiverLabel' => 'Receiver',
-            'selectedSender' => $this->resolveSelectedParty($filters['sender'] ?? null),
-            'selectedReceiver' => $this->resolveSelectedParty($filters['receiver'] ?? null),
+            'warehouseOptions' => $queryService->warehouseOptionsForFilter(Auth::user()),
+            'selectedWarehouseId' => $filters['warehouse_id'] ?? '',
             'itemLookupUrl' => route('items.index'),
             'selectedItem' => $this->resolveSelectedItem($filters['item_id'] ?? null),
         ]);
     }
 
-    /**
-     * @return array{sender_route: string, receiver_route: string}
-     */
-    public static function partyLookups(): array
-    {
-        $queryService = app(ExportSellQueryService::class);
-        $partyTypeIds = $queryService->partyTypeIds();
-
-        $lookupParams = [
-            'type' => 'sell',
-            'addrbook_type' => $partyTypeIds,
-        ];
-
-        return [
-            'sender_route' => route('transactions.lookup', [...$lookupParams, 'role' => 'sender']),
-            'receiver_route' => route('transactions.lookup', [...$lookupParams, 'role' => 'receiver']),
-        ];
-    }
-
     public static function itemShowUrl(?ItemType $type, int $itemId): string
     {
         return ExportSellController::itemShowUrl($type, $itemId);
-    }
-
-    /**
-     * @return array{id: int, name: string}|null
-     */
-    private function resolveSelectedParty(mixed $value): ?array
-    {
-        if ($value === null || $value === '') {
-            return null;
-        }
-
-        $term = trim((string) $value);
-        if ($term === '' || ! ctype_digit($term)) {
-            return null;
-        }
-
-        $addrbook = Addrbook::query()
-            ->visibleToUser(Auth::user())
-            ->find((int) $term);
-
-        if (! $addrbook) {
-            return null;
-        }
-
-        return [
-            'id' => $addrbook->id,
-            'name' => $addrbook->name,
-        ];
     }
 
     /**

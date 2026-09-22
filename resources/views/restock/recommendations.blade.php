@@ -33,6 +33,7 @@ $tabQuery = fn (string $next) => array_filter([
     'tab' => $next,
     'item_type' => $itemTypeQuery !== '' ? $itemTypeQuery : null,
     'sales_window' => $salesWindowQuery !== '' ? $salesWindowQuery : null,
+    'warehouse_id' => ($healthWarehouseId ?? null) ? $healthWarehouseId : null,
     'from' => request()->query('from'),
     'to' => request()->query('to'),
 ]);
@@ -40,6 +41,7 @@ $typeQuery = fn (string $typeValue) => array_filter([
     'tab' => $tab,
     'item_type' => $typeValue !== '' ? $typeValue : null,
     'sales_window' => $salesWindowQuery !== '' ? $salesWindowQuery : null,
+    'warehouse_id' => ($healthWarehouseId ?? null) ? $healthWarehouseId : null,
     'from' => request()->query('from'),
     'to' => request()->query('to'),
 ]);
@@ -47,6 +49,7 @@ $salesWindowLinkQuery = fn (string $windowValue) => array_filter([
     'tab' => $tab,
     'item_type' => $itemTypeQuery !== '' ? $itemTypeQuery : null,
     'sales_window' => $windowValue !== '' ? $windowValue : null,
+    'warehouse_id' => ($healthWarehouseId ?? null) ? $healthWarehouseId : null,
     'from' => request()->query('from'),
     'to' => request()->query('to'),
 ]);
@@ -97,6 +100,11 @@ $salesWindowLinkQuery = fn (string $windowValue) => array_filter([
                 <span class="font-medium text-gray-900">Health window:</span>
                 {{ $healthWindows['period_from'] }} → {{ $healthWindows['period_to'] }}
                 ({{ $healthWindows['period_days'] }} days, source: {{ $healthSource }})
+                @if(!empty($healthWarehouseId))
+                    <span class="text-gray-500">· gudang #{{ $healthWarehouseId }}</span>
+                @else
+                    <span class="text-amber-700">· no stock-display gudang in restock settings — health is company-wide</span>
+                @endif
             </span>
             @if($insightCalculated && $insightPeriod)
                 <span>

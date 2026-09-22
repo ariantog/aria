@@ -2,6 +2,9 @@
     $perPage = $perPage ?? (int) request()->query('per_page', 100);
     $selectedType = (string) ($selectedType ?? ($filters['type'] ?? ''));
     $showPartyFilters = $showPartyFilters ?? false;
+    $showWarehouseFilter = $showWarehouseFilter ?? false;
+    $warehouseOptions = $warehouseOptions ?? [];
+    $selectedWarehouseId = (string) ($selectedWarehouseId ?? ($filters['warehouse_id'] ?? ''));
     $showStatusFilter = $showStatusFilter ?? false;
     $statusOptions = $statusOptions ?? [];
     $selectedStatus = (string) ($selectedStatus ?? ($filters['status'] ?? ''));
@@ -44,6 +47,18 @@
     <input type="number" step="0.01" name="qty_max" value="{{ $filters['qty_max'] ?? '' }}"
            class="w-24 rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
 </div>
+@if($showWarehouseFilter)
+<div class="flex flex-col gap-1">
+    <label class="text-xs font-medium uppercase text-gray-500" for="inventory-health-warehouse">Gudang</label>
+    <select id="inventory-health-warehouse" name="warehouse_id" data-testid="inventory-health-warehouse"
+            class="min-w-[12rem] rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+        <option value="" @selected($selectedWarehouseId === '')>Semua gudang</option>
+        @foreach($warehouseOptions as $warehouseId => $warehouseName)
+            <option value="{{ $warehouseId }}" @selected($selectedWarehouseId === (string) $warehouseId)>{{ $warehouseName }}</option>
+        @endforeach
+    </select>
+</div>
+@endif
 @if($showStatusFilter)
 <div class="flex flex-col gap-1">
     <label class="text-xs font-medium uppercase text-gray-500" for="inventory-health-status">Status</label>

@@ -88,8 +88,9 @@ it('renders export-sell style filters for authorized users', function () {
         ->assertSee('Inventory Health', false)
         ->assertSee('data-testid="inventory-health-page"', false)
         ->assertSee('data-testid="toggle-export-sell-filters"', false)
-        ->assertSee('data-testid="export-sell-sender-combobox"', false)
-        ->assertSee('data-testid="export-sell-receiver-combobox"', false)
+        ->assertSee('data-testid="inventory-health-warehouse"', false)
+        ->assertDontSee('data-testid="export-sell-sender-combobox"', false)
+        ->assertDontSee('data-testid="export-sell-receiver-combobox"', false)
         ->assertSee('data-testid="export-sell-item-combobox"', false)
         ->assertSee('data-testid="inventory-health-status"', false)
         ->assertSee('data-testid="inventory-health-sort-name"', false)
@@ -222,7 +223,7 @@ it('ignores pending sales when computing health', function () {
         ->assertSee('Dead Stock', false);
 });
 
-it('filters rows to the selected warehouse sender', function () {
+it('filters rows to the selected gudang', function () {
     $otherWarehouse = Addrbook::factory()->warehouse()->create(['name' => 'Other Health Warehouse']);
     $visible = healthItem('Visible Health SKU', 'HLTH-WH-A');
     $hidden = healthItem('Hidden Health SKU', 'HLTH-WH-B');
@@ -250,10 +251,52 @@ it('filters rows to the selected warehouse sender', function () {
     );
 
     $this->actingAs($this->user)
-        ->get(route('reports.inventory-health', ['sender' => $this->warehouse->id]))
+        ->get(route('reports.inventory-health', ['warehouse_id' => $this->warehouse->id]))
         ->assertOk()
         ->assertSee('Visible Health SKU', false)
         ->assertDontSee('Hidden Health SKU', false);
+});
+
+it('shows infinite age when stock is on hand with no net sales in the period', function () {
+    $item = healthItem('Infinite Age SKU', 'HLTH-INF');
+    healthStock($item, $this->warehouse, 12);
+
+    $html = $this->actingAs($this->user)
+        ->get(route('reports.inventory-health', ['warehouse_id' => $this->warehouse->id]))
+        ->assertOk()
+        ->assertSee('Infinite Age SKU', false)
+        ->getContent();
+
+    expect($html)->toMatch('/data-testid="inventory-health-status-'.$item->id.'"[^>]*>Dead Stock/')
+        ->and($html)->toContain('∞');
+});
+
+it('sorts infinite age first when sorting age descending', function () {
+    $dead = healthItem('Sort Dead SKU', 'HLTH-SORT-DEAD');
+    $fast = healthItem('Sort Fast SKU', 'HLTH-SORT-FAST');
+    healthStock($dead, $this->warehouse, 10);
+    healthStock($fast, $this->warehouse, 2);
+    healthLine(
+        $this->user,
+        $this->warehouse,
+        $this->customer,
+        $fast,
+        Transaction::TYPE_SELL,
+        30,
+        now()->subDays(2)->toDateString(),
+        'HLTH-SORT-FAST-1',
+    );
+
+    $html = $this->actingAs($this->user)
+        ->get(route('reports.inventory-health', [
+            'warehouse_id' => $this->warehouse->id,
+            'sort' => 'cover',
+            'direction' => 'desc',
+        ]))
+        ->assertOk()
+        ->getContent();
+
+    expect(strpos($html, 'Sort Dead SKU'))->toBeLessThan(strpos($html, 'Sort Fast SKU'));
 });
 
 it('filters rows to the selected item', function () {

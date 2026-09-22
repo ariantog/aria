@@ -44,6 +44,37 @@ class InventoryHealthClassifier
      *
      * @return array{key: string, label: string, color: string, rec: string, days_of_cover: ?float}
      */
+    /** Stock on hand with no net sales in the selected period → undefined cover (display as ∞). */
+    public static function coverIsInfinite(float $stock, float $netPeriod): bool
+    {
+        return $stock > 0.0 && $netPeriod <= 0.0;
+    }
+
+    public static function formatCover(?float $cover, float $stock, float $netPeriod): string
+    {
+        if (self::coverIsInfinite($stock, $netPeriod)) {
+            return '∞';
+        }
+
+        if ($cover === null || $stock <= 0.0) {
+            return '—';
+        }
+
+        if ($cover <= 0.0) {
+            return '0';
+        }
+
+        if ($cover < 0.1) {
+            return '<0.1';
+        }
+
+        if ($cover < 10.0) {
+            return number_format($cover, 1);
+        }
+
+        return number_format($cover, 0);
+    }
+
     public static function classify(float $stock, float $netPeriod, float $netExtended, int $periodDays): array
     {
         $stock = max(0.0, $stock);
