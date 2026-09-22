@@ -38,16 +38,19 @@ class WarehouseCompareSettingsController extends Controller
     public function update(Request $request, WarehouseComparePreferenceService $preferences): RedirectResponse
     {
         $validated = $request->validate([
-            'warehouse_ids' => ['nullable', 'array', 'max:'.UserPreferenceRegistry::WAREHOUSE_COMPARE_MAX_WAREHOUSES],
-            'warehouse_ids.*' => ['nullable', 'integer', 'exists:customers,id'],
             'item_type' => ['required'],
             'sort' => ['required', 'string'],
         ]);
 
-        $warehouseIds = array_values(array_filter(
-            $validated['warehouse_ids'] ?? [],
-            fn ($id) => $id !== null && $id !== '',
-        ));
+        try {
+            $warehouseIds = $preferences->normalizeWarehouseIds(
+                $request->input('warehouse_ids', []),
+                $request->user(),
+                strict: true,
+            );
+        } catch (InvalidArgumentException $e) {
+            return back()->withInput()->with('error', $e->getMessage());
+        }
 
         try {
             $preferences->save($request->user(), [

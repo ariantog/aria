@@ -50,6 +50,16 @@ $buildQuery = function (array $overrides = []) use ($selectedWarehouseIds, $item
     @if(session('error'))
         <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ session('error') }}</div>
     @endif
+    @if($errors->any())
+        <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            <p class="font-medium">Please fix these errors:</p>
+            <ul class="mt-1 list-disc pl-5">
+                @foreach($errors->all() as $message)
+                    <li>{{ $message }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
 
     <form method="GET" action="{{ route('reports.warehouse-compare') }}" class="space-y-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm" id="warehouse-compare-form">
         <div class="grid gap-4 lg:grid-cols-2">
@@ -158,8 +168,46 @@ $buildQuery = function (array $overrides = []) use ($selectedWarehouseIds, $item
 @push('scripts')
 <script>
 (function () {
+    const applyForm = document.getElementById('warehouse-compare-form');
+    const saveForm = document.getElementById('warehouse-compare-save-form');
+
+    function syncSaveFormFromApply() {
+        if (!applyForm || !saveForm) {
+            return;
+        }
+
+        const ids = Array.from(applyForm.querySelectorAll('select[name="warehouse_ids[]"]'))
+            .map(function (el) { return el.value; })
+            .filter(function (v) { return v !== ''; });
+
+        saveForm.querySelectorAll('input[name="warehouse_ids[]"]').forEach(function (el) { el.remove(); });
+        ids.forEach(function (id) {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'warehouse_ids[]';
+            input.value = id;
+            saveForm.appendChild(input);
+        });
+
+        const sortEl = applyForm.querySelector('[name=sort]');
+        const typeEl = applyForm.querySelector('[name=item_type]');
+        if (sortEl && saveForm.querySelector('[name=sort]')) {
+            saveForm.querySelector('[name=sort]').value = sortEl.value;
+        }
+        if (typeEl && saveForm.querySelector('[name=item_type]')) {
+            saveForm.querySelector('[name=item_type]').value = typeEl.value;
+        }
+    }
+
+    if (applyForm && saveForm) {
+        applyForm.addEventListener('submit', syncSaveFormFromApply);
+        saveForm.addEventListener('submit', syncSaveFormFromApply);
+    }
+
     const copyBtn = document.getElementById('warehouse-compare-copy');
-    if (!copyBtn) return;
+    if (!copyBtn) {
+        return;
+    }
 
     copyBtn.addEventListener('click', async function () {
         const tables = document.querySelectorAll('[data-warehouse-compare-table]');
@@ -188,28 +236,6 @@ $buildQuery = function (array $overrides = []) use ($selectedWarehouseIds, $item
             alert('Copy failed — select the table manually.');
         }
     });
-
-    const applyForm = document.getElementById('warehouse-compare-form');
-    const saveForm = document.getElementById('warehouse-compare-save-form');
-    if (applyForm && saveForm) {
-        applyForm.addEventListener('submit', function () {
-            const ids = Array.from(applyForm.querySelectorAll('select[name="warehouse_ids[]"]'))
-                .map(function (el) { return el.value; })
-                .filter(function (v) { return v !== ''; });
-            saveForm.querySelectorAll('input[name="warehouse_ids[]"]').forEach(function (el) { el.remove(); });
-            ids.forEach(function (id) {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = 'warehouse_ids[]';
-                input.value = id;
-                saveForm.appendChild(input);
-            });
-            const sortEl = applyForm.querySelector('[name=sort]');
-            const typeEl = applyForm.querySelector('[name=item_type]');
-            if (sortEl) saveForm.querySelector('[name=sort]').value = sortEl.value;
-            if (typeEl) saveForm.querySelector('[name=item_type]').value = typeEl.value;
-        });
-    }
 })();
 </script>
 @endpush

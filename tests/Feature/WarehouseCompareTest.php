@@ -54,6 +54,30 @@ test('user can save warehouse compare display defaults', function () {
     ]);
 });
 
+test('user can save report display with fewer than ten warehouses', function () {
+    $wh1 = Addrbook::factory()->create(['type' => AddrbookType::Warehouse, 'name' => 'Pivot WH']);
+    $wh2 = Addrbook::factory()->create(['type' => AddrbookType::Warehouse, 'name' => 'Second WH']);
+
+    $this->actingAs($this->user)
+        ->post(route('reports.warehouse-compare.save'), [
+            'warehouse_ids' => [(string) $wh1->id, '', (string) $wh2->id],
+            'item_type' => (string) ItemType::ASSET_LANCAR->value,
+            'sort' => WarehouseCompareService::SORT_SKU,
+        ])
+        ->assertRedirect(route('reports.warehouse-compare', [
+            'warehouse_ids' => [$wh1->id, $wh2->id],
+            'item_type' => (string) ItemType::ASSET_LANCAR->value,
+            'sort' => WarehouseCompareService::SORT_SKU,
+        ]))
+        ->assertSessionHas('success');
+
+    expect(UserPreference::query()
+        ->where('user_id', $this->user->id)
+        ->where('slug', UserPreferenceRegistry::WAREHOUSE_COMPARE_SLUG)
+        ->value('value')['warehouse_ids'])
+        ->toBe([$wh1->id, $wh2->id]);
+});
+
 test('warehouse compare grid shows stock across selected warehouses', function () {
     $pivot = Addrbook::factory()->create(['type' => AddrbookType::Warehouse, 'name' => 'Pivot']);
     $other = Addrbook::factory()->create(['type' => AddrbookType::Warehouse, 'name' => 'Branch']);
