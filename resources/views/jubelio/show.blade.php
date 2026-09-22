@@ -100,7 +100,7 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
                     <div>
                         <dt class="text-sm text-gray-400">Sync Status</dt>
                         <dd class="text-sm font-medium">
-                            @include('jubelio.partials.sync-status-badge', ['status' => $order->status, 'errorType' => $order->error_type, 'executeBy' => $order->user->name ?? null, 'orderType' => $order->type])
+                            @include('jubelio.partials.sync-status-badge', ['status' => $order->status, 'errorType' => $order->error_type, 'executeBy' => $order->user->name ?? null, 'orderType' => $order->type, 'error' => $order->error])
                         </dd>
                     </div>
                     <div>
@@ -244,10 +244,15 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
                     Aria tidak mendapat data order dari API Jubelio saat diproses (bukan karena JSON di database kosong).
                     Periksa <strong>Jubelio Token</strong>, klik <strong>Refresh payload</strong>, lalu <strong>Buat Transaksi Manual</strong>.
                 </p>
+                @elseif($order->status === 1 && $order->error_type === \App\Services\Jubelio\JubelioOrderSyncStatus::ERROR_PAYLOAD && $order->type === 'RETURN' && \App\Services\Jubelio\JubelioOrderSyncStatus::isReturnMissingSourceSaleError($order->error))
+                <p class="mb-4 text-sm text-red-700">
+                    This return needs a matching <strong>sell</strong> transaction in Aria (same invoice as the original order).
+                    Post the Jubelio sell first, then process the return again.
+                </p>
                 @elseif($order->status === 1 && $order->error_type === \App\Services\Jubelio\JubelioOrderSyncStatus::ERROR_PAYLOAD && $order->type === 'RETURN')
                 <p class="mb-4 text-sm text-red-700">
-                    Retur ini membutuhkan transaksi <strong>jual asal</strong> dengan invoice yang sama sudah ada di Aria.
-                    Posting jual dari Jubelio terlebih dahulu, lalu proses retur lagi.
+                    Aria could not load this return from the Jubelio API (not because the stored payload column is empty).
+                    Check <strong>Jubelio Token</strong>, click <strong>Refresh payload</strong>, then <strong>Buat Transaksi Manual</strong>.
                 </p>
                 @elseif($order->status === 1 && $order->type === 'SELL')
                 <p class="mb-4 text-sm text-red-700">

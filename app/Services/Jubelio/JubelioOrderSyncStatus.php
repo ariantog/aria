@@ -19,7 +19,7 @@ class JubelioOrderSyncStatus
 
     public const MESSAGE_RETURN_SELL_MISSING = 'Transaksi jual (asal) tidak ditemukan untuk retur ini';
 
-    public static function badgeLabel(int $status, ?int $errorType, string $type = 'SELL'): string
+    public static function badgeLabel(int $status, ?int $errorType, string $type = 'SELL', ?string $error = null): string
     {
         if ($status === 2 && $errorType === self::SUCCESS) {
             return 'Success';
@@ -31,7 +31,11 @@ class JubelioOrderSyncStatus
             return 'Error SKU';
         }
         if ($status === 1 && $errorType === self::ERROR_PAYLOAD) {
-            return $type === 'RETURN' ? 'Jual asal kosong' : 'API gagal';
+            if ($type === 'RETURN' && self::isReturnMissingSourceSaleError($error)) {
+                return 'Original sale missing';
+            }
+
+            return 'API failed';
         }
         if ($status === 0) {
             return 'Pending';
@@ -55,5 +59,24 @@ class JubelioOrderSyncStatus
         }
 
         return false;
+    }
+
+    public static function isReturnMissingSourceSaleError(?string $error): bool
+    {
+        if ($error === null || $error === '') {
+            return false;
+        }
+
+        return str_contains($error, self::MESSAGE_RETURN_SELL_MISSING)
+            || str_contains($error, 'jual (asal)');
+    }
+
+    public static function payloadErrorBadgeTitle(string $type, ?string $error = null): string
+    {
+        if ($type === 'RETURN' && self::isReturnMissingSourceSaleError($error)) {
+            return 'No matching sell transaction in Aria for this return invoice';
+        }
+
+        return 'Could not load order payload from Jubelio API';
     }
 }

@@ -1459,6 +1459,6 @@ it('shows api gagal badge for sell orders with payload sync error on index', fun
     $this->actingAs($user)
         ->get(route('jubelio.index', ['status' => 'error', 'invoice' => 'INV-BADGE-API']))
         ->assertOk()
-        ->assertSee('API gagal', false)
+        ->assertSee('API failed', false)
         ->assertSee('API Jubelio', false);
 });

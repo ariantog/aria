@@ -5,6 +5,7 @@
     $errorType = $errorType ?? null;
     $executeBy = $executeBy ?? null;
     $orderType = $orderType ?? 'SELL';
+    $error = $error ?? null;
 @endphp
 @if($status == 2 && $errorType == JubelioOrderSyncStatus::SUCCESS)
     <span class="inline-flex max-w-full items-center gap-1 rounded-full border border-green-500/20 bg-green-50 px-1.5 py-0.5 text-[10px] font-bold text-green-600 uppercase">
@@ -22,9 +23,9 @@
         Error SKU
     </span>
 @elseif($status == 1 && $errorType == JubelioOrderSyncStatus::ERROR_PAYLOAD)
-    <span class="inline-flex max-w-full items-center gap-1 rounded-full border border-orange-500/20 bg-orange-50 px-1.5 py-0.5 text-[10px] font-bold text-orange-700 uppercase" title="{{ $orderType === 'RETURN' ? 'Invoice jual asal belum ada di Aria' : 'Gagal memuat payload dari API Jubelio' }}">
+    <span class="inline-flex max-w-full items-center gap-1 rounded-full border border-orange-500/20 bg-orange-50 px-1.5 py-0.5 text-[10px] font-bold text-orange-700 uppercase" title="{{ JubelioOrderSyncStatus::payloadErrorBadgeTitle($orderType, $error) }}">
         <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-        {{ JubelioOrderSyncStatus::badgeLabel($status, $errorType, $orderType) }}
+        {{ JubelioOrderSyncStatus::badgeLabel($status, $errorType, $orderType, $error) }}
     </span>
 @elseif($status == 0)
     <span class="inline-flex max-w-full items-center gap-1 rounded-full border border-blue-500/20 bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold text-blue-600 uppercase">
@@ -32,5 +33,5 @@
         Pending
     </span>
 @else
-    <span class="inline-flex items-center rounded-full border border-gray-200 bg-white px-2.5 py-0.5 text-[10px] text-gray-600" title="status={{ $status }}, error_type={{ $errorType }}">{{ JubelioOrderSyncStatus::badgeLabel($status, $errorType, $orderType) }}</span>
+    <span class="inline-flex items-center rounded-full border border-gray-200 bg-white px-2.5 py-0.5 text-[10px] text-gray-600" title="status={{ $status }}, error_type={{ $errorType }}">{{ JubelioOrderSyncStatus::badgeLabel($status, $errorType, $orderType, $error) }}</span>
 @endif
