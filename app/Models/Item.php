@@ -323,6 +323,23 @@ class Item extends Model
         return ItemPricing::resolve($this, 'cost_cnh');
     }
 
+    /**
+     * Shape returned by GET /items?json=1 (transaction name autocomplete and similar).
+     *
+     * @return array<string, mixed>
+     */
+    public function toItemSearchJson(): array
+    {
+        $this->loadMissing(['warehouseItems', 'group']);
+
+        $payload = $this->toArray();
+        $payload['price'] = $this->effectivePrice();
+        $payload['cost'] = $this->effectiveCost();
+        $payload['reseller_sell_price'] = $this->resellerSellPrice();
+
+        return $payload;
+    }
+
     public function resellerSellPrice(): float
     {
         return ItemCatalog::sellPriceForReseller($this);

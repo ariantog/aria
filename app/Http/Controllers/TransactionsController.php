@@ -517,7 +517,11 @@ class TransactionsController extends Controller
         if ($whid) {
             $itemsQuery->with(['warehouseItems' => fn ($q) => $q->where('warehouse_id', $whid)]);
         }
-        $items = $itemsQuery->get()->keyBy('id');
+        $items = $itemsQuery->with('group')->get()->keyBy('id');
+        $type = (string) ($validated['type'] ?? '');
+        $priceSource = $type !== ''
+            ? config('transaction_rules.'.$type.'.price_source', 'price')
+            : 'price';
         $dataList = [];
         foreach ($array as $row) {
             $resolved = $itemsBySku->get(strtoupper($row['code']));
@@ -533,10 +537,10 @@ class TransactionsController extends Controller
                     $whQty = $warehouseItem[0]['quantity'] ?? 0;
                 }
                 $csvPrice = (float) $row['price'];
-                $itemPrice = (float) $item->price;
-                $itemCost = (float) $item->cost;
-                $type = $validated['type'] ?? '';
-                $unitPrice = $type === 'move' ? $itemPrice : $csvPrice;
+                $catalogUnitPrice = $priceSource === 'cost'
+                    ? $item->effectiveCost()
+                    : $item->effectivePrice();
+                $unitPrice = $type === 'move' ? $catalogUnitPrice : $csvPrice;
                 $dataList[] = [
                     'id' => (string) $item->id,
                     'item_id' => (string) $item->id,
@@ -548,8 +552,8 @@ class TransactionsController extends Controller
                     'warehouse_item' => $warehouseItem,
                     'warehouse_id' => $whid,
                     'price' => $unitPrice,
-                    'cost' => $itemCost,
-                    'item_price' => $itemPrice,
+                    'cost' => $item->effectiveCost(),
+                    'item_price' => $catalogUnitPrice,
                     'csv_price' => $csvPrice,
                     'discount' => 0,
                     'subtotal' => (float) $row['qty'] * $unitPrice,
