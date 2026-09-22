@@ -2,6 +2,7 @@
     $settingsNav = [
         ['title' => 'Transaction defaults', 'href' => route('transaction-defaults.edit'), 'active' => request()->routeIs('transaction-defaults.*')],
         ['title' => 'Favorite links', 'href' => route('favorites.edit'), 'active' => request()->routeIs('favorites.*')],
+        ['title' => 'Warehouse compare', 'href' => route('warehouse-compare-settings.edit'), 'active' => request()->routeIs('warehouse-compare-settings.*')],
         ['title' => 'Appearance', 'href' => route('appearance.edit'), 'active' => request()->routeIs('appearance.*')],
     ];
 @endphp

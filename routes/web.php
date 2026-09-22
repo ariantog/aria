@@ -424,6 +424,9 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::post('/warehouse-arrangement/refresh', [\App\Http\Controllers\Reports\WarehouseArrangementController::class, 'refresh'])->name('warehouse-arrangement.refresh');
         Route::post('/warehouse-arrangement/cancel-refresh', [\App\Http\Controllers\Reports\WarehouseArrangementController::class, 'cancelRefresh'])->name('warehouse-arrangement.cancel-refresh');
         Route::post('/warehouse-arrangement/tick-refresh', [\App\Http\Controllers\Reports\WarehouseArrangementController::class, 'tickRefresh'])->name('warehouse-arrangement.tick-refresh');
+        Route::get('/warehouse-compare', [\App\Http\Controllers\Reports\WarehouseCompareController::class, 'index'])->name('warehouse-compare');
+        Route::get('/warehouse-compare/export', [\App\Http\Controllers\Reports\WarehouseCompareController::class, 'export'])->name('warehouse-compare.export');
+        Route::post('/warehouse-compare/save', [\App\Http\Controllers\Reports\WarehouseCompareController::class, 'saveDisplay'])->name('warehouse-compare.save');
         Route::get('/product-performance', [\App\Http\Controllers\Reports\ProductPerformanceController::class, 'index'])->name('product-performance');
         Route::get('/inventory-health', [\App\Http\Controllers\Reports\InventoryHealthController::class, 'index'])->name('inventory-health');
         Route::get('/item-insights', [\App\Http\Controllers\Reports\ItemInsightsController::class, 'index'])->name('item-insights');

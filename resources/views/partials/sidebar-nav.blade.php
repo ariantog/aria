@@ -100,6 +100,9 @@
     if ($hasPerm('report-warehouse-arrangement') || $isSuperAdmin) {
         $reportNavLabels[] = 'Warehouse Arrangement';
     }
+    if ($hasPerm('report-warehouse-compare') || $isSuperAdmin) {
+        $reportNavLabels[] = 'Warehouse Stock Compare';
+    }
     if ($hasPerm('report-product-performance') || $isSuperAdmin) {
         $reportNavLabels[] = 'Product Performance';
     }
@@ -438,6 +441,7 @@
     $hasPerm('report-export-sell')
     || $hasPerm('report-warehouse-item')
     || $hasPerm('report-warehouse-arrangement')
+    || $hasPerm('report-warehouse-compare')
     || $hasPerm('report-product-performance')
     || $hasPerm('report-inventory-health')
     || $hasPerm('report-item-insights')
@@ -483,7 +487,7 @@
         <svg x-show="sidebarOpen" x-cloak :class="open ? 'rotate-90' : ''" class="h-3.5 w-3.5 flex-shrink-0 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
     </button>
     <div x-show="open && sidebarOpen" x-cloak class="ml-6 mt-1 space-y-0.5">
-        @if($hasPerm('report-warehouse-item') || $hasPerm('report-warehouse-arrangement') || $hasPerm('report-product-performance') || $hasPerm('report-inventory-health') || $hasPerm('report-item-insights') || $isSuperAdmin)
+        @if($hasPerm('report-warehouse-item') || $hasPerm('report-warehouse-arrangement') || $hasPerm('report-warehouse-compare') || $hasPerm('report-product-performance') || $hasPerm('report-inventory-health') || $hasPerm('report-item-insights') || $isSuperAdmin)
         <p class="{{ $navSubcategoryClass }}">Inventory</p>
         @endif
         @if($hasPerm('report-warehouse-item') || $isSuperAdmin)
@@ -491,6 +495,9 @@
         @endif
         @if($hasPerm('report-warehouse-arrangement') || $isSuperAdmin)
         <a href="{{ route('reports.warehouse-arrangement') }}" x-show="navLinkVisible('Warehouse Arrangement', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/warehouse-arrangement') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Warehouse Arrangement</a>
+        @endif
+        @if($hasPerm('report-warehouse-compare') || $isSuperAdmin)
+        <a href="{{ route('reports.warehouse-compare') }}" x-show="navLinkVisible('Warehouse Stock Compare', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/warehouse-compare') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Warehouse Stock Compare</a>
         @endif
         @if($hasPerm('report-product-performance') || $isSuperAdmin)
         <a href="{{ route('reports.product-performance') }}" x-show="navLinkVisible('Product Performance', 'Reports')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/reports/product-performance') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Product Performance</a>
