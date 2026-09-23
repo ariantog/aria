@@ -18,6 +18,8 @@
     ];
 
     $pricingIntro = $pricingIntro ?? 'Choose where each amount is saved. If a SKU has no value, the colorway applies; if the colorway has none, the whole group applies.';
+    $pricingFixedScope = $pricingFixedScope ?? null;
+    $showScopeRadios = $pricingFixedScope === null;
 @endphp
 
 <fieldset class="space-y-5 rounded-lg border border-indigo-200 bg-indigo-50/40 p-4" data-testid="item-pricing-scopes">
@@ -29,7 +31,11 @@
     @foreach($fields as $fieldKey => $fieldLabel)
         @php
             $state = $pricingState[$fieldKey] ?? ['scope' => \App\Support\ItemPricing::SCOPE_COLORWAY, 'value' => 0, 'effective' => 0];
-            $oldScope = old("{$pricingPrefix}.{$fieldKey}.scope", $state['scope'] ?? \App\Support\ItemPricing::SCOPE_COLORWAY);
+            $defaultScope = $pricingFixedScope ?? ($state['scope'] ?? \App\Support\ItemPricing::SCOPE_COLORWAY);
+            $oldScope = old("{$pricingPrefix}.{$fieldKey}.scope", $defaultScope);
+            if ($pricingFixedScope !== null) {
+                $oldScope = $pricingFixedScope;
+            }
             $oldValue = old("{$pricingPrefix}.{$fieldKey}.value", $state['value'] ?? 0);
             $effective = (float) ($state['effective'] ?? 0);
         @endphp
@@ -41,6 +47,7 @@
                 @endif
             </div>
 
+            @if($showScopeRadios)
             <div class="mb-3 flex flex-wrap gap-3">
                 @foreach($scopes as $scopeKey => $scopeLabel)
                     <label class="inline-flex cursor-pointer items-center gap-2 rounded-md border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700">
@@ -54,6 +61,12 @@
                     </label>
                 @endforeach
             </div>
+            @else
+            <input type="hidden"
+                   name="{{ $pricingPrefix }}[{{ $fieldKey }}][scope]"
+                   value="{{ $pricingFixedScope }}"
+                   data-testid="{{ $pricingIdPrefix }}-{{ $fieldKey }}-scope-{{ $pricingFixedScope }}">
+            @endif
 
             <input type="number"
                    step="any"
