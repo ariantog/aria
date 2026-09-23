@@ -169,7 +169,7 @@ class JubelioSyncController extends Controller
     {
         Gate::authorize(Jubelio::getPermissions()['sync']);
 
-        $result = $this->fetchDefaultBinId((int) $sync->jubelio_location_id);
+        $result = $this->jubelioService->fetchDefaultBinId((int) $sync->jubelio_location_id);
 
         if (! $result['ok']) {
             return redirect()->route('jubelio.sync.index')
@@ -198,7 +198,7 @@ class JubelioSyncController extends Controller
         $locationIds = $query
             ->pluck('jubelio_location_id')
             ->map(fn ($id) => (int) $id)
-            ->filter(fn (int $id) => $id > 0)
+            ->filter(fn (int $id) => Jubeliosync::isMappedLocationId($id))
             ->unique()
             ->values();
 
@@ -212,7 +212,7 @@ class JubelioSyncController extends Controller
         $failures = [];
 
         foreach ($locationIds as $locationId) {
-            $result = $this->fetchDefaultBinId($locationId);
+            $result = $this->jubelioService->fetchDefaultBinId($locationId);
 
             if (! $result['ok']) {
                 $failures[] = "Lokasi {$locationId}: {$result['message']}";
@@ -249,28 +249,4 @@ class JubelioSyncController extends Controller
         return $redirect->with('success', $message);
     }
 
-    /**
-     * @return array{ok: bool, bin_id?: int, message?: string}
-     */
-    private function fetchDefaultBinId(int $locationId): array
-    {
-        $response = $this->jubelioService->get('https://api2.jubelio.com/wms/default-bin/'.$locationId);
-
-        if (! $response) {
-            return ['ok' => false, 'message' => 'Jubelio authentication failed.'];
-        }
-
-        if ($response->successful()) {
-            $result = $response->json();
-
-            return ['ok' => true, 'bin_id' => (int) ($result['bin_id'] ?? 0)];
-        }
-
-        $error = $response->json();
-
-        return [
-            'ok' => false,
-            'message' => $error['message'] ?? 'Terjadi kesalahan saat mengambil bin.',
-        ];
-    }
 }

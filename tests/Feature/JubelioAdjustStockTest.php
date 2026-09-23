@@ -29,7 +29,7 @@ function seedAdjustStockMapping(Addrbook $warehouse): Jubeliosync
         'jubelio_location_name' => 'Jubelio '.$warehouse->name,
         'warehouse_id' => $warehouse->id,
         'customer_id' => Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER])->id,
-        'bin_id' => 0,
+        'bin_id' => 1,
     ]);
 }
 
@@ -85,6 +85,46 @@ function fakeJubelioAdjustToken(): void
 
 beforeEach(function () {
     config(['services.jubelio.active' => true]);
+});
+
+it('fetches default bin before push when mapping bin_id is still zero', function () {
+    fakeJubelioAdjustToken();
+    Http::fake([
+        'https://api2.jubelio.com/wms/default-bin/10' => Http::response(['bin_id' => 77]),
+        'https://api2.jubelio.com/inventory/adjustments/warehouse' => Http::response([
+            'item_adj_id' => 44122,
+        ], 200),
+    ]);
+
+    $user = seedAdjustStockUser();
+    $item = Item::factory()->create(['jubelio_item_id' => 909, 'code' => 'SKU-BIN']);
+    $transaction = seedMoveForAdjust($item);
+    Jubeliosync::query()->update(['bin_id' => 0]);
+
+    $this->actingAs($user)
+        ->post(route('jubelio.adjustStok', $transaction), [
+            'side' => 1,
+            'whType' => 2,
+            'adjustType' => 2,
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    $sync = Jubeliosync::where('warehouse_id', $transaction->sender_id)->first();
+
+    expect((int) $sync->bin_id)->toBe(77);
+
+    Http::assertSent(function (\Illuminate\Http\Client\Request $request) {
+        if ($request->url() !== 'https://api2.jubelio.com/inventory/adjustments/warehouse') {
+            return false;
+        }
+
+        $payload = $request->data();
+        $line = $payload['items'][0] ?? [];
+
+        return ($line['bin_id'] ?? null) === 77
+            && str_contains((string) ($payload['transaction_date'] ?? ''), '.');
+    });
 });
 
 it('marks a move side synced when jubelio returns item_adj_id', function () {
