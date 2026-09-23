@@ -33,7 +33,7 @@ class JubelioAdjustmentHint
                 'hint' => 'Stok di lokasi Jubelio tidak cukup untuk pengurangan ini. Cek stok gudang pengirim di Jubelio, kurangi qty, atau sesuaikan stok di sana dulu — lalu push ulang.',
             ],
             [
-                'needles' => ['item not found', 'invalid item', 'unknown item', 'item_id', 'no linked jubelio items'],
+                'needles' => ['item not found', 'invalid item', 'unknown item', 'item_id', 'no linked jubelio items', 'belum terhubung ke jubelio'],
                 'hint' => 'Item belum terhubung ke Jubelio, atau ID-nya salah. Buka Item → tab Jubelio, tautkan jubelio_item_id yang benar, lalu push ulang.',
             ],
             [

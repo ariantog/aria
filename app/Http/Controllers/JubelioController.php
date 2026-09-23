@@ -16,6 +16,7 @@ use App\Services\Jubelio\JubelioOrderWarehouseResolver;
 use App\Services\Jubelio\JubelioTransactionSyncPresenter;
 use App\Services\JubelioGetOrdersService;
 use App\Services\JubelioService;
+use App\Services\WarehouseJubelioStockService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -490,11 +491,15 @@ class JubelioController extends Controller
         return view('jubelio.transaction-sync', ['transactions' => $t, 'types' => $types, 'filters' => $request->only(['date', 'invoice', 'type', 'display']), 'flash' => ['success' => session('success'), 'error' => session('error')]]);
     }
 
-    public function detailJubelioSync(Transaction $transaction, JubelioTransactionSyncPresenter $presenter): View
-    {
+    public function detailJubelioSync(
+        Transaction $transaction,
+        JubelioTransactionSyncPresenter $presenter,
+        WarehouseJubelioStockService $jubelioStockService,
+    ): View {
         Transaction::authorizeJubelioTransactionSync();
         $transaction->load(['receiver', 'sender', 'user', 'submitByA', 'submitByB', 'details.item.group']);
         $sync = $presenter->present($transaction);
+        $jubelioQty = $presenter->detailSyncJubelioQuantities($transaction, $sync, $jubelioStockService);
         $transaction->setAttribute('item_with_jubelio_count', $sync['mapping_missing']);
 
         return view('jubelio.detail-sync', [
@@ -509,8 +514,17 @@ class JubelioController extends Controller
             'whB' => 1,
             'whAName' => $sync['wh_a_name'],
             'whBName' => $sync['wh_b_name'],
+            'locationIdA' => $sync['location_id_a'],
+            'locationIdB' => $sync['location_id_b'],
+            'binIdA' => $sync['bin_a'],
+            'binIdB' => $sync['bin_b'],
             'warningA' => $sync['warning_a'],
             'warningB' => $sync['warning_b'],
+            'showJubelioSenderQty' => $jubelioQty['show_jubelio_sender_qty'],
+            'showJubelioReceiverQty' => $jubelioQty['show_jubelio_receiver_qty'],
+            'jubelioQtySender' => $jubelioQty['jubelio_qty_sender'],
+            'jubelioQtyReceiver' => $jubelioQty['jubelio_qty_receiver'],
+            'jubelioQtyFetchFailed' => $jubelioQty['jubelio_qty_fetch_failed'],
             'flash' => [
                 'success' => session('success'),
                 'error' => session('errorMessage') ?? session('error'),

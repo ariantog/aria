@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\Jubelio\JubelioTransactionSyncPresenter;
 use App\Services\JubelioService;
 use Illuminate\Support\Facades\Http;
+use Mockery\MockInterface;
 use Spatie\Permission\Models\Permission;
 
 function seedJubelioSyncForWarehouse(Addrbook $warehouse): Jubeliosync
@@ -315,6 +316,38 @@ it('shows two push buttons on jubelio detail sync for dual-mapped move', functio
     expect(substr_count($html, 'Push to Jubelio'))->toBe(3);
 });
 
+it('shows jubelio location and bin on detail sync cards', function () {
+    $user = seedTransactionShowUser();
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'WH Bin View']);
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+    $item = Item::factory()->create(['jubelio_item_id' => 302]);
+    Jubeliosync::create([
+        'jubelio_store_id' => 1,
+        'jubelio_store_name' => 'Store',
+        'jubelio_location_id' => 44,
+        'jubelio_location_name' => 'Loc 44',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => $customer->id,
+        'bin_id' => 88,
+    ]);
+
+    $transaction = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+        'sender_id' => $warehouse->id,
+        'receiver_id' => $customer->id,
+    ]);
+    seedItemTransactionDetail($transaction, $item);
+
+    $this->actingAs($user)
+        ->get(route('jubelio.transaction.detail-sync', $transaction))
+        ->assertSuccessful()
+        ->assertSee('Location ID', false)
+        ->assertSee('Bin ID', false)
+        ->assertSee('88', false)
+        ->assertSee('44', false);
+});
+
 it('links item name and code to the item show page on jubelio detail sync', function () {
     $user = seedTransactionShowUser();
     $warehouse = Addrbook::factory()->warehouse()->create();
@@ -504,5 +537,148 @@ it('posts stock adjustment to jubelio and marks side a as synced', function () {
     Http::assertSent(function (\Illuminate\Http\Client\Request $request) {
         return $request->url() === 'https://api2.jubelio.com/inventory/adjustments/warehouse'
             && $request->method() === 'POST';
+    });
+});
+
+describe('jubelio detail sync item quantities', function () {
+    function mockJubelioStockAtLocation(int $jubelioItemId, int $locationId, float $available): void
+    {
+        test()->mock(JubelioService::class, function (MockInterface $mock) use ($jubelioItemId, $locationId, $available) {
+            $mock->shouldReceive('fetchItemsAllStocks')
+                ->andReturn([
+                    'data' => [[
+                        'item_id' => $jubelioItemId,
+                        'location_stocks' => [[
+                            'location_id' => $locationId,
+                            'on_hand' => $available + 2,
+                            'available' => $available,
+                            'reserved' => 0,
+                            'on_order' => 0,
+                        ]],
+                    ]],
+                ]);
+        });
+    }
+
+    it('shows sender jubelio qty for sell transactions', function () {
+        $user = seedTransactionShowUser();
+        $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'WH Sell Qty']);
+        $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+        $item = Item::factory()->create(['jubelio_item_id' => 501]);
+        seedJubelioSyncForWarehouse($warehouse);
+        mockJubelioStockAtLocation(501, 10, 38);
+
+        $transaction = Transaction::factory()->create([
+            'type' => Transaction::TYPE_SELL,
+            'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+            'sender_id' => $warehouse->id,
+            'receiver_id' => $customer->id,
+        ]);
+        seedItemTransactionDetail($transaction, $item);
+
+        $this->actingAs($user)
+            ->get(route('jubelio.transaction.detail-sync', $transaction))
+            ->assertSuccessful()
+            ->assertSee('Jubelio qty (sender)', false)
+            ->assertDontSee('Jubelio qty (receiver)', false)
+            ->assertSee('data-testid="jubelio-detail-sync-sender-qty-'.$item->id.'"', false)
+            ->assertSee('38', false);
+    });
+
+    it('shows receiver jubelio qty for return transactions', function () {
+        $user = seedTransactionShowUser();
+        $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'WH Return Qty']);
+        $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+        $item = Item::factory()->create(['jubelio_item_id' => 502]);
+        seedJubelioSyncForWarehouse($warehouse);
+        mockJubelioStockAtLocation(502, 10, 15);
+
+        $transaction = Transaction::factory()->create([
+            'type' => Transaction::TYPE_RETURN,
+            'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+            'sender_id' => $customer->id,
+            'receiver_id' => $warehouse->id,
+        ]);
+        seedItemTransactionDetail($transaction, $item);
+
+        $this->actingAs($user)
+            ->get(route('jubelio.transaction.detail-sync', $transaction))
+            ->assertSuccessful()
+            ->assertSee('Jubelio qty (receiver)', false)
+            ->assertDontSee('Jubelio qty (sender)', false)
+            ->assertSee('data-testid="jubelio-detail-sync-receiver-qty-'.$item->id.'"', false)
+            ->assertSee('15', false);
+    });
+
+    it('shows sender and receiver jubelio qty for move transactions', function () {
+        $user = seedTransactionShowUser();
+        $sender = Addrbook::factory()->warehouse()->create(['name' => 'WH Move From Qty']);
+        $receiver = Addrbook::factory()->warehouse()->create(['name' => 'WH Move To Qty']);
+        $item = Item::factory()->create(['jubelio_item_id' => 503]);
+        Jubeliosync::create([
+            'jubelio_store_id' => 1,
+            'jubelio_store_name' => 'Store A',
+            'jubelio_location_id' => 10,
+            'jubelio_location_name' => 'Loc From',
+            'warehouse_id' => $sender->id,
+            'customer_id' => Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER])->id,
+            'bin_id' => 1,
+        ]);
+        Jubeliosync::create([
+            'jubelio_store_id' => 2,
+            'jubelio_store_name' => 'Store B',
+            'jubelio_location_id' => 20,
+            'jubelio_location_name' => 'Loc To',
+            'warehouse_id' => $receiver->id,
+            'customer_id' => Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER])->id,
+            'bin_id' => 1,
+        ]);
+
+        test()->mock(JubelioService::class, function (MockInterface $mock) {
+            $mock->shouldReceive('fetchItemsAllStocks')
+                ->twice()
+                ->andReturn(
+                    [
+                        'data' => [[
+                            'item_id' => 503,
+                            'location_stocks' => [[
+                                'location_id' => 10,
+                                'on_hand' => 50,
+                                'available' => 44,
+                                'reserved' => 0,
+                                'on_order' => 0,
+                            ]],
+                        ]],
+                    ],
+                    [
+                        'data' => [[
+                            'item_id' => 503,
+                            'location_stocks' => [[
+                                'location_id' => 20,
+                                'on_hand' => 12,
+                                'available' => 11,
+                                'reserved' => 0,
+                                'on_order' => 0,
+                            ]],
+                        ]],
+                    ],
+                );
+        });
+
+        $transaction = Transaction::factory()->create([
+            'type' => Transaction::TYPE_MOVE,
+            'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+            'sender_id' => $sender->id,
+            'receiver_id' => $receiver->id,
+        ]);
+        seedItemTransactionDetail($transaction, $item);
+
+        $this->actingAs($user)
+            ->get(route('jubelio.transaction.detail-sync', $transaction))
+            ->assertSuccessful()
+            ->assertSee('Jubelio qty (sender)', false)
+            ->assertSee('Jubelio qty (receiver)', false)
+            ->assertSee('44', false)
+            ->assertSee('11', false);
     });
 });

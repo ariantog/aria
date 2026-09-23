@@ -46,6 +46,22 @@
                 <span class="text-[9px] font-bold uppercase text-gray-400">Jubelio WH</span>
                 <span class="ml-4 text-right font-medium">{{ $jubName ?: 'Not Linked' }}</span>
             </div>
+            @if($jubName)
+            <div class="flex justify-between text-xs">
+                <span class="text-[9px] font-bold uppercase text-gray-400">Location ID</span>
+                <span class="font-mono text-[11px]">{{ isset($locationId) ? $locationId : '—' }}</span>
+            </div>
+            <div class="flex justify-between text-xs">
+                <span class="text-[9px] font-bold uppercase text-gray-400">Bin ID</span>
+                <span class="font-mono text-[11px]" data-testid="jubelio-sync-bin-{{ $side ?? 'x' }}">
+                    @if(isset($binId) && (int) $binId > 0)
+                        {{ $binId }}
+                    @else
+                        <span class="text-amber-700">belum diisi (push ambil default)</span>
+                    @endif
+                </span>
+            </div>
+            @endif
             <div class="flex justify-between border-t border-gray-200 pt-2 text-xs">
                 <span class="text-[9px] font-bold uppercase text-gray-400">Adjustment</span>
                 <span class="font-bold {{ $isDeduct ? 'text-red-500' : 'text-green-500' }}">{{ $isDeduct ? '-' : '+' }}{{ $qty }} Items</span>

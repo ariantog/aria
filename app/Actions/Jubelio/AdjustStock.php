@@ -61,9 +61,14 @@ class AdjustStock
             $binId = $this->resolveBinId($jubSync, $jubelioService);
 
             $transaction->loadMissing('details.item');
+            $this->assertPushableLinesAreLinked($transaction);
+
             $items = [];
             foreach ($transaction->details as $row) {
-                if (! $row->item?->jubelio_item_id) {
+                if ((float) $row->quantity === 0.0) {
+                    continue;
+                }
+                if (! $row->item?->jubelio_item_id || (int) $row->item->jubelio_item_id < 1) {
                     continue;
                 }
                 $qty = JubelioStockSync::signedQty((float) $row->quantity, $adjustType);
@@ -165,6 +170,23 @@ class AdjustStock
         ];
     }
 
+    private function assertPushableLinesAreLinked(Transaction $transaction): void
+    {
+        $missing = [];
+        foreach ($transaction->details as $row) {
+            if ((float) $row->quantity === 0.0) {
+                continue;
+            }
+            if (! $row->item?->jubelio_item_id || (int) $row->item->jubelio_item_id < 1) {
+                $missing[] = $row->item?->code ?? 'item #'.$row->item_id;
+            }
+        }
+
+        if ($missing !== []) {
+            throw new \RuntimeException('Item belum terhubung ke Jubelio: '.implode(', ', $missing));
+        }
+    }
+
     private function resolveBinId(Jubeliosync $jubSync, JubelioService $jubelioService): int
     {
         $binId = (int) $jubSync->bin_id;
@@ -212,12 +234,22 @@ class AdjustStock
 
     private function logOutcome(Transaction $transaction, int $side, ?int $status, ?string $body, string $outcome): void
     {
+        $skus = $transaction->relationLoaded('details')
+            ? $transaction->details
+                ->filter(fn ($row) => (float) $row->quantity !== 0.0)
+                ->map(fn ($row) => $row->item?->code)
+                ->filter()
+                ->values()
+                ->all()
+            : [];
+
         $context = [
             'transaction_id' => $transaction->id,
             'invoice' => $transaction->invoice,
             'side' => $side,
             'http_status' => $status,
             'outcome' => $outcome,
+            'item_codes' => $skus,
             'body' => $body !== null ? Str::limit($body, 500) : null,
         ];
 
