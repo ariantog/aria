@@ -31,3 +31,12 @@ Schedule::command('app:dispatch-scheduled-tasks')
             ->where('command', 'app:dispatch-scheduled-tasks')
             ->update(['last_run_at' => now()]);
     });
+
+// Heavy arrangement refresh batches — own subprocess; no-op when no jobs are queued.
+Schedule::command('app:process-warehouse-arrangement-refresh')
+    ->everyFiveMinutes()
+    ->withoutOverlapping(10)
+    ->runInBackground()
+    ->onFailure(function () {
+        Log::error('Scheduled task failed', ['command' => 'app:process-warehouse-arrangement-refresh']);
+    });
