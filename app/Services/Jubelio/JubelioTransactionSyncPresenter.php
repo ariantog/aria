@@ -2,9 +2,11 @@
 
 namespace App\Services\Jubelio;
 
+use App\Models\Item;
 use App\Models\Jubeliosync;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\WarehouseJubelioStockService;
 use Illuminate\Support\Collection;
 
 class JubelioTransactionSyncPresenter
@@ -97,6 +99,80 @@ class JubelioTransactionSyncPresenter
                 ->unique()
                 ->values()
                 ->all(),
+        ];
+    }
+
+    /**
+     * Live Jubelio available qty per item at mapped warehouse locations (detail-sync table).
+     *
+     * @param  array<string, mixed>  $presented  Output from {@see present()}
+     * @return array{
+     *     show_jubelio_sender_qty: bool,
+     *     show_jubelio_receiver_qty: bool,
+     *     jubelio_qty_sender: array<int, float|null>,
+     *     jubelio_qty_receiver: array<int, float|null>,
+     *     jubelio_qty_fetch_failed: bool,
+     * }
+     */
+    public function detailSyncJubelioQuantities(
+        Transaction $transaction,
+        array $presented,
+        WarehouseJubelioStockService $stockService,
+    ): array {
+        $type = (int) $transaction->type;
+        $showSender = in_array($type, JubelioStockSync::senderPushTypes(), true)
+            && filled($presented['jubelio_a'] ?? null);
+        $showReceiver = in_array($type, JubelioStockSync::receiverPushTypes(), true)
+            && filled($presented['jubelio_b'] ?? null);
+
+        $senderQty = [];
+        $receiverQty = [];
+        $fetchFailed = false;
+
+        if (! config('services.jubelio.active') || (! $showSender && ! $showReceiver)) {
+            return [
+                'show_jubelio_sender_qty' => $showSender,
+                'show_jubelio_receiver_qty' => $showReceiver,
+                'jubelio_qty_sender' => $senderQty,
+                'jubelio_qty_receiver' => $receiverQty,
+                'jubelio_qty_fetch_failed' => false,
+            ];
+        }
+
+        $items = $transaction->details
+            ->map(fn ($detail) => $detail->item)
+            ->filter(fn ($item) => $item instanceof Item)
+            ->unique('id')
+            ->values();
+
+        if ($showSender) {
+            $sync = $stockService->syncForWarehouse((int) $transaction->sender_id);
+            if ($sync) {
+                $data = $stockService->stockDataForItems($sync, $items);
+                $fetchFailed = $fetchFailed || $data['fetch_failed'];
+                foreach ($data['stocks'] as $itemId => $row) {
+                    $senderQty[$itemId] = $row['available'] ?? $row['on_hand'];
+                }
+            }
+        }
+
+        if ($showReceiver) {
+            $sync = $stockService->syncForWarehouse((int) $transaction->receiver_id);
+            if ($sync) {
+                $data = $stockService->stockDataForItems($sync, $items);
+                $fetchFailed = $fetchFailed || $data['fetch_failed'];
+                foreach ($data['stocks'] as $itemId => $row) {
+                    $receiverQty[$itemId] = $row['available'] ?? $row['on_hand'];
+                }
+            }
+        }
+
+        return [
+            'show_jubelio_sender_qty' => $showSender,
+            'show_jubelio_receiver_qty' => $showReceiver,
+            'jubelio_qty_sender' => $senderQty,
+            'jubelio_qty_receiver' => $receiverQty,
+            'jubelio_qty_fetch_failed' => $fetchFailed,
         ];
     }
 

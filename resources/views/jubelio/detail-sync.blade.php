@@ -171,6 +171,12 @@ $mappingMissing = $data->item_with_jubelio_count > 0;
             </div>
             @endif
 
+            @if($jubelioQtyFetchFailed ?? false)
+            <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900">
+                Gagal memuat stok Jubelio. Kolom qty Jubelio mungkin kosong — coba refresh halaman atau cek koneksi Jubelio.
+            </div>
+            @endif
+
             <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
                 <table class="w-full text-left text-sm">
                     <thead class="bg-gray-50 text-[10px] font-semibold text-gray-600 uppercase">
@@ -178,6 +184,12 @@ $mappingMissing = $data->item_with_jubelio_count > 0;
                             <th class="px-6 py-4">Item</th>
                             <th class="px-6 py-4">Code</th>
                             <th class="px-6 py-4 text-center">Qty</th>
+                            @if($showJubelioSenderQty ?? false)
+                            <th class="px-6 py-4 text-center" title="Available stock at sender Jubelio location">Jubelio qty (sender)</th>
+                            @endif
+                            @if($showJubelioReceiverQty ?? false)
+                            <th class="px-6 py-4 text-center" title="Available stock at receiver Jubelio location">Jubelio qty (receiver)</th>
+                            @endif
                             <th class="px-6 py-4 text-right">Jubelio ID</th>
                         </tr>
                     </thead>
@@ -205,6 +217,26 @@ $mappingMissing = $data->item_with_jubelio_count > 0;
                                 @endif
                             </td>
                             <td class="px-6 py-4 text-center font-bold">{{ $detail->quantity }}</td>
+                            @if($showJubelioSenderQty ?? false)
+                            @php $senderJubQty = ($item && isset($jubelioQtySender[$item->id])) ? $jubelioQtySender[$item->id] : null; @endphp
+                            <td class="px-6 py-4 text-center font-mono text-xs text-gray-700" data-testid="jubelio-detail-sync-sender-qty-{{ $item?->id ?? 'x' }}">
+                                @if($senderJubQty !== null)
+                                    {{ format_number($senderJubQty) }}
+                                @else
+                                    <span class="text-gray-400">—</span>
+                                @endif
+                            </td>
+                            @endif
+                            @if($showJubelioReceiverQty ?? false)
+                            @php $receiverJubQty = ($item && isset($jubelioQtyReceiver[$item->id])) ? $jubelioQtyReceiver[$item->id] : null; @endphp
+                            <td class="px-6 py-4 text-center font-mono text-xs text-gray-700" data-testid="jubelio-detail-sync-receiver-qty-{{ $item?->id ?? 'x' }}">
+                                @if($receiverJubQty !== null)
+                                    {{ format_number($receiverJubQty) }}
+                                @else
+                                    <span class="text-gray-400">—</span>
+                                @endif
+                            </td>
+                            @endif
                             <td class="px-6 py-4 text-right">
                                 @if($detail->item && $detail->item->jubelio_item_id)
                                 <span class="inline-flex rounded border border-green-500/20 bg-green-50 px-2 py-0.5 font-mono text-xs text-green-600">{{ $detail->item->jubelio_item_id }}</span>
