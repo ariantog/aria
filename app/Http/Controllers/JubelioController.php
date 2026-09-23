@@ -509,6 +509,10 @@ class JubelioController extends Controller
             'whB' => 1,
             'whAName' => $sync['wh_a_name'],
             'whBName' => $sync['wh_b_name'],
+            'locationIdA' => $sync['location_id_a'],
+            'locationIdB' => $sync['location_id_b'],
+            'binIdA' => $sync['bin_a'],
+            'binIdB' => $sync['bin_b'],
             'warningA' => $sync['warning_a'],
             'warningB' => $sync['warning_b'],
             'flash' => [

@@ -315,6 +315,38 @@ it('shows two push buttons on jubelio detail sync for dual-mapped move', functio
     expect(substr_count($html, 'Push to Jubelio'))->toBe(3);
 });
 
+it('shows jubelio location and bin on detail sync cards', function () {
+    $user = seedTransactionShowUser();
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'WH Bin View']);
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+    $item = Item::factory()->create(['jubelio_item_id' => 302]);
+    Jubeliosync::create([
+        'jubelio_store_id' => 1,
+        'jubelio_store_name' => 'Store',
+        'jubelio_location_id' => 44,
+        'jubelio_location_name' => 'Loc 44',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => $customer->id,
+        'bin_id' => 88,
+    ]);
+
+    $transaction = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+        'sender_id' => $warehouse->id,
+        'receiver_id' => $customer->id,
+    ]);
+    seedItemTransactionDetail($transaction, $item);
+
+    $this->actingAs($user)
+        ->get(route('jubelio.transaction.detail-sync', $transaction))
+        ->assertSuccessful()
+        ->assertSee('Location ID', false)
+        ->assertSee('Bin ID', false)
+        ->assertSee('88', false)
+        ->assertSee('44', false);
+});
+
 it('links item name and code to the item show page on jubelio detail sync', function () {
     $user = seedTransactionShowUser();
     $warehouse = Addrbook::factory()->warehouse()->create();

@@ -265,6 +265,38 @@ it('shows the jubelio error flash on the transaction page', function () {
         ->and($html)->toContain('Stok di lokasi Jubelio tidak cukup');
 });
 
+it('rejects push when a non-zero line is missing jubelio_item_id', function () {
+    fakeJubelioAdjustToken();
+    Http::fake();
+
+    $user = seedAdjustStockUser();
+    $linked = Item::factory()->create(['jubelio_item_id' => 907, 'code' => 'SKU-LINKED']);
+    $unlinked = Item::factory()->create(['jubelio_item_id' => null, 'code' => 'SKU-NO-JUB']);
+    $transaction = seedMoveForAdjust($linked);
+    $transaction->details()->create([
+        'date' => $transaction->date,
+        'transaction_type' => Transaction::TYPE_MOVE,
+        'sender_id' => $transaction->sender_id,
+        'receiver_id' => $transaction->receiver_id,
+        'item_id' => $unlinked->id,
+        'quantity' => 2,
+        'price' => 1000,
+        'discount' => 0,
+        'total' => 2000,
+    ]);
+
+    $this->actingAs($user)
+        ->post(route('jubelio.adjustStok', $transaction), [
+            'side' => 1,
+            'whType' => 2,
+            'adjustType' => 2,
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('errorMessage', fn (string $message) => str_contains($message, 'SKU-NO-JUB'));
+
+    Http::assertNothingSent();
+});
+
 it('does not leave a warning when jubelio auth fails before the push', function () {
     config([
         'services.jubelio.active' => true,

@@ -121,6 +121,8 @@ $mappingMissing = $data->item_with_jubelio_count > 0;
                     'title' => 'Sender (Side A)',
                     'whName' => $whAName ?: ($data->sender->name ?? '-'),
                     'jubName' => $JubelioA,
+                    'locationId' => $locationIdA ?? null,
+                    'binId' => $binIdA ?? null,
                     'type' => $adJustTypeA,
                     'qty' => $data->total_items,
                     'submittedBy' => $data->submitByA->username ?? null,
@@ -139,6 +141,8 @@ $mappingMissing = $data->item_with_jubelio_count > 0;
                     'title' => 'Receiver (Side B)',
                     'whName' => $whBName ?: ($data->receiver->name ?? '-'),
                     'jubName' => $JubelioB,
+                    'locationId' => $locationIdB ?? null,
+                    'binId' => $binIdB ?? null,
                     'type' => $adJustTypeB,
                     'qty' => $data->total_items,
                     'submittedBy' => $data->submitByB->username ?? null,
@@ -162,7 +166,7 @@ $mappingMissing = $data->item_with_jubelio_count > 0;
                 <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
                 <div>
                     <h3 class="mb-1 font-bold">Mapping Item Hilang</h3>
-                    <p class="text-sm opacity-80">Ada {{ $data->item_with_jubelio_count }} item dalam transaksi ini yang belum terhubung ke Jubelio. Anda harus menghubungkannya di menu Item sebelum melakukan sinkron.</p>
+                    <p class="text-sm opacity-80">Ada {{ $data->item_with_jubelio_count }} item dalam transaksi ini yang belum terhubung ke Jubelio. Mapping gudang bisa sama dengan transaksi lain yang berhasil push — masalah ini per baris SKU. Hubungkan tiap item di menu Item sebelum sinkron.</p>
                 </div>
             </div>
             @endif
