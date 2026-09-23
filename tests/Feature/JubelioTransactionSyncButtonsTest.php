@@ -502,14 +502,18 @@ it('posts stock adjustment to jubelio and marks side a as synced', function () {
     ]);
 
     Http::fake([
-        'https://api2.jubelio.com/inventory/adjustments/warehouse' => Http::response(['id' => 98765], 200),
+        'https://api2.jubelio.com/wms/default-bin/10' => Http::response(['bin_id' => 1]),
+        'https://api2.jubelio.com/inventory/adjustments/warehouse' => Http::response([
+            'item_adj_id' => 98765,
+        ], 200),
     ]);
 
     $user = seedTransactionShowUser();
     $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'WH Push']);
     $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
     $item = Item::factory()->create(['jubelio_item_id' => 501, 'code' => 'SKU-PUSH']);
-    seedJubelioSyncForWarehouse($warehouse);
+    $sync = seedJubelioSyncForWarehouse($warehouse);
+    $sync->update(['bin_id' => 1]);
 
     $transaction = Transaction::factory()->create([
         'type' => Transaction::TYPE_SELL,

@@ -33,6 +33,14 @@ class JubelioService
             return null;
         }
 
+        $loginUrl = $config['url'] ?? null;
+        if (! is_string($loginUrl) || trim($loginUrl) === '') {
+            Log::warning('Jubelio authentication attempted without JUBELIO_URL configured.');
+            $this->recordAuthFailure('JUBELIO_URL is not configured.');
+
+            return null;
+        }
+
         try {
             $request = Http::withHeaders([
                 'Content-Type' => 'application/json',
@@ -42,7 +50,7 @@ class JubelioService
                 $request->withoutVerifying();
             }
 
-            $response = $request->post($config['url'], [
+            $response = $request->post($loginUrl, [
                 'email' => $config['email'],
                 'password' => $config['password'],
             ]);
