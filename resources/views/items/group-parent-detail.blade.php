@@ -87,7 +87,9 @@ $fmt = fn ($v) => format_amount($v, 0);
                                 'pricingState' => $parentPricingState ?? [],
                                 'pricingPrefix' => 'pricing',
                                 'pricingIdPrefix' => 'group-parent-pricing',
-                                'pricingIntro' => 'Defaults for all colorways under this product group. Colorway or SKU forms can override.',
+                                'pricingFixedScope' => \App\Support\ItemPricing::SCOPE_GROUP,
+                                'pricingIntro' => 'Default amounts for every colorway in this product group. Edit a colorway or SKU to override.',
+                                'showEffective' => false,
                             ])
 
                             <div>
