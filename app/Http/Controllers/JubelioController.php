@@ -16,6 +16,7 @@ use App\Services\Jubelio\JubelioOrderWarehouseResolver;
 use App\Services\Jubelio\JubelioTransactionSyncPresenter;
 use App\Services\JubelioGetOrdersService;
 use App\Services\JubelioService;
+use App\Services\WarehouseJubelioStockService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -493,7 +494,7 @@ class JubelioController extends Controller
     public function detailJubelioSync(
         Transaction $transaction,
         JubelioTransactionSyncPresenter $presenter,
-        \App\Services\WarehouseJubelioStockService $jubelioStockService,
+        WarehouseJubelioStockService $jubelioStockService,
     ): View {
         Transaction::authorizeJubelioTransactionSync();
         $transaction->load(['receiver', 'sender', 'user', 'submitByA', 'submitByB', 'details.item.group']);
