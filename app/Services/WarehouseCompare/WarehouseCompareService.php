@@ -154,16 +154,31 @@ class WarehouseCompareService
             $itemIds = $items->pluck('id')->map(fn ($id) => (int) $id)->all();
             $stockByWarehouse = $this->stockMatrix($itemIds, $warehouseIds);
 
-            $grid = $this->gridBuilder->build(
-                $items,
-                $warehouses,
-                $stockByWarehouse,
-                $soldByItem,
-                $sort,
-                $itemType,
-                $pivot->id,
-                $parentKeyOrder,
-            );
+            if ($itemType === ItemType::ITEM) {
+                $itemIdOrder = $paginate
+                    ? $items->pluck('id')->map(fn ($id) => (int) $id)->all()
+                    : $this->paginator->orderedItemIds($allItems, $sort, $itemType, $soldByItem, $pivotStock);
+
+                $grid = $this->gridBuilder->buildList(
+                    $items,
+                    $warehouses,
+                    $stockByWarehouse,
+                    $soldByItem,
+                    $pivot->id,
+                    $itemIdOrder,
+                );
+            } else {
+                $grid = $this->gridBuilder->build(
+                    $items,
+                    $warehouses,
+                    $stockByWarehouse,
+                    $soldByItem,
+                    $sort,
+                    $itemType,
+                    $pivot->id,
+                    $parentKeyOrder,
+                );
+            }
         }
 
         return [

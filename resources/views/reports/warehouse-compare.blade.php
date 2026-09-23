@@ -69,10 +69,9 @@ $buildQuery = function (array $overrides = []) use ($selectedWarehouseIds, $item
     @endif
 
     <details class="rounded-xl border border-gray-200 bg-white shadow-sm group" open data-testid="warehouse-compare-controls">
-        <summary class="cursor-pointer list-none px-4 py-3 text-sm font-medium text-gray-900 marker:content-none flex items-center justify-between gap-2">
+        <summary class="cursor-pointer list-none px-4 py-3 text-sm font-medium text-gray-900 flex items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
             <span>Warehouses &amp; sort</span>
-            <span class="text-xs font-normal text-gray-500 group-open:hidden">Show settings</span>
-            <span class="text-xs font-normal text-gray-500 hidden group-open:inline">Hide settings</span>
+            <span class="text-xs font-normal text-gray-500">Click to expand or collapse</span>
         </summary>
         <div class="border-t border-gray-200 px-4 pb-4 pt-3">
     <form method="GET" action="{{ route('reports.warehouse-compare') }}" class="space-y-4" id="warehouse-compare-form">
@@ -126,12 +125,6 @@ $buildQuery = function (array $overrides = []) use ($selectedWarehouseIds, $item
                             class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
                             data-testid="warehouse-compare-apply">
                         Apply
-                    </button>
-                    <button type="button"
-                            id="warehouse-compare-copy"
-                            class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                            data-testid="warehouse-compare-copy">
-                        Copy table
                     </button>
                 </div>
             </div>
@@ -200,13 +193,33 @@ $buildQuery = function (array $overrides = []) use ($selectedWarehouseIds, $item
             </nav>
         @endif
 
-        @foreach($grid['blocks'] as $block)
-            @include('reports.partials.warehouse-compare-table', [
-                'block' => $block,
-                'warehouses' => $grid['warehouses'],
-                'sort' => $sort,
-            ])
-        @endforeach
+        <div class="flex flex-wrap items-center justify-end gap-2">
+            <button type="button"
+                    id="warehouse-compare-copy"
+                    class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    data-testid="warehouse-compare-copy">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                Copy table
+            </button>
+        </div>
+
+        @if(($grid['display_mode'] ?? 'matrix') === 'list')
+            @foreach($grid['blocks'] as $block)
+                @include('reports.partials.warehouse-compare-list-table', [
+                    'block' => $block,
+                    'warehouses' => $grid['warehouses'],
+                    'sort' => $sort,
+                ])
+            @endforeach
+        @else
+            @foreach($grid['blocks'] as $block)
+                @include('reports.partials.warehouse-compare-table', [
+                    'block' => $block,
+                    'warehouses' => $grid['warehouses'],
+                    'sort' => $sort,
+                ])
+            @endforeach
+        @endif
     @endif
 </div>
 
