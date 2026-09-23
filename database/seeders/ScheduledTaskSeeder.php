@@ -37,9 +37,9 @@ class ScheduledTaskSeeder extends Seeder
             ['command' => 'app:process-warehouse-arrangement-refresh'],
             [
                 'name' => 'Process Warehouse Arrangement Refresh',
-                'frequency' => 'everyMinute',
+                'frequency' => 'everyFiveMinutes',
                 'active' => true,
-                'description' => 'Advances queued Warehouse Arrangement “Rebuild stats & refresh” jobs (~300 SKUs per destination per run). Runs on the scheduler, not inside app:process-queue.',
+                'description' => 'Advances queued Warehouse Arrangement “Rebuild stats & refresh” jobs (~300 SKUs per destination per run). Runs on the Laravel scheduler (not the dispatcher); only does work when a refresh job is queued.',
             ]
         );
 
@@ -62,7 +62,7 @@ class ScheduledTaskSeeder extends Seeder
             ['command' => 'app:backfill-warehouse-item-stats --months=3'],
             [
                 'name' => 'Backfill Historical Warehouse Item Stats',
-                'frequency' => 'hourly',
+                'frequency' => 'everySixHours',
                 'active' => true,
                 'description' => 'Rebuilds older months a batch at a time. Idle until a backfill is started from the Warehouse Stats Backfill page.',
             ]
@@ -166,7 +166,7 @@ class ScheduledTaskSeeder extends Seeder
             ['command' => 'jubelio:check-connection'],
             [
                 'name' => 'Jubelio Check Connection',
-                'frequency' => 'hourly',
+                'frequency' => 'everyThreeHours',
                 'active' => true,
                 'description' => 'Refreshes Jubelio token and pings the API to detect auth/connectivity issues.',
             ]
@@ -176,7 +176,7 @@ class ScheduledTaskSeeder extends Seeder
             ['command' => 'jubelio:poll-missing-orders'],
             [
                 'name' => 'Jubelio Poll Missing Orders',
-                'frequency' => 'hourly',
+                'frequency' => 'everyThreeHours',
                 'active' => true,
                 'description' => 'Polls Jubelio for recent orders missing from Aria (catches failed webhooks).',
             ]
@@ -188,7 +188,7 @@ class ScheduledTaskSeeder extends Seeder
             ['command' => 'app:jubelio-stock-check'],
             [
                 'name' => 'Jubelio Stock Check',
-                'frequency' => 'everyMinute',
+                'frequency' => 'everyFiveMinutes',
                 'active' => true,
                 'description' => 'Compares Aria vs Jubelio available per synced warehouse (read-only; does not write warehouse_item). One warehouse per cron tick; auto-creates a daily job and scans extra rounds until the target discrepancy count is reached.',
             ]
@@ -198,7 +198,7 @@ class ScheduledTaskSeeder extends Seeder
             ['command' => 'app:jubelio-auto-link-items'],
             [
                 'name' => 'Jubelio Auto Link Items',
-                'frequency' => 'everyMinute',
+                'frequency' => 'everyFiveMinutes',
                 'active' => true,
                 'description' => 'Searches Jubelio to-stock for unlinked SKUs (exact code match). Batched to ~200 API calls/hour; stock required in Jubelio-mapped warehouses.',
             ]
@@ -208,9 +208,9 @@ class ScheduledTaskSeeder extends Seeder
             ['command' => 'shopee-ads:process'],
             [
                 'name' => 'Shopee Ads Process',
-                'frequency' => 'everyMinute',
+                'frequency' => 'everyFiveMinutes',
                 'active' => true,
-                'description' => 'Runs Shopee Ads budget schedules, daily reset (WIB), and item ad replenishment.',
+                'description' => 'Runs Shopee Ads budget schedules, daily reset (WIB), and item ad replenishment. Same-day catch-up if a slot is missed.',
             ]
         );
     }
