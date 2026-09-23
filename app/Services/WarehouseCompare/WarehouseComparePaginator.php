@@ -48,6 +48,17 @@ class WarehouseComparePaginator
         }
 
         $pageIdSet = array_fill_keys($pageIds, true);
+
+        if ($itemType === ItemType::ITEM) {
+            $order = array_flip($pageIds);
+            $pageItems = $items
+                ->filter(fn (Item $item) => isset($pageIdSet[(int) $item->id]))
+                ->sortBy(fn (Item $item) => $order[(int) $item->id] ?? PHP_INT_MAX)
+                ->values();
+
+            return [$pageItems, $total, $page, $perPage, []];
+        }
+
         $parentKeysOnPage = [];
         foreach ($items as $item) {
             if (isset($pageIdSet[(int) $item->id])) {

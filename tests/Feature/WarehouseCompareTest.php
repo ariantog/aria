@@ -112,6 +112,50 @@ test('warehouse compare grid shows stock across selected warehouses', function (
         ->assertSee('Branch', false);
 });
 
+test('warehouse compare manufactured items use flat sku list sorted by code', function () {
+    $pivot = Addrbook::factory()->create(['type' => AddrbookType::Warehouse, 'name' => 'Pivot WH']);
+    $other = Addrbook::factory()->create(['type' => AddrbookType::Warehouse, 'name' => 'Branch WH']);
+
+    $groupA = ItemGroup::factory()->create([
+        'name' => 'SHIRT A',
+        'master' => 'CX90001-01',
+        'variant' => '01',
+    ]);
+    $groupB = ItemGroup::factory()->create([
+        'name' => 'SHIRT B',
+        'master' => 'CX90002-02',
+        'variant' => '02',
+    ]);
+
+    $itemZ = Item::factory()->create([
+        'group_id' => $groupB->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CX90002-02',
+        'code' => 'AJD-CX90002-02-M',
+    ]);
+    $itemA = Item::factory()->create([
+        'group_id' => $groupA->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CX90001-01',
+        'code' => 'AJD-CX90001-01-S',
+    ]);
+
+    WarehouseItem::create(['warehouse_id' => $pivot->id, 'item_id' => $itemZ->id, 'quantity' => 3]);
+    WarehouseItem::create(['warehouse_id' => $pivot->id, 'item_id' => $itemA->id, 'quantity' => 5]);
+    WarehouseItem::create(['warehouse_id' => $other->id, 'item_id' => $itemA->id, 'quantity' => 2]);
+
+    $this->actingAs($this->user)
+        ->get(route('reports.warehouse-compare', [
+            'warehouse_ids' => [$pivot->id, $other->id],
+            'item_type' => ItemType::ITEM->value,
+            'sort' => WarehouseCompareService::SORT_ITEM_CODE,
+        ]))
+        ->assertOk()
+        ->assertSee('data-testid="warehouse-compare-list-table"', false)
+        ->assertSee('data-testid="warehouse-compare-copy"', false)
+        ->assertSeeInOrder(['AJD-CX90001-01-S', 'AJD-CX90002-02-M'], false);
+});
+
 test('warehouse compare paginates large pivot sku lists', function () {
     $pivot = Addrbook::factory()->create(['type' => AddrbookType::Warehouse, 'name' => 'Pivot WH']);
 

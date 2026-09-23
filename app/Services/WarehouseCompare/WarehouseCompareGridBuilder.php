@@ -20,6 +20,84 @@ class WarehouseCompareGridBuilder
     ) {}
 
     /**
+     * Flat SKU list for manufactured items (one row per item code).
+     *
+     * @param  Collection<int, Item>  $items
+     * @param  Collection<int, Addrbook>  $warehouses
+     * @param  array<int, array<int, int>>  $stockByWarehouse
+     * @param  array<int, float>  $soldByItem
+     * @param  list<int>  $itemIdOrder
+     * @return array{display_mode: string, warehouses: list<array{id: int, name: string}>, blocks: list<array<string, mixed>>}
+     */
+    public function buildList(
+        Collection $items,
+        Collection $warehouses,
+        array $stockByWarehouse,
+        array $soldByItem,
+        int $pivotWarehouseId,
+        array $itemIdOrder,
+    ): array {
+        $warehouseMeta = $warehouses
+            ->map(fn (Addrbook $w) => ['id' => (int) $w->id, 'name' => $w->name])
+            ->values()
+            ->all();
+
+        $byId = $items->keyBy('id');
+        $ordered = collect($itemIdOrder)
+            ->map(fn (int $id) => $byId->get($id))
+            ->filter()
+            ->values();
+
+        if ($ordered->isEmpty()) {
+            $ordered = $items->values();
+        }
+
+        $rows = $ordered->map(function (Item $item) use ($warehouses, $stockByWarehouse, $soldByItem, $pivotWarehouseId) {
+            $itemId = (int) $item->id;
+            $stocks = [];
+            $pivotQty = 0;
+            foreach ($warehouses as $warehouse) {
+                $wid = (int) $warehouse->id;
+                $qty = $stockByWarehouse[$itemId][$wid] ?? 0;
+                $stocks[$wid] = $qty;
+                if ($wid === $pivotWarehouseId) {
+                    $pivotQty = $qty;
+                }
+            }
+
+            $variant = trim((string) ($item->group?->variant ?? ''));
+            $size = $this->itemSizeCode($item);
+
+            return [
+                '_type' => 'sku',
+                'item_id' => $itemId,
+                'code' => $item->code,
+                'name' => $item->name,
+                'item_url' => $item->showUrl(),
+                'pcode' => $this->identityBuilder->itemParentLabel($item),
+                'color' => $variant !== '' ? strtoupper($variant) : '—',
+                'size' => $size !== null ? strtoupper($size) : '—',
+                'sold_12m' => $soldByItem[$itemId] ?? 0.0,
+                'is_low_stock' => $pivotQty < 2,
+                'stocks' => $stocks,
+            ];
+        })->all();
+
+        return [
+            'display_mode' => 'list',
+            'warehouses' => $warehouseMeta,
+            'blocks' => [
+                [
+                    'kind' => 'list',
+                    'id' => 'sku-list',
+                    'title' => null,
+                    'rows' => $rows,
+                ],
+            ],
+        ];
+    }
+
+    /**
      * @param  Collection<int, Item>  $items
      * @param  Collection<int, Addrbook>  $warehouses
      * @param  array<int, array<int, int>>  $stockByWarehouse
