@@ -315,6 +315,35 @@ it('shows two push buttons on jubelio detail sync for dual-mapped move', functio
     expect(substr_count($html, 'Push to Jubelio'))->toBe(3);
 });
 
+it('links item name and code to the item show page on jubelio detail sync', function () {
+    $user = seedTransactionShowUser();
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+    $item = Item::factory()->create([
+        'jubelio_item_id' => 301,
+        'code' => 'SKU-DETAIL-LINK',
+        'name' => 'Detail Sync Link Item',
+    ]);
+    seedJubelioSyncForWarehouse($warehouse);
+
+    $transaction = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+        'sender_id' => $warehouse->id,
+        'receiver_id' => $customer->id,
+    ]);
+    seedItemTransactionDetail($transaction, $item);
+
+    $showUrl = $item->showUrl();
+
+    $this->actingAs($user)
+        ->get(route('jubelio.transaction.detail-sync', $transaction))
+        ->assertSuccessful()
+        ->assertSee($showUrl, false)
+        ->assertSee('data-testid="jubelio-detail-sync-item-name-'.$item->id.'"', false)
+        ->assertSee('data-testid="jubelio-detail-sync-item-code-'.$item->id.'"', false);
+});
+
 it('shows no sync cards on jubelio detail sync when move warehouses are unmapped', function () {
     $user = seedTransactionShowUser();
     $sender = Addrbook::factory()->warehouse()->create();

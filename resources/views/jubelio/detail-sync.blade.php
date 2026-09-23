@@ -179,16 +179,27 @@ $mappingMissing = $data->item_with_jubelio_count > 0;
                     </thead>
                     <tbody class="divide-y divide-gray-100">
                         @foreach($data->details as $detail)
-                        <tr class="hover:bg-gray-50">
+                        @php $item = $detail->item; @endphp
+                        <tr class="hover:bg-gray-50" @if($item) data-testid="jubelio-detail-sync-item-{{ $item->id }}" @endif>
                             <td class="px-6 py-4">
                                 <div class="flex items-center gap-3">
                                     <div class="flex h-10 w-10 items-center justify-center rounded bg-gray-100">
                                         <svg class="h-5 w-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
                                     </div>
-                                    <span class="text-xs font-medium">{{ $detail->item->name ?? '-' }}</span>
+                                    @if($item)
+                                    <a href="{{ $item->showUrl() }}" class="text-xs font-medium text-blue-700 hover:underline" data-testid="jubelio-detail-sync-item-name-{{ $item->id }}">{{ $item->name }}</a>
+                                    @else
+                                    <span class="text-xs font-medium">-</span>
+                                    @endif
                                 </div>
                             </td>
-                            <td class="px-6 py-4 font-mono text-[11px] text-gray-500">{{ $detail->item->code ?? '-' }}</td>
+                            <td class="px-6 py-4 font-mono text-[11px]">
+                                @if($item)
+                                <a href="{{ $item->showUrl() }}" class="text-blue-700 hover:underline" data-testid="jubelio-detail-sync-item-code-{{ $item->id }}">{{ $item->code }}</a>
+                                @else
+                                <span class="text-gray-500">-</span>
+                                @endif
+                            </td>
                             <td class="px-6 py-4 text-center font-bold">{{ $detail->quantity }}</td>
                             <td class="px-6 py-4 text-right">
                                 @if($detail->item && $detail->item->jubelio_item_id)

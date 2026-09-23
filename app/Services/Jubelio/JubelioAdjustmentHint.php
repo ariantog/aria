@@ -61,8 +61,8 @@ class JubelioAdjustmentHint
                 'hint' => 'Payload penyesuaian ditolak Jubelio. Periksa lokasi, bin, dan akun di Jubelio Sync untuk gudang ini, lalu push ulang.',
             ],
             [
-                'needles' => ['api error: 5', '502', '503', '504', 'http 5'],
-                'hint' => 'Jubelio sedang tidak merespons. Tunggu sebentar, lalu push ulang. Jangan tandai berhasil.',
+                'needles' => ['api error: 5', '502', '503', '504', 'http 5', 'internal server error'],
+                'hint' => 'Jubelio menolak permintaan (sering karena bin/lokasi belum lengkap). Buka Jubelio Sync → Cek semua bin untuk gudang ini, pastikan item & lokasi valid, lalu push ulang. Jangan tandai berhasil.',
             ],
         ];
     }

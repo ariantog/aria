@@ -58,6 +58,8 @@ class AdjustStock
                 throw new \RuntimeException('Jubelio auth failed.');
             }
 
+            $binId = $this->resolveBinId($jubSync, $jubelioService);
+
             $transaction->loadMissing('details.item');
             $items = [];
             foreach ($transaction->details as $row) {
@@ -72,11 +74,13 @@ class AdjustStock
                     'qty_in_base' => $qty,
                     'original_item_adj_detail_id' => 0,
                     'unit' => 'Buah',
-                    'amount' => (float) $row->total,
+                    'amount' => abs((float) $row->total),
                     'location_id' => $jubSync->jubelio_location_id,
                     'account_id' => 75,
                     'description' => 'Item '.$row->item->code,
-                    'bin_id' => ((int) $jubSync->bin_id) > 0 ? (int) $jubSync->bin_id : null,
+                    'bin_id' => $binId > 0 ? $binId : null,
+                    'batch_no' => null,
+                    'expired_date' => null,
                     'cost' => 0,
                 ];
             }
@@ -91,7 +95,7 @@ class AdjustStock
             $response = $jubelioService->post('https://api2.jubelio.com/inventory/adjustments/warehouse', [
                 'item_adj_id' => 0,
                 'item_adj_no' => '[auto]',
-                'transaction_date' => now()->toIso8601ZuluString(),
+                'transaction_date' => now()->utc()->format('Y-m-d\TH:i:s.v\Z'),
                 'note' => 'Adjust from Aria #'.$transaction->invoice,
                 'location_id' => $jubSync->jubelio_location_id,
                 'is_opening_balance' => false,
@@ -159,6 +163,27 @@ class AdjustStock
             'message' => $message,
             'hint' => JubelioAdjustmentHint::for($message),
         ];
+    }
+
+    private function resolveBinId(Jubeliosync $jubSync, JubelioService $jubelioService): int
+    {
+        $binId = (int) $jubSync->bin_id;
+        if ($binId > 0) {
+            return $binId;
+        }
+
+        $locationId = (int) $jubSync->jubelio_location_id;
+        $result = $jubelioService->fetchDefaultBinId($locationId);
+        if (! $result['ok']) {
+            return 0;
+        }
+
+        $binId = (int) ($result['bin_id'] ?? 0);
+        if ($binId > 0) {
+            $jubSync->update(['bin_id' => $binId]);
+        }
+
+        return $binId;
     }
 
     private function markAttempt(Transaction $transaction, int $side): void

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Jubeliosync;
 use App\Models\Setting;
 use Carbon\Carbon;
 use Illuminate\Http\Client\PendingRequest;
@@ -259,6 +260,35 @@ class JubelioService
             fn (PendingRequest $http) => $http->post($url, $data),
             $retryOnUnauthorized,
         );
+    }
+
+    /**
+     * @return array{ok: bool, bin_id?: int, message?: string}
+     */
+    public function fetchDefaultBinId(int $locationId): array
+    {
+        if (! Jubeliosync::isMappedLocationId($locationId)) {
+            return ['ok' => false, 'message' => 'Lokasi Jubelio belum dipetakan.'];
+        }
+
+        $response = $this->get('https://api2.jubelio.com/wms/default-bin/'.$locationId);
+
+        if (! $response) {
+            return ['ok' => false, 'message' => 'Jubelio authentication failed.'];
+        }
+
+        if ($response->successful()) {
+            $result = $response->json();
+
+            return ['ok' => true, 'bin_id' => (int) ($result['bin_id'] ?? 0)];
+        }
+
+        $error = $response->json();
+
+        return [
+            'ok' => false,
+            'message' => is_array($error) ? ($error['message'] ?? 'Terjadi kesalahan saat mengambil bin.') : 'Terjadi kesalahan saat mengambil bin.',
+        ];
     }
 
     /**
