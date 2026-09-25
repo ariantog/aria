@@ -173,7 +173,7 @@ class TransactionsController extends Controller
         return [
             'id' => $item->id,
             'code' => $item->getItemCode(),
-            'name' => $item->name ?: $item->getItemName(),
+            'name' => $item->effectiveDisplayName(),
             'type' => $item->type->value,
             'price' => $item->effectivePrice(),
             'reseller_sell_price' => $item->resellerSellPrice(),

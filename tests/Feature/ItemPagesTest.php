@@ -323,17 +323,23 @@ test('catalogBrand falls back to the item column when the group brand is empty',
         ->and($item->catalogGenre())->toBe(99);
 });
 
-test('getItemName prefers non-empty group alias for manufactured items', function () {
+test('getItemName uses scoped bare title with color and size segments', function () {
     $group = \App\Models\ItemGroup::factory()->make(['name' => 'GROUP PRODUCT NAME']);
     $group->setRawAttributes(array_merge($group->getAttributes(), ['alias' => 'GROUP ALIAS NAME']));
+
+    $warna = \App\Models\Tag::factory()->create(['type' => \App\Models\Tag::TYPE_WARNA, 'code' => 'NAVY', 'name' => 'Navy']);
+    $size = \App\Models\Tag::factory()->create(['type' => \App\Models\Tag::TYPE_SIZE, 'code' => 'S', 'name' => 'S']);
 
     $item = Item::factory()->make([
         'name' => 'ITEM DISPLAY NAME - NAVY - S',
         'type' => \App\Enums\ItemType::ITEM,
+        'pcode' => 'CX90233-23',
+        'alias' => 'SKU OVERRIDE TITLE',
     ]);
     $item->setRelation('group', $group);
+    $item->setRelation('tags', collect([$warna, $size]));
 
-    expect($item->getItemName())->toBe('GROUP ALIAS NAME');
+    expect($item->getItemName())->toBe('SKU OVERRIDE TITLE - NAVY - S');
 });
 
 test('items index name column shows the item display name not the group alias', function () {

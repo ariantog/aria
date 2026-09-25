@@ -10,6 +10,7 @@ use App\Models\Tag;
 use App\Services\Items\ItemIdentityBuilder;
 use App\Support\ItemCatalog;
 use App\Support\ItemPricing;
+use App\Support\ItemProductTitle;
 use Exception;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
@@ -315,6 +316,13 @@ class ItemService
             $group->name = $storedName;
             $group->save();
 
+            if ($sampleItem) {
+                ItemProductTitle::syncParentProductName(
+                    $this->identityBuilder->itemParentKey($sampleItem),
+                    $storedName,
+                );
+            }
+
             $this->syncItemNamesForGroup($group);
 
             return $group->fresh();
@@ -465,6 +473,9 @@ class ItemService
         $item->tag_ids = implode(',', $tagIds);
         $item->save();
         $item->tags()->sync($tagIds);
+        $item->load('tags');
+        $item->name = ItemProductTitle::buildDisplayName($item);
+        $item->save();
 
         return $item;
     }
@@ -1096,18 +1107,9 @@ class ItemService
     protected function syncItemNamesForGroup(ItemGroup $group): void
     {
         $items = Item::with('tags')->where('group_id', $group->id)->get();
-        $sampleType = $this->resolveItemType($items->first()?->type ?? ItemType::ITEM->value);
-        $displayName = $this->identityBuilder->productDisplayName(
-            $sampleType,
-            (string) $group->name,
-            (string) ($group->variant ?? ''),
-            (string) ($group->master ?? ''),
-        );
 
         foreach ($items as $item) {
-            $warnaTag = $item->tags->firstWhere('type', Tag::TYPE_WARNA);
-            $sizeTag = $item->tags->firstWhere('type', Tag::TYPE_SIZE);
-            $item->name = $this->identityBuilder->buildName($displayName, $warnaTag, $sizeTag);
+            $item->name = ItemProductTitle::buildDisplayName($item);
             $item->save();
         }
     }
