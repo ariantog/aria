@@ -445,6 +445,13 @@ migration explicitly adds that cast.
 - **`items.legacy_code`:** see **Do NOT remove `items.legacy_code`** — snapshot old `code` on
   first identity change; converter tooling is temporary, the column is not.
 
+### Catalog hierarchy (parent → colorway → SKU)
+
+Read/write rules for names, descriptions, prices, and related catalog fields live in
+**`doc/item-catalog-hierarchy.md`**. Resolve **SKU → colorway → parent**; writing at colorway
+or parent scope clears lower-level overrides for that field. Code map:
+`ItemCatalogHierarchy`, `ItemPricing`, `ItemCatalog`, `ItemProductTitle`.
+
 ### Colorway-only edit page & per-item price
 
 Route: `items-group/colorway/{group}/edit` (`ItemsController@colorwayEdit` /
