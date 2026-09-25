@@ -21,7 +21,7 @@
     $parentProductName = $parentProductName ?? '';
     $parentGroupUrl = $parentGroupUrl ?? null;
 @endphp
-<div class="rounded-xl border border-gray-200 bg-white shadow-sm" data-testid="item-catalog-panel">
+<div class="rounded-xl border border-gray-200 bg-white shadow-sm" data-testid="item-catalog-panel" x-ref="catalogPanel">
     <div class="flex flex-col gap-2 border-b border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div class="flex items-center gap-3">
             <div class="rounded-lg bg-yellow-500/10 p-2">

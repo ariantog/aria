@@ -6,24 +6,28 @@
         <div>
             <p class="text-sm font-medium text-gray-900">Quick scope for amounts</p>
             <p class="mt-0.5 text-xs text-gray-600">Sets every pricing row below to the same save level. Catalog text follows the tab you are on.</p>
+            <p x-show="scopeFlash !== ''" x-cloak class="mt-2 text-xs font-medium text-green-700" x-text="scopeFlash"></p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
             <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">All pricing →</span>
             <button type="button"
-                    @click="setAllPricingScopes('size')"
+                    x-on:click="setAllPricingScopes('size')"
                     data-testid="item-scope-all-size"
+                    :class="bulkPricingScope === 'size' ? 'ring-2 ring-blue-500 ring-offset-1' : ''"
                     class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100">
                 This SKU
             </button>
             <button type="button"
-                    @click="setAllPricingScopes('colorway')"
+                    x-on:click="setAllPricingScopes('colorway')"
                     data-testid="item-scope-all-colorway"
+                    :class="bulkPricingScope === 'colorway' ? 'ring-2 ring-indigo-500 ring-offset-1' : ''"
                     class="rounded-md border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-800 hover:bg-indigo-100">
                 Colorway
             </button>
             <button type="button"
-                    @click="setAllPricingScopes('group')"
+                    x-on:click="setAllPricingScopes('group')"
                     data-testid="item-scope-all-group"
+                    :class="bulkPricingScope === 'group' ? 'ring-2 ring-amber-500 ring-offset-1' : ''"
                     class="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100">
                 Whole group
             </button>
@@ -32,7 +36,7 @@
     <label class="mt-3 flex cursor-pointer items-start gap-3 rounded-md border border-indigo-100 bg-white px-3 py-2">
         <input type="checkbox"
                x-model="colorwayScopeSwitch"
-               @change="onColorwayScopeSwitch()"
+               x-on:change="onColorwayScopeSwitch()"
                data-testid="item-scope-colorway-switch"
                class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
         <span class="text-sm text-gray-800">

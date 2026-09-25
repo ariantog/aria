@@ -28,7 +28,7 @@ $breadcrumbs = [
 $actionUrl = $isAsset ? route('assetlancar.store') : route('items.store');
 @endphp
 
-<div class="flex flex-col gap-4 p-4" x-data="itemForm()" x-init="init()">
+<div class="flex flex-col gap-4 p-4" x-data="itemFormRoot" x-init="init()">
     <div class="mb-2">
         <h2 class="mb-1 text-3xl font-bold tracking-tight text-gray-900">
             @if($duplicateFrom)

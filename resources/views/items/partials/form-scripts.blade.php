@@ -13,6 +13,34 @@
 @endphp
 @push('scripts')
 <script>
+function ariaFindCatalogPanel(root) {
+    if (root) {
+        if (root.matches && root.matches('[data-testid="item-catalog-panel"]')) {
+            return root;
+        }
+        const nested = root.querySelector('[data-testid="item-catalog-panel"]');
+        if (nested) {
+            return nested;
+        }
+    }
+
+    return document.querySelector('[data-testid="item-catalog-panel"]');
+}
+
+function ariaApplyPricingScope(scope, panel) {
+    if (!panel || !scope) {
+        return 0;
+    }
+
+    let updated = 0;
+    panel.querySelectorAll('input[type="radio"][data-catalog-scope-radio]').forEach((input) => {
+        input.checked = input.value === scope;
+        updated++;
+    });
+
+    return updated;
+}
+
 function itemForm() {
     return {
         isAsset: @json($isAsset),
@@ -53,26 +81,60 @@ function itemForm() {
         },
         catalogTab: @js($catalogTabDefault),
         colorwayScopeSwitch: false,
+        bulkPricingScope: '',
+        scopeFlash: '',
+
+        catalogPanelEl() {
+            if (this.$refs && this.$refs.catalogPanel) {
+                return this.$refs.catalogPanel;
+            }
+
+            return ariaFindCatalogPanel(this.$el);
+        },
 
         setAllPricingScopes(scope) {
-            const root = this.$el || document;
-            root.querySelectorAll('input[data-catalog-scope-radio]').forEach((input) => {
-                if (input.value === scope) {
-                    input.checked = true;
-                }
-            });
+            const panel = this.catalogPanelEl();
+            const updated = ariaApplyPricingScope(scope, panel);
+            this.bulkPricingScope = scope;
             this.colorwayScopeSwitch = scope === 'colorway';
+
+            const labels = {
+                size: 'This SKU',
+                colorway: 'Colorway',
+                group: 'Whole group',
+            };
+            this.scopeFlash = updated > 0
+                ? 'All pricing scopes set to: ' + (labels[scope] || scope) + '.'
+                : 'No pricing scope controls found on this form.';
+
+            if (panel && updated > 0) {
+                this.$nextTick(() => {
+                    const pricing = panel.querySelector('[data-testid="item-pricing-scopes"]');
+                    if (pricing) {
+                        pricing.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }
+                });
+            }
         },
 
         onColorwayScopeSwitch() {
             if (this.colorwayScopeSwitch) {
                 this.setAllPricingScopes('colorway');
+
+                return;
             }
+
+            this.bulkPricingScope = '';
+            this.scopeFlash = '';
         },
 
         syncColorwayScopeSwitchFromRadios() {
-            const root = this.$el || document;
-            const radios = root.querySelectorAll('input[data-catalog-scope-radio]:checked');
+            const panel = this.catalogPanelEl();
+            if (!panel) {
+                return;
+            }
+
+            const radios = panel.querySelectorAll('input[data-catalog-scope-radio]:checked');
             if (radios.length === 0) {
                 return;
             }
@@ -83,6 +145,10 @@ function itemForm() {
                 }
             });
             this.colorwayScopeSwitch = allColorway;
+            if (radios.length > 0) {
+                const first = radios[0];
+                this.bulkPricingScope = allColorway ? 'colorway' : (first ? first.value : '');
+            }
         },
 
         init() {
@@ -519,5 +585,9 @@ function itemForm() {
         },
     };
 }
+
+document.addEventListener('alpine:init', () => {
+    Alpine.data('itemFormRoot', itemForm);
+});
 </script>
 @endpush
