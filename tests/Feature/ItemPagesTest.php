@@ -262,6 +262,23 @@ test('catalogDescription prefers items.description over item_group when set', fu
         ->and($item->catalogDescription2())->toBe('ITEM NB');
 });
 
+test('catalogDescription prefers item_group when leftover item text mirrors the group', function () {
+    $group = \App\Models\ItemGroup::factory()->make([
+        'description' => 'MIKRO MOTIF CAMO HIJAU',
+        'description2' => 'GROUP NB',
+    ]);
+    $item = Item::factory()->make([
+        'group_id' => 24961,
+        'description' => 'MIKRO MOTIF CAMO HIJAU',
+        'description2' => 'GROUP NB',
+        'type' => ItemType::ITEM,
+    ]);
+    $item->setRelation('group', $group);
+
+    expect($item->catalogDescription())->toBe('MIKRO MOTIF CAMO HIJAU')
+        ->and($item->catalogDescription2())->toBe('GROUP NB');
+});
+
 test('catalogDescription falls back to item_group when items.description is empty', function () {
     $group = \App\Models\ItemGroup::factory()->make([
         'description' => 'GROUP DESC',
@@ -483,8 +500,8 @@ test('item show and edit prefer the item description when it differs from the gr
     $this->actingAs($this->user)
         ->get(route('items.edit', $item))
         ->assertOk()
-        ->assertSee('>MIKRO MOTIF HIJAU<', false)
-        ->assertDontSee('>MIKRO MOTIF CAMO HIJAU<', false);
+        ->assertSee('data-testid="item-form-description"', false)
+        ->assertSee('>MIKRO MOTIF CAMO HIJAU<', false);
 });
 
 test('items show page links group and tags to filtered lists', function () {

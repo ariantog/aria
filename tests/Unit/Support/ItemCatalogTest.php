@@ -153,6 +153,22 @@ test('syncDescriptionMirrorsForGroup clears stale item text so catalog reads the
         ->and($item->catalogDescription())->toBe('FLEECE DARK GREY');
 });
 
+test('catalog description prefers group over mirrored duplicate item text', function () {
+    $group = ItemGroup::factory()->make([
+        'description' => 'FLEECE DARK GREY',
+        'description2' => 'SHARED NB',
+    ]);
+    $item = Item::factory()->make([
+        'group_id' => 11,
+        'description' => 'FLEECE DARK GREY',
+        'description2' => 'SHARED NB',
+    ]);
+    $item->setRelation('group', $group);
+
+    expect(ItemCatalog::description($item))->toBe('FLEECE DARK GREY')
+        ->and(ItemCatalog::description2($item))->toBe('SHARED NB');
+});
+
 test('dedupeItemDescriptionsFromGroup clears mirrored text but keeps local overrides', function () {
     $group = ItemGroup::factory()->make([
         'description' => 'SHARED DESC',

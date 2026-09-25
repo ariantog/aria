@@ -532,12 +532,12 @@ class ItemsController extends Controller
         abort_if($detail === null, 404);
 
         try {
-            foreach ($detail['group_ids'] as $groupId) {
-                $renameGroup = ItemGroup::findOrFail($groupId);
-                $this->itemService->renameGroupProductName($renameGroup, $request->input('name'));
-            }
-
-            ItemPricing::applyForParent($detail['parent_key'], $request->input('pricing', []));
+            $this->itemService->applyParentGroupCatalog(
+                $detail['parent_key'],
+                (string) $request->input('name'),
+                $detail['group_ids'],
+                $request->input('pricing', []),
+            );
 
             return redirect()
                 ->route('items.group-parent-detail', $group->id)

@@ -32,6 +32,10 @@ it('rejects jubelio webhook without valid signature', function () {
 it('accepts jubelio webhook with valid signature and stores shipped order', function () {
     config(['services.jubelio.webhook_secret' => 'test-secret']);
 
+    mockJubelioSalesOrder('wh-99901', [
+        'salesorder_no' => 'INV-WEBHOOK-TEST',
+    ]);
+
     $body = json_encode([
         'status' => 'SHIPPED',
         'salesorder_id' => 'wh-99901',
@@ -144,6 +148,10 @@ it('fills warehouse columns from jubelio api when webhook body lacks store locat
 
 it('leaves shipped webhook orders pending for cron processing', function () {
     config(['services.jubelio.webhook_secret' => 'test-secret']);
+
+    mockJubelioSalesOrder('wh-cron-1', [
+        'salesorder_no' => 'INV-CRON-TEST',
+    ]);
 
     $body = json_encode([
         'status' => 'SHIPPED',

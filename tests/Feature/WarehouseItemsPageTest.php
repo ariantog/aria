@@ -462,6 +462,32 @@ it('renders sortable column headers on warehouse stock page', function () {
         ->assertSee('sort=qtyasc', false);
 });
 
+it('shows effective selling price when sku price is zero', function () {
+    User::factory()->create();
+    $user = User::factory()->create();
+    $user->givePermissionTo('addrbook-warehouse-items');
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $group = \App\Models\ItemGroup::factory()->create(['price' => 199_000]);
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'price' => 0,
+        'code' => 'WH-EFFECTIVE-PRICE-S',
+    ]);
+
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $item->id,
+        'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 4,
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('addrbook.type.items', ['warehouse', $warehouse->id]))
+        ->assertOk()
+        ->assertSee('IDR '.format_amount($item->effectivePrice(), 0), false);
+});
+
 it('shows optional item and group alias column toggles on warehouse stock page', function () {
     if (! Schema::hasColumn('item_group', 'alias')) {
         Schema::table('item_group', function ($table) {

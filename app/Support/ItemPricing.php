@@ -36,6 +36,12 @@ final class ItemPricing
     /** @var array<string, ItemParentPrice|null> */
     private static array $parentRecordCache = [];
 
+    public static function flushRequestCache(): void
+    {
+        self::$parentRecordCache = [];
+        self::$columnExists = [];
+    }
+
     public static function resolve(Item $item, string $field): float
     {
         self::assertField($field);
@@ -216,6 +222,8 @@ final class ItemPricing
 
     private static function writeGroup(Item $item, string $field, float $value): void
     {
+        $item->loadMissing(['group', 'tags']);
+
         $parentKey = app(ItemIdentityBuilder::class)->itemParentKey($item);
         $record = ItemParentPrice::query()->firstOrNew(['parent_key' => $parentKey]);
         self::writeParentColumn($record, $field, $value);

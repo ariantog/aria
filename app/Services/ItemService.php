@@ -334,6 +334,63 @@ class ItemService
     }
 
     /**
+     * Parent group catalog save: store product name + pricing on item_parent_prices,
+     * reset colorway titles to inherit parent, clear SKU aliases, and zero lower-level pricing.
+     *
+     * @param  list<int>  $groupIds
+     * @param  array<string, array{scope?: mixed, value?: mixed}>  $pricingRows
+     */
+    public function applyParentGroupCatalog(string $parentKey, string $productName, array $groupIds, array $pricingRows): void
+    {
+        $productName = strtoupper(trim($productName));
+
+        if ($productName === '') {
+            throw new Exception('Product name is required.');
+        }
+
+        DB::transaction(function () use ($parentKey, $productName, $groupIds, $pricingRows): void {
+            ItemProductTitle::syncParentProductName($parentKey, $productName);
+
+            foreach ($groupIds as $groupId) {
+                $group = ItemGroup::query()->find($groupId);
+
+                if ($group === null) {
+                    continue;
+                }
+
+                $sampleItem = $group->items()->first();
+
+                if ($sampleItem === null) {
+                    continue;
+                }
+
+                $itemType = $this->resolveItemType($sampleItem->getAttributes()['type'] ?? $sampleItem->type);
+                $pcode = strtoupper(trim((string) $sampleItem->pcode));
+                $storedName = $this->identityBuilder->uniqueStoredGroupName(
+                    $this->identityBuilder->storedGroupName(
+                        $itemType,
+                        '',
+                        $pcode,
+                        (string) ($group->variant ?? ''),
+                    ),
+                    (string) ($group->master ?? ''),
+                    (string) ($group->variant ?? ''),
+                );
+                $group->name = $storedName;
+                $group->save();
+
+                $this->syncItemNamesForGroup($group);
+            }
+
+            if ($groupIds !== [] && ItemCatalog::itemColumnExists('alias')) {
+                Item::query()->whereIn('group_id', $groupIds)->update(['alias' => '']);
+            }
+
+            ItemPricing::applyForParent($parentKey, $pricingRows);
+        });
+    }
+
+    /**
      * @throws Exception
      */
     public function create(object $input, array $tags, ?UploadedFile $file = null): bool
@@ -418,9 +475,9 @@ class ItemService
                             $pricedGroupIds[] = $group->id;
                         }
 
-                        $this->applySkuOverrides($item, $input);
-
                         $this->persistGroupCatalogAttributes($group, $item, $input, $typeTag);
+
+                        $this->applySkuOverrides($item, $input);
 
                         if ($file) {
                             if (! $firstItemWithImage) {
@@ -1221,8 +1278,13 @@ class ItemService
             $attributes['url'] = $this->normalizeUrl($input->url);
         }
 
+        $previousGroupText = [
+            'description' => trim((string) ($group->description ?? '')),
+            'description2' => trim((string) ($group->description2 ?? '')),
+        ];
+
         ItemCatalog::applyToGroup($group, $attributes);
-        ItemCatalog::syncDescriptionMirrorsForGroup($group, $input, $item);
+        ItemCatalog::syncDescriptionMirrorsForGroup($group, $input, $item, $previousGroupText);
     }
 
     protected function persistItemPricing(Item $item, object $input, bool $defaultColorwayScope = false): void

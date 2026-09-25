@@ -69,7 +69,8 @@ $fmt = fn ($v) => format_amount($v, 0);
                     <div class="border-t border-gray-100 pt-4 md:col-span-2">
                         <p class="mb-2 text-sm font-semibold uppercase tracking-wider text-gray-500">Rename Product</p>
                         <p class="mb-3 text-sm text-gray-600">Updates the product name for every color variant under this parent group.</p>
-                        <form method="POST" action="{{ route('items.group-parent-update', $detail['anchor_group_id']) }}" class="space-y-6">
+                        <form method="POST" action="{{ route('items.group-parent-update', $detail['anchor_group_id']) }}" class="space-y-6"
+                              onsubmit="return confirm('Save group catalog? This sets the parent product name and default pricing for every colorway, clears colorway and SKU price overrides, and resets colorway product titles to inherit the parent name.');">
                             @csrf
                             @method('PUT')
                             <div class="flex flex-col gap-3 sm:flex-row sm:items-end">

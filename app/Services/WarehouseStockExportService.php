@@ -60,7 +60,7 @@ class WarehouseStockExportService
                 $item->code ?? '',
                 $item->name ?? '',
                 $item->catalogDescription(),
-                (float) $item->price,
+                $item->effectivePrice(),
                 (float) ($item->pivot->quantity ?? 0),
             ];
 
