@@ -38,7 +38,7 @@ $formItem = [
 ];
 @endphp
 
-<div class="flex flex-col gap-4 p-4" x-data="itemForm()" x-init="init()">
+<div class="flex flex-col gap-4 p-4" x-data="itemFormRoot" x-init="init()">
     <div class="mb-2">
         <h2 class="mb-1 text-3xl font-bold tracking-tight text-gray-900">{{ $isAsset ? 'Edit Asset' : 'Edit Item' }}</h2>
         <p class="text-gray-500">Update <span class="font-mono text-sm">{{ $item->code }}</span></p>
