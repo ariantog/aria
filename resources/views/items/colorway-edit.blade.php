@@ -46,7 +46,8 @@ $previewRows = collect($sizeRows)->map(fn ($row) => [
     </div>
     @endif
 
-    <form method="POST" action="{{ route('items.colorway-update', $group) }}" enctype="multipart/form-data" class="space-y-8">
+    <form method="POST" action="{{ route('items.colorway-update', $group) }}" enctype="multipart/form-data" class="space-y-8"
+          onsubmit="return confirm('Save this colorway? Catalog and colorway-level pricing apply to every size here; per-SKU description mirrors and size price overrides for fields saved at colorway scope will be cleared.');">
         @csrf
         @method('PUT')
 

@@ -222,6 +222,8 @@ final class ItemPricing
 
     private static function writeGroup(Item $item, string $field, float $value): void
     {
+        $item->loadMissing(['group', 'tags']);
+
         $parentKey = app(ItemIdentityBuilder::class)->itemParentKey($item);
         $record = ItemParentPrice::query()->firstOrNew(['parent_key' => $parentKey]);
         self::writeParentColumn($record, $field, $value);
