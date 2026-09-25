@@ -71,6 +71,8 @@ Examples:
 | Colorway edit | `items-group/colorway/{group}/edit` | Colorway (+ per-size matrix overrides) |
 | Parent detail | `items-group/parent/{group}` | Parent only (pricing fixed to group scope on form) |
 
+Single-item **create/edit** uses a tabbed **Catalog & pricing** panel (`form-details`): tabs choose which catalog level you are editing (SKU / colorway / whole group); pricing scopes stay per-field with quick buttons and a “all colorway” switch.
+
 ## Production notes
 
 - Leftover `items.description`, `brand`, etc. may still exist for L10 parity; new shared attributes belong on `item_group` / `item_parent_prices`.

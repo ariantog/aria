@@ -553,21 +553,22 @@ test('item create and edit forms mark shared colorway attributes', function () {
     $this->actingAs($this->user)
         ->get(route('items.create'))
         ->assertOk()
-        ->assertSee('data-testid="item-form-shared-attributes"', false)
+        ->assertSee('data-testid="item-catalog-panel"', false)
+        ->assertSee('data-testid="item-catalog-tabs"', false)
         ->assertSee('data-testid="item-form-shared-details"', false)
-        ->assertSee('Shared across this colorway', false)
-        ->assertSee('This size only', false)
-        ->assertSee('group name - color - size', false)
+        ->assertSee('data-testid="item-catalog-scope-toolbar"', false)
+        ->assertSee('Colorway', false)
+        ->assertSee('This SKU', false)
+        ->assertSee('item_group.name', false)
         ->assertDontSee('each row keeps its own price', false);
 
     $this->actingAs($this->user)
         ->get(route('items.edit', $item))
         ->assertOk()
-        ->assertSee('data-testid="item-form-shared-attributes"', false)
+        ->assertSee('data-testid="item-catalog-panel"', false)
         ->assertSee('data-testid="item-form-shared-details"', false)
         ->assertSee('data-testid="item-form-shared-tags"', false)
-        ->assertSee('Shared across this colorway', false)
-        ->assertSee('This size only', false);
+        ->assertSee('Whole group', false);
 });
 
 test('asset edit form shows the bare product title not the unique group name', function () {
