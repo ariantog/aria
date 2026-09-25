@@ -36,6 +36,12 @@ final class ItemPricing
     /** @var array<string, ItemParentPrice|null> */
     private static array $parentRecordCache = [];
 
+    public static function flushRequestCache(): void
+    {
+        self::$parentRecordCache = [];
+        self::$columnExists = [];
+    }
+
     public static function resolve(Item $item, string $field): float
     {
         self::assertField($field);

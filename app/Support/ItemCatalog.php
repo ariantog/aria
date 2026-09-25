@@ -62,34 +62,39 @@ final class ItemCatalog
 
     public static function description(Item $item): string
     {
-        $item->loadMissing('group');
-
-        $itemDescription = self::leftoverDescription($item);
-        if ($itemDescription !== '') {
-            return $itemDescription;
-        }
-
-        if ($item->hasCatalogGroup()) {
-            return trim((string) ($item->group->description ?? ''));
-        }
-
-        return '';
+        return self::resolveCatalogText($item, 'description');
     }
 
     public static function description2(Item $item): string
     {
+        return self::resolveCatalogText($item, 'description2');
+    }
+
+    /**
+     * Shared colorway text lives on item_group. Leftover items.* values are per-SKU
+     * overrides only when they differ from the group; mirrored duplicates read as group.
+     */
+    private static function resolveCatalogText(Item $item, string $field): string
+    {
         $item->loadMissing('group');
 
-        $itemDescription = self::leftoverDescription2($item);
-        if ($itemDescription !== '') {
-            return $itemDescription;
+        $groupText = $item->hasCatalogGroup()
+            ? trim((string) ($item->group->{$field} ?? ''))
+            : '';
+
+        $itemText = $field === 'description'
+            ? self::leftoverDescription($item)
+            : self::leftoverDescription2($item);
+
+        if ($groupText !== '') {
+            if ($itemText !== '' && strtoupper($itemText) !== strtoupper($groupText)) {
+                return $itemText;
+            }
+
+            return $groupText;
         }
 
-        if ($item->hasCatalogGroup()) {
-            return trim((string) ($item->group->description2 ?? ''));
-        }
-
-        return '';
+        return $itemText;
     }
 
     public static function resellerPrice(Item $item): float
@@ -258,9 +263,15 @@ final class ItemCatalog
      * Shared description lives on item_group. Clear stale items.* copies whenever
      * the colorway field is saved so detail pages read the group value. Per-SKU text
      * uses item_description / item_description2 on the item being edited.
+     *
+     * @param  array{description?: string, description2?: string}  $previousGroupText
      */
-    public static function syncDescriptionMirrorsForGroup(ItemGroup $group, object $input, Item $editedItem): void
-    {
+    public static function syncDescriptionMirrorsForGroup(
+        ItemGroup $group,
+        object $input,
+        Item $editedItem,
+        array $previousGroupText = [],
+    ): void {
         $group->refresh();
 
         foreach ([
@@ -280,12 +291,39 @@ final class ItemCatalog
                 $override = strtoupper(trim((string) ($input->{$overrideKey} ?? '')));
             }
 
+            $newGroupText = strtoupper(trim((string) ($group->{$field} ?? '')));
+            $previousGroupTextValue = strtoupper(trim((string) ($previousGroupText[$field] ?? '')));
+
             Item::query()
                 ->where('group_id', $group->id)
                 ->get()
-                ->each(function (Item $item) use ($field, $override, $editedItem): void {
-                    $item->{$field} = $item->id === $editedItem->id ? $override : '';
-                    $item->save();
+                ->each(function (Item $item) use (
+                    $field,
+                    $override,
+                    $editedItem,
+                    $newGroupText,
+                    $previousGroupTextValue,
+                ): void {
+                    if ($item->id === $editedItem->id) {
+                        $item->{$field} = $override;
+                        $item->save();
+
+                        return;
+                    }
+
+                    $itemText = strtoupper(trim((string) ($item->{$field} ?? '')));
+                    if ($itemText === '') {
+                        return;
+                    }
+
+                    $isMirror = $previousGroupTextValue !== ''
+                        && $itemText === $previousGroupTextValue;
+                    $matchesNewGroup = $newGroupText !== '' && $itemText === $newGroupText;
+
+                    if ($isMirror || $matchesNewGroup) {
+                        $item->{$field} = '';
+                        $item->save();
+                    }
                 });
         }
     }

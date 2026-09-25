@@ -29,8 +29,8 @@ $formItem = [
     'product_name' => old('product_name', $productTitle !== ''
         ? $productTitle
         : ($legacyAssetProductName ?: '')),
-    'description' => old('description', $isAsset ? ($item->group?->description ?? '') : $item->catalogDescription()),
-    'description2' => old('description2', $isAsset ? ($item->group?->description2 ?? '') : $item->catalogDescription2()),
+    'description' => old('description', $item->group?->description ?? $item->catalogDescription()),
+    'description2' => old('description2', $item->group?->description2 ?? $item->catalogDescription2()),
     'item_description' => old('item_description', $isAsset ? ($item->description ?? '') : ''),
     'item_description2' => old('item_description2', $isAsset ? ($item->description2 ?? '') : ''),
     'url' => old('url', optional($item->group)->url),

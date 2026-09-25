@@ -27,6 +27,12 @@ final class ItemProductTitle
     /** @var array<string, ItemParentPrice|null> */
     private static array $parentRecordCache = [];
 
+    public static function flushRequestCache(): void
+    {
+        self::$parentRecordCache = [];
+        self::$columnExists = [];
+    }
+
     public static function resolveBareTitle(Item $item): string
     {
         $item->loadMissing(['group', 'tags']);
@@ -88,6 +94,35 @@ final class ItemProductTitle
         }
 
         return app(ItemIdentityBuilder::class)->buildName($bare, $warnaTag, $sizeTag);
+    }
+
+    /**
+     * Legacy rows and tests often keep the full L10 display string on items.name while
+     * item_group.name is still empty or pcode-like. Prefer that stored name until catalog
+     * titles are filled in on the group or parent record.
+     */
+    public static function shouldPreferStoredDisplayName(Item $item): bool
+    {
+        $stored = trim((string) $item->name);
+        if ($stored === '') {
+            return false;
+        }
+
+        if (self::readItemAlias($item) !== '') {
+            return false;
+        }
+
+        if (self::readGroupAlias($item->group) !== '') {
+            return false;
+        }
+
+        if (self::readParentProductName($item) !== '') {
+            return false;
+        }
+
+        $built = self::buildDisplayName($item);
+
+        return strtoupper($stored) !== strtoupper($built);
     }
 
     public static function syncParentProductName(string $parentKey, string $productName): void

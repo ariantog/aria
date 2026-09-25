@@ -418,9 +418,9 @@ class ItemService
                             $pricedGroupIds[] = $group->id;
                         }
 
-                        $this->applySkuOverrides($item, $input);
-
                         $this->persistGroupCatalogAttributes($group, $item, $input, $typeTag);
+
+                        $this->applySkuOverrides($item, $input);
 
                         if ($file) {
                             if (! $firstItemWithImage) {
@@ -1221,8 +1221,13 @@ class ItemService
             $attributes['url'] = $this->normalizeUrl($input->url);
         }
 
+        $previousGroupText = [
+            'description' => trim((string) ($group->description ?? '')),
+            'description2' => trim((string) ($group->description2 ?? '')),
+        ];
+
         ItemCatalog::applyToGroup($group, $attributes);
-        ItemCatalog::syncDescriptionMirrorsForGroup($group, $input, $item);
+        ItemCatalog::syncDescriptionMirrorsForGroup($group, $input, $item, $previousGroupText);
     }
 
     protected function persistItemPricing(Item $item, object $input, bool $defaultColorwayScope = false): void

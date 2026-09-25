@@ -355,12 +355,18 @@ class Item extends Model
 
     public function getItemName(): string
     {
+        $stored = trim((string) $this->name);
+
+        if ($stored !== '' && ItemProductTitle::shouldPreferStoredDisplayName($this)) {
+            return $stored;
+        }
+
         $built = ItemProductTitle::buildDisplayName($this);
         if ($built !== '') {
             return $built;
         }
 
-        return (string) $this->name;
+        return $stored;
     }
 
     public function effectiveDisplayName(): string
