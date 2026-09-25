@@ -355,21 +355,26 @@ it('exports the current transactions page to excel', function () {
         ->toContain('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 });
 
-it('shows group alias as item name on transaction detail', function () {
+it('shows effective item display name on transaction detail when group uses legacy alias', function () {
     if (! Schema::hasColumn('item_group', 'alias')) {
         Schema::table('item_group', function ($table) {
             $table->string('alias')->nullable();
         });
     }
 
-    $group = ItemGroup::factory()->create(['name' => 'GROUP PRODUCT NAME']);
+    $group = ItemGroup::factory()->create(['name' => 'CX90233-23']);
     DB::table('item_group')->where('id', $group->id)->update(['alias' => 'GROUP ALIAS NAME']);
+
+    $warna = \App\Models\Tag::factory()->create(['type' => \App\Models\Tag::TYPE_WARNA, 'code' => 'NAVY', 'name' => 'Navy']);
+    $size = \App\Models\Tag::factory()->create(['type' => \App\Models\Tag::TYPE_SIZE, 'code' => 'S', 'name' => 'S']);
 
     $item = Item::factory()->create([
         'group_id' => $group->id,
+        'pcode' => 'CX90233-23',
         'name' => 'ITEM DISPLAY NAME - NAVY - S',
         'code' => 'AJD-TX-SHOW-S',
     ]);
+    $item->tags()->sync([$warna->id, $size->id]);
 
     $transaction = Transaction::factory()->create(['invoice' => 'TX-ALIAS-NAME']);
     TransactionDetail::factory()->create([
@@ -380,7 +385,7 @@ it('shows group alias as item name on transaction detail', function () {
     $this->actingAs($this->user)
         ->get(route('transactions.show', $transaction))
         ->assertOk()
-        ->assertSee('GROUP ALIAS NAME', false)
+        ->assertSee('GROUP ALIAS NAME - NAVY - S', false)
         ->assertDontSee('ITEM DISPLAY NAME - NAVY - S', false);
 });
 

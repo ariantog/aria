@@ -9,6 +9,7 @@ use App\Support\FillsProductionColumnDefaults;
 use App\Support\ItemCatalog;
 use App\Support\ItemImageResolver;
 use App\Support\ItemPricing;
+use App\Support\ItemProductTitle;
 use App\Support\LikeSearch;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -37,6 +38,7 @@ class Item extends Model
     protected $fillable = [
         'group_id',
         'name',
+        'alias',
         'code',
         'legacy_code',
         'pcode',
@@ -335,6 +337,7 @@ class Item extends Model
         $payload = $this->toArray();
         $payload['price'] = $this->effectivePrice();
         $payload['cost'] = $this->effectiveCost();
+        $payload['name'] = $this->effectiveDisplayName();
         $payload['reseller_sell_price'] = $this->resellerSellPrice();
 
         return $payload;
@@ -362,13 +365,17 @@ class Item extends Model
 
     public function getItemName(): string
     {
-        if ($this->type === ItemType::ASSET_LANCAR || $this->type === ItemType::ASSET_TETAP) {
-            return $this->name;
+        $built = ItemProductTitle::buildDisplayName($this);
+        if ($built !== '') {
+            return $built;
         }
 
-        $alias = trim((string) ($this->group?->alias ?? ''));
+        return (string) $this->name;
+    }
 
-        return $alias !== '' ? $alias : $this->name;
+    public function effectiveDisplayName(): string
+    {
+        return $this->getItemName();
     }
 
     public function isAssetLancar(): bool
