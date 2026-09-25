@@ -97,6 +97,56 @@ test('it renames group product name and syncs all item display names', function 
     $this->assertDatabaseHas('items', ['code' => 'AJD-CX90233-23-M', 'name' => 'SLASH RUNNING SHIRT - BLUE - M']);
 });
 
+test('apply parent group catalog stores title on parent and clears lower pricing overrides', function () {
+    $mediumTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'Medium']);
+
+    $input = (object) [
+        'pcode' => 'CX90233-23',
+        'type' => ItemType::ITEM->value,
+        'price' => 100000,
+        'product_name' => 'Colorway Title',
+    ];
+
+    $tags = [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id, $mediumTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ];
+
+    $this->itemService->create($input, $tags);
+
+    $group = ItemGroup::where('master', 'CX90233-23')->where('variant', '23')->firstOrFail();
+    $parentKey = app(ItemIdentityBuilder::class)->itemParentKey(Item::where('group_id', $group->id)->first());
+
+    Item::query()->where('group_id', $group->id)->update(['price' => 88000]);
+    $group->update(['price' => 99000, 'name' => 'COLORWAY TITLE']);
+
+    $this->itemService->applyParentGroupCatalog(
+        $parentKey,
+        'Parent Running Shirt',
+        [$group->id],
+        [
+            'price' => ['scope' => 'group', 'value' => 75000],
+        ],
+    );
+
+    $group->refresh();
+    $small = Item::where('code', 'AJD-CX90233-23-S')->firstOrFail();
+
+    expect($group->name)->toBe('CX90233-23')
+        ->and((float) $group->price)->toBe(0.0)
+        ->and((float) $small->price)->toBe(0.0)
+        ->and(\App\Support\ItemPricing::resolve($small, 'price'))->toBe(75000.0)
+        ->and(\App\Support\ItemProductTitle::resolveBareTitle($small))->toBe('PARENT RUNNING SHIRT');
+
+    $this->assertDatabaseHas('item_parent_prices', [
+        'parent_key' => $parentKey,
+        'product_name' => 'PARENT RUNNING SHIRT',
+        'price' => 75000,
+    ]);
+});
+
 test('it propagates product name change from item update to all sizes in group', function () {
     $mediumTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'Medium']);
 

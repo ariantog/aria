@@ -75,3 +75,32 @@ test('apply colorway scope clears size overrides in the colorway', function () {
         ->and((float) $second->price)->toBe(0.0)
         ->and(ItemPricing::resolve($first, 'price'))->toBe(120000.0);
 });
+
+test('apply group scope clears colorway and size pricing under parent', function () {
+    $typeTag = \App\Models\Tag::factory()->create(['type' => \App\Models\Tag::TYPE_TYPE, 'code' => 'AJD', 'name' => 'Jacket']);
+
+    $group = ItemGroup::query()->create([
+        'master' => 'CX90032-01',
+        'variant' => '01',
+        'name' => 'SHIRT',
+        'description' => '',
+        'description2' => '',
+        'price' => 80000,
+    ]);
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CX90032-01',
+        'price' => 90000,
+    ]);
+    $item->tags()->attach($typeTag->id);
+
+    ItemPricing::apply($item, 'price', ItemPricing::SCOPE_GROUP, 70000);
+
+    $group->refresh();
+    $item->refresh();
+
+    expect((float) $group->price)->toBe(0.0)
+        ->and((float) $item->price)->toBe(0.0)
+        ->and(ItemPricing::resolve($item, 'price'))->toBe(70000.0);
+});
