@@ -202,6 +202,10 @@ class ItemService
 
             ItemCatalog::applyToGroup($group, $catalogAttributes);
 
+            if (isset($input->description) || isset($input->description2)) {
+                ItemCatalog::resetDescriptionMirrorsForColorway($group);
+            }
+
             $mirror = [
                 'brand' => $catalogAttributes['brand'],
                 'genre' => $catalogAttributes['genre'],
@@ -1218,6 +1222,7 @@ class ItemService
         }
 
         ItemCatalog::applyToGroup($group, $attributes);
+        ItemCatalog::syncDescriptionMirrorsForGroup($group, $input, $item);
     }
 
     protected function persistItemPricing(Item $item, object $input, bool $defaultColorwayScope = false): void

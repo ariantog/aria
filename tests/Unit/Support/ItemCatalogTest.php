@@ -126,6 +126,33 @@ test('seedEmptyDescriptions fills blank group text and never overwrites catalog'
         ->and($emptyGroup->description2)->toBe('NOTE');
 });
 
+test('syncDescriptionMirrorsForGroup clears stale item text so catalog reads the group', function () {
+    $group = ItemGroup::factory()->create([
+        'description' => 'FLEECE DARK GREY',
+        'description2' => '',
+    ]);
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'description' => 'PS ABU',
+        'description2' => 'OLD NB',
+    ]);
+
+    expect(ItemCatalog::description($item))->toBe('PS ABU');
+
+    $input = (object) [
+        'description' => 'FLEECE DARK GREY',
+        'description2' => '',
+    ];
+
+    ItemCatalog::syncDescriptionMirrorsForGroup($group, $input, $item);
+
+    $item->refresh();
+
+    expect((string) $item->description)->toBe('')
+        ->and(ItemCatalog::description($item))->toBe('FLEECE DARK GREY')
+        ->and($item->catalogDescription())->toBe('FLEECE DARK GREY');
+});
+
 test('dedupeItemDescriptionsFromGroup clears mirrored text but keeps local overrides', function () {
     $group = ItemGroup::factory()->make([
         'description' => 'SHARED DESC',

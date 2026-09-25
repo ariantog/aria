@@ -255,6 +255,64 @@ final class ItemCatalog
     }
 
     /**
+     * Shared description lives on item_group. Clear stale items.* copies whenever
+     * the colorway field is saved so detail pages read the group value. Per-SKU text
+     * uses item_description / item_description2 on the item being edited.
+     */
+    public static function syncDescriptionMirrorsForGroup(ItemGroup $group, object $input, Item $editedItem): void
+    {
+        $group->refresh();
+
+        foreach ([
+            'description' => 'item_description',
+            'description2' => 'item_description2',
+        ] as $field => $overrideKey) {
+            if (! isset($input->{$field}) && ! property_exists($input, $field)) {
+                continue;
+            }
+
+            if (! self::itemColumnExists($field)) {
+                continue;
+            }
+
+            $override = '';
+            if (property_exists($input, $overrideKey) || isset($input->{$overrideKey})) {
+                $override = strtoupper(trim((string) ($input->{$overrideKey} ?? '')));
+            }
+
+            Item::query()
+                ->where('group_id', $group->id)
+                ->get()
+                ->each(function (Item $item) use ($field, $override, $editedItem): void {
+                    $item->{$field} = $item->id === $editedItem->id ? $override : '';
+                    $item->save();
+                });
+        }
+    }
+
+    /**
+     * Colorway editor updates the group only — drop leftover item mirrors for every size.
+     */
+    public static function resetDescriptionMirrorsForColorway(ItemGroup $group): void
+    {
+        $updates = [];
+
+        if (self::itemColumnExists('description')) {
+            $updates['description'] = '';
+        }
+
+        if (self::itemColumnExists('description2')) {
+            $updates['description2'] = '';
+        }
+
+        if ($updates === []) {
+            return;
+        }
+
+        Item::query()->where('group_id', $group->id)->update($updates);
+    }
+
+    /**
      * Fill empty group description fields from a previous leftover group or the
      * item leftover columns. Never overwrites a non-empty group value.
      */
