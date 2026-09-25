@@ -347,11 +347,19 @@ class ItemsController extends Controller
             $productTitle = (string) ($parentHints['product_name'] ?? '');
         }
 
+        $parentKey = $this->identityBuilder->itemParentKey($item);
+        $parentRecord = \App\Models\ItemParentPrice::query()->where('parent_key', $parentKey)->first();
+        $anchorGroupId = $item->group_id > 0
+            ? ($this->groupHierarchy->anchorGroupIdForParentKey($parentKey) ?? $item->group_id)
+            : null;
+
         return view('items.edit', array_merge($this->formProps($item->type), [
             'item' => $item,
             'types' => $this->typeOptions(),
             'productTitle' => $productTitle,
             'pricingState' => ItemPricing::formState($item),
+            'parentProductName' => trim((string) ($parentRecord?->product_name ?? '')),
+            'parentGroupUrl' => $anchorGroupId ? route('items.group-parent-detail', $anchorGroupId) : null,
             'colorwayEditUrl' => $item->group_id > 0
                 ? route('items.colorway-edit', $item->group_id)
                 : null,

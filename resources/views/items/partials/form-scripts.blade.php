@@ -9,6 +9,7 @@
         'cost_cnh' => old('cost_cnh', ''),
         'reseller_price' => old('reseller_price', ''),
     ];
+    $catalogTabDefault = old('catalog_tab', 'colorway');
 @endphp
 @push('scripts')
 <script>
@@ -50,6 +51,39 @@ function itemForm() {
             size: '',
             jahit: '',
         },
+        catalogTab: @js($catalogTabDefault),
+        colorwayScopeSwitch: false,
+
+        setAllPricingScopes(scope) {
+            const root = this.$el || document;
+            root.querySelectorAll('input[data-catalog-scope-radio]').forEach((input) => {
+                if (input.value === scope) {
+                    input.checked = true;
+                }
+            });
+            this.colorwayScopeSwitch = scope === 'colorway';
+        },
+
+        onColorwayScopeSwitch() {
+            if (this.colorwayScopeSwitch) {
+                this.setAllPricingScopes('colorway');
+            }
+        },
+
+        syncColorwayScopeSwitchFromRadios() {
+            const root = this.$el || document;
+            const radios = root.querySelectorAll('input[data-catalog-scope-radio]:checked');
+            if (radios.length === 0) {
+                return;
+            }
+            let allColorway = true;
+            radios.forEach((input) => {
+                if (input.value !== 'colorway') {
+                    allColorway = false;
+                }
+            });
+            this.colorwayScopeSwitch = allColorway;
+        },
 
         init() {
             this.autoFilledName = (this.form.product_name || '').toUpperCase().trim();
@@ -58,6 +92,7 @@ function itemForm() {
             this.$nextTick(() => {
                 this.syncFromDom();
                 this.schedulePcodeLookup();
+                this.syncColorwayScopeSwitchFromRadios();
             });
         },
 

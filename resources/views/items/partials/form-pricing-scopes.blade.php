@@ -20,10 +20,11 @@
     $pricingIntro = $pricingIntro ?? 'Choose where each amount is saved. If a SKU has no value, the colorway applies; if the colorway has none, the whole group applies.';
     $pricingFixedScope = $pricingFixedScope ?? null;
     $showScopeRadios = $pricingFixedScope === null;
+    $embeddedInCatalog = $embeddedInCatalog ?? false;
 @endphp
 
-<fieldset class="space-y-5 rounded-lg border border-indigo-200 bg-indigo-50/40 p-4" data-testid="item-pricing-scopes">
-    <legend class="px-1 text-xs font-semibold uppercase tracking-wide text-indigo-800">Pricing</legend>
+<fieldset class="space-y-5 rounded-lg border {{ $embeddedInCatalog ? 'border-gray-200 bg-white' : 'border-indigo-200 bg-indigo-50/40' }} p-4" data-testid="item-pricing-scopes">
+    <legend class="px-1 text-xs font-semibold uppercase tracking-wide {{ $embeddedInCatalog ? 'text-gray-700' : 'text-indigo-800' }}">Pricing amounts</legend>
     @if($pricingIntro !== '')
     <p class="px-1 text-xs leading-relaxed text-gray-600">{{ $pricingIntro }}</p>
     @endif
@@ -55,6 +56,7 @@
                                name="{{ $pricingPrefix }}[{{ $fieldKey }}][scope]"
                                value="{{ $scopeKey }}"
                                @checked($oldScope === $scopeKey)
+                               data-catalog-scope-radio="1"
                                data-testid="{{ $pricingIdPrefix }}-{{ $fieldKey }}-scope-{{ $scopeKey }}"
                                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
                         {{ $scopeLabel }}

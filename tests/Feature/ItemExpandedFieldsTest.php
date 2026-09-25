@@ -213,7 +213,7 @@ it('shows separate global and per-sku description fields on asset lancar edit pa
         ->assertSee('name="item_description"', false)
         ->assertSee('data-testid="item-form-pricing-reseller_price-scope-size"', false)
         ->assertSee('data-testid="item-form-sku-details"', false)
-        ->assertSee('Optional per-SKU overrides for rare cases', false)
+        ->assertSee('Optional description overrides', false)
         ->assertSee('GROUP DESC', false)
         ->assertSee('SKU DESC', false);
 });
