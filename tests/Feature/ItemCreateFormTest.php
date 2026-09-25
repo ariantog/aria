@@ -157,10 +157,10 @@ it('renders asset lancar create page', function () {
         ->get(route('assetlancar.create'))
         ->assertOk()
         ->assertSee('Create New Asset', false)
-        ->assertSee('Product Name', false)
+        ->assertSee('Product name (colorway)', false)
         ->assertSee('data-testid="item-form-pcode"', false)
-        ->assertSee('group name - color - size', false)
-        ->assertSee('data-testid="item-form-shared-attributes"', false);
+        ->assertSee('data-testid="item-form-product-name"', false)
+        ->assertSee('data-testid="item-catalog-panel"', false);
 });
 
 it('renders item summary preview below tag selection on create forms', function () {
