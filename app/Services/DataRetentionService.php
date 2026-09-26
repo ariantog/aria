@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ItemType;
 use App\Models\Addrbook;
 use App\Models\DataRetentionRun;
 use Illuminate\Database\Connection;
@@ -337,6 +338,84 @@ class DataRetentionService
                 'deleted_at' => $row->deleted_at,
                 'warehouse_qty' => (float) $row->warehouse_qty,
             ]);
+    }
+
+    /**
+     * @return array{
+     *     id: int,
+     *     code: string,
+     *     name: string,
+     *     type: int,
+     *     type_label: string,
+     *     deleted_at: string|null,
+     *     warehouse_qty: float,
+     *     has_transaction_details: bool,
+     *     deletable: bool
+     * }|null
+     */
+    public function previewItemPurge(int $id): ?array
+    {
+        $row = $this->live()->table('items')->where('id', $id)->first();
+
+        if ($row === null) {
+            return null;
+        }
+
+        $hasTransactionDetails = $this->itemAppearsInTransactionDetails($id);
+        $warehouseQty = 0.0;
+
+        if (Schema::hasTable('warehouse_item')) {
+            $warehouseQty = (float) ($this->live()->table('warehouse_item')
+                ->where('item_id', $id)
+                ->sum('quantity') ?? 0);
+        }
+
+        $type = (int) $row->type;
+        $typeLabel = ItemType::coerce($type)?->label() ?? 'Unknown';
+
+        return [
+            'id' => (int) $row->id,
+            'code' => (string) $row->code,
+            'name' => (string) $row->name,
+            'type' => $type,
+            'type_label' => $typeLabel,
+            'deleted_at' => $row->deleted_at,
+            'warehouse_qty' => $warehouseQty,
+            'has_transaction_details' => $hasTransactionDetails,
+            'deletable' => ! $hasTransactionDetails,
+        ];
+    }
+
+    public function itemAppearsInTransactionDetails(int $id): bool
+    {
+        foreach (['transaction_details', 'deleted_details'] as $table) {
+            if (! Schema::hasTable($table)) {
+                continue;
+            }
+
+            if ($this->live()->table($table)->where('item_id', $id)->exists()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function deleteItemFromLive(int $id): void
+    {
+        $preview = $this->previewItemPurge($id);
+
+        if ($preview === null) {
+            throw new \RuntimeException('Item not found.');
+        }
+
+        if (! $preview['deletable']) {
+            throw new \RuntimeException('This item appears in transaction details and cannot be deleted.');
+        }
+
+        DB::transaction(fn () => $this->hardDeleteItem($id));
+
+        $this->purgeOrphanItemGroupsFromLive(false);
     }
 
     public function countSelectableOrphanItems(
@@ -1277,19 +1356,60 @@ class DataRetentionService
 
     protected function hardDeleteItem(int $id): void
     {
-        if (Schema::hasTable('item_tag')) {
-            DB::table('item_tag')->where('item_id', $id)->delete();
-        }
+        foreach ($this->itemReferenceDeletes() as $delete) {
+            if (! Schema::hasTable($delete['table'])) {
+                continue;
+            }
 
-        if (Schema::hasTable('item_identity_conversion_results')) {
-            DB::table('item_identity_conversion_results')->where('item_id', $id)->delete();
-        }
+            $columns = array_values(array_filter(
+                $delete['columns'],
+                fn (string $column) => Schema::hasColumn($delete['table'], $column),
+            ));
 
-        if (Schema::hasTable('warehouse_item')) {
-            DB::table('warehouse_item')->where('item_id', $id)->delete();
+            if ($columns === []) {
+                continue;
+            }
+
+            $query = DB::table($delete['table']);
+
+            $query->where(function ($builder) use ($columns, $id) {
+                foreach ($columns as $index => $column) {
+                    if ($index === 0) {
+                        $builder->where($column, $id);
+                    } else {
+                        $builder->orWhere($column, $id);
+                    }
+                }
+            });
+
+            $query->delete();
         }
 
         DB::table('items')->where('id', $id)->delete();
+    }
+
+    /**
+     * @return list<array{table: string, columns: list<string>}>
+     */
+    protected function itemReferenceDeletes(): array
+    {
+        return [
+            ['table' => 'item_tag', 'columns' => ['item_id']],
+            ['table' => 'item_identity_conversion_results', 'columns' => ['item_id']],
+            ['table' => 'warehouse_item', 'columns' => ['item_id']],
+            ['table' => 'warehouse_item_monthly_stats', 'columns' => ['item_id']],
+            ['table' => 'daily_inventory_summaries', 'columns' => ['item_id']],
+            ['table' => 'stock_data', 'columns' => ['item_id']],
+            ['table' => 'depreciation', 'columns' => ['item_id']],
+            ['table' => 'warehouse_arrangement_candidates', 'columns' => ['item_id']],
+            ['table' => 'item_stock_notifications', 'columns' => ['item_id']],
+            ['table' => 'jubelio_stock_discrepancies', 'columns' => ['item_id']],
+            ['table' => 'jubelio_item_link_attempts', 'columns' => ['item_id']],
+            ['table' => 'item_insight_rankings', 'columns' => ['item_id']],
+            ['table' => 'restock_cells', 'columns' => ['item_id']],
+            ['table' => 'shopee_ads_item_ads', 'columns' => ['item_id']],
+            ['table' => 'shopee_ads_item_performance_snapshots', 'columns' => ['item_id']],
+        ];
     }
 
     protected function hardDeleteAddrbook(int $id): void
