@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreJubelioStockCheckRequest;
+use App\Models\Addrbook;
 use App\Models\Jubelio;
 use App\Models\JubelioStockCheck;
 use App\Services\JubelioStockCheckService;
@@ -81,7 +82,14 @@ class JubelioStockCheckController extends Controller
         Gate::authorize(Jubelio::getPermissions()['stock-check']);
 
         $sort = request()->query('sort', 'abs_diff_desc');
+        $warehouseFilter = request()->query('warehouse_id');
+        $warehouseFilterId = is_numeric($warehouseFilter) ? (int) $warehouseFilter : null;
+
         $discrepanciesQuery = $jubelioStockCheck->discrepancies()->with('warehouse', 'item');
+
+        if ($warehouseFilterId !== null && $warehouseFilterId > 0) {
+            $discrepanciesQuery->where('warehouse_id', $warehouseFilterId);
+        }
 
         match ($sort) {
             'diff_asc' => $discrepanciesQuery->orderByRaw('(aria_qty - jubelio_qty) ASC'),
@@ -89,10 +97,25 @@ class JubelioStockCheckController extends Controller
             default => $discrepanciesQuery->orderByRaw('ABS(aria_qty - jubelio_qty) DESC'),
         };
 
+        $warehouseFilterOptions = Addrbook::query()
+            ->whereIn(
+                'id',
+                $jubelioStockCheck->discrepancies()->distinct()->pluck('warehouse_id'),
+            )
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn (Addrbook $warehouse) => [
+                'id' => (int) $warehouse->id,
+                'name' => $warehouse->name,
+            ])
+            ->values();
+
         return view('jubelio.stock-check.show', [
             'stockCheck' => $jubelioStockCheck,
             'discrepancies' => $discrepanciesQuery->get(),
             'sort' => $sort,
+            'warehouseFilterId' => $warehouseFilterId,
+            'warehouseFilterOptions' => $warehouseFilterOptions,
             'syncedWarehouseCount' => \App\Models\Jubeliosync::query()
                 ->where('warehouse_id', '>', 0)
                 ->where('jubelio_store_id', '>', 0)

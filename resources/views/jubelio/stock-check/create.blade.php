@@ -43,8 +43,9 @@ $breadcrumbs = [
                            value="{{ old('per_type_limit', 50) }}"
                            class="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                     <p class="text-xs text-gray-500">
-                        {{ old('per_type_limit', 50) }} item + {{ old('per_type_limit', 50) }} aset lancar per gudang yang tersinkron ke Jubelio.
-                        Dipilih berdasarkan penjualan terbanyak, lalu diisi dari stok gudang jika kurang.
+                        {{ old('per_type_limit', 50) }} item + {{ old('per_type_limit', 50) }} aset lancar per gudang tersinkron (total {{ (int) old('per_type_limit', 50) * 2 }} SKU).
+                        Dipilih dari penjualan terbanyak, lalu diisi dari stok gudang jika kurang.
+                        Cron harian otomatis memakai {{ \App\Services\JubelioStockCheckService::DEFAULT_PER_WAREHOUSE_SKU_LIMIT }} SKU/gudang dan memindai setiap gudang terhubung.
                     </p>
                     @error('per_type_limit')<p class="text-sm text-red-500">{{ $message }}</p>@enderror
                 </div>

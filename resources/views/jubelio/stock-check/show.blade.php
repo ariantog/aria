@@ -13,6 +13,12 @@ $sortOptions = [
     'diff_desc' => 'Aria lebih banyak',
     'diff_asc' => 'Jubelio lebih banyak',
 ];
+$skusPerWarehouse = $stockCheck->per_type_limit * 2;
+$showQueryBase = route('jubelio-stock-checks.show', $stockCheck->id);
+$showQueryParams = array_filter([
+    'sort' => $sort,
+    'warehouse_id' => $warehouseFilterId,
+], fn ($value) => $value !== null && $value !== '');
 @endphp
 
 <div class="flex flex-col gap-6 p-4">
@@ -25,7 +31,7 @@ $sortOptions = [
             <p class="text-sm text-gray-500">
                 Status: <span class="font-bold uppercase">{{ $stockCheck->status }}</span>
                 | Gudang {{ $stockCheck->sync_cursor }}/{{ $syncedWarehouseCount }}
-                | {{ $stockCheck->per_type_limit }} item + {{ $stockCheck->per_type_limit }} aset lancar/gudang
+                | {{ $skusPerWarehouse }} SKU/gudang ({{ $stockCheck->per_type_limit }} item + {{ $stockCheck->per_type_limit }} aset lancar)
                 | Permintaan {{ $stockCheck->demand_days }} hari
             </p>
         </div>
@@ -55,14 +61,28 @@ $sortOptions = [
     <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
         <div class="flex flex-col gap-3 border-b border-gray-100 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
             <h3 class="text-sm font-semibold text-gray-900">Daftar Ketidakcocokan</h3>
-            <div class="flex items-center gap-2">
+            <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+                <div class="flex items-center gap-2">
+                    <label for="warehouse_id" class="text-xs font-medium uppercase text-gray-500">Gudang</label>
+                    <select id="warehouse_id"
+                            onchange="(function(sel){var p=@js($showQueryParams); p.sort=@js($sort); if(sel.value){p.warehouse_id=sel.value;}else{delete p.warehouse_id;} window.location.href=@js($showQueryBase)+'?'+new URLSearchParams(p).toString();})(this)"
+                            class="h-9 max-w-xs rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                        <option value="">Semua gudang</option>
+                        @foreach($warehouseFilterOptions as $warehouseOption)
+                        <option value="{{ $warehouseOption['id'] }}" @selected($warehouseFilterId === $warehouseOption['id'])>{{ $warehouseOption['name'] }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="flex items-center gap-2">
                 <label for="sort" class="text-xs font-medium text-gray-500 uppercase">Urutkan</label>
-                <select id="sort" onchange="window.location.href='{{ route('jubelio-stock-checks.show', $stockCheck->id) }}?sort=' + this.value"
+                <select id="sort"
+                        onchange="(function(sel){var p=@js($showQueryParams); p.sort=sel.value; window.location.href=@js($showQueryBase)+'?'+new URLSearchParams(p).toString();})(this)"
                         class="h-9 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                     @foreach($sortOptions as $value => $label)
                     <option value="{{ $value }}" @selected($sort === $value)>{{ $label }}</option>
                     @endforeach
                 </select>
+                </div>
             </div>
         </div>
         <div class="p-6">
