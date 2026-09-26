@@ -59,6 +59,10 @@
                     Page {{ $currentPage }} shows {{ number_format($currentPageCount) }} item(s); {{ number_format($convertiblePageCount) }} ready to convert (Legacy column empty).
                 @endif
             </p>
+            <p class="mt-1 text-sm">
+                <a href="{{ route('items.display-name-sync') }}" class="text-blue-600 hover:underline">Display Name Sync</a>
+                — align converted SKU names with legacy title + color + size.
+            </p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
             <a href="{{ route('items.legacy-converter', array_merge($baseParams, ['type' => \App\Enums\ItemType::ASSET_LANCAR->value, 'tab' => $tab])) }}"

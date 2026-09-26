@@ -205,6 +205,15 @@ class SidebarFavoriteRegistry
                 'active_prefix' => '/items/legacy-converter',
             ],
             [
+                'key' => 'items-display-name-sync',
+                'label' => 'Display Name Sync',
+                'group' => 'Stuff',
+                'permission' => 'items-convert-legacy',
+                'route' => 'items.display-name-sync',
+                'params' => [],
+                'active_prefix' => '/items/display-name-sync',
+            ],
+            [
                 'key' => 'stock-notification-list',
                 'label' => 'Stock Alerts',
                 'group' => 'Stuff',

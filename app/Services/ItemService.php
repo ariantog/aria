@@ -1175,6 +1175,12 @@ class ItemService
         }
     }
 
+    /** Regenerate items.name for every SKU in a colorway from catalog + tags. */
+    public function rebuildDisplayNamesForGroup(ItemGroup $group): void
+    {
+        $this->syncItemNamesForGroup($group);
+    }
+
     public function isPlaceholderProductName(ItemType $type, string $groupName, string $pcode): bool
     {
         if ($type !== ItemType::ITEM) {
