@@ -653,7 +653,26 @@ it('filters stock check discrepancies by warehouse on the show page', function (
         ->get(route('jubelio-stock-checks.show', ['jubelio_stock_check' => $job->id, 'warehouse_id' => $warehouseA->id]))
         ->assertSuccessful()
         ->assertSee('SKU-WH-A')
-        ->assertDontSee('SKU-WH-B');
+        ->assertDontSee('SKU-WH-B')
+        ->assertSee(route('items.show', $itemA), false);
+});
+
+it('links stock check job ids on the index page', function () {
+    Permission::firstOrCreate(['name' => 'jubelio-stock-check']);
+    $user = User::factory()->create();
+    $user->givePermissionTo('jubelio-stock-check');
+
+    $job = JubelioStockCheck::create([
+        'sync_cursor' => 0,
+        'per_type_limit' => 50,
+        'demand_days' => 90,
+        'status' => 'completed',
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('jubelio-stock-checks.index'))
+        ->assertSuccessful()
+        ->assertSee(route('jubelio-stock-checks.show', $job), false);
 });
 
 it('stores a stock check job with the warehouse cursor columns', function () {

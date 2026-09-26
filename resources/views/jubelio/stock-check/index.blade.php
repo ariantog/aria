@@ -59,7 +59,9 @@ $breadcrumbs = [
                 <tbody class="divide-y divide-gray-100">
                     @forelse($stockChecks as $job)
                     <tr class="hover:bg-gray-50">
-                        <td class="px-6 py-4 font-mono font-bold">#{{ $job->id }}</td>
+                        <td class="px-6 py-4 font-mono font-bold">
+                            <a href="{{ route('jubelio-stock-checks.show', $job->id) }}" class="text-blue-600 hover:underline">#{{ $job->id }}</a>
+                        </td>
                         <td class="px-6 py-4 whitespace-nowrap">{{ \Carbon\Carbon::parse($job->created_at)->translatedFormat('d M Y H:i') }}</td>
                         <td class="px-6 py-4 text-center">{{ $job->sync_cursor }}/{{ $syncedWarehouseCount }}</td>
                         <td class="px-6 py-4 text-center">{{ $job->per_type_limit }}×2</td>
