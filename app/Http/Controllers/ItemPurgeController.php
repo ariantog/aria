@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\ItemType;
 use App\Models\DataRetentionRun;
+use App\Models\Item;
 use App\Services\DataRetentionService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -36,10 +37,27 @@ class ItemPurgeController extends Controller
 
         $totalCandidates = $retention->countSelectableOrphanItems($maxId, $itemType);
 
+        $itemId = request()->query('item_id');
+        $selectedItemId = ($itemId !== null && $itemId !== '' && ctype_digit((string) $itemId))
+            ? (int) $itemId
+            : null;
+        $itemPreview = $selectedItemId !== null
+            ? $retention->previewItemPurge($selectedItemId)
+            : null;
+        $itemPreviewShowUrl = null;
+
+        if ($itemPreview !== null) {
+            $item = Item::withTrashed()->find($itemPreview['id']);
+            $itemPreviewShowUrl = $item?->showUrl();
+        }
+
         return view('system-settings.item-purge', [
             'maxId' => $maxId,
             'itemType' => $itemType,
             'totalCandidates' => $totalCandidates,
+            'selectedItemId' => $selectedItemId,
+            'itemPreview' => $itemPreview,
+            'itemPreviewShowUrl' => $itemPreviewShowUrl,
             'itemTypes' => [
                 ItemType::ITEM->value => 'Item',
                 ItemType::ASSET_LANCAR->value => 'Asset Lancar',
@@ -97,6 +115,50 @@ class ItemPurgeController extends Controller
                 $result['groups'],
                 $page,
                 count($keepIds),
+            ));
+    }
+
+    public function destroy(Request $request, DataRetentionService $retention): RedirectResponse
+    {
+        DataRetentionRun::authorizeManage();
+
+        $validated = $request->validate([
+            'item_id' => ['required', 'integer', 'min:1'],
+            'confirm' => ['required', 'string', 'in:DELETE-ITEM'],
+            'max_id' => ['nullable', 'integer', 'min:1'],
+            'item_type' => ['nullable', 'integer'],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        $itemId = (int) $validated['item_id'];
+
+        try {
+            $preview = $retention->previewItemPurge($itemId);
+
+            if ($preview === null) {
+                return back()->withInput()->with('error', 'Item not found.');
+            }
+
+            if (! $preview['deletable']) {
+                return back()->withInput()->with('error', 'This item appears in transaction details and cannot be deleted.');
+            }
+
+            $retention->deleteItemFromLive($itemId);
+        } catch (Throwable $e) {
+            return back()->withInput()->with('error', $e->getMessage());
+        }
+
+        return redirect()
+            ->route('data-retention.item-purge.index', array_filter([
+                'max_id' => isset($validated['max_id']) ? (int) $validated['max_id'] : null,
+                'item_type' => isset($validated['item_type']) ? (int) $validated['item_type'] : null,
+                'page' => isset($validated['page']) ? (int) $validated['page'] : null,
+            ], fn ($value) => $value !== null && $value !== ''))
+            ->with('success', sprintf(
+                'Deleted %s (%s #%d).',
+                $preview['code'],
+                $preview['type_label'],
+                $itemId,
             ));
     }
 

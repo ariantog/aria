@@ -159,6 +159,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::post('data-retention/purge-orphan-addrbooks/{type}', [App\Http\Controllers\DataRetentionController::class, 'purgeOrphanAddrbooks'])->name('data-retention.purge-orphan-addrbooks');
     Route::get('data-retention/item-purge', [App\Http\Controllers\ItemPurgeController::class, 'index'])->name('data-retention.item-purge.index');
     Route::post('data-retention/item-purge', [App\Http\Controllers\ItemPurgeController::class, 'purge'])->name('data-retention.item-purge.purge');
+    Route::post('data-retention/item-purge/delete', [App\Http\Controllers\ItemPurgeController::class, 'destroy'])->name('data-retention.item-purge.destroy');
     Route::get('data-retention/addrbook-purge', [App\Http\Controllers\AddrbookPurgeController::class, 'index'])->name('data-retention.addrbook-purge.index');
     Route::get('data-retention/addrbook-purge/lookup', [App\Http\Controllers\AddrbookPurgeController::class, 'lookup'])->name('data-retention.addrbook-purge.lookup');
     Route::post('data-retention/addrbook-purge', [App\Http\Controllers\AddrbookPurgeController::class, 'destroy'])->name('data-retention.addrbook-purge.destroy');

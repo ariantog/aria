@@ -21,6 +21,7 @@ $pageItemIds = collect($preview->items())->pluck('id')->values()->all();
                 Hard-delete orphan items with <strong>no transaction lines</strong> and <strong>id &le; max id</strong>,
                 even when warehouse stock &gt; 0. Soft-deleted items are included.
             </p>
+            <p class="mt-1 text-xs text-gray-500">Superadmin only. Use <strong>Delete by item id</strong> below for a single SKU without browsing the preview list.</p>
             <p class="mt-1 text-xs text-gray-500">
                 Check <strong>Keep</strong> to exclude a row on this page from purge. Submit purges only
                 <strong>unchecked rows on the current page</strong>; visit other pages separately to purge them.
@@ -35,6 +36,54 @@ $pageItemIds = collect($preview->items())->pluck('id')->values()->all();
     @if($flash['error'] ?? null)
     <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $flash['error'] }}</div>
     @endif
+
+    <details class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm" @if($itemPreview !== null) open @endif>
+        <summary class="cursor-pointer text-sm font-semibold text-gray-900">Delete by item id</summary>
+        <div class="mt-4 space-y-4">
+            <form method="GET"
+                  action="{{ route('data-retention.item-purge.index') }}"
+                  class="flex flex-wrap items-end gap-3">
+                <input type="hidden" name="max_id" value="{{ $maxId }}">
+                @if($itemType !== null)
+                <input type="hidden" name="item_type" value="{{ $itemType }}">
+                @endif
+                @if($preview->currentPage() > 1)
+                <input type="hidden" name="page" value="{{ $preview->currentPage() }}">
+                @endif
+                <div>
+                    <label for="item-purge-id" class="mb-1 block text-xs font-medium text-gray-500">Item id</label>
+                    <input type="number"
+                           id="item-purge-id"
+                           name="item_id"
+                           data-testid="item-purge-id-input"
+                           value="{{ $selectedItemId ?? '' }}"
+                           min="1"
+                           required
+                           class="h-9 w-32 rounded-md border border-gray-300 px-3 text-sm font-mono"
+                           placeholder="e.g. 12345">
+                </div>
+                <button type="submit"
+                        data-testid="item-purge-id-lookup"
+                        class="h-9 rounded-md bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700">
+                    Look up
+                </button>
+            </form>
+
+            @if($selectedItemId !== null && $itemPreview === null)
+            <p class="text-sm text-red-700" data-testid="item-purge-not-found">No item found with id {{ $selectedItemId }}.</p>
+            @endif
+
+            @if($itemPreview !== null)
+            @include('system-settings.partials.item-purge-selected', [
+                'preview' => $itemPreview,
+                'previewShowUrl' => $itemPreviewShowUrl,
+                'maxId' => $maxId,
+                'itemType' => $itemType,
+                'previewPage' => $preview->currentPage(),
+            ])
+            @endif
+        </div>
+    </details>
 
     <form method="GET" class="flex flex-wrap items-end gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
         <div>
