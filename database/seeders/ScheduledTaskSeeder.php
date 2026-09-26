@@ -190,7 +190,7 @@ class ScheduledTaskSeeder extends Seeder
                 'name' => 'Jubelio Stock Check',
                 'frequency' => 'everyFiveMinutes',
                 'active' => true,
-                'description' => 'Compares Aria vs Jubelio available per synced warehouse (read-only; does not write warehouse_item). One warehouse per cron tick; auto-creates a daily job and scans extra rounds until the target discrepancy count is reached.',
+                'description' => 'Compares Aria vs Jubelio available per synced warehouse (read-only; does not write warehouse_item). One warehouse per cron tick; auto-creates a daily job with '.\App\Services\JubelioStockCheckService::DEFAULT_PER_WAREHOUSE_SKU_LIMIT.' SKUs per connected warehouse and scans extra rounds until the target discrepancy count is reached.',
             ]
         );
 

@@ -477,6 +477,7 @@ it('auto-creates a daily stock check job when none exists today', function () {
 
     expect($job)->not->toBeNull();
     expect($job->target_discrepancies)->toBe(JubelioStockCheckService::DEFAULT_TARGET_DISCREPANCIES);
+    expect($job->per_type_limit)->toBe((int) (JubelioStockCheckService::DEFAULT_PER_WAREHOUSE_SKU_LIMIT / 2));
     expect($service->ensureDailyJob()?->id)->toBe($job->id);
 });
 
@@ -599,6 +600,60 @@ it('sorts stock check discrepancies by absolute quantity difference', function (
         ->get(route('jubelio-stock-checks.show', $job->id))
         ->assertSuccessful()
         ->assertSeeInOrder(['SKU-BIG-DIFF', 'SKU-MED-DIFF', 'SKU-SMALL-DIFF']);
+});
+
+it('filters stock check discrepancies by warehouse on the show page', function () {
+    Permission::firstOrCreate(['name' => 'jubelio-stock-check']);
+    $user = User::factory()->create();
+    $user->givePermissionTo('jubelio-stock-check');
+
+    $warehouseA = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Alpha']);
+    $warehouseB = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Beta']);
+
+    $job = JubelioStockCheck::create([
+        'sync_cursor' => 2,
+        'per_type_limit' => 50,
+        'demand_days' => 90,
+        'status' => 'completed',
+    ]);
+
+    $itemA = Item::factory()->create(['code' => 'SKU-WH-A']);
+    $itemB = Item::factory()->create(['code' => 'SKU-WH-B']);
+
+    $job->discrepancies()->createMany([
+        [
+            'item_id' => $itemA->id,
+            'jubelio_item_id' => 11,
+            'jubelio_location_id' => 10,
+            'jubelio_location_name' => 'Loc A',
+            'warehouse_id' => $warehouseA->id,
+            'aria_qty' => 5,
+            'jubelio_qty' => 3,
+            'jubelio_on_hand' => 3,
+            'jubelio_on_order' => 0,
+            'jubelio_available' => 3,
+            'jubelio_reserved' => 0,
+        ],
+        [
+            'item_id' => $itemB->id,
+            'jubelio_item_id' => 12,
+            'jubelio_location_id' => 20,
+            'jubelio_location_name' => 'Loc B',
+            'warehouse_id' => $warehouseB->id,
+            'aria_qty' => 8,
+            'jubelio_qty' => 6,
+            'jubelio_on_hand' => 6,
+            'jubelio_on_order' => 0,
+            'jubelio_available' => 6,
+            'jubelio_reserved' => 0,
+        ],
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('jubelio-stock-checks.show', ['jubelio_stock_check' => $job->id, 'warehouse_id' => $warehouseA->id]))
+        ->assertSuccessful()
+        ->assertSee('SKU-WH-A')
+        ->assertDontSee('SKU-WH-B');
 });
 
 it('stores a stock check job with the warehouse cursor columns', function () {

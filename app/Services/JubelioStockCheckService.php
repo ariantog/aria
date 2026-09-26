@@ -16,6 +16,9 @@ class JubelioStockCheckService
 {
     public const DEFAULT_TARGET_DISCREPANCIES = 50;
 
+    /** SKUs checked per synced warehouse per round (ITEM + ASSET_LANCAR combined). */
+    public const DEFAULT_PER_WAREHOUSE_SKU_LIMIT = 100;
+
     public const MAX_SCAN_ROUNDS = 20;
 
     public function __construct(
@@ -59,7 +62,7 @@ class JubelioStockCheckService
 
         return JubelioStockCheck::create([
             'sync_cursor' => 0,
-            'per_type_limit' => 100,
+            'per_type_limit' => (int) (self::DEFAULT_PER_WAREHOUSE_SKU_LIMIT / 2),
             'demand_days' => 30,
             'target_discrepancies' => self::DEFAULT_TARGET_DISCREPANCIES,
             'scan_round' => 0,
