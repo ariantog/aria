@@ -108,16 +108,24 @@ $showQueryParams = array_filter([
                         <tr class="hover:bg-gray-50">
                             <td class="px-4 py-3">
                                 @if($item->item)
-                                <div class="flex flex-col">
-                                    <span class="font-bold">{{ $item->item->name }}</span>
-                                    <span class="font-mono text-xs text-gray-500">{{ $item->item->code }}</span>
+                                @php $product = $item->item; @endphp
+                                <div class="flex flex-col gap-0.5">
+                                    <a href="{{ $product->showUrl() }}" class="font-bold text-blue-600 hover:underline" data-testid="stock-check-item-name-{{ $product->id }}">{{ $product->name }}</a>
+                                    <a href="{{ $product->showUrl() }}" class="font-mono text-xs text-blue-600 hover:underline" data-testid="stock-check-item-code-{{ $product->id }}">{{ $product->code }}</a>
+                                    <a href="{{ $product->showUrl() }}" class="font-mono text-xs text-gray-500 hover:text-blue-600 hover:underline" data-testid="stock-check-item-id-{{ $product->id }}">ID: {{ $product->id }}</a>
                                 </div>
                                 @else
                                 <span class="italic text-gray-500">Item tidak ditemukan</span>
                                 @endif
                             </td>
                             <td class="px-4 py-3 text-xs">{{ $item->item?->type?->label() ?? '—' }}</td>
-                            <td class="px-4 py-3">{{ $item->warehouse->name ?? ('ID: '.$item->warehouse_id) }}</td>
+                            <td class="px-4 py-3">
+                                @if($item->warehouse)
+                                <a href="{{ $item->warehouse->transactionsUrl() }}" class="text-blue-600 hover:underline">{{ $item->warehouse->name }}</a>
+                                @else
+                                <span class="text-gray-600">ID: {{ $item->warehouse_id }}</span>
+                                @endif
+                            </td>
                             <td class="px-4 py-3">
                                 <div class="flex flex-col">
                                     <span>{{ $item->jubelio_location_name ?: '—' }}</span>
