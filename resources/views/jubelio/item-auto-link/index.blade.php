@@ -17,7 +17,7 @@ $breadcrumbs = [
         <h1 class="text-2xl font-bold text-gray-900">Jubelio Auto Link</h1>
         <p class="mt-1 text-sm text-gray-500">
             Cron searches <span class="font-mono">inventory/items/to-stock</span> and links when Jubelio <span class="font-mono">item_code</span> matches exactly.
-            Only the newest <strong>{{ number_format($stats['rolling_window_size']) }}</strong> item rows (by id, from #{{ number_format($stats['rolling_window_min_id']) }}) with stock in a Jubelio-mapped warehouse; up to 5 attempts (1 day apart).
+            Only item ids from <strong>#{{ number_format($stats['rolling_window_min_id']) }}</strong> through the current max (last <strong>{{ number_format($stats['rolling_window_size']) }}</strong> numeric ids among manufactured / asset lancar SKUs), with stock in a Jubelio-mapped warehouse; up to 5 attempts (1 day apart). Linked SKUs still count toward that id range.
         </p>
     </div>
 

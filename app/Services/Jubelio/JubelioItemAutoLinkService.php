@@ -21,8 +21,8 @@ class JubelioItemAutoLinkService
 
     public const RETRY_SPACING_HOURS = 24;
 
-    /** How many newest item rows (by id) are in the auto-link rolling window. */
-    public const ROLLING_WINDOW_SIZE = 3000;
+    /** How many newest numeric item ids are in the auto-link rolling window (from max id downward). */
+    public const ROLLING_WINDOW_SIZE = 5000;
 
     public const HOURLY_CALL_CAP = 200;
 
@@ -313,14 +313,18 @@ class JubelioItemAutoLinkService
             return $this->cachedRollingMinId;
         }
 
-        $minId = Item::query()
+        $maxId = (int) Item::query()
             ->whereNull('deleted_at')
             ->whereIn('type', [ItemType::ITEM->value, ItemType::ASSET_LANCAR->value])
-            ->orderByDesc('id')
-            ->skip(self::ROLLING_WINDOW_SIZE - 1)
-            ->value('id');
+            ->max('id');
 
-        $this->cachedRollingMinId = (int) ($minId ?? 0);
+        if ($maxId <= 0) {
+            $this->cachedRollingMinId = 0;
+
+            return 0;
+        }
+
+        $this->cachedRollingMinId = max(1, $maxId - self::ROLLING_WINDOW_SIZE + 1);
 
         return $this->cachedRollingMinId;
     }
