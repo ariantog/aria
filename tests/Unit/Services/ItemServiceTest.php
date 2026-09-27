@@ -97,7 +97,7 @@ test('it renames group product name and syncs all item display names', function 
     $this->assertDatabaseHas('items', ['code' => 'AJD-CX90233-23-M', 'name' => 'SLASH RUNNING SHIRT - BLUE - M']);
 });
 
-test('apply parent group catalog stores title on parent and clears lower pricing overrides', function () {
+test('apply parent group product name with reset clears colorway titles and cascaded pricing', function () {
     $mediumTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'Medium']);
 
     $input = (object) [
@@ -122,13 +122,19 @@ test('apply parent group catalog stores title on parent and clears lower pricing
     Item::query()->where('group_id', $group->id)->update(['price' => 88000]);
     $group->update(['price' => 99000, 'name' => 'COLORWAY TITLE']);
 
-    $this->itemService->applyParentGroupCatalog(
+    $this->itemService->applyParentGroupProductName(
         $parentKey,
         'Parent Running Shirt',
         [$group->id],
+        resetColorwayTitlesToInherit: true,
+    );
+
+    $this->itemService->applyParentGroupPricing(
+        $parentKey,
         [
             'price' => ['scope' => 'group', 'value' => 75000],
         ],
+        cascadeOverrides: true,
     );
 
     $group->refresh();
@@ -143,6 +149,122 @@ test('apply parent group catalog stores title on parent and clears lower pricing
     $this->assertDatabaseHas('item_parent_prices', [
         'parent_key' => $parentKey,
         'product_name' => 'PARENT RUNNING SHIRT',
+        'price' => 75000,
+    ]);
+});
+
+test('apply parent group product name without reset keeps colorway title', function () {
+    $mediumTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'Medium']);
+
+    $input = (object) [
+        'pcode' => 'CX90233-23',
+        'type' => ItemType::ITEM->value,
+        'price' => 100000,
+        'product_name' => 'Colorway Title',
+    ];
+
+    $tags = [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id, $mediumTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ];
+
+    $this->itemService->create($input, $tags);
+
+    $group = ItemGroup::where('master', 'CX90233-23')->where('variant', '23')->firstOrFail();
+    $parentKey = app(ItemIdentityBuilder::class)->itemParentKey(Item::where('group_id', $group->id)->first());
+
+    $group->update(['name' => 'UNIQUE COLORWAY NAME']);
+
+    $this->itemService->applyParentGroupProductName(
+        $parentKey,
+        'Parent Running Shirt',
+        [$group->id],
+        resetColorwayTitlesToInherit: false,
+    );
+
+    $group->refresh();
+    $small = Item::where('code', 'AJD-CX90233-23-S')->firstOrFail();
+
+    expect($group->name)->toBe('UNIQUE COLORWAY NAME')
+        ->and(\App\Support\ItemProductTitle::resolveBareTitle($small))->toBe('UNIQUE COLORWAY NAME');
+});
+
+test('apply parent group pricing with zero does not clear colorway overrides', function () {
+    $mediumTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'Medium']);
+
+    $input = (object) [
+        'pcode' => 'CX90233-23',
+        'type' => ItemType::ITEM->value,
+        'price' => 100000,
+    ];
+
+    $tags = [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id, $mediumTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ];
+
+    $this->itemService->create($input, $tags);
+
+    $group = ItemGroup::where('master', 'CX90233-23')->where('variant', '23')->firstOrFail();
+    $parentKey = app(ItemIdentityBuilder::class)->itemParentKey(Item::where('group_id', $group->id)->first());
+
+    $group->update(['price' => 99000]);
+    Item::query()->where('group_id', $group->id)->update(['price' => 88000]);
+
+    $this->itemService->applyParentGroupPricing(
+        $parentKey,
+        ['price' => ['scope' => 'group', 'value' => 0]],
+        cascadeOverrides: true,
+    );
+
+    $group->refresh();
+    $small = Item::where('code', 'AJD-CX90233-23-S')->firstOrFail();
+
+    expect((float) $group->price)->toBe(99000.0)
+        ->and((float) $small->price)->toBe(88000.0);
+});
+
+test('apply parent group pricing without cascade keeps colorway price when parent is set', function () {
+    $mediumTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'Medium']);
+
+    $input = (object) [
+        'pcode' => 'CX90233-23',
+        'type' => ItemType::ITEM->value,
+        'price' => 100000,
+    ];
+
+    $tags = [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id, $mediumTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ];
+
+    $this->itemService->create($input, $tags);
+
+    $group = ItemGroup::where('master', 'CX90233-23')->where('variant', '23')->firstOrFail();
+    $parentKey = app(ItemIdentityBuilder::class)->itemParentKey(Item::where('group_id', $group->id)->first());
+
+    $group->update(['price' => 99000]);
+
+    $this->itemService->applyParentGroupPricing(
+        $parentKey,
+        ['price' => ['scope' => 'group', 'value' => 75000]],
+        cascadeOverrides: false,
+    );
+
+    $group->refresh();
+    $small = Item::where('code', 'AJD-CX90233-23-S')->firstOrFail();
+
+    expect((float) $group->price)->toBe(99000.0)
+        ->and(\App\Support\ItemPricing::resolve($small, 'price'))->toBe(99000.0);
+
+    $this->assertDatabaseHas('item_parent_prices', [
+        'parent_key' => $parentKey,
         'price' => 75000,
     ]);
 });

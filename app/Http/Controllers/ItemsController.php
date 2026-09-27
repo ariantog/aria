@@ -525,13 +525,14 @@ class ItemsController extends Controller
         return $exportService->download($detail['parent_key']);
     }
 
-    public function updateGroupParent(Request $request, ItemGroup $group)
+    public function updateGroupParentName(Request $request, ItemGroup $group)
     {
         Gate::authorize(ItemGroup::getPermissions()['edit']);
 
-        $request->validate(array_merge([
+        $request->validate([
             'name' => ['required', 'string', 'max:255'],
-        ], $this->pricingValidationRules()), [
+            'reset_colorway_titles' => ['nullable', 'boolean'],
+        ], [
             'name.required' => 'Product name is required.',
         ]);
 
@@ -540,19 +541,42 @@ class ItemsController extends Controller
         abort_if($detail === null, 404);
 
         try {
-            $this->itemService->applyParentGroupCatalog(
+            $this->itemService->applyParentGroupProductName(
                 $detail['parent_key'],
                 (string) $request->input('name'),
                 $detail['group_ids'],
-                $request->input('pricing', []),
+                $request->boolean('reset_colorway_titles'),
             );
 
             return redirect()
                 ->route('items.group-parent-detail', $group->id)
-                ->with('success', 'Product name and group pricing updated.');
+                ->with('success', 'Parent product name updated.');
         } catch (\Exception $e) {
             return back()->withErrors(['message' => $e->getMessage()])->withInput();
         }
+    }
+
+    public function updateGroupParentPricing(Request $request, ItemGroup $group)
+    {
+        Gate::authorize(ItemGroup::getPermissions()['edit']);
+
+        $request->validate(array_merge([
+            'cascade_pricing' => ['nullable', 'boolean'],
+        ], $this->pricingValidationRules()));
+
+        $detail = $this->groupHierarchy->parentDetailForAnchorGroup($group, fetchJubelio: false);
+
+        abort_if($detail === null, 404);
+
+        $this->itemService->applyParentGroupPricing(
+            $detail['parent_key'],
+            $request->input('pricing', []),
+            $request->boolean('cascade_pricing'),
+        );
+
+        return redirect()
+            ->route('items.group-parent-detail', $group->id)
+            ->with('success', 'Parent group pricing updated.');
     }
 
     public function groupDetail(ItemGroup $group)
