@@ -162,7 +162,11 @@ final class ItemPricing
         return $state;
     }
 
-    public static function applyForParent(string $parentKey, array $rows): void
+    /**
+     * @param  array<string, array{scope?: mixed, value?: mixed}>  $rows
+     * @param  bool  $cascadeOverrides  When true, fields saved with value &gt; 0 zero colorway/SKU overrides so reads inherit the parent amount.
+     */
+    public static function applyForParent(string $parentKey, array $rows, bool $cascadeOverrides = false): void
     {
         $hierarchy = app(ItemGroupHierarchyService::class);
         $groupIds = $hierarchy->groupIdsForParentKey($parentKey);
@@ -188,7 +192,7 @@ final class ItemPricing
             self::writeParentColumn($record, $field, $value);
             $record->save();
 
-            if ($groupIds !== []) {
+            if ($value > 0 && $cascadeOverrides && $groupIds !== []) {
                 ItemGroup::query()->whereIn('id', $groupIds)->update([$field => 0]);
                 Item::query()->whereIn('group_id', $groupIds)->update([$field => 0]);
             }

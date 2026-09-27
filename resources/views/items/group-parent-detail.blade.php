@@ -66,37 +66,69 @@ $fmt = fn ($v) => format_amount($v, 0);
                     @endif
 
                     @if($canEditGroup)
-                    <div class="border-t border-gray-100 pt-4 md:col-span-2">
-                        <p class="mb-2 text-sm font-semibold uppercase tracking-wider text-gray-500">Rename Product</p>
-                        <p class="mb-3 text-sm text-gray-600">Updates the product name for every color variant under this parent group.</p>
-                        <form method="POST" action="{{ route('items.group-parent-update', $detail['anchor_group_id']) }}" class="space-y-6"
-                              onsubmit="return confirm('Save group catalog? This sets the parent product name and default pricing for every colorway, clears colorway and SKU price overrides, and resets colorway product titles to inherit the parent name.');">
-                            @csrf
-                            @method('PUT')
-                            <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
-                                <div class="flex-1">
-                                    <label for="group-product-name" class="mb-1 block text-sm font-medium text-gray-700">Product name</label>
-                                    <input id="group-product-name" type="text" name="name"
-                                           value="{{ old('name', $detail['uses_placeholder'] ? '' : $detail['product_name']) }}"
-                                           placeholder="{{ $detail['label'] }}"
-                                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('name') border-red-500 @enderror">
-                                    @error('name')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+                    <div class="border-t border-gray-100 pt-4 md:col-span-2 space-y-8">
+                        <div>
+                            <p class="mb-2 text-sm font-semibold uppercase tracking-wider text-gray-500">Parent product name</p>
+                            <p class="mb-3 text-sm text-gray-600">Sets the default bare title for every colorway that does not have its own product name. SKU display names are rebuilt from catalog + tags.</p>
+                            <form method="POST" action="{{ route('items.group-parent-update-name', $detail['anchor_group_id']) }}" class="space-y-4"
+                                  onsubmit="return confirm(this.querySelector('[name=reset_colorway_titles]')?.checked
+                                      ? 'Reset every colorway title to inherit this parent name? Custom colorway names will be cleared.'
+                                      : 'Save parent product name? Colorways that already have their own title are kept.');">
+                                @csrf
+                                @method('PUT')
+                                <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+                                    <div class="flex-1">
+                                        <label for="group-product-name" class="mb-1 block text-sm font-medium text-gray-700">Product name</label>
+                                        <input id="group-product-name" type="text" name="name"
+                                               value="{{ old('name', $detail['uses_placeholder'] ? '' : $detail['product_name']) }}"
+                                               placeholder="{{ $detail['label'] }}"
+                                               data-testid="group-parent-product-name"
+                                               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('name') border-red-500 @enderror">
+                                        @error('name')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+                                    </div>
+                                    <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700" data-testid="group-parent-save-name">
+                                        Save product name
+                                    </button>
                                 </div>
-                            </div>
+                                <label class="flex cursor-pointer items-start gap-2 text-sm text-gray-700">
+                                    <input type="checkbox" name="reset_colorway_titles" value="1" class="mt-0.5 rounded border-gray-300"
+                                           data-testid="group-parent-reset-colorway-titles"
+                                           @checked(old('reset_colorway_titles'))>
+                                    <span>Reset all colorway titles to inherit this parent name (clears custom colorway product names and SKU aliases)</span>
+                                </label>
+                            </form>
+                        </div>
 
-                            @include('items.partials.form-pricing-scopes', [
-                                'pricingState' => $parentPricingState ?? [],
-                                'pricingPrefix' => 'pricing',
-                                'pricingIdPrefix' => 'group-parent-pricing',
-                                'pricingFixedScope' => \App\Support\ItemPricing::SCOPE_GROUP,
-                                'pricingIntro' => 'Default amounts for every colorway in this product group. Edit a colorway or SKU to override.',
-                                'showEffective' => false,
-                            ])
-
-                            <div>
-                                <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Save group catalog</button>
-                            </div>
-                        </form>
+                        <div>
+                            <p class="mb-2 text-sm font-semibold uppercase tracking-wider text-gray-500">Parent group pricing</p>
+                            <p class="mb-3 text-sm text-gray-600">Amount <strong>0</strong> means no parent default (colorways and SKUs keep their own values). Amounts &gt; 0 are stored on the parent; optionally clear lower overrides so every colorway inherits them.</p>
+                            <form method="POST" action="{{ route('items.group-parent-update-pricing', $detail['anchor_group_id']) }}" class="space-y-4"
+                                  onsubmit="return confirm(this.querySelector('[name=cascade_pricing]')?.checked
+                                      ? 'Save parent pricing and clear colorway/SKU price overrides for fields with amount &gt; 0?'
+                                      : 'Save parent pricing defaults only? Colorway and SKU overrides are not changed.');">
+                                @csrf
+                                @method('PUT')
+                                @include('items.partials.form-pricing-scopes', [
+                                    'pricingState' => $parentPricingState ?? [],
+                                    'pricingPrefix' => 'pricing',
+                                    'pricingIdPrefix' => 'group-parent-pricing',
+                                    'pricingFixedScope' => \App\Support\ItemPricing::SCOPE_GROUP,
+                                    'pricingIntro' => 'Parent defaults for sell, reseller, and cost. Leave 0 to avoid setting a group default for that field.',
+                                    'showEffective' => false,
+                                ])
+                                <label class="flex cursor-pointer items-start gap-2 text-sm text-gray-700">
+                                    <input type="checkbox" name="cascade_pricing" value="1" class="mt-0.5 rounded border-gray-300"
+                                           data-testid="group-parent-cascade-pricing"
+                                           @checked(old('cascade_pricing'))>
+                                    <span>For each amount above 0, clear colorway and SKU overrides so every size inherits the parent value</span>
+                                </label>
+                                <div>
+                                    <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700" data-testid="group-parent-save-pricing">
+                                        Save group pricing
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
                     @endif
 

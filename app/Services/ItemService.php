@@ -334,59 +334,75 @@ class ItemService
     }
 
     /**
-     * Parent group catalog save: store product name + pricing on item_parent_prices,
-     * reset colorway titles to inherit parent, clear SKU aliases, and zero lower-level pricing.
+     * Store parent product title and refresh SKU display names from catalog resolution.
      *
      * @param  list<int>  $groupIds
-     * @param  array<string, array{scope?: mixed, value?: mixed}>  $pricingRows
      */
-    public function applyParentGroupCatalog(string $parentKey, string $productName, array $groupIds, array $pricingRows): void
-    {
+    public function applyParentGroupProductName(
+        string $parentKey,
+        string $productName,
+        array $groupIds,
+        bool $resetColorwayTitlesToInherit = false,
+    ): void {
         $productName = strtoupper(trim($productName));
 
         if ($productName === '') {
             throw new Exception('Product name is required.');
         }
 
-        DB::transaction(function () use ($parentKey, $productName, $groupIds, $pricingRows): void {
+        DB::transaction(function () use ($parentKey, $productName, $groupIds, $resetColorwayTitlesToInherit): void {
             ItemProductTitle::syncParentProductName($parentKey, $productName);
+
+            if ($resetColorwayTitlesToInherit) {
+                foreach ($groupIds as $groupId) {
+                    $group = ItemGroup::query()->find($groupId);
+
+                    if ($group === null) {
+                        continue;
+                    }
+
+                    $sampleItem = $group->items()->first();
+
+                    if ($sampleItem === null) {
+                        continue;
+                    }
+
+                    $itemType = $this->resolveItemType($sampleItem->getAttributes()['type'] ?? $sampleItem->type);
+                    $pcode = strtoupper(trim((string) $sampleItem->pcode));
+                    $group->name = $this->identityBuilder->uniqueStoredGroupName(
+                        $this->identityBuilder->storedGroupName(
+                            $itemType,
+                            '',
+                            $pcode,
+                            (string) ($group->variant ?? ''),
+                        ),
+                        (string) ($group->master ?? ''),
+                        (string) ($group->variant ?? ''),
+                    );
+                    $group->save();
+                }
+
+                if ($groupIds !== [] && ItemCatalog::itemColumnExists('alias')) {
+                    Item::query()->whereIn('group_id', $groupIds)->update(['alias' => '']);
+                }
+            }
 
             foreach ($groupIds as $groupId) {
                 $group = ItemGroup::query()->find($groupId);
-
-                if ($group === null) {
-                    continue;
+                if ($group !== null) {
+                    $this->syncItemNamesForGroup($group);
                 }
-
-                $sampleItem = $group->items()->first();
-
-                if ($sampleItem === null) {
-                    continue;
-                }
-
-                $itemType = $this->resolveItemType($sampleItem->getAttributes()['type'] ?? $sampleItem->type);
-                $pcode = strtoupper(trim((string) $sampleItem->pcode));
-                $storedName = $this->identityBuilder->uniqueStoredGroupName(
-                    $this->identityBuilder->storedGroupName(
-                        $itemType,
-                        '',
-                        $pcode,
-                        (string) ($group->variant ?? ''),
-                    ),
-                    (string) ($group->master ?? ''),
-                    (string) ($group->variant ?? ''),
-                );
-                $group->name = $storedName;
-                $group->save();
-
-                $this->syncItemNamesForGroup($group);
             }
+        });
+    }
 
-            if ($groupIds !== [] && ItemCatalog::itemColumnExists('alias')) {
-                Item::query()->whereIn('group_id', $groupIds)->update(['alias' => '']);
-            }
-
-            ItemPricing::applyForParent($parentKey, $pricingRows);
+    /**
+     * @param  array<string, array{scope?: mixed, value?: mixed}>  $pricingRows
+     */
+    public function applyParentGroupPricing(string $parentKey, array $pricingRows, bool $cascadeOverrides = false): void
+    {
+        DB::transaction(function () use ($parentKey, $pricingRows, $cascadeOverrides): void {
+            ItemPricing::applyForParent($parentKey, $pricingRows, $cascadeOverrides);
         });
     }
 

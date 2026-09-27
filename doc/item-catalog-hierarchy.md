@@ -54,14 +54,17 @@ Examples:
 
 ### Parent group scope
 
-Set the value on **`item_parent_prices`** for the parent key, then **clear that field on every colorway (`item_group`) and SKU (`items`) under the parent** so reads fall back to the parent row.
+Set the value on **`item_parent_prices`** for the parent key. **Product name** and **pricing** use separate save actions on the parent detail page.
+
+- **Product name:** optional checkbox to reset every colorway title to inherit the parent (clears SKU `alias`). Without it, only the parent row changes; colorways with their own title are kept. All SKUs get `items.name` rebuilt from current catalog resolution.
+- **Pricing:** parent **0** means “no group default” and does **not** change colorway/SKU columns. Values **> 0** update the parent; clearing lower overrides requires an explicit **cascade** checkbox.
 
 Examples:
 
-- Group parent “Save group catalog” → `ItemService::applyParentGroupCatalog()` (product name on `product_name`, pricing via `ItemPricing::applyForParent()`, colorway titles reset to pcode placeholders, SKU `alias` cleared).
-- Parent pricing → zeros matching columns on all related `item_group` and `items` rows.
+- Group parent “Save product name” → `ItemService::applyParentGroupProductName()` (optional reset of colorway titles + SKU aliases).
+- Group parent “Save group pricing” → `ItemPricing::applyForParent()` with cascade only when amount > 0 and user opts in.
 
-**UI:** group parent submit shows a confirmation — affects every colorway and SKU in the product group.
+**UI:** each submit shows a confirmation tailored to the selected options.
 
 ## Pages
 
@@ -69,7 +72,7 @@ Examples:
 |------|-------|---------------------|
 | Single SKU edit | `items/{id}/edit`, asset edit | SKU (shared fields can target colorway via pricing scope radios) |
 | Colorway edit | `items-group/colorway/{group}/edit` | Colorway (+ per-size matrix overrides) |
-| Parent detail | `items-group/parent/{group}` | Parent only (pricing fixed to group scope on form) |
+| Parent detail | `items-group/parent/{group}` | Separate **Save product name** / **Save group pricing** |
 
 Single-item **create/edit** uses a tabbed **Catalog & pricing** panel (`form-details`): tabs choose which catalog level you are editing (SKU / colorway / whole group); pricing scopes stay per-field with quick buttons and a “all colorway” switch.
 
