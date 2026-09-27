@@ -145,6 +145,36 @@ it('renders auto link dashboard for jubelio viewers', function () {
         ->assertSee('Jubelio Auto Link');
 });
 
+it('excludes item ids below max id minus rolling window size', function () {
+    $warehouse = seedJubelioMappedWarehouse();
+    $group = \App\Models\ItemGroup::factory()->create();
+
+    $high = Item::factory()->create([
+        'group_id' => $group->id,
+        'code' => 'HIGH-ID-ANCHOR',
+        'jubelio_item_id' => 999,
+    ]);
+    \Illuminate\Support\Facades\DB::table('items')->where('id', $high->id)->update(['id' => 102383]);
+
+    $low = Item::factory()->create([
+        'group_id' => $group->id,
+        'code' => 'LOW-ID-SKU',
+        'jubelio_item_id' => null,
+    ]);
+    \Illuminate\Support\Facades\DB::table('items')->where('id', $low->id)->update(['id' => 52765]);
+
+    seedAutoLinkStock($low, $warehouse);
+
+    $service = app(JubelioItemAutoLinkService::class);
+
+    expect($service->rollingWindowMinItemId())->toBe(102383 - JubelioItemAutoLinkService::ROLLING_WINDOW_SIZE + 1)
+        ->and($service->itemIsEligible(Item::query()->find(52765)))->toBeFalse();
+
+    $result = $service->discoverForItem(Item::query()->find(52765));
+
+    expect($result['outcome'])->toBe(JubelioItemLinkAttempt::OUTCOME_SKIPPED);
+});
+
 it('picks higher item id before lower id in the rolling window', function () {
     $warehouse = seedJubelioMappedWarehouse();
     $service = app(JubelioItemAutoLinkService::class);
