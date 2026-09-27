@@ -17,7 +17,7 @@ $breadcrumbs = [
         <h1 class="text-2xl font-bold text-gray-900">Jubelio Auto Link</h1>
         <p class="mt-1 text-sm text-gray-500">
             Cron searches <span class="font-mono">inventory/items/to-stock</span> and links when Jubelio <span class="font-mono">item_code</span> matches exactly.
-            Only item ids from <strong>#{{ number_format($stats['rolling_window_min_id']) }}</strong> through the current max (last <strong>{{ number_format($stats['rolling_window_size']) }}</strong> numeric ids among manufactured / asset lancar SKUs), with stock in a Jubelio-mapped warehouse; up to 5 attempts (1 day apart). Linked SKUs still count toward that id range.
+            SKUs with stock in a Jubelio-mapped warehouse: ids from <strong>#{{ number_format($stats['rolling_window_min_id']) }}</strong> through the current max (last <strong>{{ number_format($stats['rolling_window_size']) }}</strong> numeric ids), <em>or</em> created in the last <strong>{{ $stats['retry_campaign_days'] }}</strong> days. Cron searches at most once per <strong>{{ $stats['retry_spacing_hours'] }}</strong> hours per SKU, up to <strong>{{ $stats['max_attempts'] }}</strong> failed tries (~{{ $stats['retry_campaign_days'] }} days) while Jubelio catches up.
         </p>
     </div>
 

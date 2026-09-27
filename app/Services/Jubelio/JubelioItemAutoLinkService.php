@@ -17,9 +17,17 @@ class JubelioItemAutoLinkService
 {
     public const TO_STOCK_URL = 'https://api2.jubelio.com/inventory/items/to-stock/';
 
-    public const MAX_ATTEMPTS = 5;
+    /** Failed API outcomes (no match / ambiguous / error) before auto-link stops trying. */
+    public const MAX_ATTEMPTS = 21;
 
+    /** Minimum hours between real Jubelio searches for the same SKU. */
     public const RETRY_SPACING_HOURS = 24;
+
+    /**
+     * Unlinked SKUs stay eligible for this many days after create even if they slide
+     * below the numeric id rolling window (Jubelio catalog often lags 1–2 weeks).
+     */
+    public const RETRY_CAMPAIGN_DAYS = 21;
 
     /** How many newest numeric item ids are in the auto-link rolling window (from max id downward). */
     public const ROLLING_WINDOW_SIZE = 5000;
@@ -97,27 +105,23 @@ class JubelioItemAutoLinkService
     public function discoverForItem(Item $item): array
     {
         if ((int) ($item->jubelio_item_id ?? 0) > 0) {
-            return $this->recordAttempt($item, JubelioItemLinkAttempt::OUTCOME_SKIPPED, '', null, 0, null, 'Already linked', false);
+            return $this->skipped('Already linked');
         }
 
         if (! $this->itemIsEligible($item)) {
-            return $this->recordAttempt($item, JubelioItemLinkAttempt::OUTCOME_SKIPPED, '', null, 0, null, 'Not eligible', false);
+            return $this->skipped('Not eligible');
         }
 
-        $storedJubelioId = (int) ($item->jubelio_item_id ?? 0);
+        if ($this->isExhausted($item->id)) {
+            return $this->skipped('Attempt cap reached');
+        }
 
-        if ($storedJubelioId === 0 && $item->jubelio_item_id !== null) {
-            if (! $this->dueForZeroRetry($item->id)) {
-                return $this->recordAttempt($item, JubelioItemLinkAttempt::OUTCOME_SKIPPED, '', null, 0, null, 'Zero-id retry not due', false);
-            }
-        } elseif ($this->isExhausted($item->id)) {
-            return $this->recordAttempt($item, JubelioItemLinkAttempt::OUTCOME_SKIPPED, '', null, 0, null, 'Attempt cap reached', false);
-        } elseif (! $this->dueForRetry($item->id)) {
-            return $this->recordAttempt($item, JubelioItemLinkAttempt::OUTCOME_SKIPPED, '', null, 0, null, 'Retry spacing', false);
+        if (! $this->dueForRetry($item->id)) {
+            return $this->skipped('Retry spacing');
         }
 
         if ($this->remainingHourlyBudget() <= 0) {
-            return $this->recordAttempt($item, JubelioItemLinkAttempt::OUTCOME_SKIPPED, '', null, 0, null, 'Hourly cap', false);
+            return $this->skipped('Hourly cap');
         }
 
         $searchQ = $this->resolveSearchQuery($item);
@@ -197,7 +201,7 @@ class JubelioItemAutoLinkService
             return false;
         }
 
-        if ((int) $item->id < $this->rollingWindowMinItemId()) {
+        if (! $this->itemIdInAutoLinkScope((int) $item->id, $item->created_at)) {
             return false;
         }
 
@@ -261,11 +265,18 @@ class JubelioItemAutoLinkService
         return $last->created_at->lte(now()->subHours(self::RETRY_SPACING_HOURS));
     }
 
-    public function dueForZeroRetry(int $itemId): bool
+    public function itemIdInAutoLinkScope(int $itemId, mixed $createdAt): bool
     {
-        $last = $this->lastMeaningfulAttempt($itemId);
+        $minId = $this->rollingWindowMinItemId();
+        if ($minId > 0 && $itemId >= $minId) {
+            return true;
+        }
 
-        return $last === null || $last->created_at->lte(now()->subDay());
+        if ($createdAt === null) {
+            return false;
+        }
+
+        return \Illuminate\Support\Carbon::parse($createdAt)->gte(now()->subDays(self::RETRY_CAMPAIGN_DAYS));
     }
 
     public function lastAttempt(int $itemId): ?JubelioItemLinkAttempt
@@ -287,14 +298,8 @@ class JubelioItemAutoLinkService
 
     public function pickNextItem(): ?Item
     {
-        $zeroRetry = $this->eligibleBaseQuery()
+        $zeroRetry = $this->eligibleUnlinkedQuery()
             ->where('jubelio_item_id', 0)
-            ->where(function (Builder $query) {
-                $query->whereDoesntHave('jubelioLinkAttempts', function (Builder $inner) {
-                    $inner->where('created_at', '>=', now()->subDay())
-                        ->where('outcome', '!=', JubelioItemLinkAttempt::OUTCOME_SKIPPED);
-                });
-            })
             ->orderByDesc('id')
             ->first();
 
@@ -303,6 +308,7 @@ class JubelioItemAutoLinkService
         }
 
         return $this->eligibleUnlinkedQuery()
+            ->whereNull('jubelio_item_id')
             ->orderByDesc('id')
             ->first();
     }
@@ -334,10 +340,17 @@ class JubelioItemAutoLinkService
         $warehouseIds = $this->mappedWarehouseIds();
         $minId = $this->rollingWindowMinItemId();
 
+        $campaignStart = now()->subDays(self::RETRY_CAMPAIGN_DAYS);
+
         return Item::query()
             ->whereNull('deleted_at')
             ->whereIn('type', [ItemType::ITEM->value, ItemType::ASSET_LANCAR->value])
-            ->when($minId > 0, fn (Builder $query) => $query->where('items.id', '>=', $minId))
+            ->where(function (Builder $query) use ($minId, $campaignStart) {
+                if ($minId > 0) {
+                    $query->where('items.id', '>=', $minId);
+                }
+                $query->orWhere('items.created_at', '>=', $campaignStart);
+            })
             ->when($warehouseIds !== [], function (Builder $query) use ($warehouseIds) {
                 $query->whereExists(function ($sub) use ($warehouseIds) {
                     $sub->select(DB::raw(1))
@@ -355,7 +368,10 @@ class JubelioItemAutoLinkService
     protected function eligibleUnlinkedQuery(): Builder
     {
         return $this->eligibleBaseQuery()
-            ->whereNull('jubelio_item_id')
+            ->where(function (Builder $query) {
+                $query->whereNull('jubelio_item_id')
+                    ->orWhere('jubelio_item_id', '<=', 0);
+            })
             ->where(function (Builder $query) {
                 $query->whereRaw(
                     '(select count(*) from jubelio_item_link_attempts where jubelio_item_link_attempts.item_id = items.id and outcome in (?, ?, ?)) < ?',
@@ -417,6 +433,18 @@ class JubelioItemAutoLinkService
     /**
      * @return array{outcome: string, counted_api_call: bool, message: string}
      */
+    /**
+     * @return array{outcome: string, counted_api_call: bool, message: string}
+     */
+    protected function skipped(string $message): array
+    {
+        return [
+            'outcome' => JubelioItemLinkAttempt::OUTCOME_SKIPPED,
+            'counted_api_call' => false,
+            'message' => $message,
+        ];
+    }
+
     protected function recordAttempt(
         Item $item,
         string $outcome,
@@ -471,8 +499,11 @@ class JubelioItemAutoLinkService
             'api_error_today' => JubelioItemLinkAttempt::query()->where('outcome', JubelioItemLinkAttempt::OUTCOME_API_ERROR)->where('created_at', '>=', $today)->count(),
             'rolling_window_size' => self::ROLLING_WINDOW_SIZE,
             'rolling_window_min_id' => $this->rollingWindowMinItemId(),
+            'max_attempts' => self::MAX_ATTEMPTS,
+            'retry_spacing_hours' => self::RETRY_SPACING_HOURS,
+            'retry_campaign_days' => self::RETRY_CAMPAIGN_DAYS,
             'eligible_in_window' => $this->eligibleUnlinkedQuery()->count(),
-            'zero_retry_due' => $this->eligibleBaseQuery()->where('jubelio_item_id', 0)->count(),
+            'zero_retry_due' => $this->eligibleUnlinkedQuery()->where('jubelio_item_id', 0)->count(),
         ];
     }
 

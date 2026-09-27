@@ -160,10 +160,11 @@ it('excludes item ids below max id minus rolling window size', function () {
         'group_id' => $group->id,
         'code' => 'LOW-ID-SKU',
         'jubelio_item_id' => null,
+        'created_at' => now()->subDays(60),
     ]);
     \Illuminate\Support\Facades\DB::table('items')->where('id', $low->id)->update(['id' => 52765]);
 
-    seedAutoLinkStock($low, $warehouse);
+    seedAutoLinkStock(Item::query()->findOrFail(52765), $warehouse);
 
     $service = app(JubelioItemAutoLinkService::class);
 
@@ -173,6 +174,58 @@ it('excludes item ids below max id minus rolling window size', function () {
     $result = $service->discoverForItem(Item::query()->find(52765));
 
     expect($result['outcome'])->toBe(JubelioItemLinkAttempt::OUTCOME_SKIPPED);
+});
+
+it('waits retry spacing hours before another jubelio search for the same sku', function () {
+    $warehouse = seedJubelioMappedWarehouse();
+
+    $item = Item::factory()->create([
+        'code' => 'SPACING-SKU',
+        'jubelio_item_id' => null,
+    ]);
+
+    seedAutoLinkStock($item, $warehouse);
+
+    $this->mock(JubelioService::class, function (MockInterface $mock) {
+        $mock->shouldReceive('get')->once()->andReturn(new \Illuminate\Http\Client\Response(
+            new \GuzzleHttp\Psr7\Response(200, [], json_encode(['data' => []])),
+        ));
+    });
+
+    $service = app(JubelioItemAutoLinkService::class);
+    $service->discoverForItem($item->fresh());
+
+    $result = $service->discoverForItem($item->fresh());
+
+    expect($result['outcome'])->toBe(JubelioItemLinkAttempt::OUTCOME_SKIPPED)
+        ->and($result['message'])->toBe('Retry spacing');
+});
+
+it('keeps new sku in scope by created_at even when id is below numeric window', function () {
+    $warehouse = seedJubelioMappedWarehouse();
+    $group = \App\Models\ItemGroup::factory()->create();
+
+    Item::factory()->create([
+        'group_id' => $group->id,
+        'code' => 'HIGH-ID-ANCHOR-2',
+        'jubelio_item_id' => 999,
+    ]);
+    $anchorId = (int) \App\Models\Item::query()->max('id');
+    \Illuminate\Support\Facades\DB::table('items')->where('id', $anchorId)->update(['id' => 102383]);
+
+    $recentLow = Item::factory()->create([
+        'group_id' => $group->id,
+        'code' => 'NEW-BELOW-WINDOW',
+        'jubelio_item_id' => null,
+        'created_at' => now()->subDays(3),
+    ]);
+    \Illuminate\Support\Facades\DB::table('items')->where('id', $recentLow->id)->update(['id' => 52765]);
+
+    seedAutoLinkStock(Item::query()->findOrFail(52765), $warehouse);
+
+    $service = app(JubelioItemAutoLinkService::class);
+
+    expect($service->itemIsEligible(\App\Models\Item::query()->find(52765)))->toBeTrue();
 });
 
 it('picks higher item id before lower id in the rolling window', function () {
@@ -208,7 +261,7 @@ it('filters auto failed items on item links sku view', function () {
         'jubelio_item_id' => null,
     ]);
 
-    for ($i = 0; $i < 5; $i++) {
+    for ($i = 0; $i < JubelioItemAutoLinkService::MAX_ATTEMPTS; $i++) {
         JubelioItemLinkAttempt::query()->create([
             'item_id' => $failed->id,
             'outcome' => JubelioItemLinkAttempt::OUTCOME_NO_MATCH,
