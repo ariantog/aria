@@ -126,6 +126,48 @@ it('renders legacy converter page for superadmin', function () {
         ->assertSee('LINK-TEST-ASSET', false);
 });
 
+it('filters legacy converter by pcode search and shows conversion status', function () {
+    $pending = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => null,
+        'code' => 'AJJPL2512999XL',
+        'pcode' => 'PL25129-99',
+        'legacy_code' => null,
+    ]);
+    $pending->tags()->sync([
+        $this->typeTag->id,
+        $this->warnaTag->id,
+        $this->jahitTag->id,
+        Tag::where('code', 'XL')->first()->id,
+    ]);
+
+    $converted = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => null,
+        'code' => 'AJJ-PL25129-99-XL',
+        'pcode' => 'PL25129-99',
+        'legacy_code' => 'AJJPL2512999XL',
+    ]);
+
+    Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'code' => 'OTHER-SKU-UNRELATED',
+        'pcode' => 'OTHER-01',
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('items.legacy-converter', [
+            'type' => ItemType::ITEM->value,
+            'search' => 'PL25129-99',
+        ]))
+        ->assertOk()
+        ->assertSee('data-testid="legacy-converter-search"', false)
+        ->assertSee('PL25129-99', false)
+        ->assertSee('Ready to convert', false)
+        ->assertSee('Converted', false)
+        ->assertDontSee('OTHER-SKU-UNRELATED', false);
+});
+
 it('forbids legacy converter for non-superadmin without permission', function () {
     $otherUser = User::factory()->create();
 

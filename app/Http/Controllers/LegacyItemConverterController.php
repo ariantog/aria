@@ -26,6 +26,8 @@ class LegacyItemConverterController extends Controller
         $itemType = ItemType::tryFrom((int) $request->query('type', ItemType::ASSET_LANCAR->value))
             ?? ItemType::ASSET_LANCAR;
         $currentPage = max(1, (int) $request->query('page', 1));
+        $search = trim((string) $request->query('search', ''));
+        $searchActive = $search !== '';
 
         $uselessCount = $this->converterService->uselessQuery($itemType)->count();
         $superOldCount = $this->converterService->superOldQuery($itemType)->count();
@@ -36,7 +38,11 @@ class LegacyItemConverterController extends Controller
 
         $prepTabs = ['useless', 'super-old', 'unparseable'];
 
-        if ($tab === 'pending') {
+        if ($searchActive) {
+            $queueStats = $this->converterService->queueStats($itemType);
+            $data = $this->converterService->paginateSearch($itemType, $search);
+            $previews = $this->converterService->previewItems(collect($data->items()))->keyBy(fn (array $row) => $row['item']->id);
+        } elseif ($tab === 'pending') {
             $pendingData = $this->converterService->pendingIndexData(
                 $itemType,
                 LegacyItemConverterService::PENDING_PAGE_SIZE,
@@ -66,9 +72,11 @@ class LegacyItemConverterController extends Controller
 
         $unparseableCount = $queueStats['unparseable'];
 
-        $previews = $tab === 'pending'
-            ? $this->converterService->previewItems(collect($data->items()))->keyBy(fn (array $row) => $row['item']->id)
-            : collect();
+        if (! $searchActive && $tab === 'pending') {
+            $previews = $this->converterService->previewItems(collect($data->items()))->keyBy(fn (array $row) => $row['item']->id);
+        } elseif (! isset($previews)) {
+            $previews = collect();
+        }
 
         return view('items.legacy-converter', [
             'tab' => $tab,
@@ -85,15 +93,18 @@ class LegacyItemConverterController extends Controller
             'pageSize' => LegacyItemConverterService::PENDING_PAGE_SIZE,
             'prepPageSize' => LegacyItemConverterService::PREP_PAGE_SIZE,
             'prepTabs' => $prepTabs,
+            'search' => $search,
+            'searchActive' => $searchActive,
             'currentPage' => $currentPage,
-            'currentPageCount' => $tab === 'pending' ? $data->count() : 0,
-            'convertiblePageCount' => $tab === 'pending'
+            'currentPageCount' => ($tab === 'pending' || $searchActive) ? $data->count() : 0,
+            'convertiblePageCount' => ($tab === 'pending' || $searchActive)
                 ? collect($data->items())->filter(fn (Item $item) => $this->converterService->isPendingConversion($item))->count()
                 : 0,
             'flash' => [
                 'success' => session('success'),
                 'error' => session('error'),
             ],
+            'statusForItem' => fn (Item $item) => $this->converterService->itemConversionStatus($item),
         ]);
     }
 
@@ -110,11 +121,7 @@ class LegacyItemConverterController extends Controller
         $page = $this->validatedPage($request);
 
         return redirect()
-            ->route('items.legacy-converter', [
-                'tab' => 'pending',
-                'type' => $itemType->value,
-                'page' => $page,
-            ])
+            ->route('items.legacy-converter', $this->redirectParams($request, $itemType, 'pending', $page))
             ->with('success', "Page {$page} preview: {$preview->count()} items — {$successes} parseable, {$failures} would fail.");
     }
 
@@ -132,11 +139,7 @@ class LegacyItemConverterController extends Controller
             : 'pending';
 
         return redirect()
-            ->route('items.legacy-converter', [
-                'tab' => $redirectTab,
-                'type' => $itemType->value,
-                'page' => $page,
-            ])
+            ->route('items.legacy-converter', $this->redirectParams($request, $itemType, $redirectTab, $page))
             ->with('success', "Converted {$run->success_count} item(s): {$run->failed_count} failed, {$run->skipped_count} skipped.");
     }
 
@@ -151,11 +154,7 @@ class LegacyItemConverterController extends Controller
             $result = $this->converterService->runItem($item, $itemType, $request->user());
         } catch (\Throwable $e) {
             return redirect()
-                ->route('items.legacy-converter', [
-                    'tab' => 'pending',
-                    'type' => $itemType->value,
-                    'page' => $page,
-                ])
+                ->route('items.legacy-converter', $this->redirectParams($request, $itemType, 'pending', $page))
                 ->with('error', $e->getMessage());
         }
 
@@ -163,11 +162,7 @@ class LegacyItemConverterController extends Controller
             $item->refresh();
 
             return redirect()
-                ->route('items.legacy-converter', [
-                    'tab' => 'pending',
-                    'type' => $itemType->value,
-                    'page' => $page,
-                ])
+                ->route('items.legacy-converter', $this->redirectParams($request, $itemType, 'pending', $page))
                 ->with(
                     'success',
                     "Converted to {$item->code}."
@@ -180,11 +175,7 @@ class LegacyItemConverterController extends Controller
         $message = $detail !== '' ? "{$failure}: {$detail}" : $failure;
 
         return redirect()
-            ->route('items.legacy-converter', [
-                'tab' => 'pending',
-                'type' => $itemType->value,
-                'page' => $page,
-            ])
+            ->route('items.legacy-converter', $this->redirectParams($request, $itemType, 'pending', $page))
             ->with('error', $message);
     }
 
@@ -281,5 +272,24 @@ class LegacyItemConverterController extends Controller
         }
 
         Gate::authorize(Item::getPermissions()['convert-legacy']);
+    }
+
+    /**
+     * @return array<string, int|string>
+     */
+    protected function redirectParams(Request $request, ItemType $itemType, string $tab, int $page): array
+    {
+        $params = [
+            'tab' => $tab,
+            'type' => $itemType->value,
+            'page' => $page,
+        ];
+
+        $search = trim((string) $request->input('search', $request->query('search', '')));
+        if ($search !== '') {
+            $params['search'] = $search;
+        }
+
+        return $params;
     }
 }
