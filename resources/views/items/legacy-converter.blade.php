@@ -25,6 +25,16 @@
     if ($tab === 'pending' || $tab === 'unparseable') {
         $baseParams['page'] = $currentPage;
     }
+    if (($search ?? '') !== '') {
+        $baseParams['search'] = $search;
+    }
+    $statusTone = [
+        'ready' => 'bg-green-100 text-green-800',
+        'converted' => 'bg-gray-100 text-gray-700',
+        'canonical' => 'bg-blue-100 text-blue-800',
+        'unparseable' => 'bg-amber-100 text-amber-900',
+        'excluded' => 'bg-gray-100 text-gray-600',
+    ];
     $itemShowUrl = function ($item) use ($itemType) {
         if (! $item) {
             return null;
@@ -151,21 +161,58 @@
         @endif
     </div>
 
+    <div class="rounded-xl border border-gray-200 bg-white p-3">
+        <form method="GET" action="{{ route('items.legacy-converter') }}" class="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <input type="hidden" name="type" value="{{ $itemType->value }}">
+            <input type="hidden" name="tab" value="{{ $tab }}">
+            <div class="flex-1">
+                <label for="legacy-converter-search" class="block text-sm font-medium text-gray-700">Search pcode or SKU</label>
+                <input type="search"
+                       id="legacy-converter-search"
+                       name="search"
+                       value="{{ $search ?? '' }}"
+                       placeholder="e.g. PL25129-06 or AJJ-PL25129-06-XL"
+                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                       data-testid="legacy-converter-search">
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <button type="submit"
+                        class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                    Search
+                </button>
+                @if(($search ?? '') !== '')
+                    <a href="{{ route('items.legacy-converter', ['type' => $itemType->value, 'tab' => $tab]) }}"
+                       class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                        Clear
+                    </a>
+                @endif
+            </div>
+        </form>
+        @if($searchActive ?? false)
+            <p class="mt-2 text-sm text-gray-600">
+                Showing matches for &ldquo;{{ $search }}&rdquo; — status shows whether each SKU still needs conversion.
+            </p>
+        @endif
+    </div>
+
     <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white p-3">
         <div class="flex flex-wrap gap-1">
             @foreach($tabs as $key => $label)
-                <a href="{{ route('items.legacy-converter', array_merge($baseParams, ['tab' => $key])) }}"
+                <a href="{{ route('items.legacy-converter', array_merge(['type' => $itemType->value, 'tab' => $key], ($key === 'pending' || $key === 'unparseable') ? ['page' => $currentPage] : [])) }}"
                    class="rounded-md px-3 py-1.5 text-sm font-medium {{ $tab === $key ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100' }}">
                     {{ $label }}
                 </a>
             @endforeach
         </div>
-        @if($tab === 'pending' && $convertiblePageCount > 0)
+        @if(($tab === 'pending' || ($searchActive ?? false)) && $convertiblePageCount > 0)
         <div class="flex flex-wrap gap-2">
             <form method="POST" action="{{ route('items.legacy-converter.preview') }}">
                 @csrf
                 <input type="hidden" name="type" value="{{ $itemType->value }}">
                 <input type="hidden" name="page" value="{{ $currentPage }}">
+                @if(($search ?? '') !== '')
+                    <input type="hidden" name="search" value="{{ $search }}">
+                @endif
                 @foreach($dataList as $item)
                     @if($preservedLegacyCode($item) === null)
                 <input type="hidden" name="item_ids[]" value="{{ $item->id }}">
@@ -180,6 +227,9 @@
                 @csrf
                 <input type="hidden" name="type" value="{{ $itemType->value }}">
                 <input type="hidden" name="page" value="{{ $currentPage }}">
+                @if(($search ?? '') !== '')
+                    <input type="hidden" name="search" value="{{ $search }}">
+                @endif
                 @foreach($dataList as $item)
                     @if($preservedLegacyCode($item) === null)
                 <input type="hidden" name="item_ids[]" value="{{ $item->id }}">
@@ -190,7 +240,7 @@
                 </button>
             </form>
         </div>
-        @elseif($tab === 'pending')
+        @elseif($tab === 'pending' && ! ($searchActive ?? false))
         <p class="text-sm text-gray-500">No convertible items on this page (Legacy column already filled).</p>
         @endif
     </div>
@@ -208,14 +258,20 @@
     @endif
 
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white">
-        @if($tab === 'pending')
-            <table class="min-w-full divide-y divide-gray-200 text-sm">
+        @if($tab === 'pending' || ($searchActive ?? false))
+            <table class="min-w-full divide-y divide-gray-200 text-sm" data-testid="legacy-converter-pending-table">
                 <thead class="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                     <tr>
                         <th class="px-4 py-3">ID</th>
+                        @if($searchActive ?? false)
+                            <th class="px-4 py-3">Pcode</th>
+                        @endif
                         <th class="px-4 py-3">Current code</th>
                         <th class="px-4 py-3">New code</th>
                         <th class="px-4 py-3">Legacy</th>
+                        @if($searchActive ?? false)
+                            <th class="px-4 py-3">Status</th>
+                        @endif
                         <th class="px-4 py-3">Name</th>
                         <th class="px-4 py-3">Group</th>
                         <th class="px-4 py-3 text-right">Actions</th>
@@ -228,6 +284,7 @@
                             $legacy = $preservedLegacyCode($item);
                             $preview = ($previews->get($item->id) ?? [])['parse'] ?? null;
                             $canConvert = $legacy === null && ($preview?->success ?? false);
+                            $queueStatus = ($searchActive ?? false) ? $statusForItem($item) : null;
                         @endphp
                         <tr class="hover:bg-gray-50 {{ $legacy ? 'bg-gray-50/80' : '' }}">
                             <td class="px-4 py-2 text-gray-500">
@@ -237,6 +294,9 @@
                                     {{ $item->id }}
                                 @endif
                             </td>
+                            @if($searchActive ?? false)
+                            <td class="px-4 py-2 font-mono text-xs text-gray-600">{{ $item->pcode ?: '—' }}</td>
+                            @endif
                             <td class="px-4 py-2 font-mono">
                                 @if($showUrl)
                                     <a href="{{ $showUrl }}" class="text-blue-600 hover:underline">{{ $item->code }}</a>
@@ -259,6 +319,13 @@
                             <td class="px-4 py-2 font-mono text-xs {{ $legacy ? 'text-amber-700' : 'text-gray-400' }}">
                                 {{ $legacy ?? ($preview?->success ? $item->code : '—') }}
                             </td>
+                            @if($searchActive ?? false)
+                            <td class="px-4 py-2">
+                                <span class="inline-flex rounded px-2 py-0.5 text-xs font-medium {{ $statusTone[$queueStatus['key']] ?? 'bg-gray-100 text-gray-600' }}">
+                                    {{ $queueStatus['label'] }}
+                                </span>
+                            </td>
+                            @endif
                             <td class="px-4 py-2 text-gray-700">
                                 @if($showUrl)
                                     <a href="{{ $showUrl }}" class="hover:text-blue-600 hover:underline">{{ $item->name }}</a>
@@ -276,6 +343,9 @@
                                         @csrf
                                         <input type="hidden" name="type" value="{{ $itemType->value }}">
                                         <input type="hidden" name="page" value="{{ $currentPage }}">
+                                        @if(($search ?? '') !== '')
+                                            <input type="hidden" name="search" value="{{ $search }}">
+                                        @endif
                                         <button type="submit"
                                                 data-testid="legacy-converter-convert-{{ $item->id }}"
                                                 class="rounded-md bg-blue-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-blue-700">
@@ -290,7 +360,13 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">No pending items.</td></tr>
+                        <tr><td colspan="{{ ($searchActive ?? false) ? 9 : 7 }}" class="px-4 py-8 text-center text-gray-500">
+                            @if($searchActive ?? false)
+                                No items matched this search.
+                            @else
+                                No pending items.
+                            @endif
+                        </td></tr>
                     @endforelse
                 </tbody>
             </table>

@@ -24,6 +24,8 @@ class LegacyItemConverterService
 
     public const PREP_PAGE_SIZE = 100;
 
+    public const SEARCH_PAGE_SIZE = 100;
+
     public function __construct(
         protected ItemIdentityBuilder $identityBuilder,
     ) {}
@@ -396,6 +398,53 @@ class LegacyItemConverterService
         }
 
         return $deleted;
+    }
+
+    public function paginateSearch(ItemType $itemType, string $search): LengthAwarePaginator
+    {
+        $search = trim($search);
+
+        return $this->baseQuery($itemType)
+            ->with(['tags', 'group'])
+            ->search($search)
+            ->orderByDesc('items.id')
+            ->paginate(self::SEARCH_PAGE_SIZE)
+            ->withQueryString();
+    }
+
+    /**
+     * @return array{key: string, label: string}
+     */
+    public function itemConversionStatus(Item $item, ?LegacyItemIdentityParser $parser = null): array
+    {
+        if ($this->hasPreservedLegacyCode($item)) {
+            return ['key' => 'converted', 'label' => 'Converted'];
+        }
+
+        $parser ??= $this->makeParser();
+
+        if (! $this->isPendingConversion($item)) {
+            return ['key' => 'converted', 'label' => 'Converted'];
+        }
+
+        $itemType = $parser->resolveItemType($item);
+
+        if ($itemType === null || ! $parser->hasMinimumIdentityStructure((string) $item->code, $itemType)) {
+            return ['key' => 'unparseable', 'label' => 'Unparseable'];
+        }
+
+        if ($this->isStructurallyEligible($item, $parser)) {
+            return ['key' => 'ready', 'label' => 'Ready to convert'];
+        }
+
+        $item->loadMissing(['tags', 'group']);
+        $parse = $parser->parse($item);
+
+        if ($parse->success && $this->isAlreadyCanonical($item, $parse)) {
+            return ['key' => 'canonical', 'label' => 'Already canonical'];
+        }
+
+        return ['key' => 'excluded', 'label' => 'Excluded from queue'];
     }
 
     public function paginateUseless(
