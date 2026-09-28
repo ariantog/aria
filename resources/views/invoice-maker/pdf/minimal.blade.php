@@ -53,10 +53,16 @@
     </table>
 
     <div class="total">
-        @if($invoice->hasDownPayment())
-            Subtotal {{ format_currency($invoice->subtotal) }} ·
-            <span style="color:#dc2626;">DP {{ format_currency($invoice->dp_amount) }}</span> ·
-            Total {{ format_currency($invoice->balanceDue()) }}
+        @php $pdfGrandTotal = max(0, $invoice->balanceDue() - $invoice->discountAmount()); @endphp
+        @if($invoice->hasDownPayment() || $invoice->discountAmount() > 0)
+            Subtotal {{ format_currency($invoice->subtotal) }}
+            @if($invoice->discountAmount() > 0)
+                · Discount {{ format_currency($invoice->discountAmount()) }}
+            @endif
+            @if($invoice->hasDownPayment())
+                · <span style="color:#dc2626;">DP {{ format_currency($invoice->dp_amount) }}</span>
+            @endif
+            · Total {{ format_currency($pdfGrandTotal) }}
         @else
             Total {{ format_currency($invoice->subtotal) }}
         @endif

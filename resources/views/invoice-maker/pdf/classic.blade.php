@@ -90,6 +90,12 @@
                 <td class="money">SUB TOTAL</td>
                 <td class="money">{{ format_currency($invoice->subtotal) }}</td>
             </tr>
+            @if($invoice->discountAmount() > 0)
+            <tr>
+                <td colspan="3" class="money" style="text-align:right;">DISCOUNT</td>
+                <td class="money">{{ format_currency($invoice->discountAmount()) }}</td>
+            </tr>
+            @endif
             @if($invoice->hasDownPayment())
             <tr>
                 <td colspan="3" class="money dp" style="text-align:right;">DP</td>
@@ -98,7 +104,7 @@
             @endif
             <tr>
                 <td colspan="3" class="money" style="text-align:right;">TOTAL</td>
-                <td class="money">{{ format_currency($invoice->balanceDue()) }}</td>
+                <td class="money">{{ format_currency(max(0, $invoice->balanceDue() - $invoice->discountAmount())) }}</td>
             </tr>
         </tfoot>
     </table>

@@ -178,6 +178,31 @@ it('ignores legacy pdf files and replaces them on regenerate', function () {
     expect($pdf)->not->toContain('legacy dev content');
 });
 
+it('includes additional discount on classic pdf template', function () {
+    $invoice = StandaloneInvoice::factory()->create([
+        'subtotal' => 1_000_000,
+        'discount_amount' => 150_000,
+        'template' => StandaloneInvoice::TEMPLATE_CLASSIC,
+    ]);
+    StandaloneInvoiceLine::factory()->create([
+        'standalone_invoice_id' => $invoice->id,
+        'total' => 1_000_000,
+    ]);
+
+    $html = view('invoice-maker.pdf.classic', [
+        'invoice' => $invoice->load('lines'),
+        'branding' => ['logo_path' => null, 'company_name' => 'Test Co', 'address' => '', 'phone' => ''],
+        'termsBullets' => [],
+        'payToParsed' => ['bank' => '', 'account_number' => '', 'account_name' => ''],
+        'signatoryName' => '',
+        'signaturePath' => null,
+    ])->render();
+
+    expect($html)->toContain('DISCOUNT')
+        ->and($html)->toContain(format_currency(150_000))
+        ->and($html)->toContain(format_currency(850_000));
+});
+
 it('cache busts pdf urls and clears pdf after invoice update', function () {
     $invoice = StandaloneInvoice::factory()->create([
         'number' => 'INV/CA/2026/0300',
