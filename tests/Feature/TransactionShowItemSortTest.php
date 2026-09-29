@@ -120,6 +120,52 @@ it('renders clickable sku links on transaction item rows', function () {
         ->assertSee('LINK-SKU-01', false);
 });
 
+it('displays total item quantity from line details on transaction show', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->customer()->create();
+    $itemA = Item::factory()->create(['code' => 'QTY-A']);
+    $itemB = Item::factory()->create(['code' => 'QTY-B']);
+
+    $sell = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'INV-TOTAL-QTY',
+        'sender_id' => $warehouse->id,
+        'sender_type' => (string) Addrbook::TYPE_WAREHOUSE,
+        'receiver_id' => $customer->id,
+        'receiver_type' => (string) Addrbook::TYPE_CUSTOMER,
+        'total' => -50_000,
+        'real_total' => -50_000,
+        'total_items' => 0,
+        'user_id' => $this->user->id,
+    ]);
+
+    TransactionDetail::factory()->create([
+        'transaction_id' => $sell->id,
+        'item_id' => $itemA->id,
+        'quantity' => 2,
+        'price' => 10_000,
+        'total' => 20_000,
+    ]);
+    TransactionDetail::factory()->create([
+        'transaction_id' => $sell->id,
+        'item_id' => $itemB->id,
+        'quantity' => 3,
+        'price' => 10_000,
+        'total' => 30_000,
+    ]);
+
+    expect($sell->fresh()->displayTotalItems())->toBe(5.0);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.show', $sell))
+        ->assertOk()
+        ->assertSee('data-testid="tx-total-items"', false)
+        ->assertSee('>5<', false)
+        ->assertSee('2 lines', false)
+        ->assertSee('data-testid="tx-total-items-summary"', false)
+        ->assertSee('data-testid="tx-total-items-footer"', false);
+});
+
 it('keeps the transaction show page sortable when there are no item rows', function () {
     $transaction = Transaction::factory()->create([
         'invoice' => 'INV-NO-ITEMS',

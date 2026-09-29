@@ -181,4 +181,21 @@ trait DisplaysTransactionTotals
     {
         return Transaction::signedAmount((int) $this->type, $this->displayGrandTotal());
     }
+
+    /**
+     * Total quantity across line items (sum of `transaction_details.quantity`).
+     * Uses loaded details when present; otherwise reads detail rows or falls back to `total_items`.
+     */
+    public function displayTotalItems(): float
+    {
+        $details = $this->relationLoaded('details')
+            ? $this->details
+            : $this->details()->get();
+
+        if ($details->isNotEmpty()) {
+            return (float) $details->sum(fn ($detail) => (float) $detail->quantity);
+        }
+
+        return (float) $this->total_items;
+    }
 }
