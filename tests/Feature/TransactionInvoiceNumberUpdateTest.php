@@ -158,6 +158,59 @@ it('shows invoice maker settlement when the number matches', function () {
         ->assertOk()
         ->assertSee('Invoice Maker', false)
         ->assertSee($invoice->number, false)
+        ->assertSee('data-testid="invoice-maker-collapse-toggle"', false)
         ->assertSee('Linked sell', false)
         ->assertSee('Linked cash-in', false);
+});
+
+it('hides invoice maker discount controls when invoice sell and cash-in already match', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $invoice = StandaloneInvoice::factory()->create([
+        'number' => 'INV/CA/2026/0555',
+        'subtotal' => 5_000_000,
+        'discount_amount' => 0,
+    ]);
+
+    Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => $invoice->number,
+        'sender_type' => (string) Addrbook::TYPE_WAREHOUSE,
+        'sender_id' => $warehouse->id,
+        'receiver_type' => (string) Addrbook::TYPE_CUSTOMER,
+        'receiver_id' => $this->customer->id,
+        'total' => -5_000_000,
+        'real_total' => -5_000_000,
+        'status' => Transaction::STATUS_COMPLETED,
+        'user_id' => $this->user->id,
+    ]);
+
+    $this->transaction->update([
+        'invoice' => $invoice->number,
+        'total' => 5_000_000,
+        'real_total' => 5_000_000,
+    ]);
+
+    $this->user->givePermissionTo(['invoice-maker-list', 'invoice-maker-edit']);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.show', $this->transaction))
+        ->assertOk()
+        ->assertDontSee('data-testid="invoice-discount-input"', false)
+        ->assertDontSee('Save discount', false);
+});
+
+it('shows invoice maker discount controls when amounts do not match yet', function () {
+    $invoice = StandaloneInvoice::factory()->create([
+        'number' => 'INV/CA/2026/0666',
+        'subtotal' => 5_000_000,
+    ]);
+
+    $this->transaction->update(['invoice' => $invoice->number]);
+    $this->user->givePermissionTo(['invoice-maker-list', 'invoice-maker-edit']);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.show', $this->transaction))
+        ->assertOk()
+        ->assertSee('data-testid="invoice-discount-input"', false)
+        ->assertSee('Save discount', false);
 });

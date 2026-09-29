@@ -388,22 +388,41 @@
     ])
 
     @if($invoiceSettlement)
-    <div class="print:hidden">
-        <div class="mb-2 flex items-center justify-between gap-3">
-            <h2 class="text-sm font-semibold text-gray-700">Invoice Maker</h2>
-            @if($can['invoice_maker_view'] ?? false)
-            <a href="{{ route('invoice-maker.show', $invoiceSettlement['invoice']) }}"
-               class="text-sm font-medium text-blue-700 hover:underline">
-                {{ $invoiceSettlement['invoice']->number }}
-            </a>
-            @else
-            <span class="text-sm font-medium text-gray-700">{{ $invoiceSettlement['invoice']->number }}</span>
-            @endif
+    <div class="print:hidden rounded-xl border border-gray-200 bg-white shadow-sm" x-data="{ invoiceMakerOpen: false }">
+        <button type="button"
+                @click="invoiceMakerOpen = !invoiceMakerOpen"
+                data-testid="invoice-maker-collapse-toggle"
+                class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-gray-50/80"
+                :aria-expanded="invoiceMakerOpen">
+            <div class="flex min-w-0 flex-wrap items-center gap-2">
+                <h2 class="text-sm font-semibold text-gray-700">Invoice Maker</h2>
+                @if($can['invoice_maker_view'] ?? false)
+                <a href="{{ route('invoice-maker.show', $invoiceSettlement['invoice']) }}"
+                   @click.stop
+                   class="text-sm font-medium text-blue-700 hover:underline">
+                    {{ $invoiceSettlement['invoice']->number }}
+                </a>
+                @else
+                <span class="text-sm font-medium text-gray-700">{{ $invoiceSettlement['invoice']->number }}</span>
+                @endif
+                @include('invoice-maker.partials.status-badge', [
+                    'status' => $invoiceSettlement['status'],
+                    'label' => $invoiceSettlement['status_label'],
+                ])
+            </div>
+            <svg class="h-5 w-5 shrink-0 text-gray-400 transition-transform"
+                 :class="invoiceMakerOpen ? 'rotate-180' : ''"
+                 fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+        </button>
+        <div x-show="invoiceMakerOpen" x-cloak class="border-t border-gray-100 px-4 pb-4 pt-2">
+            @include('invoice-maker.partials.settlement-card', [
+                'settlement' => $invoiceSettlement,
+                'canEdit' => $can['invoice_maker_edit'] ?? false,
+                'embedded' => true,
+            ])
         </div>
-        @include('invoice-maker.partials.settlement-card', [
-            'settlement' => $invoiceSettlement,
-            'canEdit' => $can['invoice_maker_edit'] ?? false,
-        ])
     </div>
     @endif
 
