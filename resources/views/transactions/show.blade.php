@@ -270,6 +270,12 @@
                         </span>
                         <span class="inline-flex items-center rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 capitalize">{{ $config['type_slug'] }}</span>
                     </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="flex items-center gap-1.5 text-gray-500">
+                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg> Total Items
+                        </span>
+                        <span class="font-semibold tabular-nums" data-testid="tx-total-items-summary">{{ $fmt($transaction->displayTotalItems()) }}</span>
+                    </div>
                     <div class="col-span-2 flex justify-between text-sm">
                         <span class="flex items-center gap-1.5 text-gray-500">
                             <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-5 5a2 2 0 01-2.828 0l-7-7A1.99 1.99 0 013 8V3a2 2 0 012-2z" transform="translate(0)"/></svg> Submit Source
@@ -434,7 +440,10 @@
                     <svg class="h-5 w-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
                     Items List
                 </div>
-                <p class="text-sm text-gray-500">Requested items in this transaction ({{ $transaction->total_items }})</p>
+                <p class="text-sm text-gray-500">
+                    {{ $transaction->details->count() }} line{{ $transaction->details->count() === 1 ? '' : 's' }} ·
+                    <span data-testid="tx-total-items">{{ $fmt($transaction->displayTotalItems()) }}</span> total qty
+                </p>
             </div>
 
             {{-- Column Controls --}}
@@ -561,6 +570,16 @@
                     </tr>
                     @endforeach
                 </tbody>
+                @if($transaction->details->isNotEmpty())
+                <tfoot class="border-t bg-gray-50/80 text-sm font-bold">
+                    <tr>
+                        <td colspan="9" class="px-3 py-2.5 text-right text-gray-600">
+                            Total quantity
+                            <span class="ml-2 tabular-nums text-gray-900" data-testid="tx-total-items-footer">{{ $fmt($transaction->displayTotalItems()) }}</span>
+                        </td>
+                    </tr>
+                </tfoot>
+                @endif
             </table>
         </div>
     </div>
