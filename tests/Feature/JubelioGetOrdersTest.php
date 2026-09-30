@@ -394,7 +394,9 @@ it('skips ineligible orders during service reconcile helper', function () {
     expect(Jubelioorder::where('invoice', 'INV-COMPLETED')->exists())->toBeFalse();
 });
 
-it('skips completed shopee orders before the aria queue cutoff date', function () {
+it('skips orders older than the queue max age window', function () {
+    config(['services.jubelio.order_queue_max_age_days' => 30]);
+
     $service = app(JubelioGetOrdersService::class);
 
     $queued = $service->queueEligibleRows([
@@ -412,12 +414,31 @@ it('skips completed shopee orders before the aria queue cutoff date', function (
             'salesorder_no' => 'SP-OLD-SHIPPED',
             'internal_status' => 'SHIPPED',
             'is_canceled' => 'N',
-            'transaction_date' => '2025-03-02T15:43:41.000Z',
+            'transaction_date' => now()->subDays(45)->toIso8601String(),
         ],
     ]);
 
     expect($queued)->toBe(0);
     expect(Jubelioorder::whereIn('invoice', ['SP-250302JA65X2S0', 'SP-OLD-SHIPPED'])->exists())->toBeFalse();
+});
+
+it('queues shipped orders within the max age window', function () {
+    config(['services.jubelio.order_queue_max_age_days' => 30]);
+
+    $service = app(JubelioGetOrdersService::class);
+
+    $queued = $service->queueEligibleRows([
+        [
+            'salesorder_id' => 'so-recent',
+            'salesorder_no' => 'INV-RECENT-SYNC',
+            'internal_status' => 'SHIPPED',
+            'is_canceled' => 'N',
+            'transaction_date' => now()->subDays(3)->toIso8601String(),
+        ],
+    ]);
+
+    expect($queued)->toBe(1);
+    expect(Jubelioorder::where('invoice', 'INV-RECENT-SYNC')->exists())->toBeTrue();
 });
 
 it('does not duplicate when order already in jubelioorders', function () {

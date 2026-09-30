@@ -107,7 +107,7 @@ $inspection = $lookup['inspection'] ?? null;
                 </div>
                 @if(! $inspection['eligible'])
                 <p class="border-t border-gray-200 pt-2 text-amber-700">
-                    Status order tidak memenuhi syarat antrian (harus SHIPPED atau RETURNED, tidak dibatalkan, dan tanggal transaksi tidak sebelum cutover Aria).
+                    Status order tidak memenuhi syarat antrian (harus SHIPPED atau RETURNED, tidak dibatalkan, dan transaksi dalam {{ (int) config('services.jubelio.order_queue_max_age_days', 30) }} hari terakhir).
                 </p>
                 @endif
             </div>

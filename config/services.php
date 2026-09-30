@@ -61,8 +61,10 @@ return [
         'password' => env('JUBELIO_PASSWORD'),
         'verify_ssl' => env('JUBELIO_VERIFY_SSL', true),
         'webhook_secret' => env('JUBELIO_WEBHOOK_SECRET', 'corenation2025'),
-        /** Orders before this date are legacy L10 / pre-Aria Jubelio queue; do not auto-enqueue. */
-        'order_queue_cutoff_date' => env('JUBELIO_ORDER_QUEUE_CUTOFF_DATE', '2025-03-06'),
+        /** Get-orders / poll: ignore list rows older than this many days (webhook miss catch-up only). */
+        'order_queue_max_age_days' => (int) env('JUBELIO_ORDER_QUEUE_MAX_AGE_DAYS', 30),
+        /** SHIPPED webhook: do not queue legacy orders before Aria cutover. */
+        'webhook_order_cutoff_date' => env('JUBELIO_WEBHOOK_ORDER_CUTOFF_DATE', '2025-03-06'),
     ],
 
 ];

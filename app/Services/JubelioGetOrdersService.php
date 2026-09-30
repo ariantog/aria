@@ -415,7 +415,7 @@ class JubelioGetOrdersService
         if (! $inspection['eligible']) {
             return [
                 'success' => false,
-                'message' => 'Status order tidak memenuhi syarat (harus SHIPPED atau RETURNED, tidak dibatalkan, dan tanggal transaksi tidak sebelum cutover Aria).',
+                'message' => 'Status order tidak memenuhi syarat (harus SHIPPED atau RETURNED, tidak dibatalkan, dan transaksi dalam '.(int) config('services.jubelio.order_queue_max_age_days', 30).' hari terakhir).',
                 'order' => null,
             ];
         }
@@ -503,8 +503,8 @@ class JubelioGetOrdersService
      */
     public function isBeforeOrderQueueCutoff(array $row): bool
     {
-        $cutoff = config('services.jubelio.order_queue_cutoff_date', '2025-03-06');
-        if ($cutoff === null || $cutoff === '') {
+        $earliest = $this->orderQueueEarliestDate();
+        if ($earliest === null) {
             return false;
         }
 
@@ -513,6 +513,16 @@ class JubelioGetOrdersService
             return false;
         }
 
-        return Carbon::parse($date)->lt(Carbon::parse($cutoff));
+        return Carbon::parse($date)->lt($earliest);
+    }
+
+    public function orderQueueEarliestDate(): ?CarbonInterface
+    {
+        $days = (int) config('services.jubelio.order_queue_max_age_days', 30);
+        if ($days <= 0) {
+            return null;
+        }
+
+        return Carbon::parse(now()->subDays($days)->startOfDay());
     }
 }
