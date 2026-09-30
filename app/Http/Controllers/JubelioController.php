@@ -338,7 +338,7 @@ class JubelioController extends Controller
 
         $d = $request->all();
         if (($d['status'] ?? '') === 'SHIPPED') {
-            $cutoff = config('services.jubelio.order_queue_cutoff_date', '2025-03-06');
+            $cutoff = config('services.jubelio.webhook_order_cutoff_date', '2025-03-06');
             if ($cutoff && Carbon::parse($d['transaction_date'])->lt(Carbon::parse($cutoff))) {
                 return response()->json(['status' => 'ok', 'message' => 'Before threshold.']);
             }
