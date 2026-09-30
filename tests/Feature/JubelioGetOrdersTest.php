@@ -380,11 +380,18 @@ it('skips ineligible orders during service reconcile helper', function () {
             'internal_status' => 'DRAFT',
             'is_canceled' => 'N',
         ],
+        [
+            'salesorder_id' => 'so-completed',
+            'salesorder_no' => 'INV-COMPLETED',
+            'internal_status' => 'COMPLETED',
+            'is_canceled' => 'N',
+        ],
     ]);
 
     expect($queued)->toBe(1);
     expect(Jubelioorder::where('invoice', 'INV-KEEP')->exists())->toBeTrue();
     expect(Jubelioorder::where('invoice', 'INV-DROP-STATUS')->exists())->toBeFalse();
+    expect(Jubelioorder::where('invoice', 'INV-COMPLETED')->exists())->toBeFalse();
 });
 
 it('does not duplicate when order already in jubelioorders', function () {

@@ -26,6 +26,7 @@ class JubelioGetOrderController extends Controller
             $recentlyQueued = Jubelioorder::query()
                 ->where('source', 2)
                 ->where('created_at', '>=', $import->created_at)
+                ->where('status', '!=', 2)
                 ->orderByDesc('id')
                 ->limit(50)
                 ->get();

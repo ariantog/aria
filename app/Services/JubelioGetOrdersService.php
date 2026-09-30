@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Log;
 class JubelioGetOrdersService
 {
     /** @var list<string> */
-    private const ELIGIBLE_STATUSES = ['SHIPPED', 'COMPLETED', 'RETURNED'];
+    private const ELIGIBLE_STATUSES = ['SHIPPED', 'RETURNED'];
 
     private const PAGE_SIZE = 200;
 
@@ -414,7 +414,7 @@ class JubelioGetOrdersService
         if (! $inspection['eligible']) {
             return [
                 'success' => false,
-                'message' => 'Status order tidak memenuhi syarat (harus SHIPPED, COMPLETED, atau RETURNED dan tidak dibatalkan).',
+                'message' => 'Status order tidak memenuhi syarat (harus SHIPPED atau RETURNED dan tidak dibatalkan).',
                 'order' => null,
             ];
         }
