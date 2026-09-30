@@ -727,6 +727,9 @@ function createTransaction() {
                     this.refreshRowJubelioWarning(row);
                     this.form.items.push(row);
                 });
+                if (_TxType === 'move') {
+                    this.consolidateMoveDuplicateRows();
+                }
                 this.recalcTotals();
             }
 
@@ -1329,10 +1332,63 @@ function createTransaction() {
             return false;
         },
 
+        moveRowPricesMatch(a, b) {
+            const normalize = (v) => {
+                if (v === null || v === undefined || v === '') return null;
+                const n = Number(v);
+                return Number.isNaN(n) ? null : n;
+            };
+            const pa = normalize(a);
+            const pb = normalize(b);
+            if (pa === null && pb === null) return true;
+            if (pa === null || pb === null) return false;
+
+            return pa === pb;
+        },
+
+        findMoveDuplicateRowIdx(idx) {
+            if (_TxType !== 'move') return -1;
+            const row = this.form.items[idx];
+            if (!row?.item_id) return -1;
+            const itemId = String(row.item_id);
+
+            return this.form.items.findIndex((other, i) => {
+                if (i === idx) return false;
+                if (String(other.item_id) !== itemId) return false;
+
+                return this.moveRowPricesMatch(other.price, row.price);
+            });
+        },
+
+        mergeMoveDuplicateRowAt(idx) {
+            const targetIdx = this.findMoveDuplicateRowIdx(idx);
+            if (targetIdx < 0) return idx;
+            const row = this.form.items[idx];
+            const target = this.form.items[targetIdx];
+            target.quantity = Number(target.quantity || 0) + Number(row.quantity || 0);
+            this.recalcItem(targetIdx);
+            this.form.items.splice(idx, 1);
+            if (this.form.items.length === 0) this.addItemRow(false);
+            this.recalcTotals();
+
+            return targetIdx;
+        },
+
+        consolidateMoveDuplicateRows() {
+            if (_TxType !== 'move') return;
+            for (let i = this.form.items.length - 1; i >= 0; i--) {
+                if (!this.form.items[i]?.item_id) continue;
+                this.mergeMoveDuplicateRowAt(i);
+            }
+        },
+
         pickItem(idx, item, fromBarcode = false) {
             this.barcodeError = '';
             this.applyItemAtIndex(idx, item);
             this.recalcItem(idx);
+            if (_TxType === 'move') {
+                idx = this.mergeMoveDuplicateRowAt(idx);
+            }
             suppressFieldNavigation(400);
             deferFocusElement('qty_' + idx);
         },
@@ -1535,6 +1591,9 @@ function createTransaction() {
                     this.refreshRowJubelioWarning(row);
                     this.form.items.push(row);
                 });
+                if (_TxType === 'move') {
+                    this.consolidateMoveDuplicateRows();
+                }
                 if (this.form.items.length === 0) this.addItemRow(false);
                 this.recalcTotals();
             }
