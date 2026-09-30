@@ -61,6 +61,8 @@ return [
         'password' => env('JUBELIO_PASSWORD'),
         'verify_ssl' => env('JUBELIO_VERIFY_SSL', true),
         'webhook_secret' => env('JUBELIO_WEBHOOK_SECRET', 'corenation2025'),
+        /** Orders before this date are legacy L10 / pre-Aria Jubelio queue; do not auto-enqueue. */
+        'order_queue_cutoff_date' => env('JUBELIO_ORDER_QUEUE_CUTOFF_DATE', '2025-03-06'),
     ],
 
 ];

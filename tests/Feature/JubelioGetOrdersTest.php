@@ -380,11 +380,44 @@ it('skips ineligible orders during service reconcile helper', function () {
             'internal_status' => 'DRAFT',
             'is_canceled' => 'N',
         ],
+        [
+            'salesorder_id' => 'so-completed',
+            'salesorder_no' => 'INV-COMPLETED',
+            'internal_status' => 'COMPLETED',
+            'is_canceled' => 'N',
+        ],
     ]);
 
     expect($queued)->toBe(1);
     expect(Jubelioorder::where('invoice', 'INV-KEEP')->exists())->toBeTrue();
     expect(Jubelioorder::where('invoice', 'INV-DROP-STATUS')->exists())->toBeFalse();
+    expect(Jubelioorder::where('invoice', 'INV-COMPLETED')->exists())->toBeFalse();
+});
+
+it('skips completed shopee orders before the aria queue cutoff date', function () {
+    $service = app(JubelioGetOrdersService::class);
+
+    $queued = $service->queueEligibleRows([
+        [
+            'salesorder_id' => 222945,
+            'salesorder_no' => 'SP-250302JA65X2S0',
+            'internal_status' => 'COMPLETED',
+            'is_canceled' => null,
+            'transaction_date' => '2025-03-02T15:43:41.000Z',
+            'store_id' => 18695,
+            'location_id' => 4,
+        ],
+        [
+            'salesorder_id' => 'so-old-shipped',
+            'salesorder_no' => 'SP-OLD-SHIPPED',
+            'internal_status' => 'SHIPPED',
+            'is_canceled' => 'N',
+            'transaction_date' => '2025-03-02T15:43:41.000Z',
+        ],
+    ]);
+
+    expect($queued)->toBe(0);
+    expect(Jubelioorder::whereIn('invoice', ['SP-250302JA65X2S0', 'SP-OLD-SHIPPED'])->exists())->toBeFalse();
 });
 
 it('does not duplicate when order already in jubelioorders', function () {

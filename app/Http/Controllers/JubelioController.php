@@ -338,7 +338,8 @@ class JubelioController extends Controller
 
         $d = $request->all();
         if (($d['status'] ?? '') === 'SHIPPED') {
-            if (Carbon::parse($d['transaction_date'])->lt(Carbon::parse('2025-03-06'))) {
+            $cutoff = config('services.jubelio.order_queue_cutoff_date', '2025-03-06');
+            if ($cutoff && Carbon::parse($d['transaction_date'])->lt(Carbon::parse($cutoff))) {
                 return response()->json(['status' => 'ok', 'message' => 'Before threshold.']);
             }
             if (Jubelioorder::where('invoice', $d['salesorder_no'])->where('type', 'SELL')->where('order_status', $d['status'])->exists()) {

@@ -6,6 +6,7 @@ use App\Models\Crongetorder;
 use App\Models\Jubelioorder;
 use App\Models\Transaction;
 use App\Services\Jubelio\JubelioOrderWarehouseResolver;
+use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -14,7 +15,7 @@ use Illuminate\Support\Facades\Log;
 class JubelioGetOrdersService
 {
     /** @var list<string> */
-    private const ELIGIBLE_STATUSES = ['SHIPPED', 'COMPLETED', 'RETURNED'];
+    private const ELIGIBLE_STATUSES = ['SHIPPED', 'RETURNED'];
 
     private const PAGE_SIZE = 200;
 
@@ -414,7 +415,7 @@ class JubelioGetOrdersService
         if (! $inspection['eligible']) {
             return [
                 'success' => false,
-                'message' => 'Status order tidak memenuhi syarat (harus SHIPPED, COMPLETED, atau RETURNED dan tidak dibatalkan).',
+                'message' => 'Status order tidak memenuhi syarat (harus SHIPPED atau RETURNED, tidak dibatalkan, dan tanggal transaksi tidak sebelum cutover Aria).',
                 'order' => null,
             ];
         }
@@ -475,6 +476,8 @@ class JubelioGetOrdersService
         return $this->isEligibleListRow([
             'internal_status' => $apiData['internal_status'] ?? $apiData['status'] ?? '',
             'is_canceled' => $apiData['is_canceled'] ?? 'N',
+            'transaction_date' => $apiData['transaction_date'] ?? null,
+            'created_date' => $apiData['created_date'] ?? null,
         ]);
     }
 
@@ -488,6 +491,28 @@ class JubelioGetOrdersService
             return false;
         }
 
-        return ($row['is_canceled'] ?? 'N') !== 'Y';
+        if (($row['is_canceled'] ?? 'N') === 'Y') {
+            return false;
+        }
+
+        return ! $this->isBeforeOrderQueueCutoff($row);
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     */
+    public function isBeforeOrderQueueCutoff(array $row): bool
+    {
+        $cutoff = config('services.jubelio.order_queue_cutoff_date', '2025-03-06');
+        if ($cutoff === null || $cutoff === '') {
+            return false;
+        }
+
+        $date = $row['transaction_date'] ?? $row['created_date'] ?? null;
+        if ($date === null || $date === '') {
+            return false;
+        }
+
+        return Carbon::parse($date)->lt(Carbon::parse($cutoff));
     }
 }
