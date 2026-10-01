@@ -189,6 +189,8 @@ it('renders prominent overview fields and internal metadata on show', function (
         ->assertOk()
         ->assertSee('data-testid="tx-items-table"', false)
         ->assertSee('<table x-ref="itemsTable"', false)
+        ->assertSee('data-testid="tx-show-contacts-column"', false)
+        ->assertSee('data-testid="tx-show-internal-column"', false)
         ->assertSee('data-testid="tx-show-overview"', false)
         ->assertSee('data-testid="tx-show-date"', false)
         ->assertSee('15/03/2026', false)
