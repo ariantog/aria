@@ -31,7 +31,7 @@
     $cashTotalAbs = $transaction->displayGrandTotal();
 @endphp
 
-<div class="flex h-full flex-1 flex-col gap-3 overflow-x-auto rounded-xl p-3 sm:gap-4 sm:p-4"
+<div class="flex min-h-0 flex-col gap-3 rounded-xl p-3 sm:gap-4 sm:p-4"
      x-data="transactionShowPage({{ $transaction->id }}, @js($noteText), @js((bool) ($can['edit_transaction'] ?? false)), @js((bool) ($canEditPpn ?? false)), @js((float) $transaction->ppn), @js($transaction->ppn_dpp !== null ? (float) $transaction->ppn_dpp : null), @js($transaction->pph !== null ? (float) $transaction->pph : null), @js((float) ($ppn_rate ?? 11)), @js((float) ($pph_rate ?? 10)), @js($cashTotalAbs), @js($transaction->displaySignedPpn()))">
 
     {{-- Top Action Bar --}}
@@ -298,7 +298,7 @@
     @endif
 
     {{-- Items Section --}}
-    <div class="rounded-xl bg-white shadow-md print:shadow-none">
+    <div class="shrink-0 rounded-xl bg-white shadow-md print:shadow-none dark:bg-gray-800">
         <div class="flex flex-col justify-between gap-4 p-6 pb-4 md:flex-row md:items-center">
             <div>
                 <div class="flex items-center gap-2 text-lg font-semibold">
