@@ -13,6 +13,9 @@ class JubelioOrderSyncStatus
     /** API fetch empty (SELL) or original sell missing (RETURN). */
     public const ERROR_PAYLOAD = 3;
 
+    /** Outside max-age window or ineligible Jubelio status (e.g. COMPLETED). */
+    public const ERROR_SKIPPED = 4;
+
     public const SUCCESS = 10;
 
     public const MESSAGE_SELL_API_EMPTY = 'Tidak dapat memuat order dari API Jubelio (fetch gagal atau respons kosong). Kolom payload kosong di database adalah normal — Aria selalu mengambil data lewat API. Periksa token/koneksi Jubelio, klik Refresh payload, lalu Buat Transaksi Manual.';
@@ -26,6 +29,9 @@ class JubelioOrderSyncStatus
         }
         if ($status === 2 && $errorType === self::ERROR_DUPLICATE) {
             return 'Duplicate';
+        }
+        if ($status === 2 && $errorType === self::ERROR_SKIPPED) {
+            return 'Skipped';
         }
         if ($status === 1 && $errorType === self::ERROR_SKU) {
             return 'Error SKU';
@@ -50,7 +56,7 @@ class JubelioOrderSyncStatus
             return false;
         }
 
-        if ($order->status === 2 && $order->error_type === self::ERROR_DUPLICATE) {
+        if ($order->status === 2 && in_array($order->error_type, [self::ERROR_DUPLICATE, self::ERROR_SKIPPED], true)) {
             return true;
         }
 

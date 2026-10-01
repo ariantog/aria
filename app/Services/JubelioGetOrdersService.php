@@ -5,8 +5,8 @@ namespace App\Services;
 use App\Models\Crongetorder;
 use App\Models\Jubelioorder;
 use App\Models\Transaction;
+use App\Services\Jubelio\JubelioOrderQueueEligibility;
 use App\Services\Jubelio\JubelioOrderWarehouseResolver;
-use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -14,14 +14,12 @@ use Illuminate\Support\Facades\Log;
 
 class JubelioGetOrdersService
 {
-    /** @var list<string> */
-    private const ELIGIBLE_STATUSES = ['SHIPPED', 'RETURNED'];
-
     private const PAGE_SIZE = 200;
 
     public function __construct(
         private JubelioService $jubelioService,
         private JubelioOrderWarehouseResolver $warehouseResolver,
+        private JubelioOrderQueueEligibility $queueEligibility,
     ) {}
 
     /**
@@ -243,7 +241,7 @@ class JubelioGetOrdersService
     {
         $eligible = [];
         foreach ($rows as $row) {
-            if (! $this->isEligibleListRow($row)) {
+            if (! $this->queueEligibility->isEligibleListRow($row)) {
                 continue;
             }
 
@@ -385,7 +383,7 @@ class JubelioGetOrdersService
         }
 
         $inQueue = $existingOrder !== null;
-        $eligible = $this->isEligibleApiOrder($apiData);
+        $eligible = $this->queueEligibility->isEligibleApiOrder($apiData);
 
         return [
             'invoice' => $invoice,
@@ -412,10 +410,10 @@ class JubelioGetOrdersService
     {
         $inspection = $this->inspectApiOrder($apiData);
 
-        if (! $inspection['eligible']) {
+        if (! $this->queueEligibility->isEligibleApiOrder($apiData)) {
             return [
                 'success' => false,
-                'message' => 'Status order tidak memenuhi syarat (harus SHIPPED atau RETURNED, tidak dibatalkan, dan transaksi dalam '.(int) config('services.jubelio.order_queue_max_age_days', 30).' hari terakhir).',
+                'message' => 'Status order tidak memenuhi syarat (harus SHIPPED atau RETURNED, tidak dibatalkan, dan transaksi dalam '.$this->queueEligibility->maxAgeDays().' hari terakhir).',
                 'order' => null,
             ];
         }
@@ -473,12 +471,7 @@ class JubelioGetOrdersService
      */
     public function isEligibleApiOrder(array $apiData): bool
     {
-        return $this->isEligibleListRow([
-            'internal_status' => $apiData['internal_status'] ?? $apiData['status'] ?? '',
-            'is_canceled' => $apiData['is_canceled'] ?? 'N',
-            'transaction_date' => $apiData['transaction_date'] ?? null,
-            'created_date' => $apiData['created_date'] ?? null,
-        ]);
+        return $this->queueEligibility->isEligibleApiOrder($apiData);
     }
 
     /**
@@ -486,43 +479,6 @@ class JubelioGetOrdersService
      */
     public function isEligibleListRow(array $row): bool
     {
-        $status = $row['internal_status'] ?? '';
-        if (! in_array($status, self::ELIGIBLE_STATUSES, true)) {
-            return false;
-        }
-
-        if (($row['is_canceled'] ?? 'N') === 'Y') {
-            return false;
-        }
-
-        return ! $this->isBeforeOrderQueueCutoff($row);
-    }
-
-    /**
-     * @param  array<string, mixed>  $row
-     */
-    public function isBeforeOrderQueueCutoff(array $row): bool
-    {
-        $earliest = $this->orderQueueEarliestDate();
-        if ($earliest === null) {
-            return false;
-        }
-
-        $date = $row['transaction_date'] ?? $row['created_date'] ?? null;
-        if ($date === null || $date === '') {
-            return false;
-        }
-
-        return Carbon::parse($date)->lt($earliest);
-    }
-
-    public function orderQueueEarliestDate(): ?CarbonInterface
-    {
-        $days = (int) config('services.jubelio.order_queue_max_age_days', 30);
-        if ($days <= 0) {
-            return null;
-        }
-
-        return Carbon::parse(now()->subDays($days)->startOfDay());
+        return $this->queueEligibility->isEligibleListRow($row);
     }
 }

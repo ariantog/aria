@@ -11,6 +11,7 @@ use App\Models\TransactionDetail;
 use App\Models\WarehouseItem;
 use App\Services\Jubelio\JubelioOrderLineQuantity;
 use App\Services\Jubelio\JubelioOrderPayloadService;
+use App\Services\Jubelio\JubelioOrderQueueEligibility;
 use App\Services\Jubelio\JubelioOrderSyncStatus;
 use App\Services\Jubelio\JubelioOrderWarehouseResolver;
 use App\Services\Jubelio\JubelioSellerIncomeResolver;
@@ -28,6 +29,7 @@ class ProcessJubelioOrder
         private JubelioOrderWarehouseResolver $warehouseResolver,
         private LocationAccessService $locationAccessService,
         private JubelioSellerIncomeResolver $sellerIncomeResolver,
+        private JubelioOrderQueueEligibility $queueEligibility,
     ) {}
 
     /**
@@ -53,6 +55,20 @@ class ProcessJubelioOrder
             ]);
 
             return ['success' => false, 'message' => $message];
+        }
+
+        $skipReason = $this->queueEligibility->rejectReasonForProcessing($order, $dataApi);
+        if ($skipReason !== null) {
+            $order->update([
+                'run_count' => $runCount,
+                'error_type' => JubelioOrderSyncStatus::ERROR_SKIPPED,
+                'error' => $skipReason,
+                'stock_error_items' => null,
+                'status' => 2,
+                'execute_by' => $executedByUserId ?? 0,
+            ]);
+
+            return ['success' => false, 'message' => $skipReason];
         }
 
         if ($order->type === 'SELL') {

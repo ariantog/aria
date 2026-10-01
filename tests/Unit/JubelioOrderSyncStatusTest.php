@@ -16,6 +16,11 @@ it('labels payload sync errors distinctly for sell and return', function () {
         ->toBe('Original sale missing');
 });
 
+it('labels permanently skipped orders', function () {
+    expect(JubelioOrderSyncStatus::badgeLabel(2, JubelioOrderSyncStatus::ERROR_SKIPPED, 'SELL'))
+        ->toBe('Skipped');
+});
+
 it('detects return missing source sale from stored error text', function () {
     expect(JubelioOrderSyncStatus::isReturnMissingSourceSaleError(JubelioOrderSyncStatus::MESSAGE_RETURN_SELL_MISSING))
         ->toBeTrue()
