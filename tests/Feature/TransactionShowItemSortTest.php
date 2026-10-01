@@ -166,6 +166,42 @@ it('displays total item quantity from line details on transaction show', functio
         ->assertSee('data-testid="tx-total-items-footer"', false);
 });
 
+it('renders prominent overview fields and internal metadata on show', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Overview Gudang']);
+    $customer = Addrbook::factory()->customer()->create(['name' => 'Overview Customer']);
+    $sell = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'INV-OVERVIEW',
+        'date' => '2026-03-15',
+        'sender_id' => $warehouse->id,
+        'sender_type' => (string) Addrbook::TYPE_WAREHOUSE,
+        'receiver_id' => $customer->id,
+        'receiver_type' => (string) Addrbook::TYPE_CUSTOMER,
+        'total' => -10_000,
+        'real_total' => -10_000,
+        'total_items' => 1,
+        'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+        'user_id' => $this->user->id,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.show', $sell))
+        ->assertOk()
+        ->assertSee('data-testid="tx-show-overview"', false)
+        ->assertSee('data-testid="tx-show-date"', false)
+        ->assertSee('15/03/2026', false)
+        ->assertSee('data-testid="tx-show-type"', false)
+        ->assertSee('data-testid="tx-show-party-sender"', false)
+        ->assertSee('data-testid="tx-show-party-receiver"', false)
+        ->assertSee('Overview Gudang', false)
+        ->assertSee('Overview Customer', false)
+        ->assertSee('data-testid="tx-show-submit-source"', false)
+        ->assertSee('aria submit', false)
+        ->assertSee('data-testid="tx-show-created-by"', false)
+        ->assertSee($this->user->name, false)
+        ->assertSee('data-testid="tx-show-created-at"', false);
+});
+
 it('keeps the transaction show page sortable when there are no item rows', function () {
     $transaction = Transaction::factory()->create([
         'invoice' => 'INV-NO-ITEMS',
