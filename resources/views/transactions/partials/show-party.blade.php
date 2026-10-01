@@ -3,9 +3,9 @@
     $sideStatus = $sideStatus ?? null;
     $partyUrl = \App\Models\Addrbook::transactionsUrlFor($party);
 @endphp
-<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+<div class="shrink-0 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-600 dark:bg-gray-800" data-testid="tx-show-party-{{ ($sideStatus['role'] ?? null) ?: ($direction === 'To' ? 'receiver' : 'sender') }}">
     <div class="flex items-center justify-between border-b border-gray-100 bg-gray-50/50 px-4 py-3">
-        <div class="text-xs font-bold tracking-wider text-gray-500 uppercase">{{ $label }} ({{ $direction }})</div>
+        <div class="text-xs font-bold tracking-wider text-gray-500 uppercase dark:text-gray-400">{{ $label }} ({{ $direction }})</div>
         @if($iconArrow)
             <svg class="h-4 w-4 text-green-500 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
         @else
@@ -19,8 +19,8 @@
                     {{ mb_substr($party->name, 0, 1) }}
                 </div>
                 <div class="min-w-0 flex-1">
-                    <a href="{{ $partyUrl }}" class="block truncate text-base font-semibold leading-tight text-blue-600 hover:underline">{{ $party->name }}</a>
-                    <p class="mt-0.5 text-xs text-gray-500">{{ $party->type_name }} · ID {{ $party->id }}</p>
+                    <a href="{{ $partyUrl }}" class="block truncate text-lg font-bold leading-tight text-blue-600 hover:underline dark:text-blue-400">{{ $party->name }}</a>
+                    <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ $party->type_name }} · ID {{ $party->id }}</p>
                     @if($sideStatus && $sideStatus['jubelioLocation'])
                         @if($sideStatus['submitted'])
                             <p class="mt-1 text-[10px] text-green-600">
