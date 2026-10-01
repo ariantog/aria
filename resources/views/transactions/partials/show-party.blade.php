@@ -44,16 +44,5 @@
                 {{ $emptyText }}
             </div>
         @endif
-        @if(! empty($internalSlot))
-            <div class="mt-auto border-t border-gray-100 pt-3 dark:border-gray-700">
-                <div class="mb-2 text-[10px] font-bold tracking-wider text-gray-400 uppercase dark:text-gray-500">Internal</div>
-                @include('transactions.partials.show-internal-meta', [
-                    'transaction' => $transaction,
-                    'jubelioSync' => $jubelioSync ?? [],
-                    'slot' => $internalSlot,
-                    'fmtCreated' => $fmtCreated ?? null,
-                ])
-            </div>
-        @endif
     </div>
 </div>
