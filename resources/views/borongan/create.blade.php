@@ -126,8 +126,8 @@ $breadcrumbs = [
                         <p class="text-sm text-gray-600"><span x-text="groups.length"></span> penjahit &bull; <span x-text="totalQtyAll"></span> pcs total</p>
                         <p class="text-lg font-bold text-blue-700">Total Semua: <span x-text="fmt(grandTotalAll)"></span></p>
                     </div>
-                    <button type="submit" class="inline-flex items-center gap-2 rounded-md bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700">
-                        Simpan Semua Borongan
+                    <button type="submit" :disabled="submitting" class="inline-flex items-center gap-2 rounded-md bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+                        <span x-text="submitting ? 'Menyimpan...' : 'Simpan Semua Borongan'"></span>
                     </button>
                 </div>
             </div>
@@ -149,6 +149,7 @@ function boronganCreate(cfg) {
         groups: [],
         loading: false,
         searched: false,
+        submitting: false,
         fmt(v) { return 'Rp ' + formatAmountId(v); },
         missingJahitPriceItems() {
             return [...new Set(this.groups.flatMap((group) => group.items
@@ -165,6 +166,11 @@ function boronganCreate(cfg) {
             return true;
         },
         handleSubmit(event) {
+            if (this.submitting) {
+                event.preventDefault();
+                return;
+            }
+
             if (this.groups.length === 0) {
                 event.preventDefault();
                 alert('Tidak ada item yang bisa disimpan.');
@@ -173,7 +179,10 @@ function boronganCreate(cfg) {
 
             if (this.alertMissingJahitPrice()) {
                 event.preventDefault();
+                return;
             }
+
+            this.submitting = true;
         },
         groupGrandTotal(group) {
             const fees = (Number(group.permak) || 0) + (Number(group.tres) || 0) + (Number(group.lain2) || 0);

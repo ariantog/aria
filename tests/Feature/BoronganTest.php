@@ -303,3 +303,66 @@ it('rejects store when jahit price is missing', function () {
     $response->assertSessionHas('error');
     expect(Borongan::count())->toBe(0);
 });
+
+it('does not create duplicate borongan when the same jahit is posted twice for one range', function () {
+    $this->user->givePermissionTo('borongan-create');
+
+    $jahit = Worker::create(['name' => 'Jahit Once', 'type' => Worker::TYPE_JAHIT]);
+    $item = Item::factory()->create();
+    attachJahitPrice($item);
+    $from = now()->subDays(7)->toDateString();
+    $to = now()->toDateString();
+
+    Produksi::create([
+        'temp_name' => 'Once',
+        'quantity' => 4,
+        'jahit_id' => $jahit->id,
+        'item_id' => $item->id,
+        'status' => Produksi::STATUS_GUDANG,
+        'gudang_date' => now()->toDateString(),
+    ]);
+
+    $payload = [
+        'from' => $from,
+        'to' => $to,
+        'batches' => [
+            ['jahit_id' => $jahit->id, 'permak' => 0, 'tres' => 0, 'lain2' => 0],
+        ],
+    ];
+
+    $this->actingAs($this->user)->post('/borongan', $payload)->assertRedirect('/borongan');
+    $this->actingAs($this->user)->post('/borongan', $payload)->assertRedirect('/borongan');
+
+    expect(Borongan::query()->where('jahit_id', $jahit->id)->whereDate('from', $from)->whereDate('to', $to)->count())->toBe(1);
+});
+
+it('dedupes duplicate jahit entries in one store request', function () {
+    $this->user->givePermissionTo('borongan-create');
+
+    $jahit = Worker::create(['name' => 'Jahit Dedupe', 'type' => Worker::TYPE_JAHIT]);
+    $item = Item::factory()->create();
+    attachJahitPrice($item);
+    $from = now()->subDays(7)->toDateString();
+    $to = now()->toDateString();
+
+    Produksi::create([
+        'temp_name' => 'Dedupe',
+        'quantity' => 2,
+        'jahit_id' => $jahit->id,
+        'item_id' => $item->id,
+        'status' => Produksi::STATUS_GUDANG,
+        'gudang_date' => now()->toDateString(),
+    ]);
+
+    $this->actingAs($this->user)->post('/borongan', [
+        'from' => $from,
+        'to' => $to,
+        'batches' => [
+            ['jahit_id' => $jahit->id, 'permak' => 100, 'tres' => 0, 'lain2' => 0],
+            ['jahit_id' => $jahit->id, 'permak' => 250, 'tres' => 0, 'lain2' => 0],
+        ],
+    ])->assertRedirect('/borongan');
+
+    expect(Borongan::count())->toBe(1);
+    expect((float) Borongan::first()->permak)->toBe(250.0);
+});
