@@ -97,7 +97,14 @@ class Jubelioorder extends Model
     public function canProcessManually(): bool
     {
         return in_array($this->type, ['SELL', 'RETURN'], true)
-            && ! $this->isSuccessful();
+            && ! $this->isSuccessful()
+            && ! $this->isPermanentlySkipped();
+    }
+
+    public function isPermanentlySkipped(): bool
+    {
+        return $this->status === 2
+            && $this->error_type === \App\Services\Jubelio\JubelioOrderSyncStatus::ERROR_SKIPPED;
     }
 
     public function canMarkSolved(): bool
