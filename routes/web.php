@@ -153,6 +153,8 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('jubelio-legacy-catchup-repair', [App\Http\Controllers\JubelioLegacyCatchupRepairController::class, 'index'])->name('jubelio-legacy-catchup-repair.index');
     Route::post('jubelio-legacy-catchup-repair/restore', [App\Http\Controllers\JubelioLegacyCatchupRepairController::class, 'restore'])->name('jubelio-legacy-catchup-repair.restore');
 
+    Route::get('user-activity-audit', [App\Http\Controllers\UserActivityAuditController::class, 'index'])->name('user-activity-audit.index');
+
     // Data retention (archive copy + live cleanup)
     Route::get('data-retention', [App\Http\Controllers\DataRetentionController::class, 'index'])->name('data-retention.index');
     Route::post('data-retention/preview-archive', [App\Http\Controllers\DataRetentionController::class, 'previewArchive'])->name('data-retention.preview-archive');
