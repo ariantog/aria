@@ -12,6 +12,7 @@ use App\Models\Jubeliosync;
 use App\Models\Transaction;
 use App\Services\Jubelio\JubelioAdjustmentHint;
 use App\Services\Jubelio\JubelioOrderShowPresenter;
+use App\Services\Jubelio\JubelioSellInvoiceGuard;
 use App\Services\Jubelio\JubelioOrderWarehouseResolver;
 use App\Services\Jubelio\JubelioTransactionSyncPresenter;
 use App\Services\JubelioGetOrdersService;
@@ -342,16 +343,14 @@ class JubelioController extends Controller
             if ($cutoff && Carbon::parse($d['transaction_date'])->lt(Carbon::parse($cutoff))) {
                 return response()->json(['status' => 'ok', 'message' => 'Before threshold.']);
             }
-            if (Jubelioorder::where('invoice', $d['salesorder_no'])->where('type', 'SELL')->where('order_status', $d['status'])->exists()) {
-                return response()->json(['status' => 'ok', 'message' => 'Already exists']);
-            }
-
-            $sellExists = Transaction::where('type', Transaction::TYPE_SELL)
-                ->where('invoice', $d['salesorder_no'])
-                ->exists();
-
-            if ($sellExists) {
-                return response()->json(['status' => 'ok', 'message' => 'Invoice sudah ada']);
+            $invoiceGuard = app(JubelioSellInvoiceGuard::class);
+            if ($invoiceGuard->sellInvoiceTaken((string) $d['salesorder_no'])) {
+                return response()->json([
+                    'status' => 'ok',
+                    'message' => $invoiceGuard->sellInvoiceInTransactions((string) $d['salesorder_no'])
+                        ? 'Invoice sudah ada'
+                        : 'Already exists',
+                ]);
             }
 
             $resolver = app(JubelioOrderWarehouseResolver::class);
