@@ -198,7 +198,6 @@ it('can manually process a pending jubelio sell order', function () {
         'location_id' => 20,
         'sub_total' => 100000,
         'real_total' => 100000,
-        'transaction_date' => '2026-05-10',
         'items' => [
             ['item_code' => 'SKU-MANUAL-1', 'qty' => 1, 'price' => 100000],
         ],
@@ -1251,7 +1250,6 @@ it('ignores inflated jubelio sub_total when line prices already match grand tota
         'sub_total' => 122590,
         'grand_total' => 79000,
         'real_total' => 79000,
-        'transaction_date' => '2026-08-14',
         'items' => [
             ['item_code' => 'SKU-SHOPEE-DISC', 'qty' => 1, 'price' => 79000],
         ],
@@ -1309,7 +1307,6 @@ it('applies marketplace discount adjustment when line prices use list amounts', 
         'sub_total' => 122590,
         'grand_total' => 79000,
         'real_total' => 79000,
-        'transaction_date' => '2026-08-14',
         'items' => [
             ['item_code' => 'SKU-LIST-PRICE', 'qty' => 1, 'price' => 122590],
         ],
@@ -1363,7 +1360,6 @@ it('books seller income for marketplace orders with fee breakdown', function () 
         'sub_total' => 64000,
         'grand_total' => 64000,
         'escrow_amount' => '42935.0000',
-        'transaction_date' => '2026-08-14',
         'items' => [
             ['item_code' => 'SKU-PAD-M', 'qty' => 1, 'price' => 64000],
         ],

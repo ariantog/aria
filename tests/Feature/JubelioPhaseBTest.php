@@ -401,7 +401,6 @@ it('refetches jubelio order payload from API when processing polled order', func
         'location_id' => 22,
         'sub_total' => 100000,
         'real_total' => 100000,
-        'transaction_date' => '2026-05-10',
         'items' => [
             ['item_code' => 'SKU-REFETCH-1', 'qty' => 1, 'price' => 100000],
         ],

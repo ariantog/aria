@@ -45,10 +45,23 @@ use App\Services\JubelioService;
 use Mockery\MockInterface;
 
 /**
+ * Recent Jubelio transaction_date for mocks (within order_queue_max_age_days).
+ */
+function jubelioRecentTransactionDate(): string
+{
+    return now()->subDays(2)->toIso8601String();
+}
+
+/**
  * @param  array<string, mixed>  $payload
  */
 function mockJubelioSalesOrder(string $jubelioOrderId, array $payload): void
 {
+    $payload = array_merge([
+        'internal_status' => 'SHIPPED',
+        'transaction_date' => jubelioRecentTransactionDate(),
+    ], $payload);
+
     test()->mock(JubelioService::class, function (MockInterface $mock) use ($jubelioOrderId, $payload) {
         $mock->shouldReceive('fetchSalesOrder')
             ->with($jubelioOrderId)
@@ -61,6 +74,10 @@ function mockJubelioSalesOrder(string $jubelioOrderId, array $payload): void
  */
 function mockJubelioSalesReturn(string $jubelioOrderId, array $payload): void
 {
+    $payload = array_merge([
+        'transaction_date' => jubelioRecentTransactionDate(),
+    ], $payload);
+
     test()->mock(JubelioService::class, function (MockInterface $mock) use ($jubelioOrderId, $payload) {
         $mock->shouldReceive('fetchSalesReturn')
             ->with($jubelioOrderId)

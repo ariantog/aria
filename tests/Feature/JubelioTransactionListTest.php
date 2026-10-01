@@ -46,7 +46,6 @@ it('shows jubelio cron transactions on the transactions index for location-scope
         'location_id' => 20,
         'sub_total' => 100000,
         'real_total' => 100000,
-        'transaction_date' => '2026-05-10',
         'items' => [
             ['item_code' => 'SKU-JUB-LIST', 'qty' => 1, 'price' => 100000],
         ],
