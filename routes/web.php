@@ -150,6 +150,9 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('recalculate-running-balances/lookup', [App\Http\Controllers\RecalculateRunningBalancesController::class, 'lookup'])->name('recalculate-running-balances.lookup');
     Route::post('recalculate-running-balances', [App\Http\Controllers\RecalculateRunningBalancesController::class, 'run'])->name('recalculate-running-balances.run');
 
+    Route::get('jubelio-legacy-catchup-repair', [App\Http\Controllers\JubelioLegacyCatchupRepairController::class, 'index'])->name('jubelio-legacy-catchup-repair.index');
+    Route::post('jubelio-legacy-catchup-repair/restore', [App\Http\Controllers\JubelioLegacyCatchupRepairController::class, 'restore'])->name('jubelio-legacy-catchup-repair.restore');
+
     // Data retention (archive copy + live cleanup)
     Route::get('data-retention', [App\Http\Controllers\DataRetentionController::class, 'index'])->name('data-retention.index');
     Route::post('data-retention/preview-archive', [App\Http\Controllers\DataRetentionController::class, 'previewArchive'])->name('data-retention.preview-archive');
