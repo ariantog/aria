@@ -235,6 +235,7 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'system-settings' => 'system-settings',
     'recalculate running balances' => 'recalculate-running-balances',
     'jubelio legacy catchup repair' => 'jubelio-legacy-catchup-repair',
+    'user activity audit' => 'user-activity-audit',
     'cron manager' => 'cron-manager',
     'invoice branding settings' => 'system-settings/invoice/branding',
     'invoice maker index' => 'invoice-maker',
