@@ -9,8 +9,7 @@ use Illuminate\Console\Command;
 class UserActivityAudit extends Command
 {
     protected $signature = 'app:user-activity-audit
-                            {--from= : Transaction date from (Y-m-d)}
-                            {--to= : Transaction date to (Y-m-d)}
+                            {--month= : Calendar month to audit (Y-m), default current month}
                             {--user= : Filter by user id}
                             {--late-days= : Days after txn date to flag late entry}
                             {--min-count= : Minimum count for frequent-user lists}
@@ -21,8 +20,7 @@ class UserActivityAudit extends Command
     public function handle(UserActivityAuditService $audit): int
     {
         $filters = $audit->resolveFilters([
-            'from' => $this->option('from'),
-            'to' => $this->option('to'),
+            'month' => $this->option('month'),
             'user_id' => $this->option('user'),
             'late_entry_days' => $this->option('late-days'),
             'frequent_min_count' => $this->option('min-count'),
@@ -30,7 +28,8 @@ class UserActivityAudit extends Command
         ]);
 
         $this->info(sprintf(
-            'Period %s → %s | tutup buku mulai %s | late ≥ %d hari | frequent ≥ %d',
+            'Bulan %s (%s → %s) | tutup buku mulai %s | late ≥ %d hari | frequent ≥ %d',
+            $filters['month'],
             $filters['from'],
             $filters['to'],
             $filters['min_allowed_date'],
