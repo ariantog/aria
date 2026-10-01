@@ -15,7 +15,7 @@ it('rejects jubelio webhook without valid signature', function () {
         'status' => 'SHIPPED',
         'salesorder_id' => 1,
         'salesorder_no' => 'INV-001',
-        'transaction_date' => '2026-05-10',
+        'transaction_date' => jubelioRecentTransactionDateOnly(),
     ]);
 
     $this->call(
@@ -40,7 +40,7 @@ it('accepts jubelio webhook with valid signature and stores shipped order', func
         'status' => 'SHIPPED',
         'salesorder_id' => 'wh-99901',
         'salesorder_no' => 'INV-WEBHOOK-TEST',
-        'transaction_date' => '2026-05-10',
+        'transaction_date' => jubelioRecentTransactionDateOnly(),
     ]);
 
     $sign = jubelioWebhookSign($body, 'test-secret');
@@ -79,7 +79,7 @@ it('skips shipped webhook when a jubelioorders row already exists for the invoic
         'status' => 'SHIPPED',
         'salesorder_id' => 'wh-new',
         'salesorder_no' => 'SP-QUEUE-EXISTS',
-        'transaction_date' => '2026-05-10',
+        'transaction_date' => jubelioRecentTransactionDateOnly(),
     ]);
 
     $sign = jubelioWebhookSign($body, 'test-secret');
@@ -110,7 +110,7 @@ it('skips shipped webhook when sell transaction already exists with the same inv
         'status' => 'SHIPPED',
         'salesorder_id' => 'wh-dup-sell',
         'salesorder_no' => 'SP-260814A8Y3HDS7',
-        'transaction_date' => '2026-05-10',
+        'transaction_date' => jubelioRecentTransactionDateOnly(),
     ]);
 
     $sign = jubelioWebhookSign($body, 'test-secret');
@@ -160,7 +160,7 @@ it('fills warehouse columns from jubelio api when webhook body lacks store locat
         'status' => 'SHIPPED',
         'salesorder_id' => 'wh-api-fill',
         'salesorder_no' => 'INV-WH-API-FILL',
-        'transaction_date' => '2026-05-10',
+        'transaction_date' => jubelioRecentTransactionDateOnly(),
     ]);
 
     $sign = jubelioWebhookSign($body, 'test-secret');
@@ -193,7 +193,7 @@ it('leaves shipped webhook orders pending for cron processing', function () {
         'status' => 'SHIPPED',
         'salesorder_id' => 'wh-cron-1',
         'salesorder_no' => 'INV-CRON-TEST',
-        'transaction_date' => '2026-05-10',
+        'transaction_date' => jubelioRecentTransactionDateOnly(),
     ]);
 
     $sign = jubelioWebhookSign($body, 'test-secret');
@@ -212,6 +212,38 @@ it('leaves shipped webhook orders pending for cron processing', function () {
     expect($order)->not->toBeNull();
     expect($order->status)->toBe(0);
     expect($order->run_count)->toBe(0);
+});
+
+it('does not queue shipped webhook when jubelio api shows completed channel status', function () {
+    config(['services.jubelio.webhook_secret' => 'test-secret', 'services.jubelio.order_queue_max_age_days' => 30]);
+
+    mockJubelioSalesOrder('wh-completed-api', [
+        'salesorder_no' => 'SP-WEBHOOK-COMPLETED',
+        'internal_status' => 'SHIPPED',
+        'channel_status' => 'COMPLETED',
+    ]);
+
+    $body = json_encode([
+        'status' => 'SHIPPED',
+        'salesorder_id' => 'wh-completed-api',
+        'salesorder_no' => 'SP-WEBHOOK-COMPLETED',
+        'transaction_date' => jubelioRecentTransactionDateOnly(),
+    ]);
+
+    $sign = jubelioWebhookSign($body, 'test-secret');
+
+    $this->call(
+        'POST',
+        route('jubelio.webhook.order'),
+        [],
+        [],
+        [],
+        ['HTTP_SIGN' => $sign, 'CONTENT_TYPE' => 'application/json'],
+        $body,
+    )->assertSuccessful()
+        ->assertJsonPath('message', 'Outside catch-up window or ineligible Jubelio status.');
+
+    expect(Jubelioorder::where('invoice', 'SP-WEBHOOK-COMPLETED')->exists())->toBeFalse();
 });
 
 it('allows jubelio webhook without authentication session', function () {

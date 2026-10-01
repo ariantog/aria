@@ -85,3 +85,29 @@ it('does not post completed or duplicate sells from the jubelio cron path', func
     expect(Transaction::where('invoice', 'SP-CRON-DUP')->count())->toBe(1)
         ->and($duplicate->fresh()->error_type)->toBe(JubelioOrderSyncStatus::ERROR_DUPLICATE);
 });
+
+it('does not queue shipped webhook when outside the max age window', function () {
+    config(['services.jubelio.webhook_secret' => 'test-secret', 'services.jubelio.order_queue_max_age_days' => 30]);
+
+    $body = json_encode([
+        'status' => 'SHIPPED',
+        'salesorder_id' => 'wh-old',
+        'salesorder_no' => 'SP-WEBHOOK-OLD',
+        'transaction_date' => now()->subDays(60)->toDateString(),
+    ]);
+
+    $sign = hash_hmac('sha256', trim($body).'test-secret', 'test-secret', false);
+
+    $this->call(
+        'POST',
+        route('jubelio.webhook.order'),
+        [],
+        [],
+        [],
+        ['HTTP_SIGN' => $sign, 'CONTENT_TYPE' => 'application/json'],
+        $body,
+    )->assertSuccessful()
+        ->assertJsonPath('message', 'Outside catch-up window or ineligible Jubelio status.');
+
+    expect(Jubelioorder::where('invoice', 'SP-WEBHOOK-OLD')->exists())->toBeFalse();
+});

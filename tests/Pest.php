@@ -52,6 +52,26 @@ function jubelioRecentTransactionDate(): string
     return now()->subDays(2)->toIso8601String();
 }
 
+function jubelioRecentTransactionDateOnly(): string
+{
+    return now()->subDays(2)->toDateString();
+}
+
+/**
+ * Jubelio sales-order list row with defaults for queue eligibility tests.
+ *
+ * @param  array<string, mixed>  $overrides
+ * @return array<string, mixed>
+ */
+function jubelioEligibleListRow(array $overrides = []): array
+{
+    return array_merge([
+        'internal_status' => 'SHIPPED',
+        'is_canceled' => 'N',
+        'transaction_date' => jubelioRecentTransactionDate(),
+    ], $overrides);
+}
+
 /**
  * @param  array<string, mixed>  $payload
  */
