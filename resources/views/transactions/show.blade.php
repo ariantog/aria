@@ -235,151 +235,16 @@
     </div>
     @endif
 
-    {{-- Primary Info Cards --}}
-    <div class="grid grid-cols-1 gap-3 lg:grid-cols-3 lg:gap-4">
-        {{-- Summary Card --}}
-        <div class="overflow-hidden rounded-xl border border-blue-100 bg-white shadow-sm">
-            <div class="h-1.5 w-full bg-blue-600"></div>
-            <div class="px-3 pb-1 pt-3 sm:px-4 sm:pt-4">
-                <div class="flex items-start justify-between gap-3">
-                    <div class="min-w-0">
-                        <div class="text-[10px] font-medium tracking-wider text-gray-500 uppercase sm:text-xs">Grand Total</div>
-                        <div class="mt-0.5 min-w-0 sm:mt-1">
-                            <div class="text-[10px] font-semibold text-blue-600 sm:text-xs">IDR</div>
-                            <div data-testid="tx-grand-total-hero" class="{{ $grandTotalHeroClass }} tabular-nums break-all text-blue-700">{{ $grandTotalFormatted }}</div>
-                        </div>
-                    </div>
-                    <span class="inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold sm:hidden {{ $status['color'] }}">{{ $status['label'] }}</span>
-                </div>
-            </div>
-            <div class="space-y-2 px-3 pb-3 pt-1 sm:space-y-3 sm:px-4 sm:pb-4 sm:pt-2">
-                <div class="hidden items-center justify-between rounded-lg border border-dashed bg-gray-50 px-3 py-2 sm:flex">
-                    <div class="text-sm font-medium">Status</div>
-                    <span class="inline-flex items-center rounded-full px-3 py-0.5 text-xs font-semibold {{ $status['color'] }}">{{ $status['label'] }}</span>
-                </div>
-                <div class="grid grid-cols-2 gap-x-3 gap-y-1.5 sm:block sm:space-y-1.5">
-                    <div class="flex justify-between text-sm">
-                        <span class="flex items-center gap-1.5 text-gray-500">
-                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg> Date
-                        </span>
-                        <span class="font-semibold">{{ $fmtDate($transaction->date) }}</span>
-                    </div>
-                    <div class="flex justify-between text-sm">
-                        <span class="flex items-center gap-1.5 text-gray-500">
-                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Type
-                        </span>
-                        <span class="inline-flex items-center rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 capitalize">{{ $config['type_slug'] }}</span>
-                    </div>
-                    <div class="flex justify-between text-sm">
-                        <span class="flex items-center gap-1.5 text-gray-500">
-                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg> Total Items
-                        </span>
-                        <span class="font-semibold tabular-nums" data-testid="tx-total-items-summary">{{ $fmt($transaction->displayTotalItems()) }}</span>
-                    </div>
-                    <div class="col-span-2 flex justify-between text-sm">
-                        <span class="flex items-center gap-1.5 text-gray-500">
-                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-5 5a2 2 0 01-2.828 0l-7-7A1.99 1.99 0 013 8V3a2 2 0 012-2z" transform="translate(0)"/></svg> Submit Source
-                        </span>
-                        @if((int) $transaction->submit_type === \App\Models\Transaction::SUBMIT_TYPE_JUBELIO)
-                            <span class="inline-flex items-center gap-1 rounded-md border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-xs font-bold text-amber-500">
-                                <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> cron jubelio
-                            </span>
-                        @elseif((int) $transaction->submit_type === \App\Models\Transaction::SUBMIT_TYPE_MANUAL)
-                            <span class="inline-flex items-center gap-1 rounded-md border border-blue-500/20 bg-blue-500/10 px-2 py-0.5 text-xs font-bold text-blue-500">
-                                <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"/></svg> aria submit
-                            </span>
-                        @else
-                            <span class="inline-flex items-center rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">submit type {{ (int) $transaction->submit_type }}</span>
-                        @endif
-                    </div>
-                    @if($transaction->user)
-                    <div class="col-span-2 flex justify-between text-sm sm:col-span-1">
-                        <span class="flex items-center gap-1.5 text-gray-500">
-                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg> Created By
-                        </span>
-                        <span class="font-medium underline decoration-blue-500/30">{{ $transaction->user->name }}</span>
-                    </div>
-                    @endif
-                    @if($jubelioSync['show_ui'] ?? false)
-                    <div class="col-span-2 flex justify-between pt-2 text-sm">
-                        <span class="flex items-center gap-1.5 font-bold text-blue-600">
-                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Sinkron Jubelio
-                        </span>
-                        <a href="/jubelio-transaction/{{ $transaction->id }}/detail-sync"
-                           class="inline-flex items-center rounded-md border border-gray-300 px-2 py-0.5 text-xs font-medium text-gray-700 hover:bg-blue-50">
-                            Kelola Sinkron
-                            <svg class="ml-1 h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-                        </a>
-                    </div>
-                    @endif
-                </div>
-            </div>
-        </div>
-
-        {{-- Mobile: combined parties --}}
-        <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm lg:hidden">
-            <div class="border-b border-gray-100 bg-gray-50/50 px-3 py-2 text-[10px] font-bold tracking-wider text-gray-500 uppercase">Contacts</div>
-            <div class="divide-y divide-gray-100">
-                @foreach([
-                    ['party' => $transaction->sender, 'label' => $config['sender_label'], 'direction' => 'From', 'accent' => 'blue', 'emptyText' => 'No sender info'],
-                    ['party' => $transaction->receiver, 'label' => $config['receiver_label'], 'direction' => 'To', 'accent' => 'green', 'emptyText' => 'No receiver info'],
-                ] as $contact)
-                <div class="px-3 py-2.5">
-                    <div class="text-[10px] font-semibold tracking-wide text-gray-400 uppercase">{{ $contact['label'] }} ({{ $contact['direction'] }})</div>
-                    @if($contact['party'])
-                        @php $contactUrl = $contact['party']->transactionsUrl(); @endphp
-                        <div class="mt-1 flex items-center gap-2">
-                            <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-{{ $contact['accent'] }}-100 text-xs font-bold text-{{ $contact['accent'] }}-600">
-                                {{ mb_substr($contact['party']->name, 0, 1) }}
-                            </div>
-                            <div class="min-w-0">
-                                <a href="{{ $contactUrl }}" class="block truncate text-sm font-semibold text-blue-600 hover:underline">{{ $contact['party']->name }}</a>
-                                <p class="truncate text-[11px] text-gray-500">{{ $contact['party']->type_name }} · ID {{ $contact['party']->id }}</p>
-                            </div>
-                        </div>
-                    @else
-                        <p class="mt-1 text-xs italic text-gray-400">{{ $contact['emptyText'] }}</p>
-                    @endif
-                </div>
-                @endforeach
-            </div>
-        </div>
-
-        {{-- Desktop: separate party cards --}}
-        <div class="hidden lg:contents">
-            @include('transactions.partials.show-party', [
-                'party' => $transaction->sender,
-                'label' => $config['sender_label'],
-                'direction' => 'From',
-                'accent' => 'blue',
-                'iconArrow' => false,
-                'emptyText' => 'No sender info',
-                'sideStatus' => [
-                    'submitted' => $transaction->a_synced,
-                    'needsSync' => in_array($transaction->sync_cek, ['S', 'B'], true),
-                    'jubelioLocation' => $transaction->jubelio_a,
-                    'isFromJubelio' => $transaction->is_from_jubelio,
-                    'role' => 'sender',
-                ],
-            ])
-
-            @include('transactions.partials.show-party', [
-                'party' => $transaction->receiver,
-                'label' => $config['receiver_label'],
-                'direction' => 'To',
-                'accent' => 'green',
-                'iconArrow' => true,
-                'emptyText' => 'No receiver info',
-                'sideStatus' => [
-                    'submitted' => $transaction->b_synced,
-                    'needsSync' => in_array($transaction->sync_cek, ['R', 'B'], true),
-                    'jubelioLocation' => $transaction->jubelio_b,
-                    'isFromJubelio' => $transaction->is_from_jubelio,
-                    'role' => 'receiver',
-                ],
-            ])
-        </div>
-    </div>
+    @include('transactions.partials.show-overview', [
+        'transaction' => $transaction,
+        'config' => $config,
+        'status' => $status,
+        'fmtDate' => $fmtDate,
+        'fmt' => $fmt,
+        'grandTotalFormatted' => $grandTotalFormatted,
+        'grandTotalHeroClass' => $grandTotalHeroClass,
+        'jubelioSync' => $jubelioSync ?? [],
+    ])
 
     @include('transactions.partials.jubelio-sync', ['transaction' => $transaction, 'jubelioSync' => $jubelioSync ?? []])
 
