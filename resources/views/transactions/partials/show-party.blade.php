@@ -3,7 +3,7 @@
     $sideStatus = $sideStatus ?? null;
     $partyUrl = \App\Models\Addrbook::transactionsUrlFor($party);
 @endphp
-<div class="shrink-0 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-600 dark:bg-gray-800" data-testid="tx-show-party-{{ ($sideStatus['role'] ?? null) ?: ($direction === 'To' ? 'receiver' : 'sender') }}">
+<div class="flex h-full shrink-0 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-600 dark:bg-gray-800" data-testid="tx-show-party-{{ ($sideStatus['role'] ?? null) ?: ($direction === 'To' ? 'receiver' : 'sender') }}">
     <div class="flex items-center justify-between border-b border-gray-100 bg-gray-50/50 px-4 py-3">
         <div class="text-xs font-bold tracking-wider text-gray-500 uppercase dark:text-gray-400">{{ $label }} ({{ $direction }})</div>
         @if($iconArrow)
@@ -12,7 +12,7 @@
             <svg class="h-4 w-4 text-blue-500 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
         @endif
     </div>
-    <div class="p-4">
+    <div class="flex flex-1 flex-col p-4">
         @if($party)
             <div class="flex items-start gap-3">
                 <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-{{ $accent }}-100 text-sm font-bold text-{{ $accent }}-600">
@@ -42,6 +42,17 @@
             <div class="flex items-center gap-2 py-2 text-sm italic text-gray-400">
                 <svg class="h-5 w-5 shrink-0 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                 {{ $emptyText }}
+            </div>
+        @endif
+        @if(! empty($internalSlot))
+            <div class="mt-auto border-t border-gray-100 pt-3 dark:border-gray-700">
+                <div class="mb-2 text-[10px] font-bold tracking-wider text-gray-400 uppercase dark:text-gray-500">Internal</div>
+                @include('transactions.partials.show-internal-meta', [
+                    'transaction' => $transaction,
+                    'jubelioSync' => $jubelioSync ?? [],
+                    'slot' => $internalSlot,
+                    'fmtCreated' => $fmtCreated ?? null,
+                ])
             </div>
         @endif
     </div>
