@@ -7,6 +7,7 @@ use App\Models\Jubelioorder;
 use App\Models\Transaction;
 use App\Services\Jubelio\JubelioOrderQueueEligibility;
 use App\Services\Jubelio\JubelioOrderWarehouseResolver;
+use App\Services\Jubelio\JubelioSellInvoiceGuard;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +21,7 @@ class JubelioGetOrdersService
         private JubelioService $jubelioService,
         private JubelioOrderWarehouseResolver $warehouseResolver,
         private JubelioOrderQueueEligibility $queueEligibility,
+        private JubelioSellInvoiceGuard $sellInvoiceGuard,
     ) {}
 
     /**
@@ -316,19 +318,7 @@ class JubelioGetOrdersService
             return [];
         }
 
-        $inTransactions = Transaction::query()
-            ->where('type', Transaction::TYPE_SELL)
-            ->whereIn('invoice', $invoices)
-            ->pluck('invoice')
-            ->all();
-
-        $inJubelio = Jubelioorder::query()
-            ->where('type', 'SELL')
-            ->whereIn('invoice', $invoices)
-            ->pluck('invoice')
-            ->all();
-
-        return array_values(array_unique(array_merge($inTransactions, $inJubelio)));
+        return $this->sellInvoiceGuard->filterInvoicesAlreadyTaken($invoices);
     }
 
     /**

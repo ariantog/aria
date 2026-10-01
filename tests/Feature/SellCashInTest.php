@@ -1,5 +1,6 @@
 <?php
 
+use Carbon\Carbon;
 use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\StandaloneInvoice;
@@ -11,6 +12,8 @@ use App\Services\UserPreferenceService;
 use Spatie\Permission\Models\Permission;
 
 beforeEach(function () {
+    Carbon::setTestNow(Carbon::parse('2026-08-31 15:00:00', 'Asia/Jakarta'));
+
     $this->user = User::factory()->create(); // id 1 — superadmin
     $this->warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Utama']);
     $this->customer = Addrbook::factory()->customer()->create(['name' => 'PT Pelanggan']);
@@ -29,6 +32,10 @@ beforeEach(function () {
         'status' => Transaction::STATUS_COMPLETED,
         'user_id' => $this->user->id,
     ]);
+});
+
+afterEach(function () {
+    Carbon::setTestNow();
 });
 
 it('shows the cash in switch on a sell transaction page', function () {

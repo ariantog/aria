@@ -62,6 +62,42 @@ it('accepts jubelio webhook with valid signature and stores shipped order', func
     expect($order->payload)->toBeNull();
 });
 
+it('skips shipped webhook when a jubelioorders row already exists for the invoice', function () {
+    config(['services.jubelio.webhook_secret' => 'test-secret']);
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'jo-completed',
+        'source' => 2,
+        'invoice' => 'SP-QUEUE-EXISTS',
+        'type' => 'SELL',
+        'order_status' => 'COMPLETED',
+        'run_count' => 0,
+        'status' => 0,
+    ]);
+
+    $body = json_encode([
+        'status' => 'SHIPPED',
+        'salesorder_id' => 'wh-new',
+        'salesorder_no' => 'SP-QUEUE-EXISTS',
+        'transaction_date' => '2026-05-10',
+    ]);
+
+    $sign = jubelioWebhookSign($body, 'test-secret');
+
+    $this->call(
+        'POST',
+        route('jubelio.webhook.order'),
+        [],
+        [],
+        [],
+        ['HTTP_SIGN' => $sign, 'CONTENT_TYPE' => 'application/json'],
+        $body,
+    )->assertSuccessful()
+        ->assertJson(['status' => 'ok', 'message' => 'Already exists']);
+
+    expect(Jubelioorder::where('invoice', 'SP-QUEUE-EXISTS')->count())->toBe(1);
+});
+
 it('skips shipped webhook when sell transaction already exists with the same invoice', function () {
     config(['services.jubelio.webhook_secret' => 'test-secret']);
 

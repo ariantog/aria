@@ -13,6 +13,7 @@ use App\Services\Jubelio\JubelioOrderLineQuantity;
 use App\Services\Jubelio\JubelioOrderPayloadService;
 use App\Services\Jubelio\JubelioOrderQueueEligibility;
 use App\Services\Jubelio\JubelioOrderSyncStatus;
+use App\Services\Jubelio\JubelioSellInvoiceGuard;
 use App\Services\Jubelio\JubelioOrderWarehouseResolver;
 use App\Services\Jubelio\JubelioSellerIncomeResolver;
 use App\Services\LocationAccessService;
@@ -30,6 +31,7 @@ class ProcessJubelioOrder
         private LocationAccessService $locationAccessService,
         private JubelioSellerIncomeResolver $sellerIncomeResolver,
         private JubelioOrderQueueEligibility $queueEligibility,
+        private JubelioSellInvoiceGuard $sellInvoiceGuard,
     ) {}
 
     /**
@@ -41,6 +43,18 @@ class ProcessJubelioOrder
 
         $order->refresh();
         $runCount = $order->run_count + 1;
+
+        if ($order->isSuccessful()) {
+            return ['success' => true, 'message' => 'Transaksi sudah berhasil diposting sebelumnya.'];
+        }
+
+        if ($order->type === 'SELL' && $order->invoice !== null && $order->invoice !== '') {
+            if ($this->sellInvoiceGuard->sellInvoiceInTransactions($order->invoice)) {
+                $this->markDuplicate($order, $runCount, $executedByUserId);
+
+                return ['success' => false, 'message' => 'Transaction sudah ada'];
+            }
+        }
 
         $storedSkipReason = $this->queueEligibility->rejectReasonForStoredOrder($order);
         if ($storedSkipReason !== null) {
@@ -129,14 +143,8 @@ class ProcessJubelioOrder
 
         $arrayInvoice = $dataApi['salesorder_no'] ?? $order->invoice;
 
-        if (Transaction::where('type', Transaction::TYPE_SELL)->where('invoice', $arrayInvoice)->exists()) {
-            $order->update([
-                'run_count' => $runCount,
-                'error_type' => 2,
-                'error' => 'Transaction sudah ada',
-                'stock_error_items' => null,
-                'status' => 2,
-            ]);
+        if ($this->sellInvoiceGuard->sellInvoiceInTransactions($arrayInvoice)) {
+            $this->markDuplicate($order, $runCount, $executedByUserId);
 
             return ['success' => false, 'message' => 'Transaction sudah ada'];
         }
@@ -505,6 +513,18 @@ class ProcessJubelioOrder
             'run_count' => $runCount,
             'error_type' => JubelioOrderSyncStatus::ERROR_SKIPPED,
             'error' => $reason,
+            'stock_error_items' => null,
+            'status' => 2,
+            'execute_by' => $executedByUserId ?? 0,
+        ]);
+    }
+
+    protected function markDuplicate(Jubelioorder $order, int $runCount, ?int $executedByUserId): void
+    {
+        $order->update([
+            'run_count' => $runCount,
+            'error_type' => JubelioOrderSyncStatus::ERROR_DUPLICATE,
+            'error' => 'Transaction sudah ada',
             'stock_error_items' => null,
             'status' => 2,
             'execute_by' => $executedByUserId ?? 0,

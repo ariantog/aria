@@ -68,7 +68,6 @@ function queueJubelioSellOrder(
         'location_id' => $locationId,
         'sub_total' => collect($lineItems)->sum(fn (array $row) => (float) ($row['price'] ?? 0)),
         'real_total' => collect($lineItems)->sum(fn (array $row) => (float) ($row['price'] ?? 0)),
-        'transaction_date' => '2026-05-10',
         'items' => $lineItems,
     ]);
 

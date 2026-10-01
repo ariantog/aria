@@ -39,6 +39,38 @@ it('does not create a transaction when processing an old completed jubelio sell'
         ->and($order->isPermanentlySkipped())->toBeTrue();
 });
 
+it('marks duplicate without calling jubelio api when sell transaction already exists', function () {
+    $warehouse = \App\Models\Addrbook::factory()->warehouse()->create();
+    $customer = \App\Models\Addrbook::factory()->customer()->create();
+
+    Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'submit_type' => Transaction::SUBMIT_TYPE_JUBELIO,
+        'invoice' => 'SP-DUP-PROCESS',
+        'sender_id' => $warehouse->id,
+        'receiver_id' => $customer->id,
+    ]);
+
+    $this->mock(\App\Services\JubelioService::class, function ($mock) {
+        $mock->shouldNotReceive('fetchSalesOrder');
+    });
+
+    $order = Jubelioorder::create([
+        'jubelio_order_id' => 'dup-process',
+        'source' => 2,
+        'invoice' => 'SP-DUP-PROCESS',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 0,
+        'status' => 0,
+    ]);
+
+    $result = app(ProcessJubelioOrder::class)->execute($order);
+
+    expect($result['success'])->toBeFalse()
+        ->and($order->fresh()->error_type)->toBe(JubelioOrderSyncStatus::ERROR_DUPLICATE);
+});
+
 it('skips from stored order_status completed before fetching jubelio api', function () {
     $this->mock(\App\Services\JubelioService::class, function ($mock) {
         $mock->shouldNotReceive('fetchSalesOrder');
