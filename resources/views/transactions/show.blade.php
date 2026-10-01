@@ -346,7 +346,7 @@
         </div>
 
         <div class="overflow-x-auto">
-            <table x-ref="itemsTable" class="w-full min-w-[720px] text-sm">
+            <table x-ref="itemsTable" data-testid="tx-items-table" class="w-full min-w-[720px] text-sm">
                 <thead class="border-y bg-gray-50 text-[10px] font-bold tracking-wider text-gray-500 uppercase">
                     <tr>
                         <th class="px-3 py-2.5 text-center font-black" data-copy-col="image" x-show="showImage">Img</th>
