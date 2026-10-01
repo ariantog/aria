@@ -39,6 +39,57 @@ it('does not create a transaction when processing an old completed jubelio sell'
         ->and($order->isPermanentlySkipped())->toBeTrue();
 });
 
+it('skips from stored order_status completed before fetching jubelio api', function () {
+    $this->mock(\App\Services\JubelioService::class, function ($mock) {
+        $mock->shouldNotReceive('fetchSalesOrder');
+    });
+
+    $order = Jubelioorder::create([
+        'jubelio_order_id' => '222945',
+        'source' => 2,
+        'invoice' => 'SP-STORED-COMPLETED',
+        'type' => 'SELL',
+        'order_status' => 'COMPLETED',
+        'run_count' => 0,
+        'status' => 0,
+    ]);
+
+    $result = app(ProcessJubelioOrder::class)->execute($order);
+
+    expect($result['success'])->toBeFalse()
+        ->and($order->fresh()->error_type)->toBe(JubelioOrderSyncStatus::ERROR_SKIPPED);
+});
+
+it('skips when api payload has channel_status completed even if internal_status is shipped', function () {
+    config(['services.jubelio.order_queue_max_age_days' => 30]);
+
+    mockJubelioSalesOrder('mix-status', [
+        'salesorder_no' => 'SP-MIX-STATUS',
+        'store_id' => 1,
+        'location_id' => 1,
+        'internal_status' => 'SHIPPED',
+        'channel_status' => 'COMPLETED',
+        'transaction_date' => now()->subDays(2)->toIso8601String(),
+        'items' => [],
+    ]);
+
+    $order = Jubelioorder::create([
+        'jubelio_order_id' => 'mix-status',
+        'source' => 2,
+        'invoice' => 'SP-MIX-STATUS',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 0,
+        'status' => 0,
+    ]);
+
+    $result = app(ProcessJubelioOrder::class)->execute($order);
+
+    expect($result['success'])->toBeFalse()
+        ->and(Transaction::where('invoice', 'SP-MIX-STATUS')->exists())->toBeFalse()
+        ->and($order->fresh()->error_type)->toBe(JubelioOrderSyncStatus::ERROR_SKIPPED);
+});
+
 it('blocks manual process on permanently skipped jubelio orders', function () {
     $user = User::factory()->create();
 

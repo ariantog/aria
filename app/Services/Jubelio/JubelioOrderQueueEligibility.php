@@ -11,12 +11,19 @@ class JubelioOrderQueueEligibility
     /** @var list<string> */
     private const ELIGIBLE_SELL_STATUSES = ['SHIPPED', 'RETURNED'];
 
+    /** @var list<string> */
+    private const TERMINAL_SELL_STATUSES = ['COMPLETED', 'CANCELED', 'CANCELLED'];
+
     /**
      * @param  array<string, mixed>  $row
      */
     public function isEligibleListRow(array $row): bool
     {
-        $status = (string) ($row['internal_status'] ?? '');
+        if ($this->hasTerminalSellStatus($row)) {
+            return false;
+        }
+
+        $status = $this->primarySellStatus($row);
         if (! in_array($status, self::ELIGIBLE_SELL_STATUSES, true)) {
             return false;
         }
@@ -37,6 +44,22 @@ class JubelioOrderQueueEligibility
     }
 
     /**
+     * Skip before API fetch when the queue row already shows a terminal Jubelio status.
+     */
+    public function rejectReasonForStoredOrder(Jubelioorder $order): ?string
+    {
+        if ($order->type !== 'SELL') {
+            return null;
+        }
+
+        if ($this->hasTerminalSellStatus(['order_status' => $order->order_status])) {
+            return $this->terminalStatusMessage($order->order_status);
+        }
+
+        return null;
+    }
+
+    /**
      * Block cron / manual posting when the order is outside the catch-up window or wrong status.
      *
      * @param  array<string, mixed>  $payload
@@ -44,12 +67,18 @@ class JubelioOrderQueueEligibility
     public function rejectReasonForProcessing(Jubelioorder $order, array $payload): ?string
     {
         if ($order->type === 'SELL') {
-            if (! $this->isEligibleListRow($this->normalizeApiRow($payload))) {
-                $status = (string) ($payload['internal_status'] ?? $payload['status'] ?? $order->order_status ?? '');
+            $row = $this->normalizeApiRow($payload, $order);
+
+            if ($this->hasTerminalSellStatus($row)) {
+                return $this->terminalStatusMessage($this->primarySellStatus($row));
+            }
+
+            if (! $this->isEligibleListRow($row)) {
+                $status = $this->primarySellStatus($row);
                 if (! in_array($status, self::ELIGIBLE_SELL_STATUSES, true)) {
                     return 'Order tidak diproses: status Jubelio harus SHIPPED (bukan COMPLETED / status lain).';
                 }
-                if (($payload['is_canceled'] ?? 'N') === 'Y') {
+                if (($row['is_canceled'] ?? 'N') === 'Y') {
                     return 'Order dibatalkan di Jubelio — tidak diproses.';
                 }
 
@@ -105,13 +134,68 @@ class JubelioOrderQueueEligibility
      * @param  array<string, mixed>  $apiData
      * @return array<string, mixed>
      */
-    public function normalizeApiRow(array $apiData): array
+    /**
+     * @param  array<string, mixed>  $apiData
+     * @return array<string, mixed>
+     */
+    public function normalizeApiRow(array $apiData, ?Jubelioorder $order = null): array
     {
-        return [
-            'internal_status' => $apiData['internal_status'] ?? $apiData['status'] ?? '',
+        return array_merge($apiData, [
+            'order_status' => $order?->order_status,
             'is_canceled' => $apiData['is_canceled'] ?? 'N',
             'transaction_date' => $apiData['transaction_date'] ?? null,
             'created_date' => $apiData['created_date'] ?? null,
-        ];
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     */
+    public function hasTerminalSellStatus(array $row): bool
+    {
+        foreach ($this->sellStatusValues($row) as $status) {
+            if (in_array($status, self::TERMINAL_SELL_STATUSES, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     */
+    public function primarySellStatus(array $row): string
+    {
+        foreach ($this->sellStatusValues($row) as $status) {
+            return $status;
+        }
+
+        return '';
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     * @return list<string>
+     */
+    protected function sellStatusValues(array $row): array
+    {
+        $values = [];
+        foreach (['internal_status', 'channel_status', 'wms_status', 'status', 'order_status'] as $key) {
+            $raw = $row[$key] ?? null;
+            if ($raw === null || $raw === '') {
+                continue;
+            }
+            $values[] = strtoupper(trim((string) $raw));
+        }
+
+        return array_values(array_unique($values));
+    }
+
+    protected function terminalStatusMessage(?string $status): string
+    {
+        $label = strtoupper(trim((string) ($status ?? 'COMPLETED')));
+
+        return 'Order tidak diproses: status Jubelio '.$label.' (hanya SHIPPED yang diposting ke Aria).';
     }
 }

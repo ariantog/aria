@@ -41,6 +41,14 @@ class ProcessJubelioOrder
 
         $order->refresh();
         $runCount = $order->run_count + 1;
+
+        $storedSkipReason = $this->queueEligibility->rejectReasonForStoredOrder($order);
+        if ($storedSkipReason !== null) {
+            $this->markSkipped($order, $runCount, $storedSkipReason, $executedByUserId);
+
+            return ['success' => false, 'message' => $storedSkipReason];
+        }
+
         $dataApi = $this->resolvePayload($order);
 
         if ($dataApi === []) {
@@ -59,14 +67,7 @@ class ProcessJubelioOrder
 
         $skipReason = $this->queueEligibility->rejectReasonForProcessing($order, $dataApi);
         if ($skipReason !== null) {
-            $order->update([
-                'run_count' => $runCount,
-                'error_type' => JubelioOrderSyncStatus::ERROR_SKIPPED,
-                'error' => $skipReason,
-                'stock_error_items' => null,
-                'status' => 2,
-                'execute_by' => $executedByUserId ?? 0,
-            ]);
+            $this->markSkipped($order, $runCount, $skipReason, $executedByUserId);
 
             return ['success' => false, 'message' => $skipReason];
         }
@@ -496,5 +497,17 @@ class ProcessJubelioOrder
                 'message' => $e->getMessage(),
             ];
         }
+    }
+
+    protected function markSkipped(Jubelioorder $order, int $runCount, string $reason, ?int $executedByUserId): void
+    {
+        $order->update([
+            'run_count' => $runCount,
+            'error_type' => JubelioOrderSyncStatus::ERROR_SKIPPED,
+            'error' => $reason,
+            'stock_error_items' => null,
+            'status' => 2,
+            'execute_by' => $executedByUserId ?? 0,
+        ]);
     }
 }
