@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\DataRetentionRun;
 use App\Services\Jubelio\JubelioLegacyCatchupStockRestoreService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -12,8 +11,6 @@ class JubelioLegacyCatchupRepairController extends Controller
 {
     public function index(JubelioLegacyCatchupStockRestoreService $service): View
     {
-        DataRetentionRun::authorizeManage();
-
         $warehouseId = request()->query('warehouse_id');
         $warehouseId = $warehouseId !== null && $warehouseId !== '' ? (int) $warehouseId : null;
 
@@ -40,8 +37,6 @@ class JubelioLegacyCatchupRepairController extends Controller
 
     public function restore(Request $request, JubelioLegacyCatchupStockRestoreService $service): RedirectResponse
     {
-        DataRetentionRun::authorizeManage();
-
         $validated = $request->validate([
             'virtual_warehouse_id' => ['required', 'integer', 'exists:customers,id'],
             'transaction_ids' => ['required', 'array', 'min:1'],

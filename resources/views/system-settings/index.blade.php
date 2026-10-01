@@ -30,13 +30,11 @@ $firstGroup = $groupList->first() ?? 'Accounting';
            class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
             Running Balances
         </a>
-        @if(auth()->user()?->is_superadmin)
         <a href="{{ route('jubelio-legacy-catchup-repair.index') }}"
            data-testid="jubelio-legacy-catchup-repair-link"
            class="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100">
             Jubelio Catch-up Repair
         </a>
-        @endif
         @if($can['edit'])
         <a href="{{ route('invoice-settings.edit') }}"
            class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
