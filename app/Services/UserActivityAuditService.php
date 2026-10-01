@@ -13,28 +13,27 @@ use Illuminate\Support\Facades\DB;
 
 class UserActivityAuditService
 {
-    public function __construct(private readonly BookClosingService $bookClosing) {}
-
     /**
-     * @return array{from: string, to: string, late_entry_days: int, frequent_min_count: int, exclude_jubelio: bool, min_allowed_date: string}
+     * @return array{
+     *     month: string,
+     *     from: string,
+     *     to: string,
+     *     late_entry_days: int,
+     *     frequent_min_count: int,
+     *     exclude_jubelio: bool,
+     *     user_id: int|null,
+     *     min_allowed_date: string
+     * }
      */
     public function resolveFilters(array $input): array
     {
-        $daysBack = (int) config('user_activity_audit.default_days_back', 90);
-        $to = isset($input['to']) && $input['to'] !== ''
-            ? Carbon::parse((string) $input['to'])->toDateString()
-            : Carbon::today()->toDateString();
-        $from = isset($input['from']) && $input['from'] !== ''
-            ? Carbon::parse((string) $input['from'])->toDateString()
-            : Carbon::parse($to)->subDays(max(1, $daysBack))->toDateString();
-
-        if ($from > $to) {
-            [$from, $to] = [$to, $from];
-        }
+        $monthStart = $this->resolveAuditMonth($input['month'] ?? null);
+        $monthEnd = $monthStart->copy()->endOfMonth();
 
         return [
-            'from' => $from,
-            'to' => $to,
+            'month' => $monthStart->format('Y-m'),
+            'from' => $monthStart->toDateString(),
+            'to' => $monthEnd->toDateString(),
             'late_entry_days' => max(1, (int) ($input['late_entry_days'] ?? config('user_activity_audit.late_entry_days', 7))),
             'frequent_min_count' => max(1, (int) ($input['frequent_min_count'] ?? config('user_activity_audit.frequent_min_count', 3))),
             'exclude_jubelio' => array_key_exists('exclude_jubelio', $input)
@@ -43,8 +42,29 @@ class UserActivityAuditService
             'user_id' => isset($input['user_id']) && $input['user_id'] !== '' && $input['user_id'] !== null
                 ? (int) $input['user_id']
                 : null,
-            'min_allowed_date' => $this->bookClosing->getMinAllowedDate()->toDateString(),
+            'min_allowed_date' => $this->minAllowedDateForAuditMonth($monthStart)->toDateString(),
         ];
+    }
+
+    public function resolveAuditMonth(?string $month): Carbon
+    {
+        if ($month !== null && $month !== '') {
+            $parsed = Carbon::createFromFormat('Y-m', (string) $month);
+
+            if ($parsed !== false) {
+                return $parsed->startOfMonth()->startOfDay();
+            }
+        }
+
+        return Carbon::today()->startOfMonth()->startOfDay();
+    }
+
+    /**
+     * Earliest allowed transaction date for entries in the audited month (previous month start, same rule as tutup buku).
+     */
+    public function minAllowedDateForAuditMonth(Carbon $monthStart): Carbon
+    {
+        return $monthStart->copy()->endOfMonth()->subMonthNoOverflow()->startOfMonth()->startOfDay();
     }
 
     /**

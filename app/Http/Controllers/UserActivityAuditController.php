@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Setting;
 use App\Models\User;
+use App\Models\UserActivityAudit;
 use App\Services\UserActivityAuditService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
@@ -13,7 +13,7 @@ class UserActivityAuditController extends Controller
 {
     public function index(Request $request, UserActivityAuditService $audit): View
     {
-        Gate::authorize(Setting::getPermissions()['view']);
+        Gate::authorize(UserActivityAudit::getPermissions()['view']);
 
         $filters = $audit->resolveFilters($request->query());
         $suspicious = $audit->paginateSuspiciousTiming($filters);

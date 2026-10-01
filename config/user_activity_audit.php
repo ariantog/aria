@@ -2,11 +2,6 @@
 
 return [
     /*
-    | Default transaction-date window when the UI / CLI omits from/to.
-    */
-    'default_days_back' => 90,
-
-    /*
     | Flag manual rows when created_at is more than this many calendar days after date.
     */
     'late_entry_days' => 7,

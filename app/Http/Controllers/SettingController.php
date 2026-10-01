@@ -6,6 +6,7 @@ use App\Enums\AddrbookType;
 use App\Models\Addrbook;
 use App\Models\ScheduledTask;
 use App\Models\Setting;
+use App\Models\UserActivityAudit;
 use App\Support\LikeSearch;
 use App\Support\SettingRegistry;
 use Illuminate\Http\Request;
@@ -35,6 +36,7 @@ class SettingController extends Controller
                 'edit' => request()->user()?->can(Setting::getPermissions()['edit']) ?? false,
                 'delete' => request()->user()?->can(Setting::getPermissions()['delete']) ?? false,
                 'cron_view' => request()->user()?->can(ScheduledTask::getPermissions()['view']) ?? false,
+                'user_activity_audit_view' => request()->user()?->can(UserActivityAudit::getPermissions()['view']) ?? false,
             ],
         ]);
     }

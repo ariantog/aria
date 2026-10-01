@@ -16,7 +16,7 @@ $queryBase = request()->except('page');
     <div>
         <h1 class="text-2xl font-bold tracking-tight text-gray-900">User Activity Audit</h1>
         <p class="mt-1 text-sm text-gray-500">
-            Menyorot transaksi manual yang mencurigakan: entri terlambat / di luar jendela tutup buku,
+            Audit bulanan transaksi manual yang mencurigakan (satu bulan kalender per tampilan): entri terlambat / di luar jendela tutup buku,
             user yang sering memindahkan stok ke gudang virtual, dan sell dengan diskon atau total Rp&nbsp;0.
             Jubelio cron (<code class="rounded bg-gray-100 px-1 text-xs">submit_type = 2</code>) disembunyikan secara default.
         </p>
@@ -28,13 +28,8 @@ $queryBase = request()->except('page');
           class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div>
-                <label for="uaa-from" class="mb-1 block text-sm font-medium text-gray-700">Tanggal transaksi dari</label>
-                <input type="date" id="uaa-from" name="from" value="{{ $filters['from'] }}"
-                       class="w-full rounded-lg border-gray-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500">
-            </div>
-            <div>
-                <label for="uaa-to" class="mb-1 block text-sm font-medium text-gray-700">s/d</label>
-                <input type="date" id="uaa-to" name="to" value="{{ $filters['to'] }}"
+                <label for="uaa-month" class="mb-1 block text-sm font-medium text-gray-700">Bulan transaksi</label>
+                <input type="month" id="uaa-month" name="month" value="{{ $filters['month'] }}"
                        class="w-full rounded-lg border-gray-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500">
             </div>
             <div>
@@ -78,16 +73,18 @@ $queryBase = request()->except('page');
             </a>
         </div>
         <p class="mt-3 text-xs text-gray-500">
-            Jendela tutup buku saat ini: tanggal transaksi harus ≥
-            <strong>{{ \Illuminate\Support\Carbon::parse($filters['min_allowed_date'])->translatedFormat('d M Y') }}</strong>
-            untuk entri baru. CLI: <code class="rounded bg-gray-100 px-1">php artisan app:user-activity-audit</code>
+            Periode: <strong>{{ \Illuminate\Support\Carbon::parse($filters['from'])->translatedFormat('d M Y') }}</strong>
+            – <strong>{{ \Illuminate\Support\Carbon::parse($filters['to'])->translatedFormat('d M Y') }}</strong>.
+            Tutup buku untuk bulan ini: tanggal transaksi harus ≥
+            <strong>{{ \Illuminate\Support\Carbon::parse($filters['min_allowed_date'])->translatedFormat('d M Y') }}</strong>.
+            CLI: <code class="rounded bg-gray-100 px-1">php artisan app:user-activity-audit --month={{ $filters['month'] }}</code>
         </p>
     </form>
 
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
             <h2 class="text-sm font-semibold text-gray-900">Sering move → gudang virtual</h2>
-            <p class="text-xs text-gray-500">Move selesai ke penerima tipe V.Warehouse, ≥ {{ $filters['frequent_min_count'] }}× dalam periode.</p>
+            <p class="text-xs text-gray-500">Move selesai ke penerima tipe V.Warehouse, ≥ {{ $filters['frequent_min_count'] }}× dalam bulan ini.</p>
             @if(count($virtualMoves) === 0)
             <p class="mt-4 text-sm italic text-gray-500">Tidak ada user di atas ambang.</p>
             @else
