@@ -124,7 +124,8 @@ class JubelioOrderQueueEligibility
 
         $date = $row['transaction_date'] ?? $row['created_date'] ?? null;
         if ($date === null || $date === '') {
-            return false;
+            // Fail closed: list/webhook rows without a date must not enter the catch-up queue.
+            return true;
         }
 
         return Carbon::parse($date)->lt($earliest);

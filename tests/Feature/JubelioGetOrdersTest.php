@@ -53,24 +53,20 @@ it('fetches api pages and queues only eligible missing orders', function () {
             ->andReturn([
                 'totalCount' => 3,
                 'data' => [
-                    [
+                    jubelioEligibleListRow([
                         'salesorder_id' => 'so-100',
                         'salesorder_no' => 'INV-SHIPPED',
-                        'internal_status' => 'SHIPPED',
-                        'is_canceled' => 'N',
-                    ],
-                    [
+                    ]),
+                    jubelioEligibleListRow([
                         'salesorder_id' => 'so-101',
                         'salesorder_no' => 'INV-DRAFT',
                         'internal_status' => 'DRAFT',
-                        'is_canceled' => 'N',
-                    ],
-                    [
+                    ]),
+                    jubelioEligibleListRow([
                         'salesorder_id' => 'so-102',
                         'salesorder_no' => 'INV-CANCELED',
-                        'internal_status' => 'SHIPPED',
                         'is_canceled' => 'Y',
-                    ],
+                    ]),
                 ],
             ]);
     });
@@ -101,18 +97,14 @@ it('skips orders already present in aria when syncing', function () {
             ->andReturn([
                 'totalCount' => 2,
                 'data' => [
-                    [
+                    jubelioEligibleListRow([
                         'salesorder_id' => 'so-1',
                         'salesorder_no' => 'INV-EXISTS',
-                        'internal_status' => 'SHIPPED',
-                        'is_canceled' => 'N',
-                    ],
-                    [
+                    ]),
+                    jubelioEligibleListRow([
                         'salesorder_id' => 'so-2',
                         'salesorder_no' => 'INV-MISSING',
-                        'internal_status' => 'SHIPPED',
-                        'is_canceled' => 'N',
-                    ],
+                    ]),
                 ],
             ]);
     });
@@ -150,21 +142,17 @@ it('can fetch multiple pages in one cron run', function () {
             ->andReturn(
                 [
                     'totalCount' => 400,
-                    'data' => [[
+                    'data' => [jubelioEligibleListRow([
                         'salesorder_id' => 'so-page-1',
                         'salesorder_no' => 'INV-P1',
-                        'internal_status' => 'SHIPPED',
-                        'is_canceled' => 'N',
-                    ]],
+                    ])],
                 ],
                 [
                     'totalCount' => 400,
-                    'data' => [[
+                    'data' => [jubelioEligibleListRow([
                         'salesorder_id' => 'so-page-2',
                         'salesorder_no' => 'INV-P2',
-                        'internal_status' => 'SHIPPED',
-                        'is_canceled' => 'N',
-                    ]],
+                    ])],
                 ],
             );
     });
@@ -221,12 +209,10 @@ it('resumes a full sync from the next unread page', function () {
             ->with(2, 200, \Mockery::type('string'), \Mockery::type('string'))
             ->andReturn([
                 'totalCount' => 400,
-                'data' => [[
+                'data' => [jubelioEligibleListRow([
                     'salesorder_id' => 'so-page-2',
                     'salesorder_no' => 'INV-RESUME',
-                    'internal_status' => 'SHIPPED',
-                    'is_canceled' => 'N',
-                ]],
+                ])],
             ]);
     });
 
@@ -350,12 +336,10 @@ it('polls recent days via dedicated command', function () {
             ->once()
             ->andReturn([
                 'totalCount' => 1,
-                'data' => [[
+                'data' => [jubelioEligibleListRow([
                     'salesorder_id' => 'so-poll',
                     'salesorder_no' => 'INV-POLL',
-                    'internal_status' => 'SHIPPED',
-                    'is_canceled' => 'N',
-                ]],
+                ])],
             ]);
     });
 
@@ -368,24 +352,20 @@ it('skips ineligible orders during service reconcile helper', function () {
     $service = app(JubelioGetOrdersService::class);
 
     $queued = $service->queueEligibleRows([
-        [
+        jubelioEligibleListRow([
             'salesorder_id' => 'so-keep',
             'salesorder_no' => 'INV-KEEP',
-            'internal_status' => 'SHIPPED',
-            'is_canceled' => 'N',
-        ],
-        [
+        ]),
+        jubelioEligibleListRow([
             'salesorder_id' => 'so-drop',
             'salesorder_no' => 'INV-DROP-STATUS',
             'internal_status' => 'DRAFT',
-            'is_canceled' => 'N',
-        ],
-        [
+        ]),
+        jubelioEligibleListRow([
             'salesorder_id' => 'so-completed',
             'salesorder_no' => 'INV-COMPLETED',
             'internal_status' => 'COMPLETED',
-            'is_canceled' => 'N',
-        ],
+        ]),
     ]);
 
     expect($queued)->toBe(1);
@@ -422,6 +402,24 @@ it('skips orders older than the queue max age window', function () {
     expect(Jubelioorder::whereIn('invoice', ['SP-250302JA65X2S0', 'SP-OLD-SHIPPED'])->exists())->toBeFalse();
 });
 
+it('does not queue shipped rows without a transaction date', function () {
+    config(['services.jubelio.order_queue_max_age_days' => 30]);
+
+    $service = app(JubelioGetOrdersService::class);
+
+    $queued = $service->queueEligibleRows([
+        [
+            'salesorder_id' => 'so-no-date',
+            'salesorder_no' => 'INV-NO-DATE',
+            'internal_status' => 'SHIPPED',
+            'is_canceled' => 'N',
+        ],
+    ]);
+
+    expect($queued)->toBe(0)
+        ->and(Jubelioorder::where('invoice', 'INV-NO-DATE')->exists())->toBeFalse();
+});
+
 it('queues shipped orders within the max age window', function () {
     config(['services.jubelio.order_queue_max_age_days' => 30]);
 
@@ -454,12 +452,10 @@ it('does not duplicate when order already in jubelioorders', function () {
 
     $service = app(JubelioGetOrdersService::class);
     $queued = $service->queueEligibleRows([
-        [
+        jubelioEligibleListRow([
             'salesorder_id' => 'so-dup',
             'salesorder_no' => 'INV-DROP-JO',
-            'internal_status' => 'SHIPPED',
-            'is_canceled' => 'N',
-        ],
+        ]),
     ]);
 
     expect($queued)->toBe(0);

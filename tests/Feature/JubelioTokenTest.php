@@ -113,12 +113,10 @@ it('does not break existing jubelio get orders flow with reactive refresh', func
             ->push(['message' => 'Unauthorized'], 401)
             ->push([
                 'totalCount' => 1,
-                'data' => [[
+                'data' => [jubelioEligibleListRow([
                     'salesorder_id' => 'so-poll',
                     'salesorder_no' => 'INV-POLL-REFRESH',
-                    'internal_status' => 'SHIPPED',
-                    'is_canceled' => 'N',
-                ]],
+                ])],
             ], 200),
         'https://api.jubelio.com/login' => Http::response(['token' => 'refreshed-for-poll'], 200),
     ]);

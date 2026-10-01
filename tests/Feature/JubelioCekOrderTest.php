@@ -29,6 +29,7 @@ it('looks up an order from jubelio api', function () {
                 'salesorder_id' => 'so-123',
                 'salesorder_no' => 'INV-CEK-123',
                 'status' => 'SHIPPED',
+                'transaction_date' => jubelioRecentTransactionDate(),
                 'source_name' => 'Shopee',
                 'location_name' => 'Gudang A',
             ]);
@@ -60,6 +61,7 @@ it('disables queue button when invoice exists in transactions', function () {
                 'salesorder_id' => 'so-tx',
                 'salesorder_no' => 'INV-EXISTS-TX',
                 'status' => 'SHIPPED',
+                'transaction_date' => jubelioRecentTransactionDate(),
             ]);
     });
 
@@ -90,6 +92,7 @@ it('disables queue button when order already in jubelioorders queue', function (
                 'salesorder_id' => 'so-queued',
                 'salesorder_no' => 'INV-QUEUED',
                 'status' => 'SHIPPED',
+                'transaction_date' => jubelioRecentTransactionDate(),
             ]);
     });
 
@@ -111,6 +114,7 @@ it('queues a missing order via post', function () {
                 'salesorder_id' => 'so-new',
                 'salesorder_no' => 'INV-NEW-QUEUE',
                 'status' => 'SHIPPED',
+                'transaction_date' => jubelioRecentTransactionDate(),
             ]);
     });
 
@@ -141,6 +145,7 @@ it('rejects queue when invoice exists in transactions', function () {
                 'salesorder_id' => 'so-block',
                 'salesorder_no' => 'INV-BLOCK-TX',
                 'status' => 'SHIPPED',
+                'transaction_date' => jubelioRecentTransactionDate(),
             ]);
     });
 
@@ -172,6 +177,7 @@ it('rejects queue when order already in jubelioorders', function () {
                 'salesorder_id' => 'so-dup',
                 'salesorder_no' => 'INV-DUP',
                 'status' => 'SHIPPED',
+                'transaction_date' => jubelioRecentTransactionDate(),
             ]);
     });
 
@@ -190,6 +196,7 @@ it('inspect service blocks queue for transaction and existing queue separately',
         'salesorder_id' => 'so-1',
         'salesorder_no' => 'INV-1',
         'status' => 'SHIPPED',
+        'transaction_date' => jubelioRecentTransactionDate(),
     ]);
 
     expect($inspection['can_queue'])->toBeTrue();
@@ -208,6 +215,7 @@ it('inspect service blocks queue for transaction and existing queue separately',
         'salesorder_id' => 'so-1',
         'salesorder_no' => 'INV-1',
         'status' => 'SHIPPED',
+        'transaction_date' => jubelioRecentTransactionDate(),
     ]);
 
     expect($inspection['in_queue'])->toBeTrue()

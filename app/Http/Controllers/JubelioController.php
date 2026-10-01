@@ -12,6 +12,7 @@ use App\Models\Jubeliosync;
 use App\Models\Transaction;
 use App\Services\Jubelio\JubelioAdjustmentHint;
 use App\Services\Jubelio\JubelioOrderShowPresenter;
+use App\Services\Jubelio\JubelioOrderQueueEligibility;
 use App\Services\Jubelio\JubelioSellInvoiceGuard;
 use App\Services\Jubelio\JubelioOrderWarehouseResolver;
 use App\Services\Jubelio\JubelioTransactionSyncPresenter;
@@ -340,7 +341,9 @@ class JubelioController extends Controller
         $d = $request->all();
         if (($d['status'] ?? '') === 'SHIPPED') {
             $cutoff = config('services.jubelio.webhook_order_cutoff_date', '2025-03-06');
-            if ($cutoff && Carbon::parse($d['transaction_date'])->lt(Carbon::parse($cutoff))) {
+            $transactionDate = $d['transaction_date'] ?? null;
+            if ($cutoff && is_string($transactionDate) && $transactionDate !== ''
+                && Carbon::parse($transactionDate)->lt(Carbon::parse($cutoff))) {
                 return response()->json(['status' => 'ok', 'message' => 'Before threshold.']);
             }
             $invoiceGuard = app(JubelioSellInvoiceGuard::class);
@@ -364,6 +367,15 @@ class JubelioController extends Controller
                     $payload = array_merge($d, $apiPayload);
                 }
             }
+
+            $queueEligibility = app(JubelioOrderQueueEligibility::class);
+            if (! $queueEligibility->isEligibleApiOrder($payload)) {
+                return response()->json([
+                    'status' => 'ok',
+                    'message' => 'Outside catch-up window or ineligible Jubelio status.',
+                ]);
+            }
+
             $warehouseColumns = $resolver->sellWarehouseColumnsFromPayload($payload);
 
             $order = Jubelioorder::create([
