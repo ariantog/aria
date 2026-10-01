@@ -8,6 +8,7 @@ use App\Models\Produksi;
 use App\Models\Tag;
 use App\Models\Worker;
 use Carbon\Carbon;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -111,7 +112,7 @@ class BoronganController extends Controller
             $created = 0;
             $updated = 0;
 
-            foreach ($request->input('batches', []) as $batch) {
+            foreach ($this->dedupeBatchesByJahit($request->input('batches', [])) as $batch) {
                 $jahitId = (int) $batch['jahit_id'];
                 $boronganItems = $this->findBorongan($request->from, $request->to, $jahitId);
 
@@ -121,25 +122,13 @@ class BoronganController extends Controller
 
                 $existing = $this->findExistingBorongan($request->from, $request->to, $jahitId);
 
-                if ($existing) {
-                    if (empty($boronganItems)) {
-                        $existing->update([
-                            'permak' => $permak,
-                            'tres' => $tres,
-                            'lain2' => $lain2,
-                        ]);
-                        $this->recalculateBoronganTotal($existing);
-                        $updated++;
-
-                        continue;
-                    }
-
-                    $borongan = $existing;
-                    $borongan->permak = $permak;
-                    $borongan->tres = $tres;
-                    $borongan->lain2 = $lain2;
-                    $borongan->save();
-                    $this->appendBoronganItems($borongan, $boronganItems);
+                if ($existing && empty($boronganItems)) {
+                    $existing->update([
+                        'permak' => $permak,
+                        'tres' => $tres,
+                        'lain2' => $lain2,
+                    ]);
+                    $this->recalculateBoronganTotal($existing);
                     $updated++;
 
                     continue;
@@ -149,21 +138,23 @@ class BoronganController extends Controller
                     continue;
                 }
 
-                $borongan = new Borongan;
-                $borongan->date = Carbon::now()->toDateString();
-                $borongan->user_id = $request->user()->id;
-                $borongan->jahit_id = $jahitId;
-                $borongan->permak = $permak;
-                $borongan->tres = $tres;
-                $borongan->lain2 = $lain2;
-                $borongan->from = $request->from;
-                $borongan->to = $request->to;
-                $borongan->total_items = 0;
-                $borongan->total = bcadd((string) $permak, bcadd((string) $tres, (string) $lain2, 2), 2);
-                $borongan->save();
+                [$borongan, $createdNew] = $this->lockAndUpsertBoronganHeader(
+                    $request->from,
+                    $request->to,
+                    $jahitId,
+                    (int) $request->user()->id,
+                    $permak,
+                    $tres,
+                    $lain2,
+                );
 
                 $this->appendBoronganItems($borongan, $boronganItems);
-                $created++;
+
+                if ($createdNew) {
+                    $created++;
+                } else {
+                    $updated++;
+                }
             }
 
             DB::commit();
@@ -409,7 +400,109 @@ class BoronganController extends Controller
             ->where('jahit_id', $jahitId)
             ->whereDate('from', $from)
             ->whereDate('to', $to)
+            ->orderByDesc('id')
             ->first();
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $batches
+     * @return list<array<string, mixed>>
+     */
+    protected function dedupeBatchesByJahit(array $batches): array
+    {
+        $byJahit = [];
+
+        foreach ($batches as $batch) {
+            $jahitId = (int) ($batch['jahit_id'] ?? 0);
+            if ($jahitId <= 0) {
+                continue;
+            }
+            $byJahit[$jahitId] = $batch;
+        }
+
+        return array_values($byJahit);
+    }
+
+    /**
+     * @return array{0: Borongan, 1: bool} Borongan model and whether a new row was inserted
+     */
+    protected function lockAndUpsertBoronganHeader(
+        string $from,
+        string $to,
+        int $jahitId,
+        int $userId,
+        float $permak,
+        float $tres,
+        float $lain2,
+    ): array {
+        $existing = Borongan::query()
+            ->where('jahit_id', $jahitId)
+            ->whereDate('from', $from)
+            ->whereDate('to', $to)
+            ->lockForUpdate()
+            ->orderByDesc('id')
+            ->first();
+
+        if ($existing !== null) {
+            $existing->permak = $permak;
+            $existing->tres = $tres;
+            $existing->lain2 = $lain2;
+            $existing->save();
+
+            return [$existing, false];
+        }
+
+        try {
+            $borongan = new Borongan;
+            $borongan->date = Carbon::now()->toDateString();
+            $borongan->user_id = $userId;
+            $borongan->jahit_id = $jahitId;
+            $borongan->permak = $permak;
+            $borongan->tres = $tres;
+            $borongan->lain2 = $lain2;
+            $borongan->from = $from;
+            $borongan->to = $to;
+            $borongan->total_items = 0;
+            $borongan->total = bcadd((string) $permak, bcadd((string) $tres, (string) $lain2, 2), 2);
+            $borongan->save();
+
+            return [$borongan, true];
+        } catch (QueryException $e) {
+            if (! $this->isUniqueConstraintViolation($e)) {
+                throw $e;
+            }
+
+            $existing = Borongan::query()
+                ->where('jahit_id', $jahitId)
+                ->whereDate('from', $from)
+                ->whereDate('to', $to)
+                ->lockForUpdate()
+                ->orderByDesc('id')
+                ->firstOrFail();
+
+            $existing->permak = $permak;
+            $existing->tres = $tres;
+            $existing->lain2 = $lain2;
+            $existing->save();
+
+            return [$existing, false];
+        }
+    }
+
+    protected function isUniqueConstraintViolation(QueryException $e): bool
+    {
+        $sqlState = $e->errorInfo[0] ?? '';
+        $driverCode = (int) ($e->errorInfo[1] ?? 0);
+
+        if ($driverCode === 1062 || $driverCode === 19) {
+            return true;
+        }
+
+        if ($sqlState === '23000') {
+            return true;
+        }
+
+        return str_contains(strtolower($e->getMessage()), 'unique');
     }
 
     /**
