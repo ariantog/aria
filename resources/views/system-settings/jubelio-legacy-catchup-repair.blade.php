@@ -34,7 +34,7 @@ $breadcrumbs = [
             <p class="mt-1 max-w-3xl text-sm text-gray-600">
                 One-off tool: lists Jubelio cron sells that posted with an old <strong>transaction date</strong> after the bad get-orders deploy.
                 Restore stock by posting a <strong>move</strong> from a virtual warehouse into the sell&rsquo;s sender warehouse.
-                <span class="text-amber-700">Superadmin only. Remove this page after production cleanup.</span>
+                <span class="text-amber-700">Temporary — remove this page after production cleanup.</span>
             </p>
             <p class="mt-2 font-mono text-xs text-gray-500">
                 Filter: <code>date &lt; {{ $criteria['date_before'] }}</code>,

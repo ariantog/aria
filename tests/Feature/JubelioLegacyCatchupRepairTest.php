@@ -25,13 +25,13 @@ it('renders the jubelio legacy catchup repair page for superadmin', function () 
         ->assertSee('data-testid="jubelio-catchup-vwh"', false);
 });
 
-it('forbids non-superadmin users', function () {
+it('allows any authenticated user to open the repair page', function () {
     $other = User::factory()->create();
     expect($other->is_superadmin)->toBeFalse();
 
     $this->actingAs($other)
         ->get(route('jubelio-legacy-catchup-repair.index'))
-        ->assertForbidden();
+        ->assertOk();
 });
 
 it('creates a move from virtual warehouse to sell sender for problematic jubelio sells', function () {
