@@ -58,7 +58,11 @@ $breadcrumbs = [
             @include('produksi.setoran._basic-form', ['produksi' => $produksi, 'canEdit' => true])
 
             {{-- Split Form --}}
-            <div class="rounded-xl border border-l-4 border-gray-200 border-l-orange-500 bg-white p-6 shadow-md">
+            <div class="rounded-xl border border-l-4 border-gray-200 border-l-orange-500 bg-white p-6 shadow-md" x-data="{
+                splitQ: @js(old('split_q') !== null && old('split_q') !== '' ? (string) old('split_q') : ''),
+                splitIsEmpty() { return this.splitQ === '' || this.splitQ === null; },
+                canDeleteRow() { return this.splitIsEmpty(); },
+            }">
                 <h3 class="flex items-center gap-2 text-lg font-semibold">
                     <svg class="h-5 w-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
                     Pisah Jahit (Split)
@@ -68,11 +72,29 @@ $breadcrumbs = [
                     @csrf
                     <div class="flex-1 space-y-2">
                         <label class="text-sm font-medium">Quantity to Split</label>
-                        <input type="number" name="split_q" min="1" max="{{ $produksi->quantity - 1 }}" value="{{ old('split_q') }}" placeholder="Max split value: {{ $produksi->quantity - 1 }}" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
+                        <input type="number" name="split_q" min="1" max="{{ max(0, $produksi->quantity - 1) }}" x-model="splitQ" value="{{ old('split_q') }}" placeholder="Max split value: {{ max(0, $produksi->quantity - 1) }}" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">
                         @error('split_q')<p class="text-xs text-red-500">{{ $message }}</p>@enderror
                     </div>
                     <button type="submit" class="rounded-md border border-orange-200 px-4 py-2 text-sm font-bold text-orange-700 hover:bg-orange-50">Execute Split</button>
                 </form>
+
+                @if($can['delete_produksi'])
+                <div class="mt-6 border-t border-gray-100 pt-6">
+                    <h4 class="text-sm font-semibold text-gray-900">Delete entry</h4>
+                    <p class="mt-1 text-sm text-gray-500">Remove this production row permanently. Clear &ldquo;Quantity to Split&rdquo; before deleting.</p>
+                    <form method="POST" action="{{ route('produksi.destroy', $produksi->id) }}" class="mt-4" onsubmit="return confirm('Delete this production entry ({{ $produksi->serial }})?')">
+                        @csrf
+                        @method('DELETE')
+                        <button
+                            type="submit"
+                            data-testid="produksi-delete-row"
+                            :disabled="!canDeleteRow()"
+                            :class="canDeleteRow() ? 'bg-red-600 hover:bg-red-700 text-white' : 'cursor-not-allowed bg-gray-200 text-gray-500'"
+                            class="rounded-md px-4 py-2 text-sm font-bold"
+                        >Delete row</button>
+                    </form>
+                </div>
+                @endif
             </div>
 
             @include('produksi.setoran._jahit-form', ['produksi' => $produksi, 'canEdit' => true])

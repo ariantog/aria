@@ -4,6 +4,7 @@ use App\Models\Produksi;
 use App\Models\Tag;
 use App\Models\User;
 use App\Models\Worker;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
@@ -156,4 +157,77 @@ it('rejects splitting the full produksi quantity', function () {
     $response->assertSessionHasErrors('split_q');
     expect(Produksi::query()->where('original_id', $produksi->id)->exists())->toBeFalse();
     expect($produksi->fresh()->quantity)->toBe(5);
+});
+
+it('deletes a produksi row when user has production-delete permission', function () {
+    $worker = Worker::create(['name' => 'Cutter', 'type' => Worker::TYPE_POTONG]);
+    $size = Tag::create(['name' => 'L', 'type' => Tag::TYPE_SIZE, 'item_type' => 0]);
+
+    $produksi = Produksi::create([
+        'temp_name' => 'To Delete',
+        'size_id' => $size->id,
+        'quantity' => 5,
+        'potong_id' => $worker->id,
+        'potong_date' => now(),
+        'status' => Produksi::STATUS_PRODUKSI,
+    ]);
+
+    $response = $this->actingAs($this->user)->delete("/produksi/{$produksi->id}");
+
+    $response->assertRedirect(route('produksi.index'));
+    $this->assertSoftDeleted('prod_produksi', ['id' => $produksi->id]);
+});
+
+it('forbids deleting produksi without production-delete permission', function () {
+    $user = User::factory()->create();
+    Permission::firstOrCreate(['name' => 'production-list', 'guard_name' => 'web']);
+    Permission::firstOrCreate(['name' => 'production-edit', 'guard_name' => 'web']);
+    $user->givePermissionTo(['production-list', 'production-edit']);
+
+    $produksi = Produksi::create([
+        'temp_name' => 'Protected',
+        'quantity' => 3,
+        'status' => Produksi::STATUS_PRODUKSI,
+    ]);
+
+    $response = $this->actingAs($user)->delete("/produksi/{$produksi->id}");
+
+    $response->assertForbidden();
+    $this->assertDatabaseHas('prod_produksi', ['id' => $produksi->id, 'deleted_at' => null]);
+});
+
+it('shows delete control on edit only with production-delete permission', function () {
+    $produksi = Produksi::create([
+        'temp_name' => 'Edit Delete UI',
+        'quantity' => 4,
+        'status' => Produksi::STATUS_PRODUKSI,
+    ]);
+
+    $this->actingAs($this->user)->get("/produksi/{$produksi->id}/edit")
+        ->assertSuccessful()
+        ->assertSee('data-testid="produksi-delete-row"', false);
+
+    $viewer = User::factory()->create();
+    Permission::firstOrCreate(['name' => 'production-list', 'guard_name' => 'web']);
+    Permission::firstOrCreate(['name' => 'production-edit', 'guard_name' => 'web']);
+    $viewer->givePermissionTo(['production-list', 'production-edit']);
+
+    $this->actingAs($viewer)->get("/produksi/{$produksi->id}/edit")
+        ->assertSuccessful()
+        ->assertDontSee('data-testid="produksi-delete-row"', false);
+});
+
+it('does not delete produksi rows that are no longer in produksi status', function () {
+    $produksi = Produksi::create([
+        'temp_name' => 'Already Setor',
+        'quantity' => 2,
+        'status' => Produksi::STATUS_SETOR,
+    ]);
+
+    $response = $this->actingAs($this->user)->from("/produksi/{$produksi->id}/edit")
+        ->delete("/produksi/{$produksi->id}");
+
+    $response->assertRedirect("/produksi/{$produksi->id}/edit");
+    $response->assertSessionHasErrors('error');
+    $this->assertDatabaseHas('prod_produksi', ['id' => $produksi->id, 'deleted_at' => null]);
 });

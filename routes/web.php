@@ -373,6 +373,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
 
         Route::get('/{produksi}/edit', [App\Http\Controllers\ProduksiController::class, 'edit'])->name('edit');
         Route::patch('/{produksi}', [App\Http\Controllers\ProduksiController::class, 'update'])->name('update');
+        Route::delete('/{produksi}', [App\Http\Controllers\ProduksiController::class, 'destroy'])->name('destroy');
         Route::post('/{produksi}/split', [App\Http\Controllers\ProduksiController::class, 'split'])->name('split');
         Route::patch('/{produksi}/worker', [App\Http\Controllers\ProduksiController::class, 'gantiJahit'])->name('ganti-jahit');
 
