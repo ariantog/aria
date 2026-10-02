@@ -203,8 +203,22 @@ class ProduksiController extends Controller
         return view('produksi.edit', [
             'produksi' => $produksi,
             'jahitList' => Worker::jahit()->get(),
+            'can' => $this->produksiPermissions(),
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
+    }
+
+    public function destroy(Produksi $produksi)
+    {
+        Gate::authorize(Produksi::getPermissions()['delete']);
+
+        if ((int) $produksi->status !== Produksi::STATUS_PRODUKSI) {
+            return back()->withErrors(['error' => 'Hanya entri dengan status Produksi yang bisa dihapus.']);
+        }
+
+        $produksi->delete();
+
+        return redirect()->route('produksi.index')->with('success', 'Production entry deleted.');
     }
 
     public function update(Request $request, Produksi $produksi)
