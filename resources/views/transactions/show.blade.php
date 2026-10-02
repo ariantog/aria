@@ -824,6 +824,10 @@ function transactionShowPage(transactionId, initialNote, canEditNote, canEditPpn
             params.set('legacy', this.showLegacyCode ? '1' : '0');
             params.set('name', this.showName ? '1' : '0');
             params.set('desc', this.showDescription ? '1' : '0');
+            if (this.sortCol) {
+                params.set('sort_col', this.sortCol);
+                params.set('sort_dir', this.sortDir);
+            }
 
             return params.toString();
         },

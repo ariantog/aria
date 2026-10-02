@@ -432,6 +432,9 @@ class TransactionsController extends Controller
         $this->authorizeTransactionView($transaction);
         $existed = $invoiceService->invoicePdfExists($transaction);
         $itemView = \App\Support\TransactionItemViewOptions::fromRequest($request);
+        $itemSort = \App\Support\TransactionItemSortOptions::fromRequest($request);
+        $transaction->loadMissing(['details.item.group', 'sender', 'receiver']);
+        $transaction->sortDetails($itemSort['col'], $itemSort['dir']);
         $invoiceService->createInvoicePdf($transaction, regenerate: true, itemView: $itemView);
 
         return redirect()
@@ -456,6 +459,8 @@ class TransactionsController extends Controller
     {
         $this->authorizeTransactionView($transaction);
         $transaction->load(['details.item.group', 'sender', 'receiver']);
+        $itemSort = \App\Support\TransactionItemSortOptions::fromRequest($request);
+        $transaction->sortDetails($itemSort['col'], $itemSort['dir']);
         $typeLabel = $transaction->getTypeLabel();
         $branding = $brandingService->forTransaction($transaction);
         $itemView = \App\Support\TransactionItemViewOptions::fromRequest($request);

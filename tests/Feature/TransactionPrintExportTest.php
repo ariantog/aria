@@ -487,8 +487,43 @@ it('transaction show page builds print invoice href from view checkboxes', funct
         ->get(route('transactions.show', $transaction))
         ->assertOk()
         ->assertSee('itemViewQuery()', false)
+        ->assertSee("params.set('sort_col', this.sortCol)", false)
         ->assertSee("name=\"desc\"", false)
         ->assertSee('x-model="showLegacyCode"', false);
+});
+
+it('renders the print page with item rows sorted by request params', function () {
+    $low = Item::factory()->create(['name' => 'Low Qty Shirt', 'code' => 'LOW-QTY-PRINT']);
+    $high = Item::factory()->create(['name' => 'High Qty Shirt', 'code' => 'HIGH-QTY-PRINT']);
+    $transaction = Transaction::factory()->create(['invoice' => 'TX-PRINT-SORT']);
+
+    TransactionDetail::factory()->create([
+        'transaction_id' => $transaction->id,
+        'item_id' => $low->id,
+        'quantity' => 1,
+        'price' => 10_000,
+        'total' => 10_000,
+    ]);
+    TransactionDetail::factory()->create([
+        'transaction_id' => $transaction->id,
+        'item_id' => $high->id,
+        'quantity' => 9,
+        'price' => 10_000,
+        'total' => 90_000,
+    ]);
+
+    $html = $this->actingAs($this->user)
+        ->get(route('transactions.print', [
+            'transaction' => $transaction,
+            'sort_col' => 'qty',
+            'sort_dir' => 'desc',
+            'sku' => 1,
+            'name' => 1,
+        ]))
+        ->assertOk()
+        ->getContent();
+
+    expect(strpos($html, 'High Qty Shirt'))->toBeLessThan(strpos($html, 'Low Qty Shirt'));
 });
 
 it('print invoice shows legacy code with code fallback in shared sku column', function () {

@@ -38,3 +38,25 @@ it('sorts loaded details by item sku and leaves empty details alone', function (
     expect($transaction->details->pluck('item.code')->all())
         ->toBe(['ALPHA-01', 'MID-10', 'ZEBRA-99']);
 });
+
+it('sorts loaded details by quantity descending', function () {
+    $transaction = Transaction::factory()->create();
+    $low = Item::factory()->create(['code' => 'LOW-QTY']);
+    $high = Item::factory()->create(['code' => 'HIGH-QTY']);
+
+    TransactionDetail::factory()->create([
+        'transaction_id' => $transaction->id,
+        'item_id' => $low->id,
+        'quantity' => 1,
+    ]);
+    TransactionDetail::factory()->create([
+        'transaction_id' => $transaction->id,
+        'item_id' => $high->id,
+        'quantity' => 9,
+    ]);
+
+    $transaction->load('details.item');
+    $transaction->sortDetails('qty', 'desc');
+
+    expect($transaction->details->pluck('item.code')->all())->toBe(['HIGH-QTY', 'LOW-QTY']);
+});
