@@ -232,18 +232,75 @@ class Transaction extends Model
      */
     public function sortDetailsBySku(): static
     {
+        return $this->sortDetails('sku', 'asc');
+    }
+
+    /**
+     * Reorder loaded line items for display (matches transaction show table sorting).
+     * No-op when details are empty or the relation is not loaded.
+     */
+    public function sortDetails(?string $column = 'sku', string $direction = 'asc'): static
+    {
         if (! $this->relationLoaded('details') || $this->details->isEmpty()) {
             return $this;
         }
 
-        $this->setRelation(
-            'details',
-            $this->details
-                ->sortBy(fn ($detail) => (string) ($detail->item?->code ?? ''), SORT_NATURAL | SORT_FLAG_CASE)
-                ->values()
-        );
+        $column = $column ?? 'sku';
+        if (! in_array($column, \App\Support\TransactionItemSortOptions::COLUMNS, true)) {
+            $column = \App\Support\TransactionItemSortOptions::DEFAULT_COLUMN;
+        }
+
+        $direction = strtolower($direction) === 'desc' ? 'desc' : 'asc';
+        $multiplier = $direction === 'asc' ? 1 : -1;
+
+        $sorted = $this->details
+            ->sort(function ($detailA, $detailB) use ($column, $multiplier) {
+                $cmp = self::compareDetailSortValues(
+                    self::detailSortValue($detailA, $column),
+                    self::detailSortValue($detailB, $column),
+                );
+
+                return $cmp * $multiplier;
+            })
+            ->values();
+
+        $this->setRelation('details', $sorted);
 
         return $this;
+    }
+
+    /**
+     * @return int|float|string
+     */
+    public static function detailSortValue(TransactionDetail $detail, string $column): int|float|string
+    {
+        $item = $detail->item;
+
+        return match ($column) {
+            'barcode' => $item?->id ?? 0,
+            'sku' => (string) ($item?->code ?? ''),
+            'name' => (string) ($item?->getItemName() ?? ''),
+            'desc' => (string) ($item?->catalogDescription() ?? ''),
+            'qty' => $detail->quantity,
+            'price' => $detail->price,
+            'disc' => (float) $detail->discount,
+            'subtotal' => $detail->total,
+            default => '',
+        };
+    }
+
+    public static function compareDetailSortValues(int|float|string $a, int|float|string $b): int
+    {
+        $aStr = (string) $a;
+        $bStr = (string) $b;
+        $aIsNum = $aStr !== '' && is_numeric($aStr);
+        $bIsNum = $bStr !== '' && is_numeric($bStr);
+
+        if ($aIsNum && $bIsNum) {
+            return (float) $aStr <=> (float) $bStr;
+        }
+
+        return strnatcasecmp($aStr, $bStr);
     }
 
     public function user()
