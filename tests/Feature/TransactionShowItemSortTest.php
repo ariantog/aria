@@ -7,7 +7,7 @@ use App\Models\TransactionDetail;
 use App\Models\User;
 
 beforeEach(function () {
-    $this->user = User::factory()->create();
+    $this->user = User::factory()->create(['name' => 'Transaction Sort Test User']);
 });
 
 it('renders transaction item rows sorted by sku by default', function () {
@@ -202,7 +202,7 @@ it('renders prominent overview fields and internal metadata on show', function (
         ->assertSee('data-testid="tx-show-submit-source"', false)
         ->assertSee('aria submit', false)
         ->assertSee('data-testid="tx-show-created-by"', false)
-        ->assertSee($this->user->name, false)
+        ->assertSee(e($this->user->name), false)
         ->assertSee('data-testid="tx-show-created-at"', false);
 });
 
