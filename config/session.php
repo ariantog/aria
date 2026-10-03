@@ -203,6 +203,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Session Serialization
+    |--------------------------------------------------------------------------
+    |
+    | Laravel 13 skeleton defaults to "json" for safer session payloads. Keep "php"
+    | until a planned logout window if you need existing database sessions to survive
+    | a deploy; switch to "json" when only scalar session data is stored.
+    |
+    */
+
+    'serialization' => env('SESSION_SERIALIZATION', 'php'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Partitioned Cookies
     |--------------------------------------------------------------------------
     |
