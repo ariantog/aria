@@ -37,7 +37,18 @@ class ItemInventorySettings
             return false;
         }
 
-        return (bool) Setting::getValue($slug, false);
+        $value = Setting::getValue($slug, false);
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (is_numeric($value)) {
+            return (int) $value !== 0;
+        }
+        if (is_string($value)) {
+            return filter_var($value, FILTER_VALIDATE_BOOLEAN);
+        }
+
+        return (bool) $value;
     }
 
     public static function showDecimalQuantityOptionOnForm(ItemType $type): bool
