@@ -20,7 +20,6 @@ class StoreServiceItemRequest extends FormRequest
             'cost' => ['nullable', 'numeric', 'min:0'],
             'description' => ['nullable', 'string'],
             'description2' => ['nullable', 'string'],
-            'tanpa_stok' => ['sometimes', 'boolean'],
             'allow_decimal_quantity' => ['sometimes', 'boolean'],
         ];
     }

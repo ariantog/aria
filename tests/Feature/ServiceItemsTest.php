@@ -2,7 +2,9 @@
 
 use App\Enums\ItemType;
 use App\Models\Item;
+use App\Models\Setting;
 use App\Models\User;
+use App\Support\ItemInventorySettings;
 use App\Support\ItemQuantityValidator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -13,12 +15,16 @@ beforeEach(function () {
     $this->actingAs($user);
 });
 
-test('service create defaults to tanpa stok and appears under services index', function () {
+test('service create is always tanpa stok and respects decimal setting', function () {
+    Setting::updateOrCreate(
+        ['slug' => ItemInventorySettings::SETTING_DECIMAL_SERVICES],
+        ['group' => 'Stuff', 'name' => 'Decimal Quantity — Services', 'value' => '1']
+    );
+
     $response = $this->post(route('services.store'), [
         'name' => 'Print Vinyl',
         'code' => 'SVC-PRINT-VINYL',
         'price' => 50000,
-        'tanpa_stok' => '1',
         'allow_decimal_quantity' => '1',
     ]);
 
@@ -32,6 +38,24 @@ test('service create defaults to tanpa stok and appears under services index', f
     $this->get(route('services.index'))->assertOk()->assertSee('SVC-PRINT-VINYL');
 });
 
+test('service decimal flag is off when stuff setting is disabled', function () {
+    $this->post(route('services.store'), [
+        'name' => 'Training',
+        'code' => 'SVC-TRAIN',
+        'price' => 100000,
+        'allow_decimal_quantity' => '1',
+    ])->assertRedirect();
+
+    $item = Item::query()->where('code', 'SVC-TRAIN')->first();
+    expect($item->allowsDecimalQuantity())->toBeFalse();
+});
+
+test('catalog items always track inventory', function () {
+    $item = Item::factory()->create(['type' => ItemType::ITEM, 'track_inventory' => false]);
+
+    expect($item->tracksInventory())->toBeTrue();
+});
+
 test('item quantity validator enforces integer and decimal rules', function () {
     $integerItem = Item::factory()->create([
         'allow_decimal_quantity' => false,
@@ -40,7 +64,14 @@ test('item quantity validator enforces integer and decimal rules', function () {
     $decimalItem = Item::factory()->create([
         'allow_decimal_quantity' => true,
         'track_inventory' => false,
+        'type' => ItemType::SERVICE,
     ]);
+
+    Setting::updateOrCreate(
+        ['slug' => ItemInventorySettings::SETTING_DECIMAL_SERVICES],
+        ['group' => 'Stuff', 'name' => 'Decimal Quantity — Services', 'value' => '1']
+    );
+    $decimalItem->refresh();
 
     expect(ItemQuantityValidator::validateQuantity($integerItem, 10))->toBeNull();
     expect(ItemQuantityValidator::validateQuantity($integerItem, 10.5))->not->toBeNull();

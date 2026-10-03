@@ -91,12 +91,33 @@ class SettingRegistry
                 'default' => '1.5',
                 'hint' => 'Upah lembur = jam × (harian ÷ jam kerja) × pengali.',
             ],
-            'items.allow_decimal_quantity_enabled' => [
+            'stuff.decimal_quantity.items' => [
                 'group' => 'Stuff',
-                'name' => 'Allow Decimal Quantity (Item & Asset Lancar)',
+                'name' => 'Decimal Quantity — Item',
                 'type' => 'boolean',
                 'default' => false,
-                'hint' => 'When enabled, item and asset lancar forms show a per-SKU “Qty desimal” option. Service SKUs always allow this checkbox regardless of this setting.',
+                'hint' => 'When enabled, manufactured item forms show per-SKU “Qty desimal”. Stock is always tracked.',
+            ],
+            'stuff.decimal_quantity.asset_lancar' => [
+                'group' => 'Stuff',
+                'name' => 'Decimal Quantity — Asset Lancar',
+                'type' => 'boolean',
+                'default' => false,
+                'hint' => 'When enabled, asset lancar forms show per-SKU “Qty desimal”. Stock is always tracked.',
+            ],
+            'stuff.decimal_quantity.asset_tetap' => [
+                'group' => 'Stuff',
+                'name' => 'Decimal Quantity — Asset Tetap',
+                'type' => 'boolean',
+                'default' => false,
+                'hint' => 'When enabled, asset tetap records may use decimal quantities where qty is entered. Stock/depreciation rules unchanged.',
+            ],
+            'stuff.decimal_quantity.services' => [
+                'group' => 'Stuff',
+                'name' => 'Decimal Quantity — Services',
+                'type' => 'boolean',
+                'default' => false,
+                'hint' => 'When enabled, service SKUs show “Qty desimal” (e.g. m²). Services never deduct warehouse stock.',
             ],
             'restock.default_supplier_id' => [
                 'group' => 'Restock',

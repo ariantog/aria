@@ -3,8 +3,10 @@
 use App\Http\Requests\StoreItemTransactionRequest;
 use App\Models\Addrbook;
 use App\Models\Item;
+use App\Models\Setting;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Support\ItemInventorySettings;
 
 
 beforeEach(function () { $this->user = User::factory()->create(); });
@@ -41,7 +43,12 @@ test('StoreItemTransactionRequest allows valid sell', function () {
 });
 
 test('StoreItemTransactionRequest allows fractional item quantities', function () {
-    $item = Item::factory()->create();
+    Setting::updateOrCreate(
+        ['slug' => ItemInventorySettings::SETTING_DECIMAL_ITEMS],
+        ['group' => 'Stuff', 'name' => 'Decimal Quantity — Items', 'value' => '1']
+    );
+    $item = Item::factory()->create(['allow_decimal_quantity' => true])->fresh();
+    expect($item->allowsDecimalQuantity())->toBeTrue();
     $warehouse = Addrbook::factory()->warehouse()->create();
     $customer = Addrbook::factory()->customer()->create();
     \App\Models\WarehouseItem::create(['warehouse_id' => $warehouse->id, 'item_id' => $item->id, 'quantity' => 100]);

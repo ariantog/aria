@@ -1,7 +1,7 @@
 @php
     $item = $item ?? null;
-    $defaults = $defaults ?? ['tanpa_stok' => true, 'allow_decimal_quantity' => false];
-    $tanpaStok = old('tanpa_stok', $item ? ! $item->tracksInventory() : ($defaults['tanpa_stok'] ?? true));
+    $defaults = $defaults ?? ['allow_decimal_quantity' => false];
+    $showDecimal = \App\Support\ItemInventorySettings::decimalQuantityEnabledForType(\App\Enums\ItemType::SERVICE);
     $allowDecimal = old('allow_decimal_quantity', $item ? $item->allowsDecimalQuantity() : ($defaults['allow_decimal_quantity'] ?? false));
 @endphp
 
@@ -41,16 +41,14 @@
                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">{{ old('description', $item?->catalogDescription()) }}</textarea>
     </div>
 
+    <p class="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-900">
+        Services do not deduct warehouse stock (unlimited quantity). Enable decimal qty for all services under
+        <span class="font-medium">System Settings → Stuff → Decimal Quantity — Services</span> before turning on per-SKU “Qty desimal”.
+    </p>
+
+    @if($showDecimal)
     <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-3" data-testid="service-inventory-options">
-        <h3 class="text-sm font-semibold text-gray-900">Inventory &amp; quantity</h3>
-        <label class="flex items-start gap-2 text-sm text-gray-700">
-            <input type="checkbox" name="tanpa_stok" value="1" class="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                   @checked($tanpaStok) data-testid="service-tanpa-stok">
-            <span>
-                <span class="font-medium">Tanpa stok</span>
-                <span class="block text-xs text-gray-500">Default untuk service — tidak memotong stok gudang.</span>
-            </span>
-        </label>
+        <h3 class="text-sm font-semibold text-gray-900">Quantity</h3>
         <label class="flex items-start gap-2 text-sm text-gray-700">
             <input type="checkbox" name="allow_decimal_quantity" value="1" class="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                    @checked($allowDecimal) data-testid="service-qty-desimal">
@@ -60,4 +58,5 @@
             </span>
         </label>
     </div>
+    @endif
 </div>

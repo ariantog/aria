@@ -991,7 +991,6 @@ class ItemsController extends Controller
             'itemType' => $t->value,
             'isAsset' => $isAsset,
             'showDecimalQuantityOption' => ItemInventorySettings::showDecimalQuantityOptionOnForm($t),
-            'showTrackInventoryOption' => ItemInventorySettings::showTrackInventoryOptionOnForm($t),
             'assetPcodeSuggestions' => $isAsset
                 ? Item::query()
                     ->where('type', ItemType::ASSET_LANCAR)

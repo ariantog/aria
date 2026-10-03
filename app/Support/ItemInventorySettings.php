@@ -8,29 +8,62 @@ use App\Models\Setting;
 
 class ItemInventorySettings
 {
-    public const SETTING_DECIMAL_FOR_CATALOG = 'items.allow_decimal_quantity_enabled';
+    public const SETTING_DECIMAL_ITEMS = 'stuff.decimal_quantity.items';
 
-    public static function decimalQuantityEnabledForCatalog(): bool
+    public const SETTING_DECIMAL_ASSET_LANCAR = 'stuff.decimal_quantity.asset_lancar';
+
+    public const SETTING_DECIMAL_ASSET_TETAP = 'stuff.decimal_quantity.asset_tetap';
+
+    public const SETTING_DECIMAL_SERVICES = 'stuff.decimal_quantity.services';
+
+    /** @deprecated Use per-type stuff.decimal_quantity.* settings */
+    public const LEGACY_SETTING_DECIMAL_CATALOG = 'items.allow_decimal_quantity_enabled';
+
+    public static function decimalSettingSlugForType(ItemType $type): ?string
     {
-        return (bool) Setting::getValue(self::SETTING_DECIMAL_FOR_CATALOG, false);
+        return match ($type) {
+            ItemType::ITEM => self::SETTING_DECIMAL_ITEMS,
+            ItemType::ASSET_LANCAR => self::SETTING_DECIMAL_ASSET_LANCAR,
+            ItemType::ASSET_TETAP => self::SETTING_DECIMAL_ASSET_TETAP,
+            ItemType::SERVICE => self::SETTING_DECIMAL_SERVICES,
+            default => null,
+        };
+    }
+
+    public static function decimalQuantityEnabledForType(ItemType $type): bool
+    {
+        $slug = self::decimalSettingSlugForType($type);
+        if ($slug === null) {
+            return false;
+        }
+
+        $value = Setting::getValue($slug, false);
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (is_numeric($value)) {
+            return (int) $value !== 0;
+        }
+        if (is_string($value)) {
+            return filter_var($value, FILTER_VALIDATE_BOOLEAN);
+        }
+
+        return (bool) $value;
     }
 
     public static function showDecimalQuantityOptionOnForm(ItemType $type): bool
     {
-        if ($type === ItemType::SERVICE) {
-            return true;
-        }
-
-        if ($type === ItemType::ITEM || $type === ItemType::ASSET_LANCAR) {
-            return self::decimalQuantityEnabledForCatalog();
-        }
-
-        return false;
+        return self::decimalQuantityEnabledForType($type);
     }
 
     public static function showTrackInventoryOptionOnForm(ItemType $type): bool
     {
-        return in_array($type, [ItemType::ITEM, ItemType::ASSET_LANCAR, ItemType::SERVICE], true);
+        return false;
+    }
+
+    public static function tracksInventoryForType(ItemType $type): bool
+    {
+        return $type !== ItemType::SERVICE;
     }
 
     /**
@@ -38,21 +71,7 @@ class ItemInventorySettings
      */
     public static function resolveTrackInventory(ItemType $type, array|object $input, ?Item $existing = null): bool
     {
-        $data = is_array($input) ? $input : (array) $input;
-
-        if (array_key_exists('track_inventory', $data)) {
-            return (bool) $data['track_inventory'];
-        }
-
-        if (array_key_exists('tanpa_stok', $data)) {
-            return ! (bool) $data['tanpa_stok'];
-        }
-
-        if ($existing !== null) {
-            return $existing->tracksInventory();
-        }
-
-        return $type !== ItemType::SERVICE;
+        return self::tracksInventoryForType($type);
     }
 
     /**
@@ -60,7 +79,7 @@ class ItemInventorySettings
      */
     public static function resolveAllowDecimalQuantity(ItemType $type, array|object $input, ?Item $existing = null): bool
     {
-        if (! self::showDecimalQuantityOptionOnForm($type)) {
+        if (! self::decimalQuantityEnabledForType($type)) {
             return false;
         }
 
