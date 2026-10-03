@@ -41,7 +41,7 @@ test('StoreItemTransactionRequest allows valid sell', function () {
 });
 
 test('StoreItemTransactionRequest allows fractional item quantities', function () {
-    $item = Item::factory()->create();
+    $item = Item::factory()->create(['allow_decimal_quantity' => true]);
     $warehouse = Addrbook::factory()->warehouse()->create();
     $customer = Addrbook::factory()->customer()->create();
     \App\Models\WarehouseItem::create(['warehouse_id' => $warehouse->id, 'item_id' => $item->id, 'quantity' => 100]);
