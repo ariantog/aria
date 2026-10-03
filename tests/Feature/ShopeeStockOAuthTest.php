@@ -39,3 +39,37 @@ it('stores stock oauth tokens separately from ads', function () {
     $ads = Setting::getValue(\App\Services\ShopeeAds\ShopeeAdsApiService::OAUTH_SETTING_SLUG, []);
     expect($ads)->toBe([]);
 });
+
+it('does not overwrite existing ads oauth when stock tokens are saved', function () {
+    Setting::query()->updateOrCreate(
+        ['slug' => \App\Services\ShopeeAds\ShopeeAdsApiService::OAUTH_SETTING_SLUG],
+        [
+            'group' => 'shopee_ads',
+            'name' => 'Shopee Ads OAuth',
+            'value' => [
+                'access_token' => 'ads-access-keep',
+                'refresh_token' => 'ads-refresh-keep',
+                'shop_id' => 12345,
+            ],
+        ]
+    );
+
+    Http::fake([
+        'partner.shopeemobile.com/*' => Http::response([
+            'error' => '',
+            'access_token' => 'stock-access-new',
+            'refresh_token' => 'stock-refresh-new',
+            'expire_in' => 14400,
+        ]),
+    ]);
+
+    app(ShopeeStockOpenApiService::class)->exchangeAuthCode('stock-code', 888);
+
+    $ads = Setting::getValue(\App\Services\ShopeeAds\ShopeeAdsApiService::OAUTH_SETTING_SLUG, []);
+    expect($ads['access_token'])->toBe('ads-access-keep')
+        ->and($ads['shop_id'])->toBe(12345);
+
+    $stock = Setting::getValue(ShopeeStockOpenApiService::OAUTH_SETTING_SLUG, []);
+    expect($stock['access_token'])->toBe('stock-access-new')
+        ->and($stock['shop_id'])->toBe(888);
+});
