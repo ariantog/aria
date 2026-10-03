@@ -65,11 +65,11 @@ class RestockRecommendationApplyService
                 continue;
             }
 
-            $result = $this->applyQtyToSheet($item, $qty, $user);
+            $result = $this->setQtyOnTypeSheet($item, $qty, $user, floor: true);
             if ($result['ok']) {
                 $applied[] = [
                     'item_id' => $itemId,
-                    'qty' => $qty,
+                    'qty' => $result['qty_saved'],
                     'sheet_id' => $result['sheet_id'],
                     'sheet_name' => $result['sheet_name'],
                     'sheet_url' => $result['sheet_url'],
@@ -83,9 +83,68 @@ class RestockRecommendationApplyService
     }
 
     /**
-     * @return array{ok: true, sheet_id: int, sheet_name: string, sheet_url: string}|array{ok: false, reason: string}
+     * @param  list<array{item_id: int, qty_restock: int}>  $rows
+     * @return array{
+     *     applied: list<array{item_id: int, qty: int, sheet_id: int, sheet_name: string, sheet_url: string}>,
+     *     skipped: list<array{item_id: int, reason: string}>
+     * }
      */
-    private function applyQtyToSheet(Item $item, int $qty, User $user): array
+    public function saveRestockQuantities(array $rows, User $user): array
+    {
+        $applied = [];
+        $skipped = [];
+
+        $itemIds = array_values(array_unique(array_map(
+            fn (array $row) => (int) ($row['item_id'] ?? 0),
+            $rows,
+        )));
+        $itemIds = array_values(array_filter($itemIds, fn (int $id) => $id > 0));
+
+        if ($itemIds === []) {
+            return ['applied' => [], 'skipped' => []];
+        }
+
+        $items = Item::query()
+            ->with(['tags'])
+            ->whereIn('id', $itemIds)
+            ->get()
+            ->keyBy('id');
+
+        foreach ($rows as $row) {
+            $itemId = (int) ($row['item_id'] ?? 0);
+            if ($itemId <= 0) {
+                continue;
+            }
+
+            $item = $items->get($itemId);
+            if ($item === null) {
+                $skipped[] = ['item_id' => $itemId, 'reason' => 'SKU not found.'];
+
+                continue;
+            }
+
+            $qty = max(0, (int) ($row['qty_restock'] ?? 0));
+            $result = $this->setQtyOnTypeSheet($item, $qty, $user, floor: false);
+            if ($result['ok']) {
+                $applied[] = [
+                    'item_id' => $itemId,
+                    'qty' => $result['qty_saved'],
+                    'sheet_id' => $result['sheet_id'],
+                    'sheet_name' => $result['sheet_name'],
+                    'sheet_url' => $result['sheet_url'],
+                ];
+            } else {
+                $skipped[] = ['item_id' => $itemId, 'reason' => $result['reason']];
+            }
+        }
+
+        return ['applied' => $applied, 'skipped' => $skipped];
+    }
+
+    /**
+     * @return array{ok: true, qty_saved: int, sheet_id: int, sheet_name: string, sheet_url: string}|array{ok: false, reason: string}
+     */
+    private function setQtyOnTypeSheet(Item $item, int $qty, User $user, bool $floor): array
     {
         if (ItemType::coerce($item->type) !== ItemType::ASSET_LANCAR) {
             return ['ok' => false, 'reason' => 'Only asset lancar SKUs use restock sheets.'];
@@ -119,13 +178,15 @@ class RestockRecommendationApplyService
             return ['ok' => false, 'reason' => 'Could not create a restock cell for this SKU.'];
         }
 
-        $targetQty = max((int) $cell->qty_restock, $qty);
+        $currentQty = (int) $cell->qty_restock;
+        $targetQty = $floor ? max($currentQty, $qty) : $qty;
         $this->cellService->saveQuantities($sheet, [
             ['id' => $cell->id, 'qty_restock' => $targetQty],
         ], $user);
 
         return [
             'ok' => true,
+            'qty_saved' => $targetQty,
             'sheet_id' => $sheet->id,
             'sheet_name' => (string) $sheet->name,
             'sheet_url' => route('restock.sheets.show', $sheet),
