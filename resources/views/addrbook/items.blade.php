@@ -151,6 +151,12 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
                         Group alias
                     </label>
                     @endif
+                    @if($hasJubelio)
+                    <label class="inline-flex items-center gap-1.5 text-xs text-gray-600" data-testid="warehouse-items-highlight-mismatch">
+                        <input type="checkbox" x-model="highlightMismatch" class="rounded border-gray-300">
+                        Highlight mismatch
+                    </label>
+                    @endif
                 </div>
             </div>
             <div class="flex flex-wrap items-center gap-2">
@@ -230,7 +236,9 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
                         $itemAlias = trim((string) ($item->alias ?? ''));
                         $groupAlias = $hasGroupAliasColumn ? trim((string) ($item->group?->alias ?? '')) : '';
                     @endphp
-                    <tr class="cursor-pointer align-top hover:bg-gray-50" onclick="window.location='{{ $itemShowUrl }}'">
+                    <tr class="cursor-pointer align-top"
+                        :class="highlightMismatch && @js($jubelioLinked && ($jubelio['mismatch'] ?? false)) ? 'bg-amber-50 ring-1 ring-inset ring-amber-200 hover:bg-amber-100' : 'hover:bg-gray-50'"
+                        onclick="window.location='{{ $itemShowUrl }}'">
                         <td class="whitespace-nowrap px-3 py-2.5 font-mono text-xs" data-copy-col="id" x-show="showId">
                             <a href="{{ $itemShowUrl }}" onclick="event.stopPropagation()" class="text-blue-600 hover:underline">{{ $item->id }}</a>
                         </td>
@@ -299,6 +307,7 @@ function warehouseItemsPage(filtersStorageKey, columnsStorageKey, hasJubelio, ha
         showDescription: true,
         showItemAlias: false,
         showGroupAlias: false,
+        highlightMismatch: true,
         onlineName: false,
         filtersOpen: true,
         filtersStorageKey: filtersStorageKey,
@@ -336,6 +345,9 @@ function warehouseItemsPage(filtersStorageKey, columnsStorageKey, hasJubelio, ha
                 if (this.hasGroupAliasColumn && typeof columns.showGroupAlias === 'boolean') {
                     this.showGroupAlias = columns.showGroupAlias;
                 }
+                if (this.hasJubelio && typeof columns.highlightMismatch === 'boolean') {
+                    this.highlightMismatch = columns.highlightMismatch;
+                }
             } catch (e) {}
 
             this.$watch('showId', () => this.persistColumns());
@@ -345,6 +357,9 @@ function warehouseItemsPage(filtersStorageKey, columnsStorageKey, hasJubelio, ha
             this.$watch('showItemAlias', () => this.persistColumns());
             if (this.hasGroupAliasColumn) {
                 this.$watch('showGroupAlias', () => this.persistColumns());
+            }
+            if (this.hasJubelio) {
+                this.$watch('highlightMismatch', () => this.persistColumns());
             }
 
             this.$nextTick(() => {
@@ -362,6 +377,9 @@ function warehouseItemsPage(filtersStorageKey, columnsStorageKey, hasJubelio, ha
             };
             if (this.hasGroupAliasColumn) {
                 columns.showGroupAlias = this.showGroupAlias;
+            }
+            if (this.hasJubelio) {
+                columns.highlightMismatch = this.highlightMismatch;
             }
             localStorage.setItem(this.columnsStorageKey, JSON.stringify(columns));
             this.$nextTick(() => this.refreshTableScrollWidth());
