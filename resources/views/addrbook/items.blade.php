@@ -24,10 +24,12 @@ $jahitTags = ($tags[\App\Models\Tag::TYPE_JAHIT] ?? collect());
 $filtersStorageKey = 'aria-warehouse-items-filters-open-' . $addrbook->id;
 $columnsStorageKey = 'aria-warehouse-items-columns-' . $addrbook->id;
 $hasJubelio = (bool) ($jubelioSync ?? null);
+$hasShopee = (bool) ($shopeeSync ?? null);
 $maxTableCols = 4 + 4
     + ($hasItemAliasColumn ? 1 : 0)
     + ($hasGroupAliasColumn ? 1 : 0)
-    + ($hasJubelio ? 4 : 0);
+    + ($hasJubelio ? 4 : 0)
+    + ($hasShopee ? 2 : 0);
 $idr = fn ($v) => 'IDR ' . format_amount($v, 0);
 $currentSort = $filters['sort'] ?? 'codeasc';
 $sortColumn = preg_replace('/(asc|desc)$/', '', $currentSort);
@@ -40,6 +42,25 @@ $sortLink = function (string $column) use ($filters, $sortColumn, $sortDirection
         $query,
         fn ($value) => $value !== null && $value !== '',
     ));
+};
+$shopeeQtyCell = function (?array $shopee, string $field, bool $highlightMismatch = false) {
+    if (! $shopee || ! ($shopee['linked'] ?? false)) {
+        return '<span class="text-gray-300">—</span>';
+    }
+
+    $value = $shopee[$field] ?? null;
+    if ($value === null) {
+        return '<span class="text-gray-300">—</span>';
+    }
+
+    $classes = 'font-mono tabular-nums';
+    if ($highlightMismatch && ($shopee['mismatch'] ?? false)) {
+        $classes .= ' font-semibold text-red-600';
+    } else {
+        $classes .= ' text-gray-700';
+    }
+
+    return '<span class="' . $classes . '">' . e(format_amount($value, 0)) . '</span>';
 };
 $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMismatch = false) {
     if (! $jubelio || ! ($jubelio['linked'] ?? false)) {
@@ -62,7 +83,7 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
 };
 @endphp
 
-<div class="flex flex-col gap-4 p-3 sm:p-4" x-data="warehouseItemsPage(@js($filtersStorageKey), @js($columnsStorageKey), @js($hasJubelio), @js($hasGroupAliasColumn))">
+<div class="flex flex-col gap-4 p-3 sm:p-4" x-data="warehouseItemsPage(@js($filtersStorageKey), @js($columnsStorageKey), @js($hasJubelio), @js($hasShopee), @js($hasGroupAliasColumn))">
     {{-- Header --}}
     <div class="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
@@ -81,6 +102,16 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
                     <span class="text-gray-400">· mismatch compares Aria stock to Jubelio available</span>
                 </p>
             @endif
+            @if($hasShopee)
+                <p class="mt-1 text-xs text-gray-500">
+                    Shopee warehouse:
+                    <span class="font-medium text-gray-700">{{ $shopeeSync->shopee_warehouse_name }}</span>
+                    @if($shopeeSync->shopee_location_id)
+                        <span class="font-mono text-gray-500">· loc {{ $shopeeSync->shopee_location_id }}</span>
+                    @endif
+                    <span class="text-gray-400">· mismatch compares Aria stock to Shopee sellable</span>
+                </p>
+            @endif
         </div>
     </div>
 
@@ -95,6 +126,18 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
     @if(($jubelioFetchFailed ?? false) && $hasJubelio)
         <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
             Could not fetch Jubelio stock right now. Aria stock is still shown below.
+        </div>
+    @endif
+
+    @if(($shopeeUnlinkedCount ?? 0) > 0)
+        <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <strong>{{ $shopeeUnlinkedCount }}</strong> item(s) on this page are not linked to Shopee (missing Shopee item ID).
+        </div>
+    @endif
+
+    @if(($shopeeFetchFailed ?? false) && $hasShopee)
+        <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            Could not fetch Shopee stock right now. Aria stock is still shown below.
         </div>
     @endif
 
@@ -213,6 +256,10 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
                         <th class="px-3 py-2.5 text-right font-medium" data-copy-col="jb_reserved" title="Jubelio reserved">Rsv</th>
                         <th class="px-3 py-2.5 text-right font-medium" data-copy-col="jb_available" title="Jubelio available">Avail</th>
                     @endif
+                    @if($hasShopee)
+                        <th class="px-3 py-2.5 text-right font-medium" data-copy-col="sp_sellable" title="Shopee sellable">SP sell</th>
+                        <th class="px-3 py-2.5 text-right font-medium" data-copy-col="sp_reserved" title="Shopee reserved">SP rsv</th>
+                    @endif
                     <th class="w-12 px-3 py-2.5 text-center font-medium"></th>
                 </tr>
             </thead>
@@ -224,9 +271,11 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
                         $desc = $item->catalogDescription() ?: '-';
                         $qty = (float) ($item->pivot->quantity ?? 0);
                         $jubelio = ($jubelioStocks ?? [])[$item->id] ?? null;
+                        $shopee = ($shopeeStocks ?? [])[$item->id] ?? null;
                         $itemShowUrl = $item->showUrl();
                         $itemEditUrl = $item->editUrl();
                         $jubelioLinked = $jubelio && ($jubelio['linked'] ?? false);
+                        $shopeeLinked = $shopee && ($shopee['linked'] ?? false);
                         $itemAlias = trim((string) ($item->alias ?? ''));
                         $groupAlias = $hasGroupAliasColumn ? trim((string) ($item->group?->alias ?? '')) : '';
                     @endphp
@@ -273,6 +322,16 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
                                 <td class="whitespace-nowrap px-3 py-2.5 text-right text-xs" data-copy-col="jb_available" @if($jubelio['available'] !== null) data-copy-value="{{ format_copy_number($jubelio['available']) }}" @endif>{!! $jubelioQtyCell($jubelio, 'available', true) !!}</td>
                             @endif
                         @endif
+                        @if($hasShopee)
+                            @if(! $shopeeLinked)
+                                <td colspan="2" class="px-3 py-2.5 text-right" data-copy-col="sp_sellable">
+                                    <span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">Not linked</span>
+                                </td>
+                            @else
+                                <td class="whitespace-nowrap px-3 py-2.5 text-right text-xs" data-copy-col="sp_sellable" @if($shopee['sellable'] !== null) data-copy-value="{{ format_copy_number($shopee['sellable']) }}" @endif>{!! $shopeeQtyCell($shopee, 'sellable', true) !!}</td>
+                                <td class="whitespace-nowrap px-3 py-2.5 text-right text-xs" data-copy-col="sp_reserved" @if($shopee['reserved'] !== null) data-copy-value="{{ format_copy_number($shopee['reserved']) }}" @endif>{!! $shopeeQtyCell($shopee, 'reserved') !!}</td>
+                            @endif
+                        @endif
                         <td class="px-3 py-2.5 text-center">
                             <a href="{{ $itemEditUrl }}" onclick="event.stopPropagation()" class="inline-flex h-7 w-7 items-center justify-center rounded text-gray-500 hover:bg-blue-50 hover:text-blue-600">
                                 <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
@@ -291,7 +350,7 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
 
 @push('scripts')
 <script>
-function warehouseItemsPage(filtersStorageKey, columnsStorageKey, hasJubelio, hasGroupAliasColumn) {
+function warehouseItemsPage(filtersStorageKey, columnsStorageKey, hasJubelio, hasShopee, hasGroupAliasColumn) {
     return {
         showImage: false,
         showId: true,
@@ -304,6 +363,7 @@ function warehouseItemsPage(filtersStorageKey, columnsStorageKey, hasJubelio, ha
         filtersStorageKey: filtersStorageKey,
         columnsStorageKey: columnsStorageKey,
         hasJubelio: hasJubelio,
+        hasShopee: hasShopee,
         hasGroupAliasColumn: hasGroupAliasColumn,
         copyFeedback: false,
         copyFeedbackTimer: null,
@@ -414,6 +474,9 @@ function warehouseItemsPage(filtersStorageKey, columnsStorageKey, hasJubelio, ha
             }
             if (col.startsWith('jb_')) {
                 return this.hasJubelio;
+            }
+            if (col.startsWith('sp_')) {
+                return this.hasShopee;
             }
 
             return true;

@@ -75,6 +75,9 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('items/{item}/jubelio', [App\Http\Controllers\ItemsController::class, 'jubelio'])->name('items.jubelio');
     Route::get('items/{item}/jubelio-search', [App\Http\Controllers\ItemsController::class, 'getJubelioItems'])->name('items.jubelio-search');
     Route::post('items/{item}/jubelio-link', [App\Http\Controllers\ItemsController::class, 'updateJubelioId'])->name('items.jubelio-link');
+    Route::get('items/{item}/shopee', [App\Http\Controllers\ItemsController::class, 'shopee'])->name('items.shopee');
+    Route::get('items/{item}/shopee-search', [App\Http\Controllers\ItemsController::class, 'getShopeeItems'])->name('items.shopee-search');
+    Route::post('items/{item}/shopee-link', [App\Http\Controllers\ItemsController::class, 'updateShopeeLink'])->name('items.shopee-link');
     Route::post('items/{item}/convert-identity', [App\Http\Controllers\ItemIdentityConvertController::class, 'store'])->name('items.convert-identity');
     Route::post('items/{item}/recalculate-qty', [App\Http\Controllers\ItemsController::class, 'recalculateQuantity'])->name('items.recalculate-qty');
     Route::patch('items/{item}/legacy-code', [App\Http\Controllers\ItemsController::class, 'updateLegacyCode'])->name('items.update-legacy-code');
@@ -124,6 +127,13 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::patch('jubelio-sync/{sync}', [App\Http\Controllers\JubelioSyncController::class, 'update'])->name('jubelio.sync.update');
     Route::delete('jubelio-sync/{sync}', [App\Http\Controllers\JubelioSyncController::class, 'destroy'])->name('jubelio.sync.delete');
     Route::get('jubelio-sync/{sync}/bin', [App\Http\Controllers\JubelioSyncController::class, 'getBin'])->name('jubelio.sync.getBin');
+
+    Route::get('shopee-sync', [App\Http\Controllers\ShopeeSyncController::class, 'index'])->name('shopee.sync.index');
+    Route::get('shopee-sync/create', [App\Http\Controllers\ShopeeSyncController::class, 'create'])->name('shopee.sync.create');
+    Route::post('shopee-sync', [App\Http\Controllers\ShopeeSyncController::class, 'store'])->name('shopee.sync.store');
+    Route::get('shopee-sync/{sync}/edit', [App\Http\Controllers\ShopeeSyncController::class, 'edit'])->name('shopee.sync.edit');
+    Route::patch('shopee-sync/{sync}', [App\Http\Controllers\ShopeeSyncController::class, 'update'])->name('shopee.sync.update');
+    Route::delete('shopee-sync/{sync}', [App\Http\Controllers\ShopeeSyncController::class, 'destroy'])->name('shopee.sync.delete');
 
     Route::get('addrbook', fn () => abort(404));
     Route::resource('addrbook', App\Http\Controllers\AddrbookController::class)->except(['index']);

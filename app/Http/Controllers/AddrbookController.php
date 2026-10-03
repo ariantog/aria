@@ -16,6 +16,7 @@ use App\Models\Tag;
 use App\Services\ExportSellExportService;
 use App\Services\ExportSellQueryService;
 use App\Services\ItemListFilter;
+use App\Services\Shopee\WarehouseShopeeStockService;
 use App\Services\WarehouseJubelioStockService;
 use App\Services\WarehouseStockExportService;
 use App\Services\Warehouse\WarehouseItemAgeService;
@@ -306,7 +307,7 @@ class AddrbookController extends Controller
         ]);
     }
 
-    public function items($id, Request $request, WarehouseStockQueryService $queryService, WarehouseJubelioStockService $jubelioStockService)
+    public function items($id, Request $request, WarehouseStockQueryService $queryService, WarehouseJubelioStockService $jubelioStockService, WarehouseShopeeStockService $shopeeStockService)
     {
         $a = Addrbook::withTrashed()->findOrFail($id);
         if (! Addrbook::typeHasWarehouseStock((int) $a->type)) {
@@ -334,6 +335,18 @@ class AddrbookController extends Controller
             $jubelioUnlinkedCount = $jubelioData['unlinked_count'];
         }
 
+        $shopeeSync = $shopeeStockService->syncForWarehouse($a->id);
+        $shopeeStocks = [];
+        $shopeeFetchFailed = false;
+        $shopeeUnlinkedCount = 0;
+
+        if ($shopeeSync) {
+            $shopeeData = $shopeeStockService->stockDataForItems($shopeeSync, $items->getCollection());
+            $shopeeStocks = $shopeeData['stocks'];
+            $shopeeFetchFailed = $shopeeData['fetch_failed'];
+            $shopeeUnlinkedCount = $shopeeData['unlinked_count'];
+        }
+
         return view('addrbook.items', [
             'addrbook' => $a,
             'items' => $items,
@@ -344,6 +357,10 @@ class AddrbookController extends Controller
             'jubelioStocks' => $jubelioStocks,
             'jubelioFetchFailed' => $jubelioFetchFailed,
             'jubelioUnlinkedCount' => $jubelioUnlinkedCount,
+            'shopeeSync' => $shopeeSync,
+            'shopeeStocks' => $shopeeStocks,
+            'shopeeFetchFailed' => $shopeeFetchFailed,
+            'shopeeUnlinkedCount' => $shopeeUnlinkedCount,
             'can' => [
                 'bank_hidden_balance' => ! (request()->user()?->is_superadmin ?? false) && (request()->user()?->can('addrbook-bank-account-hidden-balance') ?? false),
             ],
