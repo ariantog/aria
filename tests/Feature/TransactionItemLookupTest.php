@@ -138,6 +138,21 @@ it('exposes warehouse stock so scanned rows can show on-hand quantity', function
     expect((float) $response->json('item.warehouse_item.0.quantity'))->toBe(7.0);
 });
 
+it('includes inventory flags on transaction item lookup payloads', function () {
+    $this->user->givePermissionTo('transactions-type-sell');
+
+    $item = Item::factory()->create([
+        'allow_decimal_quantity' => true,
+    ]);
+
+    $response = $this->actingAs($this->user)
+        ->getJson(route('transactions.item-by-id', ['type' => 'sell', 'id' => $item->id]))
+        ->assertSuccessful()
+        ->assertJsonPath('item.track_inventory', true);
+
+    expect($response->json('item'))->toHaveKeys(['allow_decimal_quantity']);
+});
+
 it('finds an item by numeric id through the items id json endpoint', function () {
     $this->user->givePermissionTo('items-list');
 
@@ -155,6 +170,28 @@ it('finds an item by numeric id through the items id json endpoint', function ()
     expect($match)->not->toBeNull()
         ->and($match['name'])->toBe('Warehouse Tee')
         ->and($match['code'])->toBe('WH-TEE-01');
+});
+
+it('items autocomplete json exposes warehouse_item for transaction stock display', function () {
+    $this->user->givePermissionTo('items-list');
+
+    $item = Item::factory()->create(['name' => 'Stocked Autocomplete Item']);
+    $warehouse = Addrbook::factory()->create(['type' => Addrbook::TYPE_WAREHOUSE]);
+    WarehouseItem::create([
+        'item_id' => $item->id,
+        'warehouse_id' => $warehouse->id,
+        'warehouse_type' => Addrbook::class,
+        'quantity' => 11,
+    ]);
+
+    $match = collect($this->actingAs($this->user)
+        ->getJson('/items?search=Stocked+Autocomplete&json=1')
+        ->assertSuccessful()
+        ->json())->first(fn ($row) => $row['id'] === $item->id);
+
+    expect($match)->not->toBeNull()
+        ->and($match['warehouse_item'][0]['warehouse_id'])->toBe((string) $warehouse->id)
+        ->and((float) $match['warehouse_item'][0]['quantity'])->toBe(11.0);
 });
 
 it('items autocomplete json uses effective price and cost from colorway when sku columns are zero', function () {
