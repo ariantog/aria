@@ -23,15 +23,15 @@
     $fmtMoney = fn ($v) => format_amount($v, 0);
 @endphp
 
-<div class="flex h-full flex-1 flex-col gap-4 p-4">
-    <div>
-        <h2 class="text-2xl font-bold tracking-tight text-gray-900">Dashboard</h2>
-        <p class="mt-0.5 text-sm text-gray-500">Welcome back, {{ auth()->user()->name }}.</p>
-    </div>
+<div class="ui-page flex h-full flex-1 flex-col">
+    @include('partials.ui.page-header', [
+        'title' => 'Dashboard',
+        'lead' => 'Welcome back, '.auth()->user()->name.'.',
+    ])
 
     @if($hasOpsPanel)
     {{-- System health strip --}}
-    <div class="flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm" data-testid="dashboard-health-strip">
+    <div class="ui-panel flex flex-wrap items-center gap-3 px-4 py-3" data-testid="dashboard-health-strip">
         @if(($can['jubelio'] ?? false) && $jubelio)
         @php
             $connection = $jubelio['connection'];
