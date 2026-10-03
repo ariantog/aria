@@ -93,8 +93,10 @@ it('renders item shopee tab when permitted', function () {
 
     $item = Item::factory()->create(['code' => 'TAB-SHOPEE']);
 
-    $this->mock(ShopeeStockApiService::class, function ($mock) {
+    $openApi = app(\App\Services\Shopee\ShopeeStockOpenApiService::class);
+    $this->mock(ShopeeStockApiService::class, function ($mock) use ($openApi) {
         $mock->shouldReceive('isReady')->andReturn(false);
+        $mock->shouldReceive('openApiClient')->andReturn($openApi);
     });
 
     $this->actingAs($user)

@@ -21,7 +21,9 @@ $warehouseRoute = route('transactions.lookup', ['type' => 'sell', 'role' => 'sen
 
     @if(! $connectionReady)
         <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            Authorize Shopee di <a href="{{ route('shopee-ads.index') }}" class="font-medium underline">Shopee Ads</a> dulu agar daftar gudang Shopee bisa dimuat.
+            Authorize app <strong>STOCK CHECKER</strong> dulu di
+            <a href="{{ route('shopee.sync.index') }}" class="font-medium underline">Warehouse mapping</a>
+            (bukan Shopee Ads / COREADS).
         </div>
     @endif
 

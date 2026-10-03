@@ -27,13 +27,33 @@ $breadcrumbs = [
         </div>
     </div>
 
-    @if(! ($connection['ready'] ?? false))
-        <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            Shopee shop belum ter-authorize. Buka
-            <a href="{{ route('shopee-ads.index') }}" class="font-medium text-orange-700 underline">Shopee Ads</a>
-            → Authorize Shopee (OAuth yang sama dipakai untuk cek stok produk).
+    <div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-800">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <p class="font-medium">STOCK CHECKER app (OAuth terpisah dari COREADS / Shopee Ads)</p>
+                @if($connection['configured'] ?? false)
+                    <p class="mt-1 text-xs text-gray-600">
+                        Redirect URL terdaftar:
+                        <code class="rounded bg-white px-1">{{ $connection['redirect_url'] ?? '—' }}</code>
+                        @if($connection['ready'] ?? false)
+                            · shop_id <span class="font-mono">{{ $connection['shop_id'] }}</span>
+                        @endif
+                    </p>
+                @else
+                    <p class="mt-1 text-xs text-amber-800">Set <code>SHOPEE_STOCK_PARTNER_ID</code> / <code>SHOPEE_STOCK_PARTNER_KEY</code> di .env (Live Partner dari app STOCK CHECKER).</p>
+                @endif
+                @if($oauthErrorHint ?? null)
+                    <p class="mt-2 text-xs text-red-700">{{ $oauthErrorHint }}</p>
+                @endif
+            </div>
+            @can(\App\Models\ShopeeStock::getPermissions()['sync'])
+            <a href="{{ route('shopee.sync.authorize') }}"
+               class="inline-flex rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700">
+                Authorize Shopee (Stock)
+            </a>
+            @endcan
         </div>
-    @endif
+    </div>
 
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <table class="w-full text-left text-sm">

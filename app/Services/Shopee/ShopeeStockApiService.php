@@ -2,16 +2,20 @@
 
 namespace App\Services\Shopee;
 
-use App\Services\ShopeeAds\ShopeeAdsApiService;
 class ShopeeStockApiService
 {
     public function __construct(
-        private ShopeeAdsApiService $adsApi,
+        private ShopeeStockOpenApiService $openApi,
     ) {}
 
     public function isReady(): bool
     {
-        return $this->adsApi->isConfigured() && $this->adsApi->hasShopAuthorization();
+        return $this->openApi->isConfigured() && $this->openApi->hasShopAuthorization();
+    }
+
+    public function openApiClient(): ShopeeStockOpenApiService
+    {
+        return $this->openApi;
     }
 
     /**
@@ -19,8 +23,8 @@ class ShopeeStockApiService
      */
     public function listPickupWarehouses(): array
     {
-        $data = $this->adsApi->decodeShopResponse(
-            $this->adsApi->shopApiGet('/api/v2/shop/get_warehouse_detail', [
+        $data = $this->openApi->decodeShopResponse(
+            $this->openApi->shopApiGet('/api/v2/shop/get_warehouse_detail', [
                 'warehouse_type' => 1,
             ]),
             'Shopee warehouse list',
@@ -46,8 +50,8 @@ class ShopeeStockApiService
             return [];
         }
 
-        $data = $this->adsApi->decodeShopResponse(
-            $this->adsApi->shopApiPost('/api/v2/product/search_item', [
+        $data = $this->openApi->decodeShopResponse(
+            $this->openApi->shopApiPost('/api/v2/product/search_item', [
                 'item_sku' => $keyword,
                 'page_size' => min(50, max(1, $pageSize)),
                 'offset' => 0,
@@ -74,8 +78,8 @@ class ShopeeStockApiService
             return [];
         }
 
-        $data = $this->adsApi->decodeShopResponse(
-            $this->adsApi->shopApiPost('/api/v2/product/get_model_list', [
+        $data = $this->openApi->decodeShopResponse(
+            $this->openApi->shopApiPost('/api/v2/product/get_model_list', [
                 'item_id' => $itemId,
             ]),
             'Shopee model list',

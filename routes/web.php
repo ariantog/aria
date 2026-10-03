@@ -43,6 +43,9 @@ Route::post('jubelio/webhook/return', [App\Http\Controllers\JubelioController::c
 Route::get('shopee-ads/oauth/callback', [App\Http\Controllers\ShopeeAdsController::class, 'oauthCallback'])
     ->name('shopee-ads.oauth.callback');
 
+Route::get('shopee-stock/oauth/callback', [App\Http\Controllers\ShopeeSyncController::class, 'oauthCallback'])
+    ->name('shopee-stock.oauth.callback');
+
 Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('/permissions', [App\Http\Controllers\PermissionController::class, 'index'])->name('permissions.index');
     Route::post('/permissions/generate', [App\Http\Controllers\PermissionController::class, 'generate'])->name('permissions.generate');
@@ -128,6 +131,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::delete('jubelio-sync/{sync}', [App\Http\Controllers\JubelioSyncController::class, 'destroy'])->name('jubelio.sync.delete');
     Route::get('jubelio-sync/{sync}/bin', [App\Http\Controllers\JubelioSyncController::class, 'getBin'])->name('jubelio.sync.getBin');
 
+    Route::get('shopee-sync/authorize', [App\Http\Controllers\ShopeeSyncController::class, 'authorizeShop'])->name('shopee.sync.authorize');
     Route::get('shopee-sync', [App\Http\Controllers\ShopeeSyncController::class, 'index'])->name('shopee.sync.index');
     Route::get('shopee-sync/create', [App\Http\Controllers\ShopeeSyncController::class, 'create'])->name('shopee.sync.create');
     Route::post('shopee-sync', [App\Http\Controllers\ShopeeSyncController::class, 'store'])->name('shopee.sync.store');

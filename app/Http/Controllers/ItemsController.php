@@ -480,11 +480,15 @@ class ItemsController extends Controller
         $item->load(['group', 'tags']);
         [$msg, $data] = $this->fetchShopeeStock($item, $stockApi);
 
+        $openApi = $stockApi->openApiClient();
+
         return view('items.shopee', [
             'item' => $item,
             'dataShopee' => $data,
             'message' => $msg,
             'connectionReady' => $stockApi->isReady(),
+            'connection' => $openApi->getConnectionStatus(),
+            'oauthErrorHint' => $openApi->formatOAuthErrorForUser($openApi->getLastOAuthError()),
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
@@ -494,7 +498,7 @@ class ItemsController extends Controller
         Gate::authorize(Item::getPermissions()['edit']);
 
         if (! $stockApi->isReady()) {
-            return back()->withErrors(['message' => 'Shopee belum ter-authorize. Authorize dari halaman Shopee Ads.']);
+            return back()->withErrors(['message' => 'Shopee STOCK CHECKER belum ter-authorize. Buka Shopee → Warehouse mapping → Authorize.']);
         }
 
         $query = (string) $request->input('q', $item->code);
@@ -1129,7 +1133,7 @@ class ItemsController extends Controller
         }
 
         if (! $stockApi->isReady()) {
-            return ['Shopee belum ter-authorize (OAuth)', []];
+            return ['Shopee STOCK CHECKER belum ter-authorize (OAuth terpisah dari Shopee Ads)', []];
         }
 
         $snapshot = $stockApi->stockSnapshotForItem(

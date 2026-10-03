@@ -6,6 +6,7 @@ use App\Models\Addrbook;
 use App\Models\ShopeeStock;
 use App\Models\Shopeesync;
 use App\Services\Shopee\ShopeeStockApiService;
+use App\Services\Shopee\ShopeeStockOpenApiService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -13,7 +14,10 @@ use Illuminate\View\View;
 
 class ShopeeSyncController extends Controller
 {
-    public function __construct(private ShopeeStockApiService $stockApi) {}
+    public function __construct(
+        private ShopeeStockApiService $stockApi,
+        private ShopeeStockOpenApiService $openApi,
+    ) {}
 
     public function index(Request $request): View
     {
@@ -31,14 +35,52 @@ class ShopeeSyncController extends Controller
 
         $dataList = $query->orderByDesc('created_at')->paginate(50)->withQueryString();
 
+        $status = $this->openApi->getConnectionStatus();
+
         return view('shopee.sync.index', [
             'dataList' => $dataList,
             'filters' => $request->only(['name']),
-            'connection' => [
+            'connection' => array_merge($status, [
                 'ready' => $this->stockApi->isReady(),
-            ],
+            ]),
+            'oauthErrorHint' => $this->openApi->formatOAuthErrorForUser($this->openApi->getLastOAuthError()),
             'flash' => ['success' => session('success'), 'error' => session('fail') ?? session('errorMessage') ?? session('error')],
         ]);
+    }
+
+    public function authorizeShop(): RedirectResponse
+    {
+        Gate::authorize(ShopeeStock::getPermissions()['sync']);
+
+        if (! $this->openApi->isConfigured()) {
+            return back()->with('error', 'SHOPEE_STOCK_PARTNER_ID / SHOPEE_STOCK_PARTNER_KEY belum dikonfigurasi di .env (app STOCK CHECKER).');
+        }
+
+        return redirect()->away($this->openApi->buildAuthorizeUrl());
+    }
+
+    public function oauthCallback(Request $request): RedirectResponse
+    {
+        $code = $request->query('code');
+        $shopId = (int) $request->query('shop_id');
+
+        if (! $code || $shopId <= 0) {
+            return redirect()->route('shopee.sync.index')->with('error', 'OAuth callback tidak lengkap (code / shop_id).');
+        }
+
+        $result = $this->openApi->exchangeAuthCode($code, $shopId);
+
+        if (! $result) {
+            $detail = $this->openApi->formatOAuthErrorForUser($this->openApi->getLastOAuthError());
+            $message = 'Gagal menukar kode OAuth Shopee (STOCK CHECKER).';
+            if ($detail) {
+                $message .= ' '.$detail;
+            }
+
+            return redirect()->route('shopee.sync.index')->with('error', $message);
+        }
+
+        return redirect()->route('shopee.sync.index')->with('success', 'Toko Shopee berhasil diotorisasi untuk cek stok.');
     }
 
     public function create(): View

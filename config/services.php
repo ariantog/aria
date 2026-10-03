@@ -52,6 +52,14 @@ return [
         'redirect_url' => env('SHOPEE_REDIRECT_URL', 'https://cdn.corenationactive.com/shopeebot.php'),
     ],
 
+    'shopee_stock' => [
+        // STOCK CHECKER app in Shopee Open Platform (separate from COREADS / ads).
+        'partner_id' => env('SHOPEE_STOCK_PARTNER_ID'),
+        'partner_key' => env('SHOPEE_STOCK_PARTNER_KEY'),
+        'base_url' => env('SHOPEE_STOCK_BASE_URL', env('SHOPEE_BASE_URL', 'https://partner.shopeemobile.com')),
+        'redirect_url' => env('SHOPEE_STOCK_REDIRECT_URL', 'https://cdn.corenationactive.com/shopeestockbot.php'),
+    ],
+
     'jubelio' => [
         'active' => env('JUBELIO_ACTIVE', false),
         'poll_days' => (int) env('JUBELIO_POLL_DAYS', 7),

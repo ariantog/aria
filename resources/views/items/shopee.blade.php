@@ -21,7 +21,14 @@ $breadcrumbs = [
 
     @if(! ($connectionReady ?? false))
         <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            Authorize Shopee di <a href="{{ route('shopee-ads.index') }}" class="font-medium underline">Shopee Ads</a> (OAuth yang sama untuk stok & iklan).
+            Stok memakai app <strong>STOCK CHECKER</strong> (partner & OAuth terpisah dari COREADS / Shopee Ads).
+            @can(\App\Models\ShopeeStock::getPermissions()['sync'])
+            <a href="{{ route('shopee.sync.authorize') }}" class="font-medium text-orange-800 underline">Authorize Shopee (Stock)</a>
+            atau buka <a href="{{ route('shopee.sync.index') }}" class="underline">Warehouse mapping</a>.
+            @endcan
+            @if($oauthErrorHint ?? null)
+                <span class="mt-2 block text-xs text-red-800">{{ $oauthErrorHint }}</span>
+            @endif
         </div>
     @endif
 
