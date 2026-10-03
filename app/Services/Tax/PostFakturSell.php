@@ -261,13 +261,17 @@ class PostFakturSell
 
         $insufficient = [];
         foreach ($detailRows as $row) {
+            $item = Item::query()->find($row['item_id']);
+            if ($item && ! $item->tracksInventory()) {
+                continue;
+            }
+
             $wi = WarehouseItem::query()
                 ->where('warehouse_id', $warehouse->id)
                 ->where('item_id', $row['item_id'])
                 ->first();
             $available = $wi ? (float) $wi->quantity : 0;
             if ((float) $row['quantity'] > $available) {
-                $item = Item::query()->find($row['item_id']);
                 $insufficient[] = ($item?->name ?? 'ID '.$row['item_id'])." (avail: {$available}, need: {$row['quantity']})";
             }
         }

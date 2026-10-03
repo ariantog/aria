@@ -32,8 +32,8 @@ class InventoryService
      */
     public function adjustStock(int $warehouseId, Item $item, float $quantity): WarehouseItem
     {
-        if ($item->type === ItemType::SERVICE) {
-            throw new Exception('Inventory tracking not applicable for Service items.');
+        if (! $item->tracksInventory()) {
+            throw new Exception('Inventory tracking not applicable for this item.');
         }
 
         $addrbook = Addrbook::find($warehouseId);

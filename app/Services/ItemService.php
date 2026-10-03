@@ -9,6 +9,7 @@ use App\Models\ItemGroup;
 use App\Models\Tag;
 use App\Services\Items\ItemIdentityBuilder;
 use App\Support\ItemCatalog;
+use App\Support\ItemInventorySettings;
 use App\Support\ItemPricing;
 use App\Support\ItemProductTitle;
 use Exception;
@@ -109,6 +110,7 @@ class ItemService
 
             $this->persistGroupCatalogAttributes($group, $item, $input, $typeTag);
             $this->persistItemLocalAttributes($item, $input);
+            $this->applyInventorySettings($item, $input);
             $this->persistItemPricing($item, $input, defaultColorwayScope: false);
             $item->save();
 
@@ -552,9 +554,21 @@ class ItemService
         $item->tags()->sync($tagIds);
         $item->load('tags');
         $item->name = ItemProductTitle::buildDisplayName($item);
+        $this->applyInventorySettings($item, $input);
         $item->save();
 
         return $item;
+    }
+
+    protected function applyInventorySettings(Item $item, object $input): void
+    {
+        $type = $item->type instanceof ItemType ? $item->type : ItemType::coerce($item->type);
+        if ($type === null) {
+            return;
+        }
+
+        $item->track_inventory = ItemInventorySettings::resolveTrackInventory($type, $input, $item->exists ? $item : null);
+        $item->allow_decimal_quantity = ItemInventorySettings::resolveAllowDecimalQuantity($type, $input, $item->exists ? $item : null);
     }
 
     protected function applyItemIdentity(

@@ -22,6 +22,7 @@ use App\Services\ItemService;
 use App\Services\ItemStatsService;
 use App\Services\ItemTransactionQueryService;
 use App\Services\JubelioService;
+use App\Support\ItemInventorySettings;
 use App\Support\LikeSearch;
 use App\Support\ItemPricing;
 use Illuminate\Http\Request;
@@ -45,9 +46,10 @@ class ItemsController extends Controller
         $p = Item::getPermissions();
         $permission = $type === ItemType::ASSET_LANCAR ? $p['asset-lancar-view'] : $p['view'];
         $canViewItems = Gate::check($permission);
+        $canViewServices = $this->isJson($request) && Gate::check(Item::getPermissions()['services-view']);
         $canExportSellLookup = $this->isJson($request) && Gate::check(Report::getPermissions()['view-export-sell']);
 
-        if (! $canViewItems && ! $canExportSellLookup) {
+        if (! $canViewItems && ! $canViewServices && ! $canExportSellLookup) {
             Gate::authorize($permission);
         }
 
@@ -988,6 +990,8 @@ class ItemsController extends Controller
             'warnaTags' => Tag::tagsForItemForm($t, Tag::TYPE_WARNA),
             'itemType' => $t->value,
             'isAsset' => $isAsset,
+            'showDecimalQuantityOption' => ItemInventorySettings::showDecimalQuantityOptionOnForm($t),
+            'showTrackInventoryOption' => ItemInventorySettings::showTrackInventoryOptionOnForm($t),
             'assetPcodeSuggestions' => $isAsset
                 ? Item::query()
                     ->where('type', ItemType::ASSET_LANCAR)

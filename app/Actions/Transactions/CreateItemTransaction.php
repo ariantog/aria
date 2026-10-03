@@ -68,10 +68,13 @@ class CreateItemTransaction
 
         $insufficient = [];
         foreach ($items as $item) {
+            $itemModel = \App\Models\Item::find($item['item_id']);
+            if ($itemModel && ! $itemModel->tracksInventory()) {
+                continue;
+            }
             $wi = WarehouseItem::where('warehouse_id', $sender->id)->where('item_id', $item['item_id'])->first();
             $available = $wi ? (float) $wi->quantity : 0;
             if ((float) $item['quantity'] > $available) {
-                $itemModel = \App\Models\Item::find($item['item_id']);
                 $insufficient[] = ($itemModel ? $itemModel->name : 'ID: '.$item['item_id'])." (avail: {$available})";
             }
         }
