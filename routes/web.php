@@ -269,6 +269,14 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('assettetap/{item}/buy', [App\Http\Controllers\AssetTetapController::class, 'buy'])->name('assettetap.buy');
     Route::post('assettetap/{item}/buy', [App\Http\Controllers\AssetTetapController::class, 'storeBuy'])->middleware('prevent.duplicate')->name('assettetap.buy.store');
 
+    Route::get('services', [App\Http\Controllers\ServicesController::class, 'index'])->name('services.index');
+    Route::get('services/create', [App\Http\Controllers\ServicesController::class, 'create'])->name('services.create');
+    Route::post('services', [App\Http\Controllers\ServicesController::class, 'store'])->name('services.store');
+    Route::get('services/{item}', [App\Http\Controllers\ServicesController::class, 'show'])->name('services.show');
+    Route::get('services/{item}/edit', [App\Http\Controllers\ServicesController::class, 'edit'])->name('services.edit');
+    Route::put('services/{item}', [App\Http\Controllers\ServicesController::class, 'update'])->name('services.update');
+    Route::delete('services/{item}', [App\Http\Controllers\ServicesController::class, 'destroy'])->name('services.destroy');
+
     // Item Group Routes
     Route::get('items-group', [App\Http\Controllers\ItemsController::class, 'group'])->name('items.group');
     Route::get('items-group/parent/{group}', [App\Http\Controllers\ItemsController::class, 'groupParentDetail'])->whereNumber('group')->name('items.group-parent-detail');

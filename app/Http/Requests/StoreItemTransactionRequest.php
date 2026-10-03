@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\Addrbook;
 use App\Models\Transaction;
+use App\Support\ItemQuantityValidator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -24,7 +25,7 @@ class StoreItemTransactionRequest extends FormRequest
             'note' => ['nullable', 'string', 'max:5000'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.item_id' => ['required', 'integer', 'exists:items,id'],
-            'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
+            'items.*.quantity' => ['required', 'numeric', 'min:1'],
             'items.*.price' => ['required', 'numeric', 'min:0'],
             'items.*.discount' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'items.*.note' => ['nullable', 'string', 'max:1000'],
@@ -46,7 +47,7 @@ class StoreItemTransactionRequest extends FormRequest
             'items.*.item_id.required' => 'Each item must be selected.',
             'items.*.item_id.exists' => 'One or more selected items do not exist.',
             'items.*.quantity.required' => 'Quantity is required for each item.',
-            'items.*.quantity.min' => 'Quantity must be greater than 0.',
+            'items.*.quantity.min' => 'Quantity must be at least 1.',
         ];
     }
 
@@ -82,6 +83,17 @@ class StoreItemTransactionRequest extends FormRequest
                         $validator->errors()->add($field, $message);
                     }
                 }
+            }
+        });
+
+        $validator->after(function (Validator $validator) {
+            $items = $this->input('items', []);
+            if (! is_array($items)) {
+                return;
+            }
+
+            foreach (ItemQuantityValidator::validateLines($items) as $message) {
+                $validator->errors()->add('items', $message);
             }
         });
 

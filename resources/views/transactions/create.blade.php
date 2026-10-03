@@ -327,16 +327,16 @@
                                        @keydown="rowKeydown(idx, 'qty', $event)"
                                        @keyup="rowKeyup(idx, 'qty', $event)"
                                        enterkeyhint="next"
-                                       min="0" step="any"
+                                       min="1" :step="qtyStep(item)"
                                        class="{{ $rowInput }} text-center"
-                                       :class="isOverStock(item) ? 'border-red-400 text-red-700' : ''">
+                                       :class="(isOverStock(item) || !quantityValid(item)) ? 'border-red-400 text-red-700' : ''">
                             </div>
                             {{-- Warehouse stock (read-only) --}}
                             <div class="flex items-center justify-between {{ $isMove ? 'sm:col-span-2' : 'sm:col-span-1' }} sm:block sm:text-center">
                                 <span class="text-xs font-medium text-gray-500 sm:hidden">Whs. Stock</span>
                                 <span class="text-base tabular-nums"
                                       :class="isOverStock(item) ? 'font-semibold text-red-500' : 'text-gray-400'"
-                                      x-text="item.item_id ? formatNumberId(item.warehouse_stock || 0) : '—'"></span>
+                                      x-text="stockDisplay(item)"></span>
                             </div>
                             {{-- Discount % --}}
                             @unless($isMove)
@@ -863,7 +863,29 @@ function createTransaction() {
 
             return Number.isNaN(amount) ? null : amount;
         },
-        itemValid(i) { return !!i.item_id && Number(i.quantity) >= 0.01 && this.priceIsSet(i.price) && Number(i.price) >= 0; },
+        rowTracksInventory(row) {
+            return row.track_inventory !== false && row.track_inventory !== 0 && row.track_inventory !== '0';
+        },
+        qtyStep(row) {
+            return row.allow_decimal_quantity ? 0.01 : 1;
+        },
+        quantityValid(row) {
+            if (!row.item_id) return true;
+            const q = Number(row.quantity);
+            if (Number.isNaN(q) || q < 1) return false;
+            if (!row.allow_decimal_quantity) {
+                return Math.abs(q - Math.round(q)) < 0.00001;
+            }
+            return Math.abs(q - Math.round(q * 100) / 100) < 0.00001;
+        },
+        stockDisplay(row) {
+            if (!row.item_id) return '—';
+            if (!this.rowTracksInventory(row)) return '∞';
+            return this.formatNumberId(row.warehouse_stock || 0);
+        },
+        itemValid(i) {
+            return !!i.item_id && this.quantityValid(i) && this.priceIsSet(i.price) && Number(i.price) >= 0;
+        },
         itemInvalid(i) { return this.itemStarted(i) && !this.itemValid(i); },
         validItems() { return this.form.items.filter(i => this.itemValid(i)); },
 
@@ -942,6 +964,7 @@ function createTransaction() {
                 quantity: 1, price: null, discount: 0,
                 warehouse_stock: null, warehouse_item: [],
                 jubelio_item_id: 0, jubelio_unlinked_warning: false,
+                track_inventory: true, allow_decimal_quantity: false,
                 subtotal: 0, note: '',
                 results: [], showDropdown: false, activeIndex: -1, searchTimer: null,
             };
@@ -988,7 +1011,9 @@ function createTransaction() {
             this.storeCatalogPricesOnRow(row, source);
             row.price = this.resolveRowPrice(source);
             row.warehouse_item = this.warehouseItemsFrom(source);
-            if (!row.quantity || row.quantity < 0.01) row.quantity = 1;
+            if (!row.quantity || row.quantity < 1) row.quantity = 1;
+            row.track_inventory = source.track_inventory !== undefined ? source.track_inventory : true;
+            row.allow_decimal_quantity = !!source.allow_decimal_quantity;
             row.warehouse_stock = this.stockFor(row);
             row.jubelio_item_id = Number(source.jubelio_item_id ?? 0);
             this.refreshRowJubelioWarning(row);
@@ -1548,6 +1573,7 @@ function createTransaction() {
 
         isOverStock(item) {
             if (!item.item_id) return false;
+            if (!this.rowTracksInventory(item)) return false;
             if (!['sell','move','return-supplier','return_supplier'].includes(_TxType)) return false;
             return Number(item.quantity) > Number(item.warehouse_stock || 0);
         },

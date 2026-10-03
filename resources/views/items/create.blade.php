@@ -65,6 +65,11 @@ $actionUrl = $isAsset ? route('assetlancar.store') : route('items.store');
             <div class="space-y-6 lg:col-span-2">
                 @include('items.partials.form-basic', ['formItem' => $formItem])
                 @include('items.partials.form-details', ['formItem' => $formItem])
+                @include('items.partials.form-inventory-options', [
+                    'formItem' => $formItem,
+                    'showTrackInventoryOption' => $showTrackInventoryOption ?? false,
+                    'showDecimalQuantityOption' => $showDecimalQuantityOption ?? false,
+                ])
             </div>
             <div class="space-y-6">
                 @include('items.partials.form-attributes', [

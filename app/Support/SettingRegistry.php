@@ -91,6 +91,13 @@ class SettingRegistry
                 'default' => '1.5',
                 'hint' => 'Upah lembur = jam × (harian ÷ jam kerja) × pengali.',
             ],
+            'items.allow_decimal_quantity_enabled' => [
+                'group' => 'Stuff',
+                'name' => 'Allow Decimal Quantity (Item & Asset Lancar)',
+                'type' => 'boolean',
+                'default' => false,
+                'hint' => 'When enabled, item and asset lancar forms show a per-SKU “Qty desimal” option. Service SKUs always allow this checkbox regardless of this setting.',
+            ],
             'restock.default_supplier_id' => [
                 'group' => 'Restock',
                 'name' => 'Default Supplier',

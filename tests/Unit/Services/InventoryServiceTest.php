@@ -64,7 +64,7 @@ test('it throws exception if addrbook not found', function () {
 })->throws(Exception::class, 'Addrbook (Warehouse) not found.');
 
 test('it throws exception for service items', function () {
-    $serviceItem = Item::factory()->create(['type' => ItemType::SERVICE]);
+    $serviceItem = Item::factory()->service()->create();
 
     $this->inventoryService->add($this->addrbook->id, $serviceItem, 10);
-})->throws(Exception::class, 'Inventory tracking not applicable for Service items.');
+})->throws(Exception::class, 'Inventory tracking not applicable for this item.');

@@ -67,7 +67,7 @@
 
     $abNavLabels = ['Address Book', ...$visibleAddrbookTypes->pluck('name')->all()];
 
-    $stuffNavLabels = ['Stuff'];
+    $stuffNavLabels = ['Stuff', 'Services'];
     if ($hasPerm('items-list') || $isSuperAdmin) {
         $stuffNavLabels[] = 'Item';
     }
@@ -394,9 +394,9 @@
 @endif
 
 {{-- ── Stuff (Items, etc.) ───────────────────────────────────────────── --}}
-@if($hasPerm('items-list') || $hasPerm('assetLancar-list') || $hasPerm('assetTetap-list') || $hasPerm('stuff-group-list') || $hasPerm('stuff-tag-list') || $hasPerm('restock-list') || $hasPerm('items-convert-legacy') || $hasPerm('stock-notification-list') || $isSuperAdmin)
+@if($hasPerm('items-list') || $hasPerm('assetLancar-list') || $hasPerm('assetTetap-list') || $hasPerm('services-list') || $hasPerm('stuff-group-list') || $hasPerm('stuff-tag-list') || $hasPerm('restock-list') || $hasPerm('items-convert-legacy') || $hasPerm('stock-notification-list') || $isSuperAdmin)
 @php
-    $stuffActive = $isActive('/items') || $isActive('/assetlancar') || $isActive('/assettetap') || $isActive('/tags') || $isActive('/restock')
+    $stuffActive = $isActive('/items') || $isActive('/assetlancar') || $isActive('/assettetap') || $isActive('/services') || $isActive('/tags') || $isActive('/restock')
         || $isActive('/stock-notifications');
 @endphp
 <div x-data="{ open: {{ $stuffActive ? 'true' : 'false' }} }"
@@ -419,6 +419,9 @@
         @endif
         @if($hasPerm('assetTetap-list') || $isSuperAdmin)
         <a href="{{ route('assettetap.index') }}" x-show="navLinkVisible('Asset Tetap', 'Stuff')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/assettetap') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Asset Tetap</a>
+        @endif
+        @if($hasPerm('services-list') || $isSuperAdmin)
+        <a href="{{ route('services.index') }}" x-show="navLinkVisible('Services', 'Stuff')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/services') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Services</a>
         @endif
         @if($hasPerm('stuff-group-list') || $isSuperAdmin)
         <a href="{{ route('items.group') }}" x-show="navLinkVisible('Group', 'Stuff')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/items-group') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Group</a>

@@ -57,6 +57,8 @@ class Item extends Model
         'reseller_price',
         'jubelio_item_id',
         'restock_urgent_threshold',
+        'track_inventory',
+        'allow_decimal_quantity',
     ];
 
     protected function casts(): array
@@ -71,6 +73,8 @@ class Item extends Model
             'cost_cnh' => 'decimal:2',
             'reseller_price' => 'decimal:2',
             'qty' => 'decimal:2',
+            'track_inventory' => 'boolean',
+            'allow_decimal_quantity' => 'boolean',
             'jubelio_item_id' => 'integer',
         ];
     }
@@ -103,7 +107,31 @@ class Item extends Model
             'asset-tetap-edit' => 'assetTetap-edit',
             'asset-tetap-delete' => 'assetTetap-delete',
             'asset-tetap-depreciate' => 'assetTetap-depreciate',
+
+            'services-view' => 'services-list',
+            'services-create' => 'services-create',
+            'services-edit' => 'services-edit',
+            'services-delete' => 'services-delete',
         ];
+    }
+
+    public function tracksInventory(): bool
+    {
+        if (array_key_exists('track_inventory', $this->attributes)) {
+            return (bool) $this->track_inventory;
+        }
+
+        return $this->type !== ItemType::SERVICE;
+    }
+
+    public function allowsDecimalQuantity(): bool
+    {
+        return (bool) ($this->allow_decimal_quantity ?? false);
+    }
+
+    public function isService(): bool
+    {
+        return $this->type === ItemType::SERVICE;
     }
 
     public function group(): BelongsTo
@@ -397,6 +425,7 @@ class Item extends Model
     public function showUrl(): string
     {
         return match (true) {
+            $this->isService() => route('services.show', $this),
             $this->isAssetLancar() => route('assetlancar.show', $this),
             $this->isAssetTetap() => route('assettetap.show', $this),
             default => route('items.show', $this),
@@ -406,6 +435,7 @@ class Item extends Model
     public function editUrl(): string
     {
         return match (true) {
+            $this->isService() => route('services.edit', $this),
             $this->isAssetLancar() => route('assetlancar.edit', $this),
             $this->isAssetTetap() => route('assettetap.edit', $this),
             default => route('items.edit', $this),

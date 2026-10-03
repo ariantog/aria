@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Addrbook;
 use App\Models\StandaloneInvoice;
 use App\Services\InvoiceMakerSettingsService;
+use App\Support\ItemQuantityValidator;
 use App\Services\SellCashInPresenter;
 use App\Services\StandaloneInvoiceService;
 use App\Services\StandaloneInvoiceSettlement;
@@ -214,11 +215,19 @@ class StandaloneInvoicesController extends Controller
             'discount_amount' => ['nullable', 'numeric', 'min:0'],
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.description' => ['required', 'string', 'max:500'],
-            'lines.*.quantity' => ['required', 'numeric', 'min:0.0001'],
+            'lines.*.quantity' => ['required', 'numeric', 'min:1'],
             'lines.*.price' => ['required', 'numeric', 'min:0'],
         ]);
 
         $lines = array_values($validated['lines']);
+        foreach ($lines as $index => $line) {
+            $message = ItemQuantityValidator::validateFreeformQuantity((float) ($line['quantity'] ?? 0));
+            if ($message !== null) {
+                throw ValidationException::withMessages([
+                    "lines.{$index}.quantity" => $message,
+                ]);
+            }
+        }
         $subtotal = app(StandaloneInvoiceService::class)->calculateLineTotals($lines)['subtotal'];
         $dpEnabled = $request->boolean('dp_enabled');
 

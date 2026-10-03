@@ -70,6 +70,46 @@ it('creates a standalone invoice with free-text lines', function () {
     expect($invoice->balanceDue())->toBe(8_100_000.0);
 });
 
+it('creates a standalone invoice with decimal line quantity', function () {
+    $response = $this->actingAs($this->user)->post(route('invoice-maker.store'), [
+        'number' => 'INV/CA/2026/0200',
+        'date' => '2026-08-14',
+        'recipient' => 'PRINT CLIENT',
+        'preset_id' => 'default',
+        'lines' => [
+            ['description' => 'VINYL PRINT M2', 'quantity' => 25.9, 'price' => 50_000],
+        ],
+    ]);
+
+    $response->assertRedirect();
+    $invoice = StandaloneInvoice::query()->where('number', 'INV/CA/2026/0200')->first();
+    expect($invoice)->not->toBeNull();
+    expect((float) $invoice->lines->first()->quantity)->toBe(25.9);
+    expect((float) $invoice->subtotal)->toBe(1_295_000.0);
+});
+
+it('rejects invoice line quantity below 1 or with more than 2 decimals', function () {
+    $this->actingAs($this->user)->post(route('invoice-maker.store'), [
+        'number' => 'INV/CA/2026/0201',
+        'date' => '2026-08-14',
+        'recipient' => 'CLIENT',
+        'preset_id' => 'default',
+        'lines' => [
+            ['description' => 'Item', 'quantity' => 0.5, 'price' => 10_000],
+        ],
+    ])->assertSessionHasErrors('lines.0.quantity');
+
+    $this->actingAs($this->user)->post(route('invoice-maker.store'), [
+        'number' => 'INV/CA/2026/0202',
+        'date' => '2026-08-14',
+        'recipient' => 'CLIENT',
+        'preset_id' => 'default',
+        'lines' => [
+            ['description' => 'Item', 'quantity' => 25.999, 'price' => 10_000],
+        ],
+    ])->assertSessionHasErrors('lines.0.quantity');
+});
+
 it('creates a standalone invoice with down payment', function () {
     $response = $this->actingAs($this->user)->post(route('invoice-maker.store'), [
         'number' => 'INV/CA/2026/0100',

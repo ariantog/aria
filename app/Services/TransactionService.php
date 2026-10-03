@@ -180,7 +180,7 @@ class TransactionService
     protected function updateGlobalStock(Transaction $transaction, $detail, bool $revert = false)
     {
         $item = \App\Models\Item::find($detail->item_id);
-        if (! $item) {
+        if (! $item || ! $item->tracksInventory()) {
             return;
         }
 
@@ -205,7 +205,7 @@ class TransactionService
         }
 
         $item = Item::query()->find($itemId);
-        if ($item && (int) $item->getRawOriginal('type') === Item::TYPE_SERVICE) {
+        if ($item && ! $item->tracksInventory()) {
             return;
         }
 

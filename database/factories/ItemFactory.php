@@ -40,4 +40,13 @@ class ItemFactory extends Factory
             'group_id' => null,
         ]);
     }
+
+    public function service(): static
+    {
+        return $this->state(fn () => [
+            'type' => ItemType::SERVICE,
+            'track_inventory' => false,
+            'allow_decimal_quantity' => false,
+        ]);
+    }
 }
