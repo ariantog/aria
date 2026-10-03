@@ -74,14 +74,7 @@ class RestockRecommendationController extends Controller
         $rates = collect($recommendations->monthlySellingRatesForItems($request, $request->user(), $itemIds));
         $result = $apply->applyOneMonthRate($itemIds, $rates, $request->user());
 
-        $redirect = redirect()->route('restock.recommendations', array_filter([
-            'tab' => $request->input('tab', $request->query('tab')),
-            'item_type' => $request->input('item_type', $request->query('item_type')),
-            'sales_window' => $request->input('sales_window', $request->query('sales_window')),
-            'from' => $request->input('from', $request->query('from')),
-            'to' => $request->input('to', $request->query('to')),
-            'page' => $request->input('page', $request->query('page')),
-        ], fn ($value) => $value !== null && $value !== ''));
+        $redirect = $this->recommendationsRedirect($request);
 
         $appliedCount = count($result['applied']);
         $skippedCount = count($result['skipped']);
@@ -107,5 +100,75 @@ class RestockRecommendationController extends Controller
         }
 
         return $redirect;
+    }
+
+    public function saveRestockQuantities(
+        Request $request,
+        RestockRecommendationApplyService $apply,
+    ): RedirectResponse {
+        Gate::authorize(RestockSheet::getPermissions()['edit']);
+
+        $validated = $request->validate([
+            'item_id' => ['nullable', 'integer', 'min:1'],
+            'qty_restock' => ['nullable', 'integer', 'min:0'],
+            'rows' => ['nullable', 'array', 'max:100'],
+            'rows.*.item_id' => ['required_with:rows', 'integer', 'min:1'],
+            'rows.*.qty_restock' => ['required_with:rows', 'integer', 'min:0'],
+        ]);
+
+        $rows = [];
+        if (! empty($validated['rows'])) {
+            $rows = $validated['rows'];
+        } elseif (isset($validated['item_id'])) {
+            $rows = [[
+                'item_id' => (int) $validated['item_id'],
+                'qty_restock' => (int) ($validated['qty_restock'] ?? 0),
+            ]];
+        }
+
+        if ($rows === []) {
+            return $this->recommendationsRedirect($request)
+                ->with('error', 'No restock quantities to save.');
+        }
+
+        $result = $apply->saveRestockQuantities($rows, $request->user());
+
+        $redirect = $this->recommendationsRedirect($request);
+        $appliedCount = count($result['applied']);
+        $skippedCount = count($result['skipped']);
+
+        if ($appliedCount > 0) {
+            $redirect->with(
+                'success',
+                $appliedCount === 1
+                    ? sprintf(
+                        'Saved restock qty %d on %s.',
+                        $result['applied'][0]['qty'],
+                        $result['applied'][0]['sheet_name'],
+                    )
+                    : sprintf('Saved restock qty for %d SKUs.', $appliedCount),
+            );
+        }
+
+        if ($skippedCount > 0) {
+            $redirect->with('apply_skipped', $result['skipped']);
+            if ($appliedCount === 0) {
+                $redirect->with('error', 'Restock qty could not be saved.');
+            }
+        }
+
+        return $redirect;
+    }
+
+    private function recommendationsRedirect(Request $request): RedirectResponse
+    {
+        return redirect()->route('restock.recommendations', array_filter([
+            'tab' => $request->input('tab', $request->query('tab')),
+            'item_type' => $request->input('item_type', $request->query('item_type')),
+            'sales_window' => $request->input('sales_window', $request->query('sales_window')),
+            'from' => $request->input('from', $request->query('from')),
+            'to' => $request->input('to', $request->query('to')),
+            'page' => $request->input('page', $request->query('page')),
+        ], fn ($value) => $value !== null && $value !== ''));
     }
 }

@@ -221,6 +221,54 @@ it('applies one month sell rate to the matching restock sheet', function () {
     expect($cell->qty_restock)->toBeGreaterThanOrEqual(40);
 });
 
+it('saves an edited restock qty from recommendations to the restock sheet', function () {
+    $this->travelTo('2026-05-15');
+    $item = restockHealthItem('Save SKU', 'SAVE-1', ItemType::ASSET_LANCAR);
+    restockHealthStock($item, $this->warehouse, 1);
+    restockHealthLine(
+        $this->user,
+        $this->warehouse,
+        $this->customer,
+        $item,
+        Transaction::TYPE_SELL,
+        45,
+        now()->subDays(3)->toDateString(),
+        'SAVE-1-INV',
+    );
+
+    $typeTag = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'code' => 'SAVE',
+        'name' => 'Save Type',
+        'item_type' => ItemType::ASSET_LANCAR->value,
+    ]);
+    $item->tags()->attach($typeTag->id);
+
+    $sheet = RestockSheet::create([
+        'name' => 'Save Type',
+        'type_tag_id' => $typeTag->id,
+        'created_by' => $this->user->id,
+    ]);
+    $cell = RestockCell::create([
+        'restock_sheet_id' => $sheet->id,
+        'item_id' => $item->id,
+        'qty_restock' => 2,
+    ]);
+
+    $this->user->givePermissionTo('restock-edit');
+
+    $this->actingAs($this->user)
+        ->post(route('restock.recommendations.save-restock'), [
+            'item_id' => $item->id,
+            'qty_restock' => 55,
+            'tab' => 'fast',
+        ])
+        ->assertRedirect(route('restock.recommendations', ['tab' => 'fast']))
+        ->assertSessionHas('success');
+
+    expect($cell->refresh()->qty_restock)->toBe(55);
+});
+
 it('shows restock sheet pipeline qty on recommendation rows', function () {
     $this->travelTo('2026-05-15');
     $item = restockHealthItem('Pipeline SKU', 'PIPE-1', ItemType::ASSET_LANCAR);

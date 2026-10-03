@@ -194,7 +194,7 @@ $salesWindowLinkQuery = fn (string $windowValue) => array_filter([
                             <th class="px-3 py-2 text-right">Stock</th>
                             <th class="px-3 py-2 text-right">Net / mo</th>
                             <th class="px-3 py-2 text-right">{{ $netSoldColumnLabel }}</th>
-                            <th class="px-3 py-2 text-right" title="On restock sheets">Restock</th>
+                            <th class="px-3 py-2 text-right" title="{{ $canApplyToSheets ? 'Edit restock qty and Save — updates the TYPE restock sheet' : 'On restock sheets' }}">Restock</th>
                             <th class="px-3 py-2 text-right" title="On restock sheets">Production</th>
                             <th class="px-3 py-2 text-right" title="On restock sheets">Shipping</th>
                             <th class="px-3 py-2 text-right">Days cover</th>
@@ -219,8 +219,7 @@ $salesWindowLinkQuery = fn (string $windowValue) => array_filter([
                                 <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['display_monthly_net'] ?? $row['monthly_net'] ?? 0, 1) }}</td>
                                 <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['display_net_sold'] ?? $row['net_period'], 0) }}</td>
                                 <td class="px-3 py-2 text-right">
-                                    <div class="tabular-nums">{{ number_format($row['qty_restock'] ?? 0, 0) }}</div>
-                                    @include('restock.partials.sheet-links', ['links' => $row['sheet_links'] ?? [], 'itemId' => $row['item_id']])
+                                    @include('restock.partials.recommendations-restock-edit', ['row' => $row])
                                 </td>
                                 <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['qty_production'] ?? 0, 0) }}</td>
                                 <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['qty_shipped'] ?? 0, 0) }}</td>
@@ -303,7 +302,7 @@ $salesWindowLinkQuery = fn (string $windowValue) => array_filter([
                                 <th class="px-3 py-2 text-right">Net / mo</th>
                                 <th class="px-3 py-2 text-right">{{ $netSoldColumnLabel }}</th>
                             @endif
-                            <th class="px-3 py-2 text-right">Restock</th>
+                            <th class="px-3 py-2 text-right" title="{{ $canApplyToSheets ? 'Edit restock qty and Save — updates the TYPE restock sheet' : 'On restock sheets' }}">Restock</th>
                             <th class="px-3 py-2 text-right">Production</th>
                             <th class="px-3 py-2 text-right">Shipping</th>
                             <th class="px-3 py-2 text-right">Days cover</th>
@@ -331,8 +330,7 @@ $salesWindowLinkQuery = fn (string $windowValue) => array_filter([
                                     <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['display_net_sold'] ?? 0, 0) }}</td>
                                 @endif
                                 <td class="px-3 py-2 text-right">
-                                    <div class="tabular-nums">{{ number_format($row['qty_restock'] ?? 0, 0) }}</div>
-                                    @include('restock.partials.sheet-links', ['links' => $row['sheet_links'] ?? [], 'itemId' => $row['item_id']])
+                                    @include('restock.partials.recommendations-restock-edit', ['row' => $row])
                                 </td>
                                 <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['qty_production'] ?? 0, 0) }}</td>
                                 <td class="px-3 py-2 text-right tabular-nums">{{ number_format($row['qty_shipped'] ?? 0, 0) }}</td>
