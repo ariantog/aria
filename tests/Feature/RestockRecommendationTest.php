@@ -269,6 +269,65 @@ it('saves an edited restock qty from recommendations to the restock sheet', func
     expect($cell->refresh()->qty_restock)->toBe(55);
 });
 
+it('saves batch restock qty rows from recommendations', function () {
+    $this->travelTo('2026-05-15');
+
+    $makeAsset = function (string $code) {
+        $item = restockHealthItem('Batch '.$code, $code, ItemType::ASSET_LANCAR);
+        restockHealthStock($item, $this->warehouse, 1);
+        restockHealthLine(
+            $this->user,
+            $this->warehouse,
+            $this->customer,
+            $item,
+            Transaction::TYPE_SELL,
+            30,
+            now()->subDays(3)->toDateString(),
+            $code.'-INV',
+        );
+
+        $typeTag = Tag::factory()->create([
+            'type' => Tag::TYPE_TYPE,
+            'code' => strtoupper(substr($code, 0, 4)),
+            'name' => 'Type '.$code,
+            'item_type' => ItemType::ASSET_LANCAR->value,
+        ]);
+        $item->tags()->attach($typeTag->id);
+
+        $sheet = RestockSheet::create([
+            'name' => 'Type '.$code,
+            'type_tag_id' => $typeTag->id,
+            'created_by' => $this->user->id,
+        ]);
+        $cell = RestockCell::create([
+            'restock_sheet_id' => $sheet->id,
+            'item_id' => $item->id,
+            'qty_restock' => 1,
+        ]);
+
+        return compact('item', 'cell');
+    };
+
+    $first = $makeAsset('BATCH-A');
+    $second = $makeAsset('BATCH-B');
+
+    $this->user->givePermissionTo('restock-edit');
+
+    $this->actingAs($this->user)
+        ->post(route('restock.recommendations.save-restock'), [
+            'rows' => [
+                ['item_id' => $first['item']->id, 'qty_restock' => 11],
+                ['item_id' => $second['item']->id, 'qty_restock' => 22],
+            ],
+            'tab' => 'fast',
+        ])
+        ->assertRedirect(route('restock.recommendations', ['tab' => 'fast']))
+        ->assertSessionHas('success');
+
+    expect($first['cell']->refresh()->qty_restock)->toBe(11)
+        ->and($second['cell']->refresh()->qty_restock)->toBe(22);
+});
+
 it('shows restock sheet pipeline qty on recommendation rows', function () {
     $this->travelTo('2026-05-15');
     $item = restockHealthItem('Pipeline SKU', 'PIPE-1', ItemType::ASSET_LANCAR);
