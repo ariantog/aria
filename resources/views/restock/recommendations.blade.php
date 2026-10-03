@@ -53,6 +53,20 @@ $salesWindowLinkQuery = fn (string $windowValue) => array_filter([
     'from' => request()->query('from'),
     'to' => request()->query('to'),
 ]);
+$restockEditorSeedFromPaginator = function ($paginator) use ($canApplyToSheets) {
+    if (! ($canApplyToSheets ?? false)) {
+        return [];
+    }
+
+    return collect($paginator->items())
+        ->filter(fn ($row) => \App\Enums\ItemType::coerce($row['item_type'] ?? null) === \App\Enums\ItemType::ASSET_LANCAR)
+        ->map(fn ($row) => [
+            'item_id' => (int) $row['item_id'],
+            'qty_restock' => (int) ($row['qty_restock'] ?? 0),
+        ])
+        ->values()
+        ->all();
+};
 @endphp
 
 <div class="flex flex-col gap-4 p-4" data-testid="restock-recommendations-page">
@@ -169,7 +183,10 @@ $salesWindowLinkQuery = fn (string $windowValue) => array_filter([
                 <a href="{{ $inventoryHealthUrl }}" class="text-blue-600 hover:underline">Open Inventory Health</a>
             </div>
         @else
+            @php($fastRestockEditorSeed = $restockEditorSeedFromPaginator($fastMoving))
             @if($canApplyToSheets)
+            <div x-data="restockRecommendationsRestockEditor(@js($fastRestockEditorSeed))" class="flex flex-col gap-2">
+                @include('restock.partials.recommendations-restock-save-bar')
                 <form method="POST" action="{{ route('restock.recommendations.apply') }}" class="flex flex-wrap items-center gap-2">
                     @csrf
                     @include('restock.partials.recommendations-apply-hidden')
@@ -194,7 +211,7 @@ $salesWindowLinkQuery = fn (string $windowValue) => array_filter([
                             <th class="px-3 py-2 text-right">Stock</th>
                             <th class="px-3 py-2 text-right">Net / mo</th>
                             <th class="px-3 py-2 text-right">{{ $netSoldColumnLabel }}</th>
-                            <th class="px-3 py-2 text-right" title="{{ $canApplyToSheets ? 'Edit restock qty and Save — updates the TYPE restock sheet' : 'On restock sheets' }}">Restock</th>
+                            <th class="px-3 py-2 text-right" title="{{ $canApplyToSheets ? 'Edit restock qty, then save the page — updates TYPE restock sheets' : 'On restock sheets' }}">Restock</th>
                             <th class="px-3 py-2 text-right" title="On restock sheets">Production</th>
                             <th class="px-3 py-2 text-right" title="On restock sheets">Shipping</th>
                             <th class="px-3 py-2 text-right">Days cover</th>
@@ -208,7 +225,13 @@ $salesWindowLinkQuery = fn (string $windowValue) => array_filter([
                     </thead>
                     <tbody class="divide-y divide-gray-100">
                         @foreach($fastMoving as $row)
-                            <tr data-testid="restock-recommendation-row-{{ $row['item_id'] }}">
+                            @php($rowItemId = (int) $row['item_id'])
+                            @php($rowCanEditRestock = $canApplyToSheets && \App\Enums\ItemType::coerce($row['item_type'] ?? null) === \App\Enums\ItemType::ASSET_LANCAR)
+                            <tr data-testid="restock-recommendation-row-{{ $rowItemId }}"
+                                @if($rowCanEditRestock)
+                                    :class="isEdited({{ $rowItemId }}) ? 'bg-amber-50/80' : ''"
+                                @endif
+                            >
                                 <td class="px-3 py-2">
                                     <a href="{{ $row['show_url'] }}" class="font-medium text-blue-600 hover:underline">
                                         {{ $row['item_code'] ?: $row['item_id'] }}
@@ -263,6 +286,9 @@ $salesWindowLinkQuery = fn (string $windowValue) => array_filter([
                     </div>
                 @endif
             </div>
+            @if($canApplyToSheets)
+            </div>
+            @endif
         @endif
     @else
         @if($highMargin->isEmpty())
@@ -275,7 +301,10 @@ $salesWindowLinkQuery = fn (string $windowValue) => array_filter([
                 <a href="{{ $itemInsightsUrl }}" class="text-blue-600 hover:underline">Open Item Insights</a>
             </div>
         @else
+            @php($marginRestockEditorSeed = $restockEditorSeedFromPaginator($highMargin))
             @if($canApplyToSheets)
+            <div x-data="restockRecommendationsRestockEditor(@js($marginRestockEditorSeed))" class="flex flex-col gap-2">
+                @include('restock.partials.recommendations-restock-save-bar')
                 <form method="POST" action="{{ route('restock.recommendations.apply') }}" class="flex flex-wrap items-center gap-2">
                     @csrf
                     @include('restock.partials.recommendations-apply-hidden')
@@ -302,7 +331,7 @@ $salesWindowLinkQuery = fn (string $windowValue) => array_filter([
                                 <th class="px-3 py-2 text-right">Net / mo</th>
                                 <th class="px-3 py-2 text-right">{{ $netSoldColumnLabel }}</th>
                             @endif
-                            <th class="px-3 py-2 text-right" title="{{ $canApplyToSheets ? 'Edit restock qty and Save — updates the TYPE restock sheet' : 'On restock sheets' }}">Restock</th>
+                            <th class="px-3 py-2 text-right" title="{{ $canApplyToSheets ? 'Edit restock qty, then save the page — updates TYPE restock sheets' : 'On restock sheets' }}">Restock</th>
                             <th class="px-3 py-2 text-right">Production</th>
                             <th class="px-3 py-2 text-right">Shipping</th>
                             <th class="px-3 py-2 text-right">Days cover</th>
@@ -316,7 +345,13 @@ $salesWindowLinkQuery = fn (string $windowValue) => array_filter([
                     </thead>
                     <tbody class="divide-y divide-gray-100">
                         @foreach($highMargin as $row)
-                            <tr data-testid="restock-recommendation-row-{{ $row['item_id'] }}">
+                            @php($rowItemId = (int) $row['item_id'])
+                            @php($rowCanEditRestock = $canApplyToSheets && \App\Enums\ItemType::coerce($row['item_type'] ?? null) === \App\Enums\ItemType::ASSET_LANCAR)
+                            <tr data-testid="restock-recommendation-row-{{ $rowItemId }}"
+                                @if($rowCanEditRestock)
+                                    :class="isEdited({{ $rowItemId }}) ? 'bg-amber-50/80' : ''"
+                                @endif
+                            >
                                 <td class="px-3 py-2">
                                     <a href="{{ $row['show_url'] }}" class="font-medium text-blue-600 hover:underline">
                                         {{ $row['item_code'] ?: $row['item_id'] }}
@@ -374,7 +409,13 @@ $salesWindowLinkQuery = fn (string $windowValue) => array_filter([
                     </div>
                 @endif
             </div>
+            @if($canApplyToSheets)
+            </div>
+            @endif
         @endif
     @endif
 </div>
+@if($canApplyToSheets)
+    @include('restock.partials.recommendations-restock-editor-script')
+@endif
 @endsection
