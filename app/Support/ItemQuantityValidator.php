@@ -57,4 +57,21 @@ class ItemQuantityValidator
 
         return $errors;
     }
+
+    /**
+     * Free-text invoice lines (no catalog item) — decimals always allowed, max 2 dp, min 1.
+     */
+    public static function validateFreeformQuantity(float $quantity): ?string
+    {
+        if ($quantity < 1) {
+            return 'Quantity must be at least 1.';
+        }
+
+        $rounded = round($quantity, 2);
+        if (abs($quantity - $rounded) > 0.00001) {
+            return 'Quantity allows at most 2 decimal places.';
+        }
+
+        return null;
+    }
 }

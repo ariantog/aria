@@ -112,7 +112,7 @@ $initialDiscountAmount = old('discount_amount', $invoice?->discount_amount ?? 0)
                             </div>
                             <div class="sm:col-span-2">
                                 <label class="mb-1 block text-xs text-gray-500 sm:hidden">Qty</label>
-                                <input type="number" step="0.0001" min="0.0001" :name="'lines['+index+'][quantity]'" x-model.number="line.quantity" @input="recalc()" required
+                                <input type="number" step="0.01" min="1" :name="'lines['+index+'][quantity]'" x-model.number="line.quantity" @input="recalc()" required
                                        class="w-full rounded-md border border-gray-300 px-3 py-2 text-right text-sm focus:border-blue-500">
                             </div>
                             <div class="sm:col-span-2">
@@ -312,6 +312,11 @@ function invoiceMakerForm(initial) {
         formatCurrency(value) {
             return 'Rp ' + formatAmountId(value);
         },
+        lineQuantityValid(line) {
+            const q = Number(line.quantity);
+            if (Number.isNaN(q) || q < 1) return false;
+            return Math.abs(q - Math.round(q * 100) / 100) < 0.00001;
+        },
         canSubmit() {
             if (!this.form.recipient?.trim()) return false;
             if (!this.form.preset_id) return false;
@@ -323,7 +328,7 @@ function invoiceMakerForm(initial) {
             }
             return this.form.lines.every(line =>
                 line.description?.trim() &&
-                Number(line.quantity) > 0 &&
+                this.lineQuantityValid(line) &&
                 Number(line.price) >= 0
             );
         },
