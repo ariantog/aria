@@ -35,9 +35,7 @@ $formItem = [
     'item_description2' => old('item_description2', $isAsset ? ($item->description2 ?? '') : ''),
     'url' => old('url', optional($item->group)->url),
     'restock_urgent_threshold' => old('restock_urgent_threshold', $item->restock_urgent_threshold),
-    'track_inventory' => old('track_inventory', $item->tracksInventory()),
-    'allow_decimal_quantity' => old('allow_decimal_quantity', $item->allowsDecimalQuantity()),
-    'tanpa_stok' => old('tanpa_stok', ! $item->tracksInventory()),
+    'allow_decimal_quantity' => old('allow_decimal_quantity', (bool) ($item->allow_decimal_quantity ?? false)),
 ];
 @endphp
 
@@ -67,7 +65,6 @@ $formItem = [
                 @include('items.partials.form-details', ['formItem' => $formItem])
                 @include('items.partials.form-inventory-options', [
                     'formItem' => $formItem,
-                    'showTrackInventoryOption' => $showTrackInventoryOption ?? false,
                     'showDecimalQuantityOption' => $showDecimalQuantityOption ?? false,
                 ])
             </div>

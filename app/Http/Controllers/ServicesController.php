@@ -38,7 +38,6 @@ class ServicesController extends Controller
 
         return view('services.create', [
             'defaults' => [
-                'tanpa_stok' => true,
                 'allow_decimal_quantity' => false,
             ],
         ]);
@@ -115,7 +114,6 @@ class ServicesController extends Controller
             'price' => $request->input('price'),
             'cost' => $request->input('cost'),
             'description' => $request->input('description'),
-            'tanpa_stok' => $request->boolean('tanpa_stok'),
             'allow_decimal_quantity' => $request->boolean('allow_decimal_quantity'),
             'description2' => $request->input('description2'),
         ];

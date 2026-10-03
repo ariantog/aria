@@ -7,6 +7,7 @@ use App\Enums\ItemType;
 use App\Services\Items\ItemIdentityBuilder;
 use App\Support\FillsProductionColumnDefaults;
 use App\Support\ItemCatalog;
+use App\Support\ItemInventorySettings;
 use App\Support\ItemImageResolver;
 use App\Support\ItemPricing;
 use App\Support\ItemProductTitle;
@@ -117,15 +118,18 @@ class Item extends Model
 
     public function tracksInventory(): bool
     {
-        if (array_key_exists('track_inventory', $this->attributes)) {
-            return (bool) $this->track_inventory;
-        }
+        $type = $this->type instanceof ItemType ? $this->type : ItemType::coerce($this->type);
 
-        return $this->type !== ItemType::SERVICE;
+        return $type !== ItemType::SERVICE;
     }
 
     public function allowsDecimalQuantity(): bool
     {
+        $type = $this->type instanceof ItemType ? $this->type : ItemType::coerce($this->type);
+        if ($type === null || ! ItemInventorySettings::decimalQuantityEnabledForType($type)) {
+            return false;
+        }
+
         return (bool) ($this->allow_decimal_quantity ?? false);
     }
 

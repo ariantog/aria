@@ -67,7 +67,6 @@ $actionUrl = $isAsset ? route('assetlancar.store') : route('items.store');
                 @include('items.partials.form-details', ['formItem' => $formItem])
                 @include('items.partials.form-inventory-options', [
                     'formItem' => $formItem,
-                    'showTrackInventoryOption' => $showTrackInventoryOption ?? false,
                     'showDecimalQuantityOption' => $showDecimalQuantityOption ?? false,
                 ])
             </div>

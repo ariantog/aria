@@ -48,7 +48,7 @@ class ServiceItemService
             $item->cost_cnh = 0;
             $item->qty = 0;
             $item->tag_ids = '';
-            $item->track_inventory = ItemInventorySettings::resolveTrackInventory(ItemType::SERVICE, $data);
+            $item->track_inventory = false;
             $item->allow_decimal_quantity = ItemInventorySettings::resolveAllowDecimalQuantity(ItemType::SERVICE, $data);
             ItemCatalog::mirrorToItem($item, [
                 'description' => (string) $item->description,
@@ -85,7 +85,7 @@ class ServiceItemService
             $item->name = $name;
             $item->price = (float) ($data['price'] ?? $item->price);
             $item->cost = (float) ($data['cost'] ?? $item->cost);
-            $item->track_inventory = ItemInventorySettings::resolveTrackInventory(ItemType::SERVICE, $data, $item);
+            $item->track_inventory = false;
             $item->allow_decimal_quantity = ItemInventorySettings::resolveAllowDecimalQuantity(ItemType::SERVICE, $data, $item);
 
             $description = strtoupper(trim((string) ($data['description'] ?? $item->description)));
