@@ -179,6 +179,8 @@ class TransactionsController extends Controller
             'reseller_sell_price' => $item->resellerSellPrice(),
             'cost' => $item->effectiveCost(),
             'jubelio_item_id' => (int) ($item->jubelio_item_id ?? 0),
+            'track_inventory' => $item->tracksInventory() && (bool) ($item->track_inventory ?? true),
+            'allow_decimal_quantity' => $item->allowsDecimalQuantity(),
             'warehouse_item' => $item->warehouseItems->map(fn ($wi) => [
                 'warehouse_id' => (string) $wi->warehouse_id,
                 'quantity' => (float) $wi->quantity,

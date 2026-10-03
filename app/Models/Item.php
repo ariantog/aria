@@ -371,6 +371,12 @@ class Item extends Model
         $payload['cost'] = $this->effectiveCost();
         $payload['name'] = $this->effectiveDisplayName();
         $payload['reseller_sell_price'] = $this->resellerSellPrice();
+        $payload['track_inventory'] = $this->tracksInventory() && (bool) ($this->track_inventory ?? true);
+        $payload['allow_decimal_quantity'] = $this->allowsDecimalQuantity();
+        $payload['warehouse_item'] = $this->warehouseItems->map(fn ($wi) => [
+            'warehouse_id' => (string) $wi->warehouse_id,
+            'quantity' => (float) $wi->quantity,
+        ])->values()->all();
 
         return $payload;
     }

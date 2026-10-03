@@ -96,7 +96,7 @@
                             endpoint: @js($config['sender_route']),
                             placeholder: 'Select {{ $config['sender_label'] }}...',
                             initial: @js(isset($prefill) ? ($prefill['sender'] ?? null) : null),
-                            onSelect: (item) => { form.sender_id = item ? String(item.id) : ''; form.sender = item; syncPpnModeFromContact(); refreshRowPricesForContact(); }
+                            onSelect: (item) => { form.sender_id = item ? String(item.id) : ''; form.sender = item; syncPpnModeFromContact(); refreshRowPricesForContact(); refreshStocks(); refreshJubelioWarnings(); }
                         })" class="relative">
                             <div class="relative flex h-10 w-full overflow-hidden rounded-lg border focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
                                  :class="errors.sender_id ? 'border-red-500' : 'border-gray-300'">
@@ -141,7 +141,7 @@
                             endpoint: @js($config['receiver_route']),
                             placeholder: 'Select {{ $config['receiver_label'] }}...',
                             initial: @js(isset($prefill) ? ($prefill['receiver'] ?? null) : null),
-                            onSelect: (item) => { form.receiver_id = item ? String(item.id) : ''; form.receiver = item; syncPpnModeFromContact(); refreshRowPricesForContact(); }
+                            onSelect: (item) => { form.receiver_id = item ? String(item.id) : ''; form.receiver = item; syncPpnModeFromContact(); refreshRowPricesForContact(); refreshStocks(); refreshJubelioWarnings(); }
                         })" class="relative">
                             <div class="relative flex h-10 w-full overflow-hidden rounded-lg border focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
                                  :class="errors.receiver_id ? 'border-red-500' : 'border-gray-300'">
@@ -335,8 +335,12 @@
                             <div class="flex items-center justify-between {{ $isMove ? 'sm:col-span-2' : 'sm:col-span-1' }} sm:block sm:text-center">
                                 <span class="text-xs font-medium text-gray-500 sm:hidden">Whs. Stock</span>
                                 <span class="text-base tabular-nums"
-                                      :class="isOverStock(item) ? 'font-semibold text-red-500' : 'text-gray-400'"
-                                      x-text="stockDisplay(item)"></span>
+                                      :class="isOverStock(item) ? 'font-semibold text-red-500' : 'text-gray-400'">
+                                    <span x-show="!item.item_id" x-cloak>—</span>
+                                    <span x-show="item.item_id && !rowTracksInventory(item)" x-cloak>∞</span>
+                                    <span x-show="item.item_id && rowTracksInventory(item)" x-cloak
+                                          x-text="formatNumberId(item.warehouse_stock ?? 0)"></span>
+                                </span>
                             </div>
                             {{-- Discount % --}}
                             @unless($isMove)
@@ -721,6 +725,12 @@ function createTransaction() {
                     row.discount = gross > 0 ? (Number(ci.discount || 0) / gross) * 100 : 0;
                     row.warehouse_item = this.warehouseItemsFrom(ci);
                     row.warehouse_stock = this.stockFor(row) || Number(ci.warehouse_stock || 0);
+                    if (ci.track_inventory !== undefined && ci.track_inventory !== null) {
+                        row.track_inventory = this.coerceTrackInventory(ci.track_inventory);
+                    }
+                    if (ci.allow_decimal_quantity !== undefined) {
+                        row.allow_decimal_quantity = !!ci.allow_decimal_quantity;
+                    }
                     row.note = ci.note || '';
                     row.subtotal = gross - (gross * row.discount / 100);
                     row.jubelio_item_id = Number(ci.jubelio_item_id ?? 0);
@@ -741,6 +751,7 @@ function createTransaction() {
             // The warehouse side can change after items are added → refresh their stock.
             this.$watch('form.sender_id', () => { this.refreshStocks(); this.refreshJubelioWarnings(); });
             this.$watch('form.receiver_id', () => { this.refreshStocks(); this.refreshJubelioWarnings(); });
+            this.refreshStocks();
             // PPN is optional: item forms follow the counterparty ppn flag; cash/tax
             // reporting is gated by the bank's PKP reporting entity. Never assume 11%.
             this.$watch('form.sender', () => this.recalcTotals());
@@ -863,8 +874,11 @@ function createTransaction() {
 
             return Number.isNaN(amount) ? null : amount;
         },
+        coerceTrackInventory(value) {
+            return value !== false && value !== 0 && value !== '0';
+        },
         rowTracksInventory(row) {
-            return row.track_inventory !== false && row.track_inventory !== 0 && row.track_inventory !== '0';
+            return this.coerceTrackInventory(row.track_inventory);
         },
         qtyStep(row) {
             return row.allow_decimal_quantity ? 0.01 : 1;
@@ -877,11 +891,6 @@ function createTransaction() {
                 return Math.abs(q - Math.round(q)) < 0.00001;
             }
             return Math.abs(q - Math.round(q * 100) / 100) < 0.00001;
-        },
-        stockDisplay(row) {
-            if (!row.item_id) return '—';
-            if (!this.rowTracksInventory(row)) return '∞';
-            return this.formatNumberId(row.warehouse_stock || 0);
         },
         itemValid(i) {
             return !!i.item_id && this.quantityValid(i) && this.priceIsSet(i.price) && Number(i.price) >= 0;
@@ -1012,7 +1021,9 @@ function createTransaction() {
             row.price = this.resolveRowPrice(source);
             row.warehouse_item = this.warehouseItemsFrom(source);
             if (!row.quantity || row.quantity < 1) row.quantity = 1;
-            row.track_inventory = source.track_inventory !== undefined ? source.track_inventory : true;
+            row.track_inventory = source.track_inventory !== undefined && source.track_inventory !== null
+                ? this.coerceTrackInventory(source.track_inventory)
+                : true;
             row.allow_decimal_quantity = !!source.allow_decimal_quantity;
             row.warehouse_stock = this.stockFor(row);
             row.jubelio_item_id = Number(source.jubelio_item_id ?? 0);
@@ -1276,6 +1287,8 @@ function createTransaction() {
             // Ignore programmatic x-model updates (e.g. after barcode fill).
             if (e && !e.isTrusted) return;
             row.item_id = '';
+            row.warehouse_stock = null;
+            row.warehouse_item = [];
             row.jubelio_item_id = 0;
             row.jubelio_unlinked_warning = false;
             const q = String(row.name || '').trim();
