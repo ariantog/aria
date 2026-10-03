@@ -51,15 +51,17 @@
         })();
     </script>
 
+    @include('partials.ui-design-system')
+
     @stack('head-css')
     <style>
         :root {
-            --sidebar-background: 0 0% 98%;
+            --sidebar-background: 0 0% 100%;
             --sidebar-foreground: 240 5.3% 26.1%;
             --sidebar-accent: 240 4.8% 95.9%;
             --sidebar-accent-foreground: 240 5.9% 10%;
             --sidebar-border: 220 13% 91%;
-            --radius: 0.5rem;
+            --radius: 0.625rem;
             --app-font-size: {{ $fontSizePixels ?? '14px' }};
         }
         html { font-size: var(--app-font-size); }
@@ -111,19 +113,13 @@
             }
         }
 
-        /* Autocomplete dropdown */
+        /* Autocomplete dropdown (position only; colors in ui-design-system) */
         .combobox-options {
             position: absolute; z-index: 50; width: 100%;
-            background: white; border: 1px solid #e5e7eb;
-            border-radius: 6px; box-shadow: 0 4px 6px -1px rgba(0,0,0,.1);
             max-height: 240px; overflow-y: auto; margin-top: 4px;
         }
-        .combobox-option { padding: 8px 12px; cursor: pointer; font-size: 13px; display: flex; align-items: center; gap-8px; }
-        .combobox-option:hover, .combobox-option.active { background: #2563eb; color: white; }
+        .combobox-option { cursor: pointer; display: flex; align-items: center; gap: 8px; }
         .combobox-option .check { width: 16px; flex-shrink: 0; }
-
-        /* Input focus ring */
-        input:focus, select:focus, textarea:focus { outline: 2px solid #3b82f6; outline-offset: 1px; }
 
         /* Hide number input spin buttons sitewide */
         input[type="number"]::-webkit-inner-spin-button,
@@ -134,7 +130,7 @@
         input[type="number"] { -moz-appearance: textfield; }
     </style>
 </head>
-<body class="min-h-full bg-gray-50 text-gray-900 antialiased"
+<body class="ui-app-bg min-h-full antialiased"
       x-data="appShell()"
       x-init="init()"
       @keydown.window.escape="closeSidebar()">
@@ -192,12 +188,12 @@
     <aside id="sidebar"
            :class="sidebarClass()"
            x-init="$nextTick(() => $el.classList.add('anim-ready'))"
-           class="fixed left-0 top-0 z-30 flex h-full flex-col border-r border-gray-200 bg-white overflow-hidden">
+           class="ui-sidebar fixed left-0 top-0 z-30 flex h-full flex-col overflow-hidden">
 
         {{-- Sidebar header --}}
         <div class="flex h-14 items-center border-b border-gray-100 px-3 flex-shrink-0">
             <a href="{{ route('dashboard') }}" class="flex items-center gap-2 min-w-0">
-                <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-blue-700 text-white font-bold text-sm">
+                <div class="ui-brand-mark ui-brand-mark-sm flex-shrink-0">
                     {{ strtoupper(substr(config('app.name'), 0, 2)) }}
                 </div>
                 <span x-show="sidebarOpen" x-cloak class="font-semibold text-sm text-gray-900 truncate">
@@ -287,7 +283,7 @@
          class="flex flex-1 flex-col min-w-0 h-screen overflow-hidden">
 
         {{-- Top header --}}
-        <header class="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-gray-200 bg-white px-4">
+        <header class="ui-topbar sticky top-0 z-10 flex h-14 items-center gap-3 px-4">
             {{-- Mobile menu toggle --}}
             <button @click="sidebarOpen = !sidebarOpen"
                     class="flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 lg:hidden">
@@ -307,7 +303,7 @@
                     @if($i < count($breadcrumbs) - 1)
                         <a href="{{ $crumb['href'] }}" class="hover:text-gray-900 hover:underline truncate">{{ $crumb['title'] }}</a>
                     @else
-                        <span class="font-medium text-gray-900 truncate">{{ $crumb['title'] }}</span>
+                        <span class="font-semibold text-gray-900 truncate">{{ $crumb['title'] }}</span>
                     @endif
                 @endforeach
             </nav>
