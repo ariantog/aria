@@ -911,6 +911,34 @@ class ShopeeAdsApiService
     }
 
     /**
+     * Shop-scoped GET for any Open Platform v2 endpoint (product stock, shop profile, etc.).
+     *
+     * @param  array<string, mixed>  $query
+     */
+    public function shopApiGet(string $path, array $query = []): Response
+    {
+        return $this->shopGet($path, $query);
+    }
+
+    /**
+     * Shop-scoped POST for any Open Platform v2 endpoint.
+     *
+     * @param  array<string, mixed>  $body
+     */
+    public function shopApiPost(string $path, array $body = []): Response
+    {
+        return $this->shopPost($path, $body);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function decodeShopResponse(Response $response, string $context): ?array
+    {
+        return $this->parseShopeeResponse($response, $context);
+    }
+
+    /**
      * @param  array<string, mixed>  $query
      */
     private function shopGet(string $path, array $query = []): Response

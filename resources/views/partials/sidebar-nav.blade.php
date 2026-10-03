@@ -158,6 +158,14 @@
         $jubelioNavLabels[] = 'Stock Check';
     }
 
+    $shopeeNavLabels = ['Shopee'];
+    if ($hasPerm('shopee-ads-view') || $isSuperAdmin) {
+        $shopeeNavLabels[] = 'Ads';
+    }
+    if ($hasPerm('shopee-stock-sync') || $isSuperAdmin) {
+        $shopeeNavLabels[] = 'Warehouse Map';
+    }
+
     $journalNavLabels = ['Journals'];
     if ($hasPerm('journal-account-list') || $isSuperAdmin) {
         $journalNavLabels[] = 'Accounts';
@@ -597,15 +605,28 @@
 </div>
 @endif
 
-{{-- ── Shopee Ads ────────────────────────────────────────────────────── --}}
-@if($hasPerm('shopee-ads-view') || $isSuperAdmin)
-<div class="mb-1" x-show="navLinkVisible('Shopee Ads')">
-    <a href="{{ route('shopee-ads.index') }}"
-       class="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors
-              {{ $isActive('/shopee-ads') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
+{{-- ── Shopee (Ads + Stock Checker) ──────────────────────────────────── --}}
+@if($hasPerm('shopee-ads-view') || $hasPerm('shopee-stock-sync') || $isSuperAdmin)
+@php $shopeActive = $isActive('/shopee-ads') || $isActive('/shopee-sync'); @endphp
+<div x-data="{ open: {{ $shopeActive ? 'true' : 'false' }} }"
+     class="mb-1"
+     x-show="navGroupVisible(@js($shopeeNavLabels))"
+     x-effect="syncNavGroupOpen($data, {{ $shopeActive ? 'true' : 'false' }}, @js($shopeeNavLabels))">
+    <button @click="open = !open"
+            class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors
+                   {{ $shopeActive ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
         <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
-        <span x-show="sidebarOpen" x-cloak>Shopee Ads</span>
-    </a>
+        <span x-show="sidebarOpen" x-cloak class="flex-1 text-left">Shopee</span>
+        <svg x-show="sidebarOpen" x-cloak :class="open ? 'rotate-90' : ''" class="h-3.5 w-3.5 flex-shrink-0 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+    </button>
+    <div x-show="open && sidebarOpen" x-cloak class="ml-6 mt-1 space-y-0.5">
+        @if($hasPerm('shopee-ads-view') || $isSuperAdmin)
+        <a href="{{ route('shopee-ads.index') }}" x-show="navLinkVisible('Ads', 'Shopee')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/shopee-ads') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Ads</a>
+        @endif
+        @if($hasPerm('shopee-stock-sync') || $isSuperAdmin)
+        <a href="{{ route('shopee.sync.index') }}" x-show="navLinkVisible('Warehouse Map', 'Shopee')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/shopee-sync') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Warehouse Map</a>
+        @endif
+    </div>
 </div>
 @endif
 

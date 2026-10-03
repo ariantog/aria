@@ -495,12 +495,21 @@ class SidebarFavoriteRegistry
             ],
             [
                 'key' => 'shopee-ads',
-                'label' => 'Shopee Ads',
-                'group' => 'Integrations',
+                'label' => 'Ads',
+                'group' => 'Shopee',
                 'permission' => 'shopee-ads-view',
                 'route' => 'shopee-ads.index',
                 'params' => [],
                 'active_prefix' => '/shopee-ads',
+            ],
+            [
+                'key' => 'shopee-warehouse-map',
+                'label' => 'Warehouse Map',
+                'group' => 'Shopee',
+                'permission' => 'shopee-stock-sync',
+                'route' => 'shopee.sync.index',
+                'params' => [],
+                'active_prefix' => '/shopee-sync',
             ],
             [
                 'key' => 'journal-accounts',

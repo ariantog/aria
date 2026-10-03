@@ -57,6 +57,8 @@ class Item extends Model
         'description2',
         'reseller_price',
         'jubelio_item_id',
+        'shopee_item_id',
+        'shopee_model_id',
         'restock_urgent_threshold',
         'track_inventory',
         'allow_decimal_quantity',
@@ -77,6 +79,8 @@ class Item extends Model
             'track_inventory' => 'boolean',
             'allow_decimal_quantity' => 'boolean',
             'jubelio_item_id' => 'integer',
+            'shopee_item_id' => 'integer',
+            'shopee_model_id' => 'integer',
         ];
     }
 

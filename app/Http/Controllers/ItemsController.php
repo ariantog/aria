@@ -480,6 +480,67 @@ class ItemsController extends Controller
         return redirect()->route('items.jubelio', $item->id)->with('success', 'Koneksi Jubelio diperbarui');
     }
 
+    public function shopee(Item $item, \App\Services\Shopee\ShopeeStockApiService $stockApi)
+    {
+        Gate::authorize(\App\Models\ShopeeStock::getPermissions()['view']);
+        $item->load(['group', 'tags']);
+        [$msg, $data] = $this->fetchShopeeStock($item, $stockApi);
+
+        $openApi = $stockApi->openApiClient();
+
+        return view('items.shopee', [
+            'item' => $item,
+            'dataShopee' => $data,
+            'message' => $msg,
+            'connectionReady' => $stockApi->isReady(),
+            'connection' => $openApi->getConnectionStatus(),
+            'oauthErrorHint' => $openApi->formatOAuthErrorForUser($openApi->getLastOAuthError()),
+            'flash' => ['success' => session('success'), 'error' => session('error')],
+        ]);
+    }
+
+    public function getShopeeItems(Item $item, \App\Services\Shopee\ShopeeStockApiService $stockApi, Request $request)
+    {
+        Gate::authorize(Item::getPermissions()['edit']);
+
+        if (! $stockApi->isReady()) {
+            return back()->withErrors(['message' => 'Shopee STOCK CHECKER belum ter-authorize. Buka Shopee → Warehouse mapping → Authorize.']);
+        }
+
+        $query = (string) $request->input('q', $item->code);
+        $results = $stockApi->searchItems($query);
+
+        return view('items.shopee-search', [
+            'item' => $item,
+            'query' => $query,
+            'searchResults' => $results,
+        ]);
+    }
+
+    public function updateShopeeLink(Item $item, Request $request, \App\Services\Shopee\ShopeeStockApiService $stockApi)
+    {
+        Gate::authorize(Item::getPermissions()['edit']);
+
+        $validated = $request->validate([
+            'shopee_item_id' => 'required|integer|min:1',
+            'shopee_model_id' => 'nullable|integer|min:0',
+        ]);
+
+        $modelId = (int) ($validated['shopee_model_id'] ?? 0);
+        if ($modelId <= 0 && $stockApi->isReady()) {
+            $models = $stockApi->modelsForItem((int) $validated['shopee_item_id']);
+            $picked = \App\Services\Shopee\ShopeeModelStock::pickModel($models, 0, (string) $item->code);
+            $modelId = (int) ($picked['model_id'] ?? 0);
+        }
+
+        $item->update([
+            'shopee_item_id' => (int) $validated['shopee_item_id'],
+            'shopee_model_id' => $modelId > 0 ? $modelId : null,
+        ]);
+
+        return redirect()->route('items.shopee', $item->id)->with('success', 'Koneksi Shopee diperbarui');
+    }
+
     public function group(Request $request)
     {
         Gate::authorize(ItemGroup::getPermissions()['view']);
@@ -1066,6 +1127,33 @@ class ItemsController extends Controller
             : ['nullable', 'numeric', 'min:0'];
 
         return $rules;
+    }
+
+    /**
+     * @return array{0: string, 1: array<string, mixed>}
+     */
+    private function fetchShopeeStock(Item $item, \App\Services\Shopee\ShopeeStockApiService $stockApi): array
+    {
+        if ((int) $item->shopee_item_id <= 0) {
+            return ['Item belum terhubung ke Shopee', []];
+        }
+
+        if (! $stockApi->isReady()) {
+            return ['Shopee STOCK CHECKER belum ter-authorize (OAuth terpisah dari Shopee Ads)', []];
+        }
+
+        $snapshot = $stockApi->stockSnapshotForItem(
+            (int) $item->shopee_item_id,
+            (int) ($item->shopee_model_id ?? 0),
+            null,
+            (string) $item->code,
+        );
+
+        if ($snapshot === null) {
+            return ['Stok Shopee tidak ditemukan untuk item/model ini', []];
+        }
+
+        return ['ok', $snapshot];
     }
 
     private function fetchJubelio(Item $item, JubelioService $s): array
