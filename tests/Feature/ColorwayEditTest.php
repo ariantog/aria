@@ -10,6 +10,7 @@ use App\Services\InventoryService;
 use App\Services\Items\ItemIdentityBuilder;
 use App\Services\ItemService;
 use App\Support\ItemPricing;
+use App\Support\ItemProductTitle;
 
 beforeEach(function () {
     $this->user = User::factory()->create();
@@ -184,14 +185,19 @@ test('manufactured colorway edit preview omits warna tag from live name preview 
     $mediumTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'Medium']);
     $item->tags()->sync([$this->typeTag->id, $blackTag->id, $mediumTag->id, $this->jahitTag->id]);
 
+    expect(ItemProductTitle::buildDisplayNameWithBareTitle($item->fresh(['group', 'tags']), 'Renamed Shirt'))
+        ->toBe('RENAMED SHIRT - BLACK - M');
+
     $this->actingAs($this->user)
         ->get(route('items.colorway-edit', $group))
         ->assertOk()
         ->assertSee('AJD-CX90032-06-M', false)
-        ->assertSee('Color number from pcode', false)
-        ->assertDontSee('BLACK — Black', false)
-        ->assertDontSee('"warnaCode":"BLACK"', false)
-        ->assertDontSee('"warnaName":"BLACK"', false);
+        ->assertSee('06', false)
+        ->assertSee('BLACK', false)
+        ->assertSee('namePreviewWarna', false)
+        ->assertDontSee('warnaCode&quot;:&quot;BLACK', false)
+        ->assertDontSee('warnaCode":"BLACK', false)
+        ->assertDontSee('AJD-CX90032-06-BLACK-M', false);
 });
 
 test('colorway update via HTTP persists per-size price', function () {

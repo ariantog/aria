@@ -214,6 +214,29 @@ describe('parsePcode', function () {
     });
 });
 
+describe('itemColorInfo', function () {
+    it('uses pcode variant as color code for manufactured items even when a warna tag exists', function () {
+        $group = \App\Models\ItemGroup::factory()->create([
+            'master' => 'CX90032-06',
+            'variant' => '06',
+            'name' => 'CX90032-06',
+        ]);
+
+        $item = Item::factory()->create([
+            'type' => ItemType::ITEM,
+            'group_id' => $group->id,
+            'pcode' => 'CX90032-06',
+        ]);
+        $item->setRelation('group', $group);
+        $item->setRelation('tags', collect([$this->warnaTag]));
+
+        expect($this->builder->itemColorInfo($item))->toBe([
+            'code' => '06',
+            'name' => 'BLUE',
+        ]);
+    });
+});
+
 describe('groupVariant', function () {
     it('uses pcode suffix for manufactured items', function () {
         expect($this->builder->groupVariant(ItemType::ITEM, 'CX90233-23', $this->warnaTag))

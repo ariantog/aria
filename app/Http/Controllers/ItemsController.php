@@ -687,18 +687,30 @@ class ItemsController extends Controller
             (string) $sample->pcode,
         );
         $color = $this->identityBuilder->itemColorInfo($sample);
+        $typeTag = $sample->tags->firstWhere('type', Tag::TYPE_TYPE);
+        $sampleWarnaTag = $sample->tags->firstWhere('type', Tag::TYPE_WARNA);
+        $namePreviewWarna = $sampleWarnaTag
+            ? strtoupper(trim((string) ($sampleWarnaTag->name ?: $sampleWarnaTag->code)))
+            : '';
         $parentGroupId = $this->groupHierarchy->anchorGroupIdForParentKey(
             $this->identityBuilder->itemParentKey($sample)
         ) ?? $group->id;
 
-        $sizeRows = $items->map(function (Item $item) use ($itemType) {
+        $sizeRows = $items->map(function (Item $item) use ($itemType, $typeTag) {
             $sizeTag = $item->tags->firstWhere('type', Tag::TYPE_SIZE);
             $warnaTag = $item->tags->firstWhere('type', Tag::TYPE_WARNA);
             $pricing = ItemPricing::formState($item);
+            $canonicalCode = $this->identityBuilder->buildCode(
+                $itemType,
+                (string) $item->pcode,
+                $typeTag,
+                $warnaTag,
+                $sizeTag,
+            );
 
             return [
                 'id' => $item->id,
-                'code' => $item->code,
+                'code' => $canonicalCode,
                 'name' => $item->name,
                 'size_code' => $sizeTag?->code ?? '—',
                 'size_name' => $sizeTag?->name ?? '—',
@@ -715,10 +727,17 @@ class ItemsController extends Controller
             ];
         })->all();
 
+        $previewRows = collect($sizeRows)->map(fn (array $row) => [
+            'code' => $row['code'],
+            'size_code' => $row['size_code'],
+        ])->values()->all();
+
         return view('items.colorway-edit', [
             'group' => $group,
             'sample' => $sample,
             'sizeRows' => $sizeRows,
+            'previewRows' => $previewRows,
+            'namePreviewWarna' => $namePreviewWarna,
             'pricingState' => ItemPricing::formState($sample),
             'productTitle' => $usesPlaceholder ? '' : $productTitle,
             'usesPlaceholder' => $usesPlaceholder,
