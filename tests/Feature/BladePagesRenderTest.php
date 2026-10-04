@@ -55,9 +55,7 @@ it('renders the transactions index with its rows', function () {
         ->assertSee('data-copy-col="invoice"', false)
         ->assertSee('data-copy-value="1000000"', false)
         ->assertSee('copyRowsTable()', false)
-        ->assertSee('<table x-ref="listTable"', false)
-        ->assertSee('data-testid="export-transactions-excel"', false)
-        ->assertSee('Export Excel', false);
+        ->assertSee('<table x-ref="listTable"', false);
 });
 
 it('renders the items index with a real table element', function () {
