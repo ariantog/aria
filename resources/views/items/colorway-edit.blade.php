@@ -20,7 +20,6 @@ $breadcrumbs = [
     'rows' => $previewRows,
     'warnaCode' => $isAsset ? ($color['code'] ?? '') : '',
     'warnaName' => $isAsset ? ($color['name'] ?? '') : '',
-    'namePreviewWarna' => $isAsset ? '' : ($namePreviewWarna ?? ''),
 ]))">
     <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <a href="{{ route('items.group-parent-detail', $parentGroupId) }}" class="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-100">
@@ -265,7 +264,6 @@ function colorwayForm(config) {
         usesPlaceholder: config.usesPlaceholder,
         warnaCode: (config.warnaCode || '').toUpperCase(),
         warnaName: (config.warnaName || config.warnaCode || '').toUpperCase(),
-        namePreviewWarna: (config.namePreviewWarna || '').toUpperCase(),
         allSizeCode: 'AS',
 
         get displayTitle() {
@@ -283,8 +281,6 @@ function colorwayForm(config) {
             if (this.isAsset) {
                 const wn = this.warnaName || this.warnaCode || '???';
                 parts.push(wn);
-            } else if (this.namePreviewWarna) {
-                parts.push(this.namePreviewWarna);
             }
             if (sc && sc !== this.allSizeCode && sc !== '—') {
                 parts.push(sc);

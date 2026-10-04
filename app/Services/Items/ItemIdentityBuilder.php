@@ -324,6 +324,38 @@ class ItemIdentityBuilder
     }
 
     /**
+     * Asset lancar display name: {product title} - {warna} - {size}
+     * Manufactured items use buildManufacturedDisplayName() (color is on pcode, not warna tag).
+     */
+    public function buildItemDisplayName(
+        ItemType $type,
+        string $bareTitle,
+        ?Tag $warnaTag,
+        ?Tag $sizeTag,
+    ): string {
+        if ($type === ItemType::ITEM) {
+            return $this->buildManufacturedDisplayName($bareTitle, $sizeTag);
+        }
+
+        return $this->buildName($bareTitle, $warnaTag, $sizeTag);
+    }
+
+    /**
+     * Manufactured display name: {product title} - {size?}
+     * All-size omits size. Color/warna is not repeated — it lives on pcode / item_group.variant.
+     */
+    public function buildManufacturedDisplayName(string $bareTitle, ?Tag $sizeTag): string
+    {
+        $parts = [strtoupper(trim($bareTitle))];
+
+        if ($sizeTag && ! $this->isAllSize($sizeTag)) {
+            $parts[] = strtoupper($sizeTag->code);
+        }
+
+        return implode(' - ', array_filter($parts, fn ($p) => $p !== ''));
+    }
+
+    /**
      * Display name: {product title} - {warna} - {size}
      * All-size omits the size segment: {product title} - {warna}
      * e.g. ELBOW STRAP - BLACKWHITE, SLASH RUNNING SHIRT - BLUE - S

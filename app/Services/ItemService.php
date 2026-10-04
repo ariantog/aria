@@ -603,7 +603,7 @@ class ItemService
 
         $item->pcode = $pcode;
         $item->code = $code;
-        $item->name = $this->identityBuilder->buildName($displayName, $warnaTag, $sizeTag);
+        $item->name = $this->identityBuilder->buildItemDisplayName($itemType, $displayName, $warnaTag, $sizeTag);
         if (! $isUpdate) {
             $item->price = 0;
             $item->cost = 0;

@@ -166,9 +166,9 @@ it('renders parent detail with color sections and size rows', function () {
 
     expect($detail['label'])->toBe('AJD CX93024');
     expect($detail['colors'])->toHaveCount(1);
-    expect($detail['colors'][0]['code'])->toBe('PINK');
+    expect($detail['colors'][0]['code'])->toBe('05');
     expect($detail['colors'][0]['name'])->toBe('PINK');
-    expect($detail['colors'][0]['anchor_id'])->toBe('color-pink');
+    expect($detail['colors'][0]['anchor_id'])->toBe('color-05');
     expect($detail['colors'][0]['size_rows'])->toHaveCount(1);
     expect($detail['colors'][0]['size_rows'][0]['size'])->toBe('S');
     expect($detail['warehouse_breakdown'])->toBeArray();
@@ -194,7 +194,7 @@ it('builds export payload with warehouse columns per sku', function () {
     expect($payload)->not->toBeNull();
     expect($payload['rows'])->toHaveCount(1);
     expect($payload['rows'][0]['item_code'])->toBe('AJD-CX93024-05-S');
-    expect($payload['rows'][0]['color_code'])->toBe('PINK');
+    expect($payload['rows'][0]['color_code'])->toBe('05');
     expect($payload['warehouse_names'])->toBeArray();
 });
 

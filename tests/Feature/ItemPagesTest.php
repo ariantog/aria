@@ -114,7 +114,7 @@ test('items index name filter searches item name and group name', function () {
     $group = \App\Models\ItemGroup::factory()->create(['name' => 'GROUP TITLE MATCH']);
     Item::factory()->create([
         'group_id' => $group->id,
-        'name' => 'DISPLAY FILTER MATCH - BLUE - M',
+        'name' => 'DISPLAY FILTER MATCH - M',
         'code' => 'AJD-DISPLAY-FILTER-M',
     ]);
     Item::factory()->create([
@@ -356,7 +356,7 @@ test('getItemName uses scoped bare title with color and size segments', function
     $item->setRelation('group', $group);
     $item->setRelation('tags', collect([$warna, $size]));
 
-    expect($item->getItemName())->toBe('SKU OVERRIDE TITLE - NAVY - S');
+    expect($item->getItemName())->toBe('SKU OVERRIDE TITLE - S');
 });
 
 test('items index name column shows the item display name not the group alias', function () {

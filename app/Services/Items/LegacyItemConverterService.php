@@ -782,7 +782,12 @@ class LegacyItemConverterService
         $item->group_id = $group->id;
         $item->pcode = strtoupper((string) $parse->pcode);
         $item->code = $canonicalCode;
-        $item->name = $this->identityBuilder->buildName((string) $parse->groupName, $warnaTag, $sizeTag);
+        $item->name = $this->identityBuilder->buildItemDisplayName(
+            $itemType,
+            (string) $parse->groupName,
+            $warnaTag,
+            $sizeTag,
+        );
         $item->size = $sizeTag?->id ?? 0;
         $this->persistConvertedCatalog($item, $group, $previousGroup, (string) $parse->pcode, $effectiveTypeTag);
         $item->save();

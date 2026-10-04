@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Schema;
 /**
  * Bare product title resolves: SKU (items.alias) → colorway (item_group.name) → parent group.
  *
- * Full SKU display names append warna and size via ItemIdentityBuilder::buildName().
+ * Full SKU display names: manufactured = bare title + size; asset lancar adds warna via buildName().
  *
  * Legacy production may still have item_group.alias; when item_group.name is empty or
  * pcode-like, a non-empty group alias is used as the colorway title before parent fallback.
@@ -115,7 +115,7 @@ final class ItemProductTitle
             $sizeTag = Tag::find((int) $item->size);
         }
 
-        return app(ItemIdentityBuilder::class)->buildName($bare, $warnaTag, $sizeTag);
+        return app(ItemIdentityBuilder::class)->buildItemDisplayName($itemType, $bare, $warnaTag, $sizeTag);
     }
 
     /**

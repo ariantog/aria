@@ -179,7 +179,12 @@ class ItemLegacyDisplayNameService
                 $sizeTag = Tag::find((int) $item->size);
             }
 
-            return $this->identityBuilder->buildName(
+            $itemType = $item->type instanceof ItemType
+                ? $item->type
+                : ItemType::coerce($item->type) ?? ItemType::ITEM;
+
+            return $this->identityBuilder->buildItemDisplayName(
+                $itemType,
                 strtoupper(trim($bareProductTitle)),
                 $warnaTag,
                 $sizeTag,

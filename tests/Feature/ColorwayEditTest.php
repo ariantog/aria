@@ -63,8 +63,8 @@ test('updateColorway renames group and regenerates item display names', function
 
     expect($group->name)->toBe('SLASH RUNNING SHIRT')
         ->and($group->description)->toBe('NEW DESC')
-        ->and($small->name)->toBe('SLASH RUNNING SHIRT - BLUE - S')
-        ->and($medium->name)->toBe('SLASH RUNNING SHIRT - BLUE - M');
+        ->and($small->name)->toBe('SLASH RUNNING SHIRT - S')
+        ->and($medium->name)->toBe('SLASH RUNNING SHIRT - M');
 });
 
 test('updateColorway changes price on one size without affecting siblings', function () {
@@ -186,7 +186,7 @@ test('manufactured colorway edit preview omits warna tag from live name preview 
     $item->tags()->sync([$this->typeTag->id, $blackTag->id, $mediumTag->id, $this->jahitTag->id]);
 
     expect(ItemProductTitle::buildDisplayNameWithBareTitle($item->fresh(['group', 'tags']), 'Renamed Shirt'))
-        ->toBe('RENAMED SHIRT - BLACK - M');
+        ->toBe('RENAMED SHIRT - M');
 
     $this->actingAs($this->user)
         ->get(route('items.colorway-edit', $group))
@@ -194,8 +194,7 @@ test('manufactured colorway edit preview omits warna tag from live name preview 
         ->assertSee('AJD-CX90032-06-M', false)
         ->assertSee('06', false)
         ->assertSee('BLACK', false)
-        ->assertSee('namePreviewWarna', false)
-        ->assertDontSee('warnaCode&quot;:&quot;BLACK', false)
+        ->assertDontSee('CX90032-06 - BLACK - M', false)
         ->assertDontSee('warnaCode":"BLACK', false)
         ->assertDontSee('AJD-CX90032-06-BLACK-M', false);
 });
@@ -245,5 +244,5 @@ test('colorway update via HTTP persists per-size price', function () {
         ->and($group->description)->toBe('VIA FORM')
         ->and((float) $small->price)->toBe(150000.0)
         ->and((float) $medium->price)->toBe(120000.0)
-        ->and($small->name)->toBe('RENAMED SHIRT - BLUE - S');
+        ->and($small->name)->toBe('RENAMED SHIRT - S');
 });

@@ -623,7 +623,7 @@ it('does not queue newly created manufactured items that are already canonical',
         'code' => 'AJD-CX90151-01-M',
         'legacy_code' => null,
         'pcode' => 'CX90151-01',
-        'name' => 'NEW SHIRT - BLUE - M',
+        'name' => 'NEW SHIRT - M',
     ]);
     $newItem->tags()->sync([
         Tag::where('code', 'AJD')->first()->id,
