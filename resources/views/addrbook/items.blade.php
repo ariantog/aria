@@ -272,8 +272,8 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
             <tbody class="divide-y divide-gray-100">
                 @forelse($items as $item)
                     @php
-                        $normalName = $item->name;
-                        $onlineNm = $item->catalogDescription2() ?: $item->name;
+                        $normalName = $item->getItemName();
+                        $onlineNm = $item->catalogDescription2() ?: $normalName;
                         $desc = $item->catalogDescription() ?: '-';
                         $qty = (float) ($item->pivot->quantity ?? 0);
                         $jubelio = ($jubelioStocks ?? [])[$item->id] ?? null;
