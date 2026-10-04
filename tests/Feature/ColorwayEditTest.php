@@ -158,6 +158,10 @@ test('colorway edit page renders with size matrix and preview', function () {
         ->assertSee('Edit colorway', false)
         ->assertSee('data-testid="colorway-size-matrix"', false)
         ->assertSee('data-testid="colorway-name-preview"', false)
+        ->assertSee('data-testid="colorway-save"', false)
+        ->assertSee('data-testid="colorway-pricing-price-scope-colorway"', false)
+        ->assertDontSee('Whole group', false)
+        ->assertDontSee('This SKU', false)
         ->assertSee('AJD-CX90233-23-S', false);
 });
 
