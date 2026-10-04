@@ -637,6 +637,24 @@ class ItemIdentityBuilder
      */
     public function itemColorInfo(Item $item): array
     {
+        $itemType = $item->type instanceof ItemType ? $item->type : ItemType::coerce($item->type) ?? ItemType::ITEM;
+
+        if ($itemType === ItemType::ITEM) {
+            $variant = strtoupper(trim((string) ($item->group?->variant ?? '')));
+            if ($variant !== '') {
+                $warna = $item->relationLoaded('tags')
+                    ? $item->tags->firstWhere('type', Tag::TYPE_WARNA)
+                    : null;
+
+                return [
+                    'code' => $variant,
+                    'name' => $warna
+                        ? strtoupper(trim((string) ($warna->name ?: $warna->code)))
+                        : 'Color '.$variant,
+                ];
+            }
+        }
+
         $warna = $item->relationLoaded('tags')
             ? $item->tags->firstWhere('type', Tag::TYPE_WARNA)
             : null;
@@ -645,13 +663,6 @@ class ItemIdentityBuilder
             return [
                 'code' => strtoupper($warna->code),
                 'name' => $warna->name,
-            ];
-        }
-
-        if ($item->type === ItemType::ITEM && $item->group?->variant) {
-            return [
-                'code' => strtoupper($item->group->variant),
-                'name' => 'Color '.$item->group->variant,
             ];
         }
 

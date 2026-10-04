@@ -10,11 +10,6 @@ $breadcrumbs = [
     ['title' => $sample->pcode, 'href' => route('items.group-parent-detail', $parentGroupId)],
     ['title' => 'Edit colorway', 'href' => '#'],
 ];
-$previewRows = collect($sizeRows)->map(fn ($row) => [
-    'code' => $row['code'],
-    'size_code' => $row['size_code'],
-    'warna_code' => $row['warna_code'],
-])->values()->all();
 @endphp
 
 <div class="p-4 sm:p-6" x-data="colorwayForm(@js([
@@ -25,6 +20,7 @@ $previewRows = collect($sizeRows)->map(fn ($row) => [
     'rows' => $previewRows,
     'warnaCode' => $isAsset ? ($color['code'] ?? '') : '',
     'warnaName' => $isAsset ? ($color['name'] ?? '') : '',
+    'namePreviewWarna' => $isAsset ? '' : ($namePreviewWarna ?? ''),
 ]))">
     <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <a href="{{ route('items.group-parent-detail', $parentGroupId) }}" class="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-100">
@@ -74,12 +70,10 @@ $previewRows = collect($sizeRows)->map(fn ($row) => [
                         </div>
                         <div>
                             <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Color</p>
-                            @if($isAsset)
                             <p class="text-sm text-gray-900">{{ $color['code'] }} — {{ $color['name'] }}</p>
-                            @else
-                            <p class="font-mono text-sm text-gray-900">{{ $group->variant ?: '—' }}</p>
-                            <p class="mt-0.5 text-xs text-gray-500">Color number from pcode (manufactured SKUs do not add a warna segment).</p>
-                            @endif
+                            @unless($isAsset)
+                            <p class="mt-0.5 text-xs text-gray-500">Pcode color number; warna tag label is for display names only (not in SKU code).</p>
+                            @endunless
                         </div>
                     </div>
                 </div>
@@ -271,6 +265,7 @@ function colorwayForm(config) {
         usesPlaceholder: config.usesPlaceholder,
         warnaCode: (config.warnaCode || '').toUpperCase(),
         warnaName: (config.warnaName || config.warnaCode || '').toUpperCase(),
+        namePreviewWarna: (config.namePreviewWarna || '').toUpperCase(),
         allSizeCode: 'AS',
 
         get displayTitle() {
@@ -288,6 +283,8 @@ function colorwayForm(config) {
             if (this.isAsset) {
                 const wn = this.warnaName || this.warnaCode || '???';
                 parts.push(wn);
+            } else if (this.namePreviewWarna) {
+                parts.push(this.namePreviewWarna);
             }
             if (sc && sc !== this.allSizeCode && sc !== '—') {
                 parts.push(sc);

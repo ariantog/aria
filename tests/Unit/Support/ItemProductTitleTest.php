@@ -57,3 +57,19 @@ test('buildDisplayName appends warna and size tags', function () {
     expect(ItemProductTitle::buildDisplayName($item->fresh(['group', 'tags'])))
         ->toBe('RUNNING SHIRT - BLUE - M');
 });
+
+test('buildDisplayNameWithBareTitle matches colorway save naming for manufactured items', function () {
+    $group = ItemGroup::factory()->create(['name' => 'RUNNING SHIRT']);
+    $warna = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLACK', 'name' => 'Black']);
+    $size = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'M']);
+
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CX90032-06',
+    ]);
+    $item->tags()->sync([$warna->id, $size->id]);
+
+    expect(ItemProductTitle::buildDisplayNameWithBareTitle($item->fresh(['group', 'tags']), 'Renamed Shirt'))
+        ->toBe('RENAMED SHIRT - BLACK - M');
+});

@@ -84,9 +84,31 @@ final class ItemProductTitle
 
     public static function buildDisplayName(Item $item): string
     {
+        return self::buildDisplayNameWithBareTitle($item, self::resolveBareTitle($item));
+    }
+
+    /**
+     * Same rules as buildDisplayName(), but with an explicit bare product title (e.g. colorway edit preview).
+     */
+    public static function buildDisplayNameWithBareTitle(Item $item, string $bareProductTitle): string
+    {
         $item->loadMissing(['group', 'tags']);
         $itemType = $item->type instanceof ItemType ? $item->type : ItemType::coerce($item->type) ?? ItemType::ITEM;
-        $bare = self::resolveBareTitle($item);
+        $bare = strtoupper(trim($bareProductTitle));
+
+        if ($item->hasCatalogGroup()) {
+            $bare = app(ItemIdentityBuilder::class)->productDisplayName(
+                $itemType,
+                $bare,
+                (string) ($item->group->variant ?? ''),
+                (string) ($item->group->master ?? ''),
+            );
+        } elseif ($bare === '' && trim((string) $item->pcode) !== '') {
+            $bare = $itemType === ItemType::ITEM
+                ? app(ItemIdentityBuilder::class)->normalizeManufacturedPcode((string) $item->pcode)
+                : strtoupper(trim((string) $item->pcode));
+        }
+
         $warnaTag = $item->tags->firstWhere('type', Tag::TYPE_WARNA);
         $sizeTag = $item->tags->firstWhere('type', Tag::TYPE_SIZE);
         if (! $sizeTag && (int) $item->size > 0) {
