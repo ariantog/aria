@@ -165,6 +165,35 @@ test('colorway edit page renders with size matrix and preview', function () {
         ->assertSee('AJD-CX90233-23-S', false);
 });
 
+test('manufactured colorway edit preview omits warna tag from live name preview config', function () {
+    $group = ItemGroup::factory()->create([
+        'master' => 'CX90032-06',
+        'variant' => '06',
+        'name' => 'CX90032-06',
+    ]);
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => $group->id,
+        'pcode' => 'CX90032-06',
+        'code' => 'AJD-CX90032-06-M',
+        'name' => 'CX90032-06 - BLACK - M',
+        'price' => 100000,
+    ]);
+    $blackTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLACK', 'name' => 'Black']);
+    $mediumTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'Medium']);
+    $item->tags()->sync([$this->typeTag->id, $blackTag->id, $mediumTag->id, $this->jahitTag->id]);
+
+    $this->actingAs($this->user)
+        ->get(route('items.colorway-edit', $group))
+        ->assertOk()
+        ->assertSee('AJD-CX90032-06-M', false)
+        ->assertSee('Color number from pcode', false)
+        ->assertDontSee('BLACK — Black', false)
+        ->assertDontSee('"warnaCode":"BLACK"', false)
+        ->assertDontSee('"warnaName":"BLACK"', false);
+});
+
 test('colorway update via HTTP persists per-size price', function () {
     $group = ItemGroup::factory()->create([
         'master' => 'CX90233-23',

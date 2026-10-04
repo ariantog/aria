@@ -23,8 +23,8 @@ $previewRows = collect($sizeRows)->map(fn ($row) => [
     'isAsset' => $isAsset,
     'usesPlaceholder' => $usesPlaceholder,
     'rows' => $previewRows,
-    'warnaCode' => $color['code'] ?? '',
-    'warnaName' => $color['name'] ?? '',
+    'warnaCode' => $isAsset ? ($color['code'] ?? '') : '',
+    'warnaName' => $isAsset ? ($color['name'] ?? '') : '',
 ]))">
     <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <a href="{{ route('items.group-parent-detail', $parentGroupId) }}" class="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-100">
@@ -74,7 +74,12 @@ $previewRows = collect($sizeRows)->map(fn ($row) => [
                         </div>
                         <div>
                             <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Color</p>
+                            @if($isAsset)
                             <p class="text-sm text-gray-900">{{ $color['code'] }} — {{ $color['name'] }}</p>
+                            @else
+                            <p class="font-mono text-sm text-gray-900">{{ $group->variant ?: '—' }}</p>
+                            <p class="mt-0.5 text-xs text-gray-500">Color number from pcode (manufactured SKUs do not add a warna segment).</p>
+                            @endif
                         </div>
                     </div>
                 </div>
@@ -278,9 +283,12 @@ function colorwayForm(config) {
         },
 
         buildName(title, sizeCode) {
-            const wn = this.warnaName || this.warnaCode || '???';
             const sc = (sizeCode || '').toUpperCase();
-            const parts = [title, wn];
+            const parts = [title];
+            if (this.isAsset) {
+                const wn = this.warnaName || this.warnaCode || '???';
+                parts.push(wn);
+            }
             if (sc && sc !== this.allSizeCode && sc !== '—') {
                 parts.push(sc);
             }
