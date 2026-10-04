@@ -34,31 +34,32 @@
 @endphp
 
 @section('content')
-<div class="ui-page">
-    @php
-        ob_start();
-    @endphp
+<div class="flex flex-col gap-3 p-3 sm:p-4">
+
+    {{-- Header --}}
+    <div class="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
+        <div>
+            <h2 class="text-2xl font-bold tracking-tight text-gray-900">Transactions</h2>
+            <p class="mt-0.5 text-sm text-gray-500">
+                {{ number_format($rows->total()) }} record{{ $rows->total() === 1 ? '' : 's' }} found.
+            </p>
+        </div>
+        <div class="flex flex-wrap gap-2">
             @if($can['type_buy'])
-                <a href="{{ route('transactions.create', 'buy') }}" class="ui-btn ui-btn-sm bg-emerald-600 text-white shadow-sm hover:bg-emerald-700">+ Buy</a>
+                <a href="{{ route('transactions.create', 'buy') }}" class="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700">+ Buy</a>
             @endif
             @if($can['type_sell'])
-                <a href="{{ route('transactions.create', 'sell') }}" class="ui-btn ui-btn-primary ui-btn-sm">+ Sell</a>
+                <a href="{{ route('transactions.create', 'sell') }}" class="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">+ Sell</a>
             @endif
             @if($can['delete_transaction'])
                 <a href="{{ route('transactions.deleted.index') }}"
-                   class="ui-btn ui-btn-secondary ui-btn-sm text-rose-600 !shadow-[inset_0_0_0_1px_rgb(254_205_211)] hover:bg-rose-50">
+                   class="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-white px-3 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                     Deleted
                 </a>
             @endif
-    @php
-        $txHeaderActions = ob_get_clean();
-    @endphp
-    @include('partials.ui.page-header', [
-        'title' => 'Transactions',
-        'lead' => number_format($rows->total()).' record'.($rows->total() === 1 ? '' : 's').' found.',
-        'actionsHtml' => $txHeaderActions,
-    ])
+        </div>
+    </div>
 
     @include('transactions.partials.list-filters', [
         'filters' => $filters,

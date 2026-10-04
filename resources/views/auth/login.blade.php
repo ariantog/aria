@@ -16,23 +16,23 @@
 
         <div class="grid gap-6">
             <div class="grid gap-2">
-                <label for="username" class="ui-label">Username</label>
+                <label for="username" class="text-sm font-medium">Username</label>
                 <input id="username" type="text" name="username" required autofocus tabindex="1"
                        autocomplete="username" placeholder="username" value="{{ old('username') }}"
-                       class="ui-input">
+                       class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm">
                 @error('username')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
             </div>
 
             <div class="grid gap-2">
                 <div class="flex items-center">
-                    <label for="password" class="ui-label">Password</label>
+                    <label for="password" class="text-sm font-medium">Password</label>
                     @if ($canResetPassword ?? false)
                         <a href="{{ route('password.request') }}" tabindex="5" class="ml-auto text-sm text-blue-600 hover:underline">Forgot password?</a>
                     @endif
                 </div>
                 <input id="password" type="password" name="password" required tabindex="2"
                        autocomplete="current-password" placeholder="Password"
-                       class="ui-input">
+                       class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm">
                 @error('password')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
             </div>
 
@@ -42,7 +42,7 @@
             </div>
 
             <button type="submit" tabindex="4" data-test="login-button"
-                    class="ui-btn ui-btn-primary mt-2 w-full">
+                    class="mt-4 w-full rounded-md bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800">
                 Log in
             </button>
         </div>

@@ -17,41 +17,43 @@ $filtersStorageKey = $isAsset ? 'aria-assetlancar-index-filters-open' : 'aria-it
 $columnsStorageKey = $isAsset ? 'aria-assetlancar-index-columns' : 'aria-items-index-columns';
 @endphp
 
-<div class="ui-page" x-data="itemsIndexPage(@js($filtersStorageKey), @js($columnsStorageKey), @js($isAsset))">
-    @php
-        $itemsHeaderActions = null;
-        if (($isAsset && $can['create_asset']) || (! $isAsset && $can['create'])) {
-            $itemsHeaderActions = '<a href="'.e($isAsset ? route('assetlancar.create') : route('items.create')).'" class="ui-btn ui-btn-primary">'
-                .'<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>'
-                .'Add '.($isAsset ? 'Asset' : 'Item').'</a>';
-        }
-    @endphp
-    @include('partials.ui.page-header', [
-        'title' => $isAsset ? 'Asset List' : 'Item List',
-        'lead' => 'Manage your '.($isAsset ? 'asset' : 'product').' inventory efficiently.',
-        'actionsHtml' => $itemsHeaderActions,
-    ])
-
-    <div class="ui-chip-bar flex-wrap" data-testid="items-index-column-toggles">
-        <span class="ui-chip-bar-label">Columns</span>
-        <label class="inline-flex items-center gap-1.5 text-sm text-gray-600">
-            <input type="checkbox" x-model="showImage" class="rounded border-gray-300">
-            Image
-        </label>
-        <label class="inline-flex items-center gap-1.5 text-sm text-gray-600">
-            <input type="checkbox" x-model="showName" class="rounded border-gray-300">
-            Name
-        </label>
-        <label class="inline-flex items-center gap-1.5 text-sm text-gray-600">
-            <input type="checkbox" x-model="showDesc" class="rounded border-gray-300">
-            Desc
-        </label>
-        @if($isAsset)
-        <label class="inline-flex items-center gap-1.5 text-sm text-gray-600">
-            <input type="checkbox" x-model="showNb" class="rounded border-gray-300">
-            NB
-        </label>
-        @endif
+<div class="flex flex-col gap-3 p-3 sm:p-4" x-data="itemsIndexPage(@js($filtersStorageKey), @js($columnsStorageKey), @js($isAsset))">
+    {{-- Header --}}
+    <div class="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
+        <div>
+            <h2 class="text-2xl font-bold tracking-tight text-gray-900">{{ $isAsset ? 'Asset List' : 'Item List' }}</h2>
+            <p class="mt-0.5 text-sm text-gray-500">Manage your {{ $isAsset ? 'asset' : 'product' }} inventory efficiently.</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-3">
+            <div class="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2" data-testid="items-index-column-toggles">
+                <span class="text-[10px] font-bold uppercase text-gray-500">Columns:</span>
+                <label class="inline-flex items-center gap-1.5 text-sm text-gray-600">
+                    <input type="checkbox" x-model="showImage" class="rounded border-gray-300">
+                    Image
+                </label>
+                <label class="inline-flex items-center gap-1.5 text-sm text-gray-600">
+                    <input type="checkbox" x-model="showName" class="rounded border-gray-300">
+                    Name
+                </label>
+                <label class="inline-flex items-center gap-1.5 text-sm text-gray-600">
+                    <input type="checkbox" x-model="showDesc" class="rounded border-gray-300">
+                    Desc
+                </label>
+                @if($isAsset)
+                <label class="inline-flex items-center gap-1.5 text-sm text-gray-600">
+                    <input type="checkbox" x-model="showNb" class="rounded border-gray-300">
+                    NB
+                </label>
+                @endif
+            </div>
+            @if(($isAsset && $can['create_asset']) || (! $isAsset && $can['create']))
+            <a href="{{ $isAsset ? route('assetlancar.create') : route('items.create') }}"
+               class="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                Add {{ $isAsset ? 'Asset' : 'Item' }}
+            </a>
+            @endif
+        </div>
     </div>
 
     @include('items.partials.list-filters', [
@@ -68,10 +70,10 @@ $columnsStorageKey = $isAsset ? 'aria-assetlancar-index-columns' : 'aria-items-i
     ])
 
     {{-- Table --}}
-    <div class="ui-panel">
+    <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div class="overflow-x-auto">
-        <table class="ui-data-table min-w-[980px]">
-            <thead>
+        <table class="w-full min-w-[980px] text-sm">
+            <thead class="border-b border-gray-200 bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
                 <tr>
                     <th class="px-3 py-2.5 text-left font-medium" x-show="showImage">Image</th>
                     <th class="px-3 py-2.5 text-left font-medium">Barcode</th>
@@ -90,10 +92,10 @@ $columnsStorageKey = $isAsset ? 'aria-assetlancar-index-columns' : 'aria-items-i
                     <th class="w-12 px-3 py-2.5 text-center font-medium"></th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody class="divide-y divide-gray-100">
                 @forelse($items as $item)
                     @php $groupUrl = $item->groupParentUrl(); @endphp
-                    <tr class="align-middle">
+                    <tr class="align-middle hover:bg-gray-50">
                         <td class="px-3 py-2.5" x-show="showImage">
                             @if($item->image_url)
                                 <img src="{{ $item->image_url }}" class="h-10 w-10 rounded-md border border-gray-200 object-cover">

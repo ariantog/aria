@@ -34,21 +34,21 @@
     ];
 @endphp
 
-<div class="ui-panel"
+<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"
      x-data="transactionListTable()">
-    <div class="ui-panel-toolbar">
+    <div class="flex items-center justify-end border-b border-gray-100 px-3 py-2">
         <button type="button"
                 @click="copyRowsTable()"
                 data-testid="copy-transactions-table"
                 title="Copy table for Excel"
-                class="ui-btn ui-btn-secondary ui-btn-sm">
+                class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
             <span x-text="copyFeedback ? 'Copied!' : 'Copy rows'"></span>
         </button>
     </div>
     <div class="overflow-x-auto">
-        <table x-ref="listTable" class="ui-data-table min-w-[980px]">
-            <thead>
+        <table x-ref="listTable" class="w-full min-w-[980px] text-sm">
+            <thead class="border-b border-gray-200 bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
                 <tr>
                     <th class="px-3 py-2.5 text-left font-medium" data-copy-col="date">
                         @if($sortLink)<a href="{{ $sortLink('date') }}" class="inline-flex items-center gap-1 hover:text-gray-900">Date @if($sort==='date')<span class="text-blue-600">{{ $direction==='asc'?'↑':'↓' }}</span>@endif</a>@else Date @endif
@@ -71,14 +71,14 @@
                     <th class="w-12 px-3 py-2.5 text-center font-medium"></th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody class="divide-y divide-gray-100">
                 @forelse($rows as $tx)
                     @php
                         $typeValue = (int) $tx->type;
                         [$label, $badgeCls, $dotCls] = $typeMap[$typeValue] ?? ['Unknown', 'text-gray-700 bg-gray-50', 'bg-gray-400'];
                         $noteText = $tx->description ?: ($tx->notes ?: '-');
                     @endphp
-                    <tr>
+                    <tr class="hover:bg-gray-50">
                         <td class="whitespace-nowrap px-3 py-2.5 text-gray-600" data-copy-col="date">
                             {{ $tx->date ? \Carbon\Carbon::parse($tx->date)->format('d/m/y') : '-' }}
                         </td>
