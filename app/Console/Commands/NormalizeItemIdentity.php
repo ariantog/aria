@@ -60,9 +60,15 @@ class NormalizeItemIdentity extends Command
                     $groupName = $dryRun ? $targetName : $group->name;
 
                     foreach ($group->items as $item) {
+                        $itemType = ItemType::coerce($item->type) ?? ItemType::ITEM;
                         $warnaTag = $item->tags->firstWhere('type', Tag::TYPE_WARNA);
                         $sizeTag = $item->tags->firstWhere('type', Tag::TYPE_SIZE);
-                        $expectedName = $identityBuilder->buildName($groupName, $warnaTag, $sizeTag);
+                        $expectedName = $identityBuilder->buildItemDisplayName(
+                            $itemType,
+                            $groupName,
+                            $warnaTag,
+                            $sizeTag,
+                        );
 
                         if ($item->name !== $expectedName) {
                             $itemsUpdated++;

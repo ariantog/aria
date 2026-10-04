@@ -66,7 +66,7 @@ test('it creates manufactured item without product name using pcode placeholder'
     $this->assertDatabaseHas('items', [
         'pcode' => 'CX93249-03',
         'code' => 'AJD-CX93249-03-S',
-        'name' => 'CX93249-03 - BLUE - S',
+        'name' => 'CX93249-03 - S',
     ]);
 });
 
@@ -93,8 +93,8 @@ test('it renames group product name and syncs all item display names', function 
     $this->itemService->renameGroupProductName($group, 'Slash Running Shirt');
 
     $this->assertDatabaseHas('item_group', ['id' => $group->id, 'name' => 'SLASH RUNNING SHIRT']);
-    $this->assertDatabaseHas('items', ['code' => 'AJD-CX90233-23-S', 'name' => 'SLASH RUNNING SHIRT - BLUE - S']);
-    $this->assertDatabaseHas('items', ['code' => 'AJD-CX90233-23-M', 'name' => 'SLASH RUNNING SHIRT - BLUE - M']);
+    $this->assertDatabaseHas('items', ['code' => 'AJD-CX90233-23-S', 'name' => 'SLASH RUNNING SHIRT - S']);
+    $this->assertDatabaseHas('items', ['code' => 'AJD-CX90233-23-M', 'name' => 'SLASH RUNNING SHIRT - M']);
 });
 
 test('apply parent group product name with reset clears colorway titles and cascaded pricing', function () {
@@ -301,8 +301,8 @@ test('it propagates product name change from item update to all sizes in group',
         'jahit' => [$this->jahitTag->id],
     ]);
 
-    $this->assertDatabaseHas('items', ['code' => 'AJD-CX90233-23-S', 'name' => 'SLASH RUNNING SHIRT - BLUE - S']);
-    $this->assertDatabaseHas('items', ['code' => 'AJD-CX90233-23-M', 'name' => 'SLASH RUNNING SHIRT - BLUE - M']);
+    $this->assertDatabaseHas('items', ['code' => 'AJD-CX90233-23-S', 'name' => 'SLASH RUNNING SHIRT - S']);
+    $this->assertDatabaseHas('items', ['code' => 'AJD-CX90233-23-M', 'name' => 'SLASH RUNNING SHIRT - M']);
 });
 
 test('it creates manufactured item with unified code and display name', function () {
@@ -332,7 +332,7 @@ test('it creates manufactured item with unified code and display name', function
     $this->assertDatabaseHas('items', [
         'pcode' => 'CX90233-23',
         'code' => 'AJD-CX90233-23-S',
-        'name' => 'SLASH RUNNING SHIRT - BLUE - S',
+        'name' => 'SLASH RUNNING SHIRT - S',
     ]);
 });
 
@@ -786,7 +786,7 @@ test('it loads manufactured product name from sibling colorways under the same p
         'group_id' => $existingGroup->id,
         'pcode' => 'CX00122-03',
         'code' => 'CLN-CX00122-03-S',
-        'name' => 'RUNNING SHIRT - BLUE - S',
+        'name' => 'RUNNING SHIRT - S',
     ])->tags()->sync([$clnType->id, $this->sizeTag->id, $this->warnaTag->id]);
 
     expect($this->itemService->catalogHintsForPcode(ItemType::ITEM, 'CX00122-35', 'CLN'))
@@ -821,7 +821,7 @@ test('it loads manufactured parent title across type tags when the scoped lookup
         'group_id' => $existingGroup->id,
         'pcode' => 'CX00122-03',
         'code' => 'AJD-CX00122-03-S',
-        'name' => 'ESSENTIAL SHORTS - BLUE - S',
+        'name' => 'ESSENTIAL SHORTS - S',
     ])->tags()->sync([$ajdType->id, $this->sizeTag->id, $this->warnaTag->id]);
 
     expect($this->itemService->catalogHintsForPcode(ItemType::ITEM, 'CX00122-33', 'CLN'))
@@ -842,7 +842,7 @@ test('it replaces parent-master placeholder when slash pcode is normalized to hy
         'group_id' => $legacyGroup->id,
         'pcode' => 'CX00122/03',
         'code' => 'AJD-CX00122-03-S',
-        'name' => 'CX00122 - BLUE - S',
+        'name' => 'CX00122 - S',
     ]);
     $legacyItem->tags()->sync([$this->typeTag->id, $this->sizeTag->id, $this->warnaTag->id]);
 
@@ -857,7 +857,7 @@ test('it replaces parent-master placeholder when slash pcode is normalized to hy
         'group_id' => $titledGroup->id,
         'pcode' => 'CX00122-04',
         'code' => 'AJD-CX00122-04-S',
-        'name' => 'ESSENTIAL SHORTS - BLUE - S',
+        'name' => 'ESSENTIAL SHORTS - S',
     ])->tags()->sync([$this->typeTag->id, $this->sizeTag->id, $this->warnaTag->id]);
 
     expect($this->itemService->productNameIsPcodePlaceholder(ItemType::ITEM, 'CX00122', 'CX00122-33', $legacyItem))
@@ -880,7 +880,7 @@ test('it loads manufactured parent title from legacy parent-only group master', 
         'group_id' => $legacyGroup->id,
         'pcode' => 'CX00122/03',
         'code' => 'AJD-CX00122-03-S',
-        'name' => 'ESSENTIAL SHORTS - BLUE - S',
+        'name' => 'ESSENTIAL SHORTS - S',
     ])->tags()->sync([$this->typeTag->id, $this->sizeTag->id, $this->warnaTag->id]);
 
     expect($this->itemService->catalogHintsForPcode(ItemType::ITEM, 'CX00122-33'))
@@ -1033,8 +1033,8 @@ test('it syncs shared colorway attributes to every size when one item is edited'
         ->and($small->restock_urgent_threshold)->toBe(12)
         ->and($medium->restock_urgent_threshold)->toBe(9)
         ->and((float) $medium->cost)->toBe(25000.0)
-        ->and($small->name)->toBe('CX90233-23 - BLUE - S')
-        ->and($medium->name)->toBe('CX90233-23 - BLUE - M');
+        ->and($small->name)->toBe('CX90233-23 - S')
+        ->and($medium->name)->toBe('CX90233-23 - M');
 });
 
 test('it moves every size to the new pcode and keeps group.name equal to pcode', function () {
@@ -1073,12 +1073,12 @@ test('it moves every size to the new pcode and keeps group.name equal to pcode',
     $this->assertDatabaseHas('items', [
         'code' => 'AJD-CX00122-05-S',
         'pcode' => 'CX00122-05',
-        'name' => 'CX00122-05 - BLUE - S',
+        'name' => 'CX00122-05 - S',
     ]);
     $this->assertDatabaseHas('items', [
         'code' => 'AJD-CX00122-05-M',
         'pcode' => 'CX00122-05',
-        'name' => 'CX00122-05 - BLUE - M',
+        'name' => 'CX00122-05 - M',
     ]);
 });
 
@@ -1183,11 +1183,11 @@ test('it keeps a custom group title when product name is not the pcode', functio
     ]);
 
     $this->assertDatabaseHas('item_group', ['name' => 'SLASH RUNNING SHIRT', 'master' => 'CX90233-23', 'variant' => '23']);
-    $this->assertDatabaseHas('items', ['code' => 'AJD-CX90233-23-S', 'name' => 'SLASH RUNNING SHIRT - BLUE - S', 'price' => 120000]);
+    $this->assertDatabaseHas('items', ['code' => 'AJD-CX90233-23-S', 'name' => 'SLASH RUNNING SHIRT - S', 'price' => 120000]);
 
     $medium = Item::where('code', 'AJD-CX90233-23-M')->firstOrFail();
 
-    expect($medium->name)->toBe('SLASH RUNNING SHIRT - BLUE - M')
+    expect($medium->name)->toBe('SLASH RUNNING SHIRT - M')
         ->and($medium->effectivePrice())->toBe(100000.0)
         ->and((float) $medium->price)->toBe(0.0);
 });
@@ -1225,7 +1225,7 @@ test('it updates group name from pcode placeholder when product_name is set on e
     ]);
     $this->assertDatabaseHas('items', [
         'code' => 'AJD-CX93249-03-S',
-        'name' => 'ESSENTIAL SHORTS - BLUE - S',
+        'name' => 'ESSENTIAL SHORTS - S',
     ]);
 });
 

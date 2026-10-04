@@ -158,6 +158,13 @@ describe('buildCode', function () {
     });
 });
 
+describe('buildManufacturedDisplayName', function () {
+    it('omits warna and keeps title with size', function () {
+        expect($this->builder->buildManufacturedDisplayName('SLASH RUNNING SHIRT', $this->sizeTag))
+            ->toBe('SLASH RUNNING SHIRT - S');
+    });
+});
+
 describe('buildName', function () {
     it('builds display name from group name, color, and size', function () {
         $name = $this->builder->buildName(

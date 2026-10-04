@@ -688,10 +688,6 @@ class ItemsController extends Controller
         );
         $color = $this->identityBuilder->itemColorInfo($sample);
         $typeTag = $sample->tags->firstWhere('type', Tag::TYPE_TYPE);
-        $sampleWarnaTag = $sample->tags->firstWhere('type', Tag::TYPE_WARNA);
-        $namePreviewWarna = $sampleWarnaTag
-            ? strtoupper(trim((string) ($sampleWarnaTag->name ?: $sampleWarnaTag->code)))
-            : '';
         $parentGroupId = $this->groupHierarchy->anchorGroupIdForParentKey(
             $this->identityBuilder->itemParentKey($sample)
         ) ?? $group->id;
@@ -737,7 +733,6 @@ class ItemsController extends Controller
             'sample' => $sample,
             'sizeRows' => $sizeRows,
             'previewRows' => $previewRows,
-            'namePreviewWarna' => $namePreviewWarna,
             'pricingState' => ItemPricing::formState($sample),
             'productTitle' => $usesPlaceholder ? '' : $productTitle,
             'usesPlaceholder' => $usesPlaceholder,
