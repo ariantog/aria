@@ -137,12 +137,22 @@ $previewRows = collect($sizeRows)->map(fn ($row) => [
                     </div>
                 </div>
 
-                @include('items.partials.form-pricing-scopes', [
-                    'pricingState' => $pricingState ?? [],
-                    'pricingPrefix' => 'pricing',
-                    'pricingIdPrefix' => 'colorway-pricing',
-                    'pricingIntro' => 'Defaults for every size in this color. Use the matrix below for one-off SKU overrides.',
-                ])
+                <div class="rounded-xl border border-gray-200 bg-white shadow-sm" data-testid="colorway-pricing">
+                    <div class="border-b border-gray-100 px-5 py-4">
+                        <h3 class="text-lg font-semibold text-gray-900">Pricing (this colorway)</h3>
+                        <p class="text-sm text-gray-500">Default sell, reseller, and cost for every size here. Per-size overrides go in the matrix below.</p>
+                    </div>
+                    <div class="p-5">
+                        @include('items.partials.form-pricing-scopes', [
+                            'pricingState' => $pricingState ?? [],
+                            'pricingPrefix' => 'pricing',
+                            'pricingIdPrefix' => 'colorway-pricing',
+                            'pricingFixedScope' => \App\Support\ItemPricing::SCOPE_COLORWAY,
+                            'pricingIntro' => '',
+                            'embeddedInCatalog' => true,
+                        ])
+                    </div>
+                </div>
 
                 {{-- Per-size matrix --}}
                 <div class="rounded-xl border border-gray-200 bg-white shadow-sm" data-testid="colorway-size-matrix">
@@ -236,7 +246,7 @@ $previewRows = collect($sizeRows)->map(fn ($row) => [
             </div>
         </div>
 
-        <div class="flex justify-end gap-4 border-t border-gray-200 pt-8">
+        <div class="sticky bottom-0 z-10 -mx-4 mt-8 flex justify-end gap-4 border-t border-gray-200 bg-white/95 px-4 py-4 shadow-[0_-4px_12px_rgba(0,0,0,0.06)] backdrop-blur-sm sm:-mx-6 sm:px-6">
             <a href="{{ route('items.group-parent-detail', $parentGroupId) }}" class="rounded-lg px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100">Cancel</a>
             <button type="submit" data-testid="colorway-save" class="min-w-[150px] rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Save colorway</button>
         </div>
