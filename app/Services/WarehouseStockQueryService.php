@@ -17,7 +17,9 @@ class WarehouseStockQueryService
 
     public function buildItemsQuery(Addrbook $addrbook, Request $request): BelongsToMany
     {
-        $query = $addrbook->items()->with('group');
+        // Tags must be eager-loaded so ItemPricing / ItemProductTitle resolve the same
+        // parent group key as /items (TYPE tag code vs SKU code prefix can differ).
+        $query = $addrbook->items()->with(['group', 'tags']);
 
         $this->itemListFilter->apply($query, $request);
 
