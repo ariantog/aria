@@ -229,7 +229,7 @@
         color: hsl(var(--ui-text-muted));
     }
 
-    /* ── Data tables (Refactoring UI: light header, row hover, no grid) ─ */
+    /* ── Data tables (Refactoring UI: light header, row hover; still use <table> for copy/export) ─ */
     .ui-data-table {
         width: 100%;
         font-size: 0.875rem;

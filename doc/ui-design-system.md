@@ -11,7 +11,7 @@ and `layouts/guest.blade.php`).
 - **Spacing:** wrap page content in `ui-page` for consistent padding and vertical rhythm.
 - **Actions:** `ui-btn-primary` / `ui-btn-secondary` for buttons; avoid one-off blue-600 combinations on new pages.
 - **Forms:** `ui-label`, `ui-input`, `ui-select`, `ui-textarea` for accessible focus rings and consistent fields.
-- **Tables:** wrap tables in `ui-panel` and add class `ui-data-table` on the `<table>`.
+- **Tables:** wrap tables in `ui-panel` and add class `ui-data-table` on the **`<table>` element** (not a div grid). Copy-to-clipboard (`ariaCopyTable`, `data-copy-col`) requires a real table DOM — the class only changes styling.
 
 ## Page header partial
 
