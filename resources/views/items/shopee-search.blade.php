@@ -56,7 +56,9 @@ $breadcrumbs = [
                     </td>
                 </tr>
                 @empty
-                <tr><td colspan="4" class="px-4 py-8 text-center text-gray-500">No results. Try another keyword.</td></tr>
+                <tr><td colspan="4" class="px-4 py-8 text-center text-gray-500">
+                    No results. Shopee search uses <strong>product name</strong> (not variant SKU). Try a title fragment, parent pcode (e.g. <span class="font-mono">CX90324-05</span>), or link by Shopee item ID on the previous tab.
+                </td></tr>
                 @endforelse
             </tbody>
         </table>

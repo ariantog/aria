@@ -16,7 +16,7 @@ $breadcrumbs = [
     <div>
         <h1 class="text-2xl font-bold text-gray-900">Shopee Auto Link</h1>
         <p class="mt-1 text-sm text-gray-500">
-            Cron runs <strong>hourly</strong> and tries up to <strong>50</strong> unlinked SKUs per tick (exact <span class="font-mono">item_sku</span> / <span class="font-mono">model_sku</span> via <span class="font-mono">product/search_item</span>).
+            Cron runs <strong>hourly</strong> and tries up to <strong>50</strong> unlinked SKUs per tick — exact match on Shopee <span class="font-mono">model_sku</span> (catalog scan + name search; Shopee does not search by merchant SKU).
             Same eligibility as Jubelio auto-link: stock in a Shopee-mapped warehouse, rolling id window + {{ $stats['retry_campaign_days'] }}-day campaign, {{ $stats['retry_spacing_hours'] }}h spacing, max {{ $stats['max_attempts'] }} failed tries, ~{{ $stats['calls_cap'] }} Shopee API calls/hour.
         </p>
     </div>

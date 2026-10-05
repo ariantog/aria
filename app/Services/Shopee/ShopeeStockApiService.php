@@ -4,6 +4,9 @@ namespace App\Services\Shopee;
 
 class ShopeeStockApiService
 {
+    /** Max `search_item` calls when resolving one keyword (name fragments only). */
+    private const MAX_NAME_SEARCH_QUERIES = 4;
+
     public function __construct(
         private ShopeeStockOpenApiService $openApi,
     ) {}
@@ -41,13 +44,22 @@ class ShopeeStockApiService
     }
 
     /**
-     * Search Shopee catalog for manual link UI and auto-link discovery.
-     *
-     * Shopee `search_item` returns `item_id_list` only — hydrate via `get_item_base_info`.
+     * Manual link UI — Shopee does not reliably search by merchant variant SKU.
+     * Uses `search_item` with `item_name` fragments, then hydrates IDs.
      *
      * @return list<array<string, mixed>>
      */
     public function searchItems(string $keyword, int $pageSize = 20): array
+    {
+        return $this->discoverCandidatesForSku($keyword, $pageSize);
+    }
+
+    /**
+     * Auto-link discovery — same name search as UI, no unsupported SKU API calls.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function discoverCandidatesForSku(string $keyword, int $pageSize = 20): array
     {
         $keyword = trim($keyword);
         if ($keyword === '') {
@@ -56,28 +68,127 @@ class ShopeeStockApiService
 
         $pageSize = min(50, max(1, $pageSize));
         $statusFilter = ['NORMAL', 'UNLIST'];
+        $itemIds = [];
 
-        $itemIds = $this->searchItemIds([
-            'page_size' => $pageSize,
-            'offset' => 0,
-            'item_sku' => $keyword,
-            'item_status' => $statusFilter,
-        ]);
-
-        if ($itemIds === []) {
-            $itemIds = $this->searchItemIds([
+        foreach ($this->itemNameSearchQueries($keyword) as $query) {
+            foreach ($this->searchItemIds([
                 'page_size' => $pageSize,
                 'offset' => 0,
-                'item_name' => $keyword,
+                'item_name' => $query,
                 'item_status' => $statusFilter,
-            ]);
+            ]) as $id) {
+                $itemIds[$id] = true;
+            }
+
+            if (count($itemIds) >= $pageSize) {
+                break;
+            }
         }
 
-        if ($itemIds !== []) {
-            return $this->itemSummariesForIds($itemIds);
+        if ($itemIds === []) {
+            return [];
         }
 
-        return $this->searchUnpackagedModelsAsRows($keyword, $pageSize);
+        return $this->itemSummariesForIds(array_slice(array_keys($itemIds), 0, $pageSize));
+    }
+
+    /**
+     * When name search finds nothing, scan one catalog page and match `model_sku` exactly.
+     *
+     * @return array{
+     *     matches: list<array{item_id: int, model_id: int}>,
+     *     api_calls: int,
+     *     next_offset: int|null
+     * }
+     */
+    public function findExactModelSkuOnCatalogPage(
+        string $modelSku,
+        int $offset = 0,
+        int $pageSize = 30,
+        int $maxModelFetches = 8,
+    ): array {
+        $needle = strtoupper(trim($modelSku));
+        $apiCalls = 0;
+
+        if ($needle === '') {
+            return ['matches' => [], 'api_calls' => 0, 'next_offset' => null];
+        }
+
+        $page = $this->fetchCatalogItemIds($offset, $pageSize);
+        $apiCalls++;
+
+        $matches = [];
+        $fetched = 0;
+
+        foreach ($page['item_ids'] as $itemId) {
+            if ($fetched >= $maxModelFetches) {
+                break;
+            }
+
+            $models = $this->modelsForItem($itemId);
+            $apiCalls++;
+            $fetched++;
+
+            foreach ($models as $model) {
+                if (strtoupper(trim((string) ($model['model_sku'] ?? ''))) !== $needle) {
+                    continue;
+                }
+
+                $matches[] = [
+                    'item_id' => $itemId,
+                    'model_id' => (int) ($model['model_id'] ?? 0),
+                ];
+            }
+        }
+
+        return [
+            'matches' => $this->uniqueItemModelMatches($matches),
+            'api_calls' => $apiCalls,
+            'next_offset' => $page['next_offset'],
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function itemNameSearchQueries(string $keyword): array
+    {
+        $keyword = trim($keyword);
+        if ($keyword === '') {
+            return [];
+        }
+
+        $queries = [$keyword];
+        $parts = array_values(array_filter(explode('-', $keyword), fn (string $p) => $p !== ''));
+
+        if (count($parts) >= 3) {
+            $queries[] = implode('-', array_slice($parts, 1, -1));
+        }
+
+        if (count($parts) >= 2) {
+            $queries[] = implode('-', array_slice($parts, -2));
+        }
+
+        if (count($parts) >= 1) {
+            $last = $parts[count($parts) - 1];
+            if (strlen($last) >= 4) {
+                $queries[] = $last;
+            }
+        }
+
+        $unique = [];
+        foreach ($queries as $query) {
+            $query = trim($query);
+            if ($query === '' || strlen($query) < 3) {
+                continue;
+            }
+            $key = strtoupper($query);
+            if (! isset($unique[$key])) {
+                $unique[$key] = $query;
+            }
+        }
+
+        return array_slice(array_values($unique), 0, self::MAX_NAME_SEARCH_QUERIES);
     }
 
     /**
@@ -103,6 +214,51 @@ class ShopeeStockApiService
         }
 
         return array_values(array_filter(array_map('intval', $ids), fn (int $id) => $id > 0));
+    }
+
+    /**
+     * @return array{item_ids: list<int>, next_offset: int|null}
+     */
+    private function fetchCatalogItemIds(int $offset, int $pageSize): array
+    {
+        $pageSize = min(100, max(1, $pageSize));
+
+        $data = $this->openApi->decodeShopResponse(
+            $this->openApi->shopApiPost('/api/v2/product/get_item_list', [
+                'offset' => max(0, $offset),
+                'page_size' => $pageSize,
+                'item_status' => ['NORMAL', 'UNLIST'],
+            ]),
+            'Shopee item list',
+        );
+
+        if ($data === null) {
+            return ['item_ids' => [], 'next_offset' => null];
+        }
+
+        $response = $data['response'] ?? $data;
+        $items = $response['item'] ?? [];
+
+        $ids = [];
+        if (is_array($items)) {
+            foreach ($items as $item) {
+                if (! is_array($item)) {
+                    continue;
+                }
+                $id = (int) ($item['item_id'] ?? 0);
+                if ($id > 0) {
+                    $ids[] = $id;
+                }
+            }
+        }
+
+        $hasNext = (bool) ($response['has_next_page'] ?? false);
+        $nextOffset = $hasNext ? (int) ($response['next_offset'] ?? ($offset + $pageSize)) : null;
+
+        return [
+            'item_ids' => $ids,
+            'next_offset' => $nextOffset,
+        ];
     }
 
     /**
@@ -153,46 +309,18 @@ class ShopeeStockApiService
     }
 
     /**
-     * @return list<array<string, mixed>>
+     * @param  list<array{item_id: int, model_id: int}>  $matches
+     * @return list<array{item_id: int, model_id: int}>
      */
-    private function searchUnpackagedModelsAsRows(string $keyword, int $pageSize): array
+    private function uniqueItemModelMatches(array $matches): array
     {
-        $body = [
-            'page_size' => min(50, max(1, $pageSize)),
-            'unpackaged_sku_id' => $keyword,
-        ];
-
-        $data = $this->openApi->decodeShopResponse(
-            $this->openApi->shopApiPost('/api/v2/product/search_unpackaged_model_list', $body),
-            'Shopee unpackaged model search',
-        );
-
-        if ($data === null) {
-            return [];
+        $unique = [];
+        foreach ($matches as $match) {
+            $key = $match['item_id'].'-'.$match['model_id'];
+            $unique[$key] = $match;
         }
 
-        $response = $data['response'] ?? $data;
-        $models = $response['model_list'] ?? [];
-
-        if (! is_array($models)) {
-            return [];
-        }
-
-        $rows = [];
-        foreach (array_values(array_filter($models, 'is_array')) as $model) {
-            $itemId = (int) ($model['item_id'] ?? 0);
-            if ($itemId <= 0) {
-                continue;
-            }
-            $rows[] = [
-                'item_id' => $itemId,
-                'model_id' => (int) ($model['model_id'] ?? 0),
-                'item_name' => (string) ($model['item_name'] ?? ''),
-                'item_sku' => (string) ($model['model_sku'] ?? $model['unpackaged_sku_id'] ?? ''),
-            ];
-        }
-
-        return $rows;
+        return array_values($unique);
     }
 
     /**

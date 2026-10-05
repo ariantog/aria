@@ -13,6 +13,7 @@ class ShopeeItemLinkRunner extends Model
         return [
             'paused' => 'boolean',
             'calls_hour_count' => 'integer',
+            'catalog_scan_offset' => 'integer',
             'last_run_at' => 'datetime',
         ];
     }

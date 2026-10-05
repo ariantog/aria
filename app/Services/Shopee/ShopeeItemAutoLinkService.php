@@ -188,8 +188,8 @@ class ShopeeItemAutoLinkService
         $needle = strtoupper(trim($searchQ));
         $apiCalls = 0;
 
-        $rows = $this->stockApi->searchItems($searchQ, 50);
-        $apiCalls++;
+        $rows = $this->stockApi->discoverCandidatesForSku($searchQ, 50);
+        $apiCalls += $this->estimateNameDiscoverApiCalls($searchQ, $rows !== []);
 
         $matches = [];
 
@@ -221,11 +221,31 @@ class ShopeeItemAutoLinkService
             }
         }
 
+        if ($matches === [] && $rows === []) {
+            $runner = $this->runner();
+            $catalog = $this->stockApi->findExactModelSkuOnCatalogPage(
+                $searchQ,
+                (int) ($runner->catalog_scan_offset ?? 0),
+            );
+            $apiCalls += $catalog['api_calls'];
+            $runner->update([
+                'catalog_scan_offset' => $catalog['next_offset'] !== null ? $catalog['next_offset'] : 0,
+            ]);
+            $matches = $catalog['matches'];
+        }
+
         return [
             'matches' => $this->uniqueMatches($matches),
             'api_calls' => $apiCalls,
-            'candidates' => count($rows),
+            'candidates' => count($rows) > 0 ? count($rows) : count($matches),
         ];
+    }
+
+    protected function estimateNameDiscoverApiCalls(string $searchQ, bool $hydrated): int
+    {
+        $searches = count($this->stockApi->itemNameSearchQueries($searchQ));
+
+        return $searches + ($hydrated ? 1 : 0);
     }
 
     /**
