@@ -309,6 +309,7 @@ it('shows jubelio on-hand stock for synced warehouses', function () {
         ->assertSee('Avail', false)
         ->assertSee('Gudang Pusat', false)
         ->assertSee('data-testid="warehouse-items-marketplace-loading"', false)
+        ->assertSee('animate-spin', false)
         ->assertSee('loadMarketplaceStock', false)
         ->assertSee('data-testid="warehouse-items-column-toggles"', false)
         ->assertSee('data-testid="warehouse-items-highlight-mismatch"', false)
