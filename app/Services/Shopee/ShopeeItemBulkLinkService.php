@@ -10,6 +10,8 @@ class ShopeeItemBulkLinkService
 {
     private const SESSION_KEY = 'shopee_bulk_link_preview';
 
+    public const PREVIEW_DISPLAY_LIMIT = 150;
+
     public function __construct(
         private ShopeeItemBulkLinkParser $parser,
         private ShopeeItemLinkApplier $applier,
@@ -36,7 +38,9 @@ class ShopeeItemBulkLinkService
 
         return [
             'token' => $token,
-            'rows' => $previewRows,
+            'rows' => array_slice($previewRows, 0, self::PREVIEW_DISPLAY_LIMIT),
+            'rows_total' => count($previewRows),
+            'rows_truncated' => count($previewRows) > self::PREVIEW_DISPLAY_LIMIT,
             'summary' => $this->summarize($previewRows),
         ];
     }
@@ -58,7 +62,9 @@ class ShopeeItemBulkLinkService
 
         return [
             'filename' => (string) ($payload['filename'] ?? ''),
-            'rows' => $resultRows,
+            'rows' => array_slice($resultRows, 0, self::PREVIEW_DISPLAY_LIMIT),
+            'rows_total' => count($resultRows),
+            'rows_truncated' => count($resultRows) > self::PREVIEW_DISPLAY_LIMIT,
             'summary' => $this->summarize($resultRows, applied: true),
         ];
     }
@@ -69,7 +75,7 @@ class ShopeeItemBulkLinkService
      */
     private function evaluateRows(array $parsedRows, bool $dryRun, bool $overwriteExisting = false): array
     {
-        $itemsByCode = $this->loadItemsByCode($parsedRows);
+        $lookup = $this->loadItemLookupMaps($parsedRows);
         $itemsById = $this->loadItemsById($parsedRows);
 
         $shopeeIds = collect($parsedRows)
@@ -94,7 +100,8 @@ class ShopeeItemBulkLinkService
         foreach ($parsedRows as $row) {
             $out[] = $this->evaluateRow(
                 $row,
-                $itemsByCode,
+                $lookup['legacy'],
+                $lookup['code'],
                 $itemsById,
                 $modelsByShopeeItem,
                 $dryRun,
@@ -107,47 +114,69 @@ class ShopeeItemBulkLinkService
 
     /**
      * @param  array<string, mixed>  $row
-     * @param  array<string, Item>  $itemsByCode
+     * @param  array<string, Item>  $legacyMap
+     * @param  array<string, Item>  $codeMap
      * @param  array<int, Item>  $itemsById
      * @param  array<int, list<array<string, mixed>>>  $modelsByShopeeItem
      * @return array<string, mixed>
      */
     private function evaluateRow(
         array $row,
-        array $itemsByCode,
+        array $legacyMap,
+        array $codeMap,
         array $itemsById,
         array $modelsByShopeeItem,
         bool $dryRun,
         bool $overwriteExisting,
     ): array {
-        $line = (int) ($row['line'] ?? 0);
         $code = isset($row['code']) ? trim((string) $row['code']) : '';
         $ariaItemId = (int) ($row['aria_item_id'] ?? 0);
         $shopeeItemId = (int) ($row['shopee_item_id'] ?? 0);
         $shopeeModelId = (int) ($row['shopee_model_id'] ?? 0);
 
         $item = null;
+        $matchedVia = null;
         if ($ariaItemId > 0) {
             $item = $itemsById[$ariaItemId] ?? null;
+            $matchedVia = $item !== null ? 'aria_item_id' : null;
         }
         if ($item === null && $code !== '') {
-            $item = $itemsByCode[strtoupper($code)] ?? null;
+            $resolved = $this->resolveItemBySku($code, $legacyMap, $codeMap);
+            if ($resolved !== null) {
+                $item = $resolved['item'];
+                $matchedVia = $resolved['matched_via'];
+            }
         }
 
         if ($item === null) {
             return $row + [
                 'status' => 'error',
-                'message' => 'SKU Aria tidak ditemukan.',
+                'message' => $code !== ''
+                    ? 'SKU tidak ditemukan (legacy_code lalu code).'
+                    : 'SKU kolom 3 kosong.',
                 'item' => null,
             ];
         }
 
-        if ($shopeeItemId <= 0) {
+        if ($shopeeModelId <= 0) {
             return $row + [
                 'status' => 'error',
-                'message' => 'shopee_item_id kosong atau tidak valid.',
+                'message' => 'Kode Variasi (kolom 2) kosong atau tidak valid.',
                 'item' => $this->itemSnapshot($item),
             ];
+        }
+
+        if ($shopeeItemId <= 0) {
+            $existingItemId = (int) ($item->shopee_item_id ?? 0);
+            if ($existingItemId > 0) {
+                $shopeeItemId = $existingItemId;
+            } else {
+                return $row + [
+                    'status' => 'error',
+                    'message' => 'Kode Produk (kolom 1) kosong — diperlukan untuk SKU yang belum pernah di-link.',
+                    'item' => $this->itemSnapshot($item),
+                ];
+            }
         }
 
         $alreadyLinked = (int) ($item->shopee_item_id ?? 0) > 0;
@@ -159,18 +188,17 @@ class ShopeeItemBulkLinkService
             ];
         }
 
-        if ($dryRun) {
-            if ($shopeeModelId <= 0) {
-                return $row + [
-                    'status' => 'ready',
-                    'message' => 'Siap — model akan dicocokkan ke Kode Variasi '.$item->code.' saat apply.',
-                    'item' => $this->itemSnapshot($item),
-                ];
-            }
+        $matchLabel = match ($matchedVia) {
+            'legacy_code' => 'Match legacy_code → '.$item->code,
+            'code' => 'Match code',
+            'aria_item_id' => 'Match aria_item_id',
+            default => 'Match',
+        };
 
+        if ($dryRun) {
             return $row + [
                 'status' => 'ready',
-                'message' => 'Siap dengan shopee_model_id '.$shopeeModelId.'.',
+                'message' => 'Siap — '.$matchLabel.'; Kode Variasi '.$shopeeModelId.'.',
                 'item' => $this->itemSnapshot($item),
             ];
         }
@@ -193,46 +221,74 @@ class ShopeeItemBulkLinkService
 
         return $row + [
             'status' => 'linked',
-            'message' => 'Terhubung'.(($result['shopee_model_id'] ?? null) ? ' (model '.$result['shopee_model_id'].')' : ''),
+            'message' => $matchLabel.' — terhubung (model '.($result['shopee_model_id'] ?? $shopeeModelId).')',
             'item' => $this->itemSnapshot($item->fresh()),
         ];
     }
 
     /**
-     * @param  list<array<string, mixed>>  $parsedRows
-     * @return array<string, Item>
+     * @param  array<string, Item>  $legacyMap
+     * @param  array<string, Item>  $codeMap
+     * @return array{item: Item, matched_via: string}|null
      */
-    private function loadItemsByCode(array $parsedRows): array
+    private function resolveItemBySku(string $sku, array $legacyMap, array $codeMap): ?array
     {
-        $codes = [];
+        $key = strtoupper(trim($sku));
+        if ($key === '') {
+            return null;
+        }
+
+        if (isset($legacyMap[$key])) {
+            return ['item' => $legacyMap[$key], 'matched_via' => 'legacy_code'];
+        }
+
+        if (isset($codeMap[$key])) {
+            return ['item' => $codeMap[$key], 'matched_via' => 'code'];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $parsedRows
+     * @return array{legacy: array<string, Item>, code: array<string, Item>}
+     */
+    private function loadItemLookupMaps(array $parsedRows): array
+    {
+        $needles = [];
         foreach ($parsedRows as $row) {
             $code = trim((string) ($row['code'] ?? ''));
             if ($code !== '') {
-                $codes[strtoupper($code)] = true;
+                $needles[strtoupper($code)] = true;
             }
         }
 
-        if ($codes === []) {
-            return [];
+        if ($needles === []) {
+            return ['legacy' => [], 'code' => []];
         }
 
+        $needleList = array_keys($needles);
         $items = Item::query()
-            ->where(function ($q) use ($codes) {
-                $q->whereIn('code', array_keys($codes))
-                    ->orWhereIn('legacy_code', array_keys($codes));
+            ->where(function ($q) use ($needleList) {
+                $q->whereIn('code', $needleList)
+                    ->orWhereIn('legacy_code', $needleList);
             })
             ->get();
 
-        $map = [];
+        $legacyMap = [];
+        $codeMap = [];
         foreach ($items as $item) {
-            $map[strtoupper((string) $item->code)] = $item;
-            $legacy = trim((string) ($item->legacy_code ?? ''));
-            if ($legacy !== '') {
-                $map[strtoupper($legacy)] = $item;
+            $legacy = strtoupper(trim((string) ($item->legacy_code ?? '')));
+            if ($legacy !== '' && isset($needles[$legacy])) {
+                $legacyMap[$legacy] = $item;
+            }
+            $code = strtoupper(trim((string) $item->code));
+            if ($code !== '' && isset($needles[$code])) {
+                $codeMap[$code] = $item;
             }
         }
 
-        return $map;
+        return ['legacy' => $legacyMap, 'code' => $codeMap];
     }
 
     /**

@@ -7,13 +7,26 @@ use App\Services\Shopee\ShopeeItemBulkLinkParser;
 use App\Services\Shopee\ShopeeItemBulkLinkService;
 use App\Services\Shopee\ShopeeStockApiService;
 use Illuminate\Http\UploadedFile;
-use Spatie\Permission\Models\Permission;
 
 beforeEach(function () {
     app(PermissionGenerator::class)->generateForModule('ShopeeStock');
     User::factory()->create();
     $this->user = User::factory()->create();
     $this->user->givePermissionTo('shopee-stock-sync');
+});
+
+it('parses shopee product export headers from sample xlsx', function () {
+    $path = base_path('old/DATA LENGKAP PRODUK SHOPEE.xlsx');
+    if (! is_file($path)) {
+        $this->markTestSkipped('Sample Shopee export not in repo.');
+    }
+
+    $rows = app(ShopeeItemBulkLinkParser::class)->parse($path);
+
+    expect($rows)->not->toBeEmpty()
+        ->and($rows[0]['shopee_item_id'])->toBe(58000473010)
+        ->and($rows[0]['shopee_model_id'])->toBe(395043520573)
+        ->and($rows[0]['code'])->toBe('ELBOWSUPPORT-05-BLUE');
 });
 
 it('parses csv rows with flexible headers', function () {
@@ -28,6 +41,29 @@ it('parses csv rows with flexible headers', function () {
         ->and($rows[0]['code'])->toBe('BULK-SKU-1')
         ->and($rows[0]['shopee_item_id'])->toBe(9001001)
         ->and($rows[0]['shopee_model_id'])->toBe(8001);
+});
+
+it('matches legacy sku before current code on bulk preview', function () {
+    $legacyItem = Item::factory()->create([
+        'code' => 'NEW-SKU-FORMAT',
+        'legacy_code' => 'OLD-SHOPEE-SKU',
+        'shopee_item_id' => null,
+    ]);
+    Item::factory()->create([
+        'code' => 'OLD-SHOPEE-SKU',
+        'legacy_code' => null,
+        'shopee_item_id' => null,
+    ]);
+
+    $csv = "Kode Produk,Kode Variasi,SKU\n9001,8001,OLD-SHOPEE-SKU\n";
+    $upload = UploadedFile::fake()->createWithContent('shopee.csv', $csv);
+
+    $preview = app(ShopeeItemBulkLinkService::class)->preview($upload);
+
+    expect($preview['summary']['ready'])->toBe(1)
+        ->and($preview['rows'][0]['status'])->toBe('ready')
+        ->and($preview['rows'][0]['message'])->toContain('legacy_code')
+        ->and($preview['rows'][0]['item']['id'])->toBe($legacyItem->id);
 });
 
 it('previews and applies bulk shopee links', function () {
@@ -52,7 +88,7 @@ it('previews and applies bulk shopee links', function () {
             ]);
     });
 
-    $csv = "code,shopee_item_id\nBULK-LINK-SKU,9002002\n";
+    $csv = "code,shopee_item_id,shopee_model_id\nBULK-LINK-SKU,9002002,8002\n";
     $upload = UploadedFile::fake()->createWithContent('links.csv', $csv);
 
     $preview = app(ShopeeItemBulkLinkService::class)->preview($upload);
