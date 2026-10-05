@@ -71,28 +71,7 @@ it('marks duplicate without calling jubelio api when sell transaction already ex
         ->and($order->fresh()->error_type)->toBe(JubelioOrderSyncStatus::ERROR_DUPLICATE);
 });
 
-it('skips from stored order_status completed before fetching jubelio api', function () {
-    $this->mock(\App\Services\JubelioService::class, function ($mock) {
-        $mock->shouldNotReceive('fetchSalesOrder');
-    });
-
-    $order = Jubelioorder::create([
-        'jubelio_order_id' => '222945',
-        'source' => 2,
-        'invoice' => 'SP-STORED-COMPLETED',
-        'type' => 'SELL',
-        'order_status' => 'COMPLETED',
-        'run_count' => 0,
-        'status' => 0,
-    ]);
-
-    $result = app(ProcessJubelioOrder::class)->execute($order);
-
-    expect($result['success'])->toBeFalse()
-        ->and($order->fresh()->error_type)->toBe(JubelioOrderSyncStatus::ERROR_SKIPPED);
-});
-
-it('skips when api payload has channel_status completed even if internal_status is shipped', function () {
+it('does not skip when api payload has channel_status completed and internal_status is shipped', function () {
     config(['services.jubelio.order_queue_max_age_days' => 30]);
 
     mockJubelioSalesOrder('mix-status', [
@@ -117,9 +96,8 @@ it('skips when api payload has channel_status completed even if internal_status 
 
     $result = app(ProcessJubelioOrder::class)->execute($order);
 
-    expect($result['success'])->toBeFalse()
-        ->and(Transaction::where('invoice', 'SP-MIX-STATUS')->exists())->toBeFalse()
-        ->and($order->fresh()->error_type)->toBe(JubelioOrderSyncStatus::ERROR_SKIPPED);
+    expect($order->fresh()->error_type)->not->toBe(JubelioOrderSyncStatus::ERROR_SKIPPED)
+        ->and($result['message'])->not->toContain('hanya SHIPPED');
 });
 
 it('blocks manual process on permanently skipped jubelio orders', function () {

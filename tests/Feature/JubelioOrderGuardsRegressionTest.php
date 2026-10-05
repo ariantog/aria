@@ -7,9 +7,9 @@ use App\Services\JubelioGetOrdersService;
 use App\Services\Jubelio\JubelioOrderSyncStatus;
 
 /**
- * Regression: legacy get-orders bug (COMPLETED / duplicate queue / duplicate post).
+ * Regression: duplicate queue / duplicate post; completed in-window orders may catch up.
  */
-it('does not queue completed or duplicate invoices when syncing orders', function () {
+it('does not queue duplicate invoices and queues in-window completed sells', function () {
     config(['services.jubelio.order_queue_max_age_days' => 30]);
 
     Jubelioorder::create([
@@ -40,31 +40,13 @@ it('does not queue completed or duplicate invoices when syncing orders', functio
         ],
     ]);
 
-    expect($queued)->toBe(0)
+    expect($queued)->toBe(1)
         ->and(Jubelioorder::where('invoice', 'SP-ALREADY-QUEUED')->count())->toBe(1)
-        ->and(Jubelioorder::where('invoice', 'SP-COMPLETED-SYNC')->exists())->toBeFalse();
+        ->and(Jubelioorder::where('invoice', 'SP-COMPLETED-SYNC')->exists())->toBeTrue();
 });
 
-it('does not post completed or duplicate sells from the jubelio cron path', function () {
+it('does not post duplicate sells from the jubelio cron path', function () {
     config(['services.jubelio.order_queue_max_age_days' => 30]);
-
-    $this->mock(\App\Services\JubelioService::class, function ($mock) {
-        $mock->shouldNotReceive('fetchSalesOrder');
-    });
-
-    $completed = Jubelioorder::create([
-        'jubelio_order_id' => 'c-1',
-        'source' => 2,
-        'invoice' => 'SP-CRON-COMPLETED',
-        'type' => 'SELL',
-        'order_status' => 'COMPLETED',
-        'status' => 0,
-    ]);
-
-    app(ProcessJubelioOrder::class)->execute($completed);
-
-    expect(Transaction::where('invoice', 'SP-CRON-COMPLETED')->exists())->toBeFalse()
-        ->and($completed->fresh()->error_type)->toBe(JubelioOrderSyncStatus::ERROR_SKIPPED);
 
     Transaction::factory()->create([
         'type' => Transaction::TYPE_SELL,

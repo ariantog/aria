@@ -214,7 +214,7 @@ it('leaves shipped webhook orders pending for cron processing', function () {
     expect($order->run_count)->toBe(0);
 });
 
-it('does not queue shipped webhook when jubelio api shows completed channel status', function () {
+it('queues shipped webhook when jubelio api shows completed channel status', function () {
     config(['services.jubelio.webhook_secret' => 'test-secret', 'services.jubelio.order_queue_max_age_days' => 30]);
 
     mockJubelioSalesOrder('wh-completed-api', [
@@ -241,9 +241,9 @@ it('does not queue shipped webhook when jubelio api shows completed channel stat
         ['HTTP_SIGN' => $sign, 'CONTENT_TYPE' => 'application/json'],
         $body,
     )->assertSuccessful()
-        ->assertJsonPath('message', 'Outside catch-up window or ineligible Jubelio status.');
+        ->assertJsonPath('message', 'Saved');
 
-    expect(Jubelioorder::where('invoice', 'SP-WEBHOOK-COMPLETED')->exists())->toBeFalse();
+    expect(Jubelioorder::where('invoice', 'SP-WEBHOOK-COMPLETED')->exists())->toBeTrue();
 });
 
 it('allows jubelio webhook without authentication session', function () {
