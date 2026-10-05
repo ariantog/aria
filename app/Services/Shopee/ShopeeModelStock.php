@@ -104,14 +104,32 @@ class ShopeeModelStock
         }
 
         if ($modelSku !== null && $modelSku !== '') {
-            $needle = strtoupper(trim($modelSku));
-            foreach ($models as $model) {
-                if (strtoupper(trim((string) ($model['model_sku'] ?? ''))) === $needle) {
-                    return $model;
-                }
+            $matched = self::pickModelBySku($models, $modelSku);
+            if ($matched !== null) {
+                return $matched;
             }
         }
 
-        return $models[0] ?? null;
+        return count($models) === 1 ? ($models[0] ?? null) : null;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $models
+     * @return array<string, mixed>|null
+     */
+    public static function pickModelBySku(array $models, string $modelSku): ?array
+    {
+        $needle = strtoupper(trim($modelSku));
+        if ($needle === '') {
+            return null;
+        }
+
+        foreach ($models as $model) {
+            if (strtoupper(trim((string) ($model['model_sku'] ?? ''))) === $needle) {
+                return $model;
+            }
+        }
+
+        return null;
     }
 }

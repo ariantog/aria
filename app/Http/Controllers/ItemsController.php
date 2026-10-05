@@ -508,12 +508,24 @@ class ItemsController extends Controller
         }
 
         $query = (string) $request->input('q', $item->code);
-        $results = $stockApi->searchItems($query);
+        $ariaSku = (string) $item->code;
+
+        $summaries = $stockApi->discoverCandidatesForSku($query);
+        if ($summaries === [] && strcasecmp($query, $ariaSku) !== 0) {
+            $summaries = $stockApi->discoverCandidatesForSku($ariaSku);
+        }
+
+        $results = $stockApi->mergeSearchResultRows(array_merge(
+            $stockApi->searchRowsForExactModelSku($ariaSku),
+            $stockApi->expandSearchResultsWithModels($summaries, $ariaSku),
+        ));
+
         $openApi = $stockApi->openApiClient();
 
         return view('items.shopee-search', [
             'item' => $item,
             'query' => $query,
+            'ariaSku' => $ariaSku,
             'searchResults' => $results,
             'searchErrorHint' => $results === []
                 ? $openApi->formatOAuthErrorForUser($openApi->getLastOAuthError())
@@ -531,10 +543,25 @@ class ItemsController extends Controller
         ]);
 
         $modelId = (int) ($validated['shopee_model_id'] ?? 0);
-        if ($modelId <= 0 && $stockApi->isReady()) {
-            $models = $stockApi->modelsForItem((int) $validated['shopee_item_id']);
-            $picked = \App\Services\Shopee\ShopeeModelStock::pickModel($models, 0, (string) $item->code);
-            $modelId = (int) ($picked['model_id'] ?? 0);
+        $models = $stockApi->isReady()
+            ? $stockApi->modelsForItem((int) $validated['shopee_item_id'])
+            : [];
+
+        if ($modelId <= 0 && $models !== []) {
+            $picked = \App\Services\Shopee\ShopeeModelStock::pickModelBySku($models, (string) $item->code);
+            if ($picked === null && count($models) > 1) {
+                return back()->withErrors([
+                    'shopee_model_id' => 'Pilih variasi (Kode Variasi) yang sama dengan SKU Aria: '.$item->code,
+                ]);
+            }
+            $modelId = (int) ($picked['model_id'] ?? ($models[0]['model_id'] ?? 0));
+        }
+
+        if ($models !== [] && $modelId > 0) {
+            $picked = \App\Services\Shopee\ShopeeModelStock::pickModel($models, $modelId, (string) $item->code);
+            if ($picked === null) {
+                return back()->withErrors(['shopee_model_id' => 'Model ID tidak valid untuk item Shopee ini.']);
+            }
         }
 
         $item->update([

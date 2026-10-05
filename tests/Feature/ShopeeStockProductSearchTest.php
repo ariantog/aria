@@ -176,7 +176,14 @@ it('builds name search fragments from aria sku codes', function () {
     $queries = app(ShopeeStockApiService::class)->itemNameSearchQueries('AJD-CX90324-05-S');
 
     expect($queries)->toContain('AJD-CX90324-05-S')
-        ->and($queries)->toContain('CX90324-05');
+        ->and($queries)->toContain('CX90324-05')
+        ->and($queries)->toContain('AJD-CX90324');
+});
+
+it('includes parent pcode in name search fragments', function () {
+    $queries = app(ShopeeStockApiService::class)->itemNameSearchQueries('KNEESUPPORT-21-NAVY-S');
+
+    expect($queries)->toContain('KNEESUPPORT-21');
 });
 
 it('does not treat plain words as variation codes for catalog scan', function () {
