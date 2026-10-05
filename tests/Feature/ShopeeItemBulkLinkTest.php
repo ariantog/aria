@@ -71,6 +71,8 @@ it('matches legacy sku before current code on bulk preview', function () {
 it('starts apply in batches and completes small files in one batch', function () {
     $item = Item::factory()->create([
         'code' => 'BULK-LINK-SKU',
+        'name' => 'LINK ONLY NAME',
+        'price' => 12345,
         'shopee_item_id' => null,
     ]);
 
@@ -97,11 +99,16 @@ it('starts apply in batches and completes small files in one batch', function ()
     $preview = $service->preview($upload);
     $run = $service->startApply($preview['token']);
 
+    $fresh = $item->fresh();
+
     expect($run->status)->toBe(ShopeeBulkLinkRun::STATUS_COMPLETED)
         ->and($run->processed_rows)->toBe(1)
         ->and($run->linked_count)->toBe(1)
-        ->and($item->fresh()->shopee_item_id)->toBe(9002002)
-        ->and($item->fresh()->shopee_model_id)->toBe(8002);
+        ->and($fresh->shopee_item_id)->toBe(9002002)
+        ->and($fresh->shopee_model_id)->toBe(8002)
+        ->and($fresh->code)->toBe('BULK-LINK-SKU')
+        ->and($fresh->name)->toBe('LINK ONLY NAME')
+        ->and((float) $fresh->price)->toBe(12345.0);
 });
 
 it('rate limits bulk link to one batch per minute', function () {

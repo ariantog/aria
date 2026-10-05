@@ -4,6 +4,12 @@ namespace App\Services\Shopee;
 
 use App\Models\Item;
 
+/**
+ * Persist Shopee marketplace IDs on an Aria item — link only.
+ *
+ * Writes {@see Item::$shopee_item_id} and {@see Item::$shopee_model_id} only;
+ * does not change SKU, catalog, price, stock, or other item fields.
+ */
 class ShopeeItemLinkApplier
 {
     public function __construct(
@@ -47,11 +53,30 @@ class ShopeeItemLinkApplier
             }
         }
 
-        $item->update([
-            'shopee_item_id' => $shopeeItemId,
-            'shopee_model_id' => $modelId > 0 ? $modelId : null,
-        ]);
+        $storedModelId = $modelId > 0 ? $modelId : null;
+        $existingItemId = (int) ($item->shopee_item_id ?? 0);
+        $existingModelId = (int) ($item->shopee_model_id ?? 0);
+        $newModelId = (int) ($storedModelId ?? 0);
 
-        return ['ok' => true, 'shopee_model_id' => $modelId > 0 ? $modelId : null];
+        if ($existingItemId === $shopeeItemId && $existingModelId === $newModelId) {
+            return ['ok' => true, 'shopee_model_id' => $storedModelId];
+        }
+
+        $this->persistLinkOnly($item, $shopeeItemId, $storedModelId);
+
+        return ['ok' => true, 'shopee_model_id' => $storedModelId];
+    }
+
+    private function persistLinkOnly(Item $item, int $shopeeItemId, ?int $shopeeModelId): void
+    {
+        Item::query()
+            ->whereKey($item->getKey())
+            ->update([
+                'shopee_item_id' => $shopeeItemId,
+                'shopee_model_id' => $shopeeModelId,
+            ]);
+
+        $item->shopee_item_id = $shopeeItemId;
+        $item->shopee_model_id = $shopeeModelId;
     }
 }
