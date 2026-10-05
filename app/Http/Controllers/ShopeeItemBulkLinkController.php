@@ -25,10 +25,16 @@ class ShopeeItemBulkLinkController extends Controller
             session()->forget('shopee_bulk_link_preview_token');
         }
 
+        $resultRows = array_merge(
+            $preview['rows'] ?? [],
+            $activeRunDisplay['rows'] ?? [],
+        );
+
         return view('shopee.bulk-link.index', [
             'stockReady' => $stockApi->isReady(),
             'preview' => $preview,
             'activeRun' => $activeRunDisplay,
+            'itemModels' => $service->loadItemsForResultRows($resultRows),
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }

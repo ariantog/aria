@@ -451,22 +451,6 @@ class Item extends Model
         };
     }
 
-    /** Path-only show URL for the current request host (safe to cache in JSON). */
-    public function relativeShowUrl(): string
-    {
-        return self::relativeShowPathFor(ItemType::coerce($this->type), (int) $this->id);
-    }
-
-    public static function relativeShowPathFor(?ItemType $type, int $id): string
-    {
-        return match ($type) {
-            ItemType::ASSET_LANCAR => route('assetlancar.show', $id, absolute: false),
-            ItemType::ASSET_TETAP => route('assettetap.show', $id, absolute: false),
-            ItemType::SERVICE => route('services.show', $id, absolute: false),
-            default => route('items.show', $id, absolute: false),
-        };
-    }
-
     public function editUrl(): string
     {
         return match (true) {
