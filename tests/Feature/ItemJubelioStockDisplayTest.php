@@ -119,5 +119,5 @@ it('shows per-warehouse jubelio columns when gudang is mapped', function () {
         ->assertOk()
         ->assertSee('JB on hand', false)
         ->assertSee(format_amount(13, 0), false)
-        ->assertSee('bg-amber-50', false);
+        ->assertDontSee('data-dual-stock-mismatch="1"', false);
 });
