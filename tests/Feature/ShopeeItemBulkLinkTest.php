@@ -159,6 +159,27 @@ it('renders bulk link page for sync permission', function () {
         ->assertSee('data-testid="shopee-bulk-link-preview"', false);
 });
 
+it('keeps preview in cache and stores only token in session', function () {
+    Item::factory()->create(['code' => 'SESSION-LITE-SKU', 'shopee_item_id' => null]);
+
+    $csv = "Kode Produk,Kode Variasi,SKU\n9001,8001,SESSION-LITE-SKU\n";
+    $upload = UploadedFile::fake()->createWithContent('shopee.csv', $csv);
+
+    $this->actingAs($this->user)
+        ->post(route('shopee.bulk-link.preview'), ['file' => $upload])
+        ->assertRedirect(route('shopee.bulk-link.index'));
+
+    $token = session('shopee_bulk_link_preview_token');
+    expect($token)->toBeString()->toHaveLength(32)
+        ->and(session()->has('preview'))->toBeFalse();
+
+    $this->actingAs($this->user)
+        ->get(route('shopee.bulk-link.index'))
+        ->assertOk()
+        ->assertSee('data-testid="shopee-bulk-link-preview-panel"', false)
+        ->assertSee('SESSION-LITE-SKU', false);
+});
+
 it('forbids bulk link without sync permission', function () {
     $user = User::factory()->create();
     $user->givePermissionTo('shopee-stock-view');
