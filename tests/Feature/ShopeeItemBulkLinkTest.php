@@ -209,6 +209,98 @@ it('keeps preview in cache and stores only token in session', function () {
         ->assertSee('SESSION-LITE-SKU', false);
 });
 
+it('marks already linked rows as skipped on preview without overwrite', function () {
+    Item::factory()->create([
+        'code' => 'ALREADY-LINKED-SKU',
+        'shopee_item_id' => 9004001,
+        'shopee_model_id' => 8004001,
+    ]);
+
+    $csv = "code,shopee_item_id,shopee_model_id\nALREADY-LINKED-SKU,9004001,8004001\n";
+    $upload = UploadedFile::fake()->createWithContent('shopee.csv', $csv);
+
+    $preview = app(ShopeeItemBulkLinkService::class)->preview($upload);
+
+    expect($preview['summary']['skipped'])->toBe(1)
+        ->and($preview['summary']['ready'])->toBe(0)
+        ->and($preview['rows'][0]['status'])->toBe('skipped');
+});
+
+it('skips already linked rows on re-apply and only stores errors from the run', function () {
+    ShopeeBulkLinkRun::query()->delete();
+
+    Item::factory()->create([
+        'code' => 'RELINK-SKIP-SKU',
+        'shopee_item_id' => 9005001,
+        'shopee_model_id' => 8005001,
+    ]);
+
+    $this->mock(ShopeeStockApiService::class, function ($mock) {
+        $mock->shouldReceive('isReady')->andReturn(true);
+        $mock->shouldReceive('modelsByItemIds')->never();
+    });
+
+    $csv = "code,shopee_item_id,shopee_model_id\nRELINK-SKIP-SKU,9005001,8005001\nUNKNOWN-SKU,9005002,8005002\n";
+    $upload = UploadedFile::fake()->createWithContent('relink.csv', $csv);
+
+    $service = app(ShopeeItemBulkLinkService::class);
+    $run = $service->startApply($service->preview($upload)['token']);
+
+    expect($run->status)->toBe(ShopeeBulkLinkRun::STATUS_COMPLETED)
+        ->and($run->linked_count)->toBe(0)
+        ->and($run->skipped_count)->toBe(1)
+        ->and($run->error_count)->toBe(1)
+        ->and($run->failed_results)->toHaveCount(1)
+        ->and($run->failed_results[0]['status'])->toBe('error')
+        ->and($run->recent_results)->toBe([]);
+});
+
+it('stores and displays failed link rows after cron batches finish', function () {
+    ShopeeBulkLinkRun::query()->delete();
+
+    Item::factory()->create(['code' => 'OK-LINK-SKU', 'shopee_item_id' => null]);
+    Item::factory()->create(['code' => 'BAD-LINK-SKU', 'shopee_item_id' => null]);
+
+    $this->mock(ShopeeStockApiService::class, function ($mock) {
+        $mock->shouldReceive('isReady')->andReturn(true);
+        $mock->shouldReceive('modelsByItemIds')
+            ->once()
+            ->andReturnUsing(function (array $ids) {
+                expect($ids)->toContain(9003001);
+
+                return [
+                    9003001 => [
+                        [
+                            'model_id' => 8003001,
+                            'model_sku' => 'OK-LINK-SKU',
+                            'stock_info_v2' => ['seller_stock' => []],
+                        ],
+                    ],
+                ];
+            });
+    });
+
+    $csv = "code,shopee_item_id,shopee_model_id\nOK-LINK-SKU,9003001,8003001\nMISSING-SKU,9003002,8003002\n";
+    $upload = UploadedFile::fake()->createWithContent('mixed.csv', $csv);
+
+    $service = app(ShopeeItemBulkLinkService::class);
+    $preview = $service->preview($upload);
+    $run = $service->startApply($preview['token']);
+
+    expect($run->status)->toBe(ShopeeBulkLinkRun::STATUS_COMPLETED)
+        ->and($run->error_count)->toBe(1)
+        ->and($run->linked_count)->toBe(1)
+        ->and($run->failed_results)->toHaveCount(1)
+        ->and($run->failed_results[0]['status'])->toBe('error');
+
+    $this->actingAs($this->user)
+        ->get(route('shopee.bulk-link.index'))
+        ->assertOk()
+        ->assertSee('data-testid="shopee-bulk-link-failed-rows"', false)
+        ->assertSee('Baris gagal link', false)
+        ->assertSee('SKU tidak ditemukan', false);
+});
+
 it('forbids bulk link without sync permission', function () {
     $user = User::factory()->create();
     $user->givePermissionTo('shopee-stock-view');

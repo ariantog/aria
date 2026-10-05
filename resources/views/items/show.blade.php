@@ -40,9 +40,10 @@ $fmtQty = fn ($v) => $v === null ? '—' : format_amount($v, 0);
 $showShopeeStock = $showShopeeStock ?? false;
 $shopeeStocksByWarehouse = $shopeeStocksByWarehouse ?? [];
 $shopeeFetchFailed = $shopeeFetchFailed ?? false;
+$showDualChannelStockMismatch = $showShopeeStock && ! empty($jubelioByWarehouse);
 @endphp
 
-<div class="p-4 sm:p-6" x-data="{ showZero: false, showVirtualWarehouses: false, showDeletedWarehouses: false, legacyModalOpen: {{ $errors->has('legacy_code') ? 'true' : 'false' }} }">
+<div class="p-4 sm:p-6" x-data="{ showZero: false, showVirtualWarehouses: false, showDeletedWarehouses: false, highlightDualStockMismatch: true, legacyModalOpen: {{ $errors->has('legacy_code') ? 'true' : 'false' }} }">
     {{-- Header --}}
     <div class="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
@@ -299,7 +300,16 @@ $shopeeFetchFailed = $shopeeFetchFailed ?? false;
     <div class="mt-6">
         <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
             <div class="flex flex-col items-start justify-between gap-3 border-b border-gray-100 px-6 py-4 md:flex-row md:items-center">
-                <h3 class="text-sm font-semibold uppercase tracking-wider text-gray-900">Warehouse Availability</h3>
+                <div class="flex w-full flex-wrap items-center justify-between gap-3 md:w-auto md:flex-1 md:justify-start">
+                    <h3 class="text-sm font-semibold uppercase tracking-wider text-gray-900">Warehouse Availability</h3>
+                    @if($showDualChannelStockMismatch)
+                    <label class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-amber-800"
+                           data-testid="highlight-dual-stock-mismatch-toggle">
+                        <input type="checkbox" x-model="highlightDualStockMismatch" class="rounded border-amber-300 text-amber-600 focus:ring-amber-500">
+                        Highlight Aria ≠ Jubelio &amp; Shopee
+                    </label>
+                    @endif
+                </div>
                 <div class="flex items-center gap-6">
                     <label class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">
                         <input type="checkbox" x-model="showZero" class="rounded border-gray-300"> Show empty warehouses

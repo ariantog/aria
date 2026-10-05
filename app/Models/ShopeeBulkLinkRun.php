@@ -28,6 +28,7 @@ class ShopeeBulkLinkRun extends Model
         'last_batch_at',
         'payload',
         'recent_results',
+        'failed_results',
         'completed_at',
         'error_message',
     ];
@@ -46,6 +47,7 @@ class ShopeeBulkLinkRun extends Model
             'completed_at' => 'datetime',
             'payload' => 'array',
             'recent_results' => 'array',
+            'failed_results' => 'array',
         ];
     }
 

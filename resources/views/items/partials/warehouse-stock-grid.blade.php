@@ -17,6 +17,13 @@
     };
     $showJubelioColumns = $variant === 'physical' && ! empty($jubelioByWarehouse);
     $fmtJubelio = fn ($v) => $v === null ? '—' : format_amount($v, 0);
+    $qtyDiffers = static function (float $ariaQty, $externalQty): bool {
+        if ($externalQty === null) {
+            return false;
+        }
+
+        return abs($ariaQty - (float) $externalQty) > 0.0001;
+    };
     $shopeeQtyCell = function (?array $shopee, string $field, bool $highlightMismatch = false) {
         if (! $shopee || ! ($shopee['has_sync'] ?? false)) {
             return '<span class="text-gray-300">—</span>';
@@ -103,14 +110,23 @@
                             $warehouseUrl = $wh->warehouse ? url('/'.$wh->warehouse->type_slug.'/'.$wh->warehouse->id) : null;
                             $jubelio = $jubelioByWarehouse[$wh->warehouse_id] ?? null;
                             $shopee = ($shopeeStocksByWarehouse ?? [])[$wh->warehouse_id] ?? null;
-                            $rowMismatch = ($showJubelioColumns && ($jubelio['mismatch'] ?? false))
-                                || ($showShopeeStock && $variant === 'physical' && ($shopee['mismatch'] ?? false));
+                            $dualChannelMismatch = $showJubelioColumns
+                                && $showShopeeStock
+                                && $variant === 'physical'
+                                && $jubelio !== null
+                                && ($jubelio['linked'] ?? false)
+                                && ($shopee['has_sync'] ?? false)
+                                && $qtyDiffers($qty, $jubelio['on_hand'] ?? null)
+                                && $qtyDiffers($qty, $shopee['sellable'] ?? null);
                         @endphp
                         <tr @class([
                             'hover:bg-gray-50',
                             'opacity-60' => $qty == 0.0,
-                            'bg-amber-50 ring-1 ring-inset ring-amber-200' => $rowMismatch,
                         ])
+                            @if($dualChannelMismatch)
+                            :class="highlightDualStockMismatch ? 'bg-amber-50 ring-1 ring-inset ring-amber-200' : ''"
+                            data-dual-stock-mismatch="1"
+                            @endif
                             data-warehouse-id="{{ $wh->warehouse_id }}"
                             @if($qty == 0.0) x-show="{{ $showZero }}" @endif>
                             <td class="whitespace-nowrap px-3 py-2 font-mono text-gray-700" data-copy-col="warehouse_id" data-sort-value="{{ $wh->warehouse_id }}">{{ $wh->warehouse_id }}</td>
@@ -141,7 +157,10 @@
                             </td>
                             @if($showJubelioColumns)
                                 @if($jubelio)
-                                    <td class="whitespace-nowrap px-3 py-2 text-right font-mono text-xs text-blue-700" data-copy-col="jb_on_hand" data-copy-value="{{ $jubelio['on_hand'] !== null ? format_copy_number($jubelio['on_hand']) : '' }}" title="{{ $jubelio['location_name'] ?? '' }}">{{ $fmtJubelio($jubelio['on_hand']) }}</td>
+                                    @php
+                                        $jubelioOnHandMismatch = $qtyDiffers($qty, $jubelio['on_hand'] ?? null);
+                                    @endphp
+                                    <td class="whitespace-nowrap px-3 py-2 text-right font-mono text-xs {{ $jubelioOnHandMismatch ? 'font-semibold text-red-600' : 'text-blue-700' }}" data-copy-col="jb_on_hand" data-copy-value="{{ $jubelio['on_hand'] !== null ? format_copy_number($jubelio['on_hand']) : '' }}" title="{{ $jubelio['location_name'] ?? '' }}">{{ $fmtJubelio($jubelio['on_hand']) }}</td>
                                     <td class="whitespace-nowrap px-3 py-2 text-right font-mono text-xs text-orange-600" data-copy-col="jb_on_order" data-copy-value="{{ $jubelio['on_order'] !== null ? format_copy_number($jubelio['on_order']) : '' }}">{{ $fmtJubelio($jubelio['on_order']) }}</td>
                                     <td class="whitespace-nowrap px-3 py-2 text-right font-mono text-xs text-gray-600" data-copy-col="jb_reserved" data-copy-value="{{ $jubelio['reserved'] !== null ? format_copy_number($jubelio['reserved']) : '' }}">{{ $fmtJubelio($jubelio['reserved']) }}</td>
                                     <td class="whitespace-nowrap px-3 py-2 text-right font-mono text-xs font-semibold {{ ($jubelio['mismatch'] ?? false) ? 'text-red-600' : 'text-green-600' }}" data-copy-col="jb_available" data-copy-value="{{ $jubelio['available'] !== null ? format_copy_number($jubelio['available']) : '' }}">{{ $fmtJubelio($jubelio['available']) }}</td>
