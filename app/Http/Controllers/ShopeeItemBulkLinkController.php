@@ -16,8 +16,9 @@ class ShopeeItemBulkLinkController extends Controller
     {
         Gate::authorize(ShopeeStock::getPermissions()['sync']);
 
-        $activeRun = $service->activeRun();
-        $activeRunDisplay = $activeRun !== null ? $service->runForDisplay($activeRun) : null;
+        $runningRun = $service->activeRun();
+        $displayRunModel = $service->displayRun();
+        $displayRun = $displayRunModel !== null ? $service->runForDisplay($displayRunModel) : null;
 
         $previewToken = (string) session('shopee_bulk_link_preview_token', '');
         $preview = $previewToken !== '' ? $service->previewForToken($previewToken) : null;
@@ -27,13 +28,15 @@ class ShopeeItemBulkLinkController extends Controller
 
         $resultRows = array_merge(
             $preview['rows'] ?? [],
-            $activeRunDisplay['rows'] ?? [],
+            $displayRun['rows'] ?? [],
+            $displayRun['failed_rows'] ?? [],
         );
 
         return view('shopee.bulk-link.index', [
             'stockReady' => $stockApi->isReady(),
             'preview' => $preview,
-            'activeRun' => $activeRunDisplay,
+            'displayRun' => $displayRun,
+            'bulkLinkRunning' => $runningRun !== null,
             'itemModels' => $service->loadItemsForResultRows($resultRows),
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);

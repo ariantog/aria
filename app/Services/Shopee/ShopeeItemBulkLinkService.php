@@ -18,6 +18,9 @@ class ShopeeItemBulkLinkService
 
     public const BATCH_INTERVAL_SECONDS = 60;
 
+    /** Max error rows stored on the run for review after cron batches. */
+    public const FAILED_RESULTS_LIMIT = 5000;
+
     public function __construct(
         private ShopeeItemBulkLinkParser $parser,
         private ShopeeItemLinkApplier $applier,
@@ -28,6 +31,22 @@ class ShopeeItemBulkLinkService
     {
         return ShopeeBulkLinkRun::query()
             ->where('status', ShopeeBulkLinkRun::STATUS_RUNNING)
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    /**
+     * Latest bulk link run for the index page (running, or last finished run).
+     */
+    public function displayRun(): ?ShopeeBulkLinkRun
+    {
+        $running = $this->activeRun();
+        if ($running !== null) {
+            return $running;
+        }
+
+        return ShopeeBulkLinkRun::query()
+            ->where('status', '!=', ShopeeBulkLinkRun::STATUS_CANCELLED)
             ->orderByDesc('id')
             ->first();
     }
@@ -130,6 +149,7 @@ class ShopeeItemBulkLinkService
             'error_count' => 0,
             'payload' => $rows,
             'recent_results' => [],
+            'failed_results' => [],
         ]);
 
         $this->processRun($run, ignoreInterval: true);
@@ -212,11 +232,15 @@ class ShopeeItemBulkLinkService
             $recent = array_slice($recent, -self::PREVIEW_DISPLAY_LIMIT);
         }
 
+        $failed = is_array($run->failed_results) ? $run->failed_results : [];
+        $failed = $this->appendFailedResults($failed, $resultRows);
+
         $run->linked_count += (int) ($batchSummary['linked'] ?? 0);
         $run->skipped_count += (int) $batchSummary['skipped'];
         $run->error_count += (int) $batchSummary['errors'];
         $run->processed_rows += count($batch);
         $run->recent_results = $recent;
+        $run->failed_results = $failed;
         $run->last_batch_at = now();
 
         if ($run->processed_rows >= $run->total_rows) {
@@ -235,6 +259,7 @@ class ShopeeItemBulkLinkService
     public function runForDisplay(ShopeeBulkLinkRun $run): array
     {
         $recent = is_array($run->recent_results) ? $run->recent_results : [];
+        $failed = is_array($run->failed_results) ? $run->failed_results : [];
 
         return [
             'id' => $run->id,
@@ -248,11 +273,34 @@ class ShopeeItemBulkLinkService
             'progress_percent' => $run->progressPercent(),
             'last_batch_at' => $run->last_batch_at?->toIso8601String(),
             'completed_at' => $run->completed_at?->toIso8601String(),
+            'error_message' => $run->error_message,
             'batch_size' => self::BATCH_SIZE,
             'batch_interval_seconds' => self::BATCH_INTERVAL_SECONDS,
             'rows' => $recent,
             'rows_truncated' => $run->processed_rows > count($recent),
+            'failed_rows' => $failed,
+            'failed_rows_truncated' => $run->error_count > count($failed),
         ];
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $existing
+     * @param  list<array<string, mixed>>  $batchRows
+     * @return list<array<string, mixed>>
+     */
+    private function appendFailedResults(array $existing, array $batchRows): array
+    {
+        foreach ($batchRows as $row) {
+            if (($row['status'] ?? '') === 'error') {
+                $existing[] = $row;
+            }
+        }
+
+        if (count($existing) > self::FAILED_RESULTS_LIMIT) {
+            return array_slice($existing, -self::FAILED_RESULTS_LIMIT);
+        }
+
+        return $existing;
     }
 
     private function markCompleted(ShopeeBulkLinkRun $run): void

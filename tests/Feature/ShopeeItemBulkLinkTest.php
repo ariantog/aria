@@ -209,6 +209,52 @@ it('keeps preview in cache and stores only token in session', function () {
         ->assertSee('SESSION-LITE-SKU', false);
 });
 
+it('stores and displays failed link rows after cron batches finish', function () {
+    ShopeeBulkLinkRun::query()->delete();
+
+    Item::factory()->create(['code' => 'OK-LINK-SKU', 'shopee_item_id' => null]);
+    Item::factory()->create(['code' => 'BAD-LINK-SKU', 'shopee_item_id' => null]);
+
+    $this->mock(ShopeeStockApiService::class, function ($mock) {
+        $mock->shouldReceive('isReady')->andReturn(true);
+        $mock->shouldReceive('modelsByItemIds')
+            ->once()
+            ->andReturnUsing(function (array $ids) {
+                expect($ids)->toContain(9003001);
+
+                return [
+                    9003001 => [
+                        [
+                            'model_id' => 8003001,
+                            'model_sku' => 'OK-LINK-SKU',
+                            'stock_info_v2' => ['seller_stock' => []],
+                        ],
+                    ],
+                ];
+            });
+    });
+
+    $csv = "code,shopee_item_id,shopee_model_id\nOK-LINK-SKU,9003001,8003001\nMISSING-SKU,9003002,8003002\n";
+    $upload = UploadedFile::fake()->createWithContent('mixed.csv', $csv);
+
+    $service = app(ShopeeItemBulkLinkService::class);
+    $preview = $service->preview($upload);
+    $run = $service->startApply($preview['token']);
+
+    expect($run->status)->toBe(ShopeeBulkLinkRun::STATUS_COMPLETED)
+        ->and($run->error_count)->toBe(1)
+        ->and($run->linked_count)->toBe(1)
+        ->and($run->failed_results)->toHaveCount(1)
+        ->and($run->failed_results[0]['status'])->toBe('error');
+
+    $this->actingAs($this->user)
+        ->get(route('shopee.bulk-link.index'))
+        ->assertOk()
+        ->assertSee('data-testid="shopee-bulk-link-failed-rows"', false)
+        ->assertSee('Baris gagal link', false)
+        ->assertSee('SKU tidak ditemukan', false);
+});
+
 it('forbids bulk link without sync permission', function () {
     $user = User::factory()->create();
     $user->givePermissionTo('shopee-stock-view');
