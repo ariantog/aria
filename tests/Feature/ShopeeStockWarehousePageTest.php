@@ -71,7 +71,47 @@ it('shows shopee sellable columns when warehouse is mapped', function () {
     expect($html)
         ->toContain('SP sell')
         ->toContain('Pickup WH')
-        ->toContain('data-copy-col="sp_sellable"');
+        ->toContain('data-copy-col="sp_sellable"')
+        ->toContain('loadMarketplaceStock');
+
+    $this->actingAs($user)
+        ->postJson(route('addrbook.type.items.marketplace-stock', ['warehouse', $warehouse->id]), [
+            'item_ids' => [$item->id],
+        ])
+        ->assertOk()
+        ->assertJsonPath('shopee.stocks.'.$item->id.'.sellable', 4)
+        ->assertJsonPath('shopee.stocks.'.$item->id.'.reserved', 1);
+});
+
+it('does not call shopee api during warehouse items page render', function () {
+    User::factory()->create();
+    $user = User::factory()->create();
+    $user->givePermissionTo('addrbook-warehouse-items');
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    Shopeesync::create([
+        'warehouse_id' => $warehouse->id,
+        'shop_id' => 0,
+        'shopee_location_id' => 'IDZ',
+        'shopee_warehouse_id' => 99,
+        'shopee_warehouse_name' => 'Pickup WH',
+    ]);
+
+    $item = Item::factory()->create(['shopee_item_id' => 555001]);
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $item->id,
+        'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 1,
+    ]);
+
+    $this->mock(ShopeeStockApiService::class, function ($mock) {
+        $mock->shouldNotReceive('modelsByItemIds');
+    });
+
+    $this->actingAs($user)
+        ->get(route('addrbook.type.items', ['warehouse', $warehouse->id]))
+        ->assertOk();
 });
 
 it('requires shopee-stock-view permission for item shopee tab', function () {
