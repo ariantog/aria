@@ -27,6 +27,7 @@ $batchSize = \App\Services\Shopee\ShopeeItemBulkLinkService::BATCH_SIZE;
         <p class="mt-1 max-w-3xl text-sm text-gray-500">
             Upload export Shopee <span class="font-mono">DATA LENGKAP PRODUK</span> (Excel) atau CSV sejenis.
             Apply memproses <strong>{{ number_format($batchSize, 0, ',', '.') }} baris per menit</strong> (batch 1 langsung, sisanya via cron).
+            Hanya menulis <span class="font-mono">shopee_item_id</span> / <span class="font-mono">shopee_model_id</span> — tidak mengubah SKU, nama, atau harga.
             Kolom 2 = Kode Variasi, kolom 3 = SKU (<span class="font-mono">legacy_code</span> lalu <span class="font-mono">code</span>).
         </p>
     </div>
