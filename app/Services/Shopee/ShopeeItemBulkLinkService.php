@@ -2,6 +2,7 @@
 
 namespace App\Services\Shopee;
 
+use App\Enums\ItemType;
 use App\Models\Item;
 use App\Models\ShopeeBulkLinkRun;
 use Illuminate\Http\UploadedFile;
@@ -496,14 +497,16 @@ class ShopeeItemBulkLinkService
     }
 
     /**
-     * @return array{id: int, code: string, shopee_item_id: ?int, shopee_model_id: ?int}
+     * @return array{id: int, code: string, type: int, shopee_item_id: ?int, shopee_model_id: ?int}
      */
     private function itemSnapshot(Item $item): array
     {
+        $type = ItemType::coerce($item->type);
+
         return [
             'id' => (int) $item->id,
             'code' => (string) $item->code,
-            'show_url' => $item->showUrl(),
+            'type' => $type?->value ?? ItemType::ITEM->value,
             'shopee_item_id' => $item->shopee_item_id ? (int) $item->shopee_item_id : null,
             'shopee_model_id' => $item->shopee_model_id ? (int) $item->shopee_model_id : null,
         ];

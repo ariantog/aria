@@ -26,7 +26,7 @@
                 <td class="whitespace-nowrap px-3 py-2 font-mono text-xs text-gray-500">{{ $row['line'] ?? '—' }}</td>
                 <td class="px-3 py-2">
                     @if($item)
-                        <a href="{{ $item['show_url'] ?? route('items.show', $item['id']) }}" class="font-mono text-xs text-blue-600 hover:underline">{{ $item['code'] }}</a>
+                        <a href="{{ \App\Models\Item::relativeShowPathFor(\App\Enums\ItemType::coerce($item['type'] ?? null), (int) $item['id']) }}" class="font-mono text-xs text-blue-600 hover:underline">{{ $item['code'] }}</a>
                     @else
                         <span class="font-mono text-xs text-gray-700">{{ $row['code'] ?? '—' }}</span>
                     @endif
