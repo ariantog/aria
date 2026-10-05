@@ -9,19 +9,25 @@ $breadcrumbs = [
     ['title' => 'Bulk Link', 'href' => route('shopee.bulk-link.index')],
 ];
 $preview = $preview ?? null;
-$applyResult = $applyResult ?? null;
-$rows = $applyResult['rows'] ?? ($preview['rows'] ?? []);
-$summary = $applyResult['summary'] ?? ($preview['summary'] ?? null);
+$activeRun = $activeRun ?? null;
+$rows = $preview['rows'] ?? [];
+$summary = $preview['summary'] ?? null;
+$batchSize = \App\Services\Shopee\ShopeeItemBulkLinkService::BATCH_SIZE;
 @endphp
+
+@if($activeRun && ($activeRun['status'] ?? '') === 'running')
+    @push('head')
+    <meta http-equiv="refresh" content="20">
+    @endpush
+@endif
 
 <div class="flex flex-col gap-4 p-4 sm:p-6">
     <div>
         <h1 class="text-2xl font-bold text-gray-900">Shopee Bulk Link</h1>
         <p class="mt-1 max-w-3xl text-sm text-gray-500">
             Upload export Shopee <span class="font-mono">DATA LENGKAP PRODUK</span> (Excel) atau CSV sejenis.
-            Yang dipakai: <strong>kolom 2</strong> Kode Variasi → <span class="font-mono">shopee_model_id</span>,
-            <strong>kolom 3</strong> SKU → dicocokkan ke Aria (<span class="font-mono">legacy_code</span> dulu, lalu <span class="font-mono">code</span>).
-            Kolom 1 Kode Produk disimpan sebagai <span class="font-mono">shopee_item_id</span> (tidak dipakai untuk pencarian SKU).
+            Apply memproses <strong>{{ number_format($batchSize, 0, ',', '.') }} baris per menit</strong> (batch 1 langsung, sisanya via cron).
+            Kolom 2 = Kode Variasi, kolom 3 = SKU (<span class="font-mono">legacy_code</span> lalu <span class="font-mono">code</span>).
         </p>
     </div>
 
@@ -30,6 +36,47 @@ $summary = $applyResult['summary'] ?? ($preview['summary'] ?? null);
     @endif
     @if($flash['error'] ?? null)
     <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $flash['error'] }}</div>
+    @endif
+
+    @if($activeRun)
+    <div class="rounded-xl border border-orange-200 bg-white p-5 shadow-sm" data-testid="shopee-bulk-link-run-panel">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <h2 class="text-sm font-semibold text-gray-900">Bulk link run #{{ $activeRun['id'] }}</h2>
+                <p class="mt-1 text-sm text-gray-600">{{ $activeRun['filename'] }}</p>
+            </div>
+            @if(($activeRun['status'] ?? '') === 'running')
+            <span class="rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold uppercase text-orange-800">Running</span>
+            @elseif(($activeRun['status'] ?? '') === 'completed')
+            <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold uppercase text-emerald-800">Completed</span>
+            @else
+            <span class="rounded-full bg-red-100 px-3 py-1 text-xs font-semibold uppercase text-red-800">{{ $activeRun['status'] }}</span>
+            @endif
+        </div>
+        <div class="mt-4">
+            <div class="flex justify-between text-xs text-gray-600">
+                <span>{{ number_format($activeRun['processed_rows'], 0, ',', '.') }} / {{ number_format($activeRun['total_rows'], 0, ',', '.') }} baris</span>
+                <span>{{ $activeRun['progress_percent'] }}%</span>
+            </div>
+            <div class="mt-1 h-2 overflow-hidden rounded-full bg-gray-100">
+                <div class="h-full rounded-full bg-orange-500" style="width: {{ min(100, $activeRun['progress_percent']) }}%"></div>
+            </div>
+        </div>
+        <p class="mt-3 text-sm text-gray-600">
+            <span class="text-emerald-700">{{ number_format($activeRun['linked_count'], 0, ',', '.') }} linked</span>,
+            {{ number_format($activeRun['skipped_count'], 0, ',', '.') }} skipped,
+            <span class="text-red-600">{{ number_format($activeRun['error_count'], 0, ',', '.') }} error</span>
+            @if(($activeRun['status'] ?? '') === 'running')
+                <span class="text-gray-500">— refresh otomatis; cron <span class="font-mono">app:process-shopee-bulk-link</span> tiap menit.</span>
+            @endif
+        </p>
+        @if(! empty($activeRun['rows']))
+            @include('shopee.bulk-link.partials.result-table', ['rows' => $activeRun['rows']])
+            @if($activeRun['rows_truncated'] ?? false)
+            <p class="mt-2 text-xs text-gray-500">Menampilkan batch terakhir (max {{ count($activeRun['rows']) }} baris).</p>
+            @endif
+        @endif
+    </div>
     @endif
 
     @if(! ($stockReady ?? false))
@@ -59,14 +106,13 @@ $summary = $applyResult['summary'] ?? ($preview['summary'] ?? null);
                     </tbody>
                 </table>
             </div>
-            <ul class="mt-3 list-inside list-disc text-xs text-gray-500">
-                <li>Urutan lookup SKU kolom 3: <span class="font-mono">legacy_code</span> → <span class="font-mono">code</span> → baris error</li>
-                <li>Format manual masih didukung: <span class="font-mono">code</span>, <span class="font-mono">shopee_item_id</span>, <span class="font-mono">shopee_model_id</span></li>
-            </ul>
         </div>
 
         <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <h2 class="text-sm font-semibold uppercase tracking-wider text-gray-900">Upload</h2>
+            @if($activeRun && ($activeRun['status'] ?? '') === 'running')
+            <p class="mt-2 text-sm text-amber-800">Tunggu run aktif selesai sebelum upload file baru.</p>
+            @else
             <form method="POST" action="{{ route('shopee.bulk-link.preview') }}" enctype="multipart/form-data" class="mt-4 space-y-4">
                 @csrf
                 <div>
@@ -79,14 +125,11 @@ $summary = $applyResult['summary'] ?? ($preview['summary'] ?? null);
                     Preview
                 </button>
             </form>
-            <p class="mt-3 text-xs text-gray-400">
-                <a href="{{ route('shopee.auto-link.index') }}" class="text-blue-600 hover:underline">Auto Link</a>
-                untuk pencarian otomatis tanpa file.
-            </p>
+            @endif
         </div>
     </div>
 
-    @if($preview && ! $applyResult)
+    @if($preview && ! ($activeRun && ($activeRun['status'] ?? '') === 'running'))
     <div class="rounded-xl border border-blue-200 bg-white p-5 shadow-sm" data-testid="shopee-bulk-link-preview-panel">
         <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -97,9 +140,6 @@ $summary = $applyResult['summary'] ?? ($preview['summary'] ?? null);
                     <span class="text-emerald-700">{{ $summary['ready'] ?? 0 }} siap</span>,
                     {{ $summary['skipped'] }} skipped,
                     <span class="text-red-600">{{ $summary['errors'] }} error</span>
-                    @if($preview['rows_truncated'] ?? false)
-                        <span class="text-gray-500">(tabel: {{ count($rows) }} baris pertama)</span>
-                    @endif
                 </p>
                 @endif
             </div>
@@ -112,27 +152,11 @@ $summary = $applyResult['summary'] ?? ($preview['summary'] ?? null);
                 </label>
                 <button type="submit" data-testid="shopee-bulk-link-apply"
                         class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">
-                    Apply links
+                    Start bulk link
                 </button>
             </form>
         </div>
 
-        @include('shopee.bulk-link.partials.result-table', ['rows' => $rows])
-    </div>
-    @endif
-
-    @if($applyResult)
-    <div class="rounded-xl border border-emerald-200 bg-white p-5 shadow-sm" data-testid="shopee-bulk-link-apply-panel">
-        <h2 class="text-sm font-semibold text-gray-900">Hasil apply</h2>
-        @if($summary)
-        <p class="mt-1 text-sm text-gray-600">
-            {{ $applyResult['rows_total'] ?? $summary['total'] }} baris —
-            {{ $summary['linked'] ?? 0 }} linked, {{ $summary['skipped'] }} skipped, {{ $summary['errors'] }} error
-            @if($applyResult['rows_truncated'] ?? false)
-                <span class="text-gray-500">(tabel: {{ count($rows) }} baris pertama)</span>
-            @endif
-        </p>
-        @endif
         @include('shopee.bulk-link.partials.result-table', ['rows' => $rows])
     </div>
     @endif
