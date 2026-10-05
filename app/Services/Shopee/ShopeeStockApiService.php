@@ -156,7 +156,8 @@ class ShopeeStockApiService
             return false;
         }
 
-        return (bool) preg_match('/^[A-Za-z0-9][A-Za-z0-9-]{2,}$/', $keyword);
+        // Kode Variasi / Aria SKU shapes (TYPE-PCODE-COLOR), not plain words like "knee".
+        return (bool) preg_match('/^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)+$/', $keyword);
     }
 
     /**
@@ -308,9 +309,10 @@ class ShopeeStockApiService
         $pageSize = min(100, max(1, $pageSize));
 
         $data = $this->openApi->decodeShopResponse(
-            $this->openApi->shopApiPost('/api/v2/product/get_item_list', [
+            $this->openApi->shopApiGet('/api/v2/product/get_item_list', [
                 'offset' => max(0, $offset),
                 'page_size' => $pageSize,
+            ], [
                 'item_status' => ['NORMAL', 'UNLIST'],
             ]),
             'Shopee item list',

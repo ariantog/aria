@@ -194,10 +194,11 @@ class ShopeeStockOpenApiService
 
     /**
      * @param  array<string, mixed>  $query
+     * @param  array<string, list<string>>  $repeatedQuery  e.g. item_status => ['NORMAL','UNLIST']
      */
-    public function shopApiGet(string $path, array $query = []): Response
+    public function shopApiGet(string $path, array $query = [], array $repeatedQuery = []): Response
     {
-        return $this->shopRequest('get', $path, $query);
+        return $this->shopRequest('get', $path, $query, [], $repeatedQuery);
     }
 
     /**
@@ -205,7 +206,7 @@ class ShopeeStockOpenApiService
      */
     public function shopApiPost(string $path, array $body = []): Response
     {
-        return $this->shopRequest('post', $path, [], $body);
+        return $this->shopRequest('post', $path, [], $body, []);
     }
 
     /**
@@ -219,9 +220,15 @@ class ShopeeStockOpenApiService
     /**
      * @param  array<string, mixed>  $query
      * @param  array<string, mixed>  $body
+     * @param  array<string, list<string>>  $repeatedQuery
      */
-    private function shopRequest(string $method, string $path, array $query = [], array $body = []): Response
-    {
+    private function shopRequest(
+        string $method,
+        string $path,
+        array $query = [],
+        array $body = [],
+        array $repeatedQuery = [],
+    ): Response {
         $token = $this->getAccessToken();
         $oauth = $this->getOAuthPayload();
         $shopId = (int) ($oauth['shop_id'] ?? 0);
@@ -245,10 +252,37 @@ class ShopeeStockOpenApiService
         $request = Http::timeout(30);
 
         if ($method === 'get') {
-            return $request->get($url, array_merge($baseQuery, $query));
+            if ($repeatedQuery === []) {
+                return $request->get($url, array_merge($baseQuery, $query));
+            }
+
+            return $request->get($url.'?'.$this->encodeShopQuery(array_merge($baseQuery, $query), $repeatedQuery));
         }
 
         return $request->asJson()->post($url.'?'.http_build_query($baseQuery), $body);
+    }
+
+    /**
+     * @param  array<string, mixed>  $query
+     * @param  array<string, list<string>>  $repeatedQuery
+     */
+    private function encodeShopQuery(array $query, array $repeatedQuery): string
+    {
+        $parts = [];
+        foreach ($query as $key => $value) {
+            if (is_array($value)) {
+                continue;
+            }
+            $parts[] = rawurlencode((string) $key).'='.rawurlencode((string) $value);
+        }
+
+        foreach ($repeatedQuery as $key => $values) {
+            foreach ($values as $value) {
+                $parts[] = rawurlencode((string) $key).'='.rawurlencode((string) $value);
+            }
+        }
+
+        return implode('&', $parts);
     }
 
     /**

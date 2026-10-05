@@ -75,6 +75,28 @@ it('hydrates search_item item_id_list via get_item_base_info', function () {
         ->and($rows[0]['item_name'])->toBe('Running Shirt');
 });
 
+it('does not call get_item_list for plain name queries like knee', function () {
+    Http::fake(function (\Illuminate\Http\Client\Request $request) {
+        if (str_contains($request->url(), 'get_item_list')) {
+            return Http::response(['error' => 'should not list'], 500);
+        }
+
+        if ($request->method() === 'POST' && str_contains($request->url(), 'search_item')) {
+            return Http::response([
+                'error' => '',
+                'response' => ['item_id_list' => [], 'total_count' => 0],
+            ]);
+        }
+
+        return Http::response(['error' => 'unexpected'], 500);
+    });
+
+    $rows = app(ShopeeStockApiService::class)->searchItems('knee');
+
+    expect($rows)->toBe([]);
+    Http::assertNotSent(fn ($req) => str_contains($req->url(), 'get_item_list'));
+});
+
 it('does not call unpackaged model search when name search is empty', function () {
     Http::fake(function (\Illuminate\Http\Client\Request $request) {
         if ($request->method() === 'POST' && str_contains($request->url(), 'search_unpackaged_model_list')) {
@@ -102,6 +124,10 @@ it('finds exact model_sku on a catalog page', function () {
         $url = $request->url();
 
         if (str_contains($url, 'get_item_list')) {
+            expect($request->method())->toBe('GET');
+            expect($url)->toContain('item_status=NORMAL')
+                ->and($url)->toContain('item_status=UNLIST');
+
             return Http::response([
                 'error' => '',
                 'response' => [
@@ -152,6 +178,14 @@ it('builds name search fragments from aria sku codes', function () {
 
     expect($queries)->toContain('AJD-CX90324-05-S')
         ->and($queries)->toContain('CX90324-05');
+});
+
+it('does not treat plain words as variation codes for catalog scan', function () {
+    $api = app(ShopeeStockApiService::class);
+
+    expect($api->looksLikeVariationCode('knee'))->toBeFalse()
+        ->and($api->looksLikeVariationCode('kneewrap'))->toBeFalse()
+        ->and($api->looksLikeVariationCode('KNEEWRAP-01-REDIRON'))->toBeTrue();
 });
 
 it('loads product by numeric shopee item id without search_item', function () {
