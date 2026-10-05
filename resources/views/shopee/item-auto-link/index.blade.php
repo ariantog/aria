@@ -16,8 +16,8 @@ $breadcrumbs = [
     <div>
         <h1 class="text-2xl font-bold text-gray-900">Shopee Auto Link</h1>
         <p class="mt-1 text-sm text-gray-500">
-            Cron calls Shopee <span class="font-mono">product/search_item</span> and links when
-            <span class="font-mono">item_sku</span> or <span class="font-mono">model_sku</span> matches the Aria SKU exactly (same rules as Jubelio auto-link: stock in a Shopee-mapped warehouse, rolling id window + {{ $stats['retry_campaign_days'] }}-day campaign, {{ $stats['retry_spacing_hours'] }}h spacing, max {{ $stats['max_attempts'] }} failed tries).
+            Cron runs <strong>hourly</strong> and tries up to <strong>50</strong> unlinked SKUs per tick (exact <span class="font-mono">item_sku</span> / <span class="font-mono">model_sku</span> via <span class="font-mono">product/search_item</span>).
+            Same eligibility as Jubelio auto-link: stock in a Shopee-mapped warehouse, rolling id window + {{ $stats['retry_campaign_days'] }}-day campaign, {{ $stats['retry_spacing_hours'] }}h spacing, max {{ $stats['max_attempts'] }} failed tries, ~{{ $stats['calls_cap'] }} Shopee API calls/hour.
         </p>
     </div>
 
@@ -85,7 +85,7 @@ $breadcrumbs = [
             </form>
             @endif
             <form method="POST" action="{{ route('shopee.auto-link.run-batch') }}" class="flex items-center gap-2">@csrf
-                <input type="number" name="limit" min="1" max="50" value="4" class="w-16 rounded-md border border-gray-300 px-2 py-2 text-sm">
+                <input type="number" name="limit" min="1" max="50" value="50" class="w-16 rounded-md border border-gray-300 px-2 py-2 text-sm">
                 <button type="submit" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Run batch now</button>
             </form>
         </div>

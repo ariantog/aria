@@ -24,7 +24,8 @@ class ShopeeItemAutoLinkService
 
     public const HOURLY_CALL_CAP = 200;
 
-    public const DEFAULT_BATCH_PER_RUN = 4;
+    /** Unlinked SKUs attempted per cron tick (stops early on hourly API cap). */
+    public const DEFAULT_BATCH_PER_RUN = 50;
 
     /** Max Shopee item ids to fetch model lists for when search has no item_sku hit. */
     public const MODEL_SCAN_LIMIT = 10;
