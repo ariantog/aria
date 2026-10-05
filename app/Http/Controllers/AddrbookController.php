@@ -8,6 +8,7 @@ use App\Enums\TransactionType;
 use App\Http\Requests\StoreAddrbookRequest;
 use App\Http\Requests\UpdateAddrbookRequest;
 use App\Models\Addrbook;
+use App\Models\Item;
 use App\Models\Location;
 use App\Models\Operation;
 use App\Models\ReportingEntity;
@@ -180,6 +181,11 @@ class AddrbookController extends Controller
         return app()->call([$this, 'items'], ['id' => $addrbook->id]);
     }
 
+    public function itemsMarketplaceStockType(string $type, Addrbook $addrbook)
+    {
+        return app()->call([$this, 'itemsMarketplaceStock'], ['id' => $addrbook->id]);
+    }
+
     public function statType(string $type, Addrbook $addrbook)
     {
         return $this->stat($addrbook->id);
@@ -324,28 +330,14 @@ class AddrbookController extends Controller
 
         $items = $query->paginate($queryService->resolvePerPage($request))->withQueryString();
         $jubelioSync = $jubelioStockService->syncForWarehouse($a->id);
-        $jubelioStocks = [];
-        $jubelioFetchFailed = false;
-        $jubelioUnlinkedCount = 0;
-
-        if ($jubelioSync) {
-            $jubelioData = $jubelioStockService->stockDataForItems($jubelioSync, $items->getCollection());
-            $jubelioStocks = $jubelioData['stocks'];
-            $jubelioFetchFailed = $jubelioData['fetch_failed'];
-            $jubelioUnlinkedCount = $jubelioData['unlinked_count'];
-        }
+        $jubelioUnlinkedCount = $jubelioSync
+            ? $items->getCollection()->filter(fn (Item $item) => (int) $item->jubelio_item_id <= 0)->count()
+            : 0;
 
         $shopeeSync = $shopeeStockService->syncForWarehouse($a->id);
-        $shopeeStocks = [];
-        $shopeeFetchFailed = false;
-        $shopeeUnlinkedCount = 0;
-
-        if ($shopeeSync) {
-            $shopeeData = $shopeeStockService->stockDataForItems($shopeeSync, $items->getCollection());
-            $shopeeStocks = $shopeeData['stocks'];
-            $shopeeFetchFailed = $shopeeData['fetch_failed'];
-            $shopeeUnlinkedCount = $shopeeData['unlinked_count'];
-        }
+        $shopeeUnlinkedCount = $shopeeSync
+            ? $items->getCollection()->filter(fn (Item $item) => (int) $item->shopee_item_id <= 0)->count()
+            : 0;
 
         return view('addrbook.items', [
             'addrbook' => $a,
@@ -353,19 +345,71 @@ class AddrbookController extends Controller
             'perPage' => $queryService->resolvePerPage($request),
             'filters' => $request->only(array_merge(app(ItemListFilter::class)->filterKeys(), ['sort', 'show0'])),
             'tags' => $this->tagGroupsForWarehouseItems(),
+            'marketplaceStockUrl' => route('addrbook.type.items.marketplace-stock', [$this->addrbookTypeSlug($a), $a->id]),
+            'marketplaceItemIds' => $items->pluck('id')->values()->all(),
             'jubelioSync' => $jubelioSync,
-            'jubelioStocks' => $jubelioStocks,
-            'jubelioFetchFailed' => $jubelioFetchFailed,
             'jubelioUnlinkedCount' => $jubelioUnlinkedCount,
             'shopeeSync' => $shopeeSync,
-            'shopeeStocks' => $shopeeStocks,
-            'shopeeFetchFailed' => $shopeeFetchFailed,
             'shopeeUnlinkedCount' => $shopeeUnlinkedCount,
             'can' => [
                 'bank_hidden_balance' => ! (request()->user()?->is_superadmin ?? false) && (request()->user()?->can('addrbook-bank-account-hidden-balance') ?? false),
             ],
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
+    }
+
+    public function itemsMarketplaceStock(
+        $id,
+        Request $request,
+        WarehouseJubelioStockService $jubelioStockService,
+        WarehouseShopeeStockService $shopeeStockService,
+    ) {
+        $a = Addrbook::withTrashed()->findOrFail($id);
+        if (! Addrbook::typeHasWarehouseStock((int) $a->type)) {
+            abort(404);
+        }
+        Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['warehouse-items']);
+        $this->authorizeAddrbookLocation($a);
+
+        $validated = $request->validate([
+            'item_ids' => ['required', 'array', 'max:'.WarehouseStockQueryService::PER_PAGE],
+            'item_ids.*' => ['integer', 'min:1'],
+        ]);
+
+        $itemIds = array_values(array_unique(array_map('intval', $validated['item_ids'])));
+        if ($itemIds === []) {
+            return response()->json([
+                'jubelio' => null,
+                'shopee' => null,
+            ]);
+        }
+
+        $itemsById = $a->items()
+            ->whereIn('items.id', $itemIds)
+            ->get()
+            ->keyBy('id');
+
+        $items = collect($itemIds)
+            ->map(fn (int $itemId) => $itemsById->get($itemId))
+            ->filter()
+            ->values();
+
+        $payload = [
+            'jubelio' => null,
+            'shopee' => null,
+        ];
+
+        $jubelioSync = $jubelioStockService->syncForWarehouse($a->id);
+        if ($jubelioSync) {
+            $payload['jubelio'] = $jubelioStockService->stockDataForItems($jubelioSync, $items);
+        }
+
+        $shopeeSync = $shopeeStockService->syncForWarehouse($a->id);
+        if ($shopeeSync) {
+            $payload['shopee'] = $shopeeStockService->stockDataForItems($shopeeSync, $items);
+        }
+
+        return response()->json($payload);
     }
 
     public function itemsExport($id, Request $request, WarehouseStockQueryService $queryService, WarehouseStockExportService $exportService, WarehouseJubelioStockService $jubelioStockService)
