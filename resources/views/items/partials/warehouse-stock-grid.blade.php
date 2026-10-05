@@ -79,7 +79,7 @@
                             <button type="button"
                                     @click="sortRows('qty')"
                                     class="inline-flex w-full items-center justify-end gap-1 hover:text-gray-900">
-                                {{ ($showJubelioColumns || ($showShopeeStock && $variant === 'physical')) ? 'Aria qty' : 'Qty' }}
+                                Aria qty
                                 <span x-show="sortCol === 'qty'" class="text-blue-600" x-text="sortDir === 'asc' ? '↑' : '↓'"></span>
                             </button>
                         </th>

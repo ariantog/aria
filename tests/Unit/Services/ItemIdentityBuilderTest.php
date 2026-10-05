@@ -158,6 +158,13 @@ describe('buildCode', function () {
     });
 });
 
+describe('buildManufacturedDisplayName', function () {
+    it('omits warna and keeps title with size', function () {
+        expect($this->builder->buildManufacturedDisplayName('SLASH RUNNING SHIRT', $this->sizeTag))
+            ->toBe('SLASH RUNNING SHIRT - S');
+    });
+});
+
 describe('buildName', function () {
     it('builds display name from group name, color, and size', function () {
         $name = $this->builder->buildName(
@@ -211,6 +218,29 @@ describe('parsePcode', function () {
     it('keeps asset lancar pcode as master', function () {
         expect($this->builder->parsePcode(ItemType::ASSET_LANCAR, 'GLOVE-01'))
             ->toBe(['master' => 'GLOVE-01', 'variant' => null]);
+    });
+});
+
+describe('itemColorInfo', function () {
+    it('uses pcode variant as color code for manufactured items even when a warna tag exists', function () {
+        $group = \App\Models\ItemGroup::factory()->create([
+            'master' => 'CX90032-06',
+            'variant' => '06',
+            'name' => 'CX90032-06',
+        ]);
+
+        $item = Item::factory()->create([
+            'type' => ItemType::ITEM,
+            'group_id' => $group->id,
+            'pcode' => 'CX90032-06',
+        ]);
+        $item->setRelation('group', $group);
+        $item->setRelation('tags', collect([$this->warnaTag]));
+
+        expect($this->builder->itemColorInfo($item))->toBe([
+            'code' => '06',
+            'name' => 'BLUE',
+        ]);
     });
 });
 

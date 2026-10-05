@@ -54,5 +54,5 @@ test('normalize identity regenerates item display names', function () {
     $this->artisan('items:normalize-identity')
         ->assertSuccessful();
 
-    expect($item->fresh()->name)->toBe('SLASH RUNNING SHIRT - BLUE - S');
+    expect($item->fresh()->name)->toBe('SLASH RUNNING SHIRT - S');
 });

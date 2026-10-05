@@ -310,6 +310,9 @@ it('shows jubelio on-hand stock for synced warehouses', function () {
         ->assertSee('5', false)
         ->assertSee('38', false)
         ->assertSee('data-testid="warehouse-items-column-toggles"', false)
+        ->assertSee('data-testid="warehouse-items-highlight-mismatch"', false)
+        ->assertSee('x-model="highlightMismatch"', false)
+        ->assertSee('bg-amber-50', false)
         ->assertSee('x-model="showName"', false)
         ->assertSee('x-model="showImage"', false)
         ->assertSee('x-model="showDescription"', false)
@@ -460,6 +463,53 @@ it('renders sortable column headers on warehouse stock page', function () {
         ->assertOk()
         ->assertSee('sort=codedesc', false)
         ->assertSee('sort=qtyasc', false);
+});
+
+it('shows parent group price when type tag code differs from sku code prefix', function () {
+    User::factory()->create();
+    $user = User::factory()->create();
+    $user->givePermissionTo('addrbook-warehouse-items');
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $typeTag = \App\Models\Tag::factory()->create([
+        'type' => \App\Models\Tag::TYPE_TYPE,
+        'code' => 'TSH',
+        'name' => 'T-Shirt',
+    ]);
+    $group = \App\Models\ItemGroup::factory()->create([
+        'master' => 'CX90032-01',
+        'variant' => '01',
+        'price' => 0,
+    ]);
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'type' => \App\Enums\ItemType::ITEM,
+        'pcode' => 'CX90032-01',
+        'code' => 'AJD-CX90032-01-S',
+        'price' => 0,
+    ]);
+    $item->tags()->attach($typeTag->id);
+
+    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey(
+        $item->fresh(['group', 'tags']),
+    );
+    \App\Models\ItemParentPrice::query()->create([
+        'parent_key' => $parentKey,
+        'price' => 312_000,
+    ]);
+
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $item->id,
+        'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 2,
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('addrbook.type.items', ['warehouse', $warehouse->id]))
+        ->assertOk()
+        ->assertSee('IDR '.format_amount(312_000, 0), false)
+        ->assertSee('data-copy-value="312000"', false);
 });
 
 it('shows effective selling price when sku price is zero', function () {

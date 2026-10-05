@@ -236,7 +236,7 @@ it('returns a manufactured parent title for a new colorway pcode', function () {
         'group_id' => $group->id,
         'pcode' => 'CX00122-03',
         'code' => 'AJD-CX00122-03-S',
-        'name' => 'RUNNING SHIRT - BLUE - S',
+        'name' => 'RUNNING SHIRT - S',
     ]);
     $existing->tags()->sync([$typeTag->id, $sizeTag->id, $warnaTag->id]);
 

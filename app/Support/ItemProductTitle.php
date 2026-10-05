@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Schema;
 /**
  * Bare product title resolves: SKU (items.alias) → colorway (item_group.name) → parent group.
  *
- * Full SKU display names append warna and size via ItemIdentityBuilder::buildName().
+ * Full SKU display names: manufactured = bare title + size; asset lancar adds warna via buildName().
  *
  * Legacy production may still have item_group.alias; when item_group.name is empty or
  * pcode-like, a non-empty group alias is used as the colorway title before parent fallback.
@@ -84,16 +84,38 @@ final class ItemProductTitle
 
     public static function buildDisplayName(Item $item): string
     {
+        return self::buildDisplayNameWithBareTitle($item, self::resolveBareTitle($item));
+    }
+
+    /**
+     * Same rules as buildDisplayName(), but with an explicit bare product title (e.g. colorway edit preview).
+     */
+    public static function buildDisplayNameWithBareTitle(Item $item, string $bareProductTitle): string
+    {
         $item->loadMissing(['group', 'tags']);
         $itemType = $item->type instanceof ItemType ? $item->type : ItemType::coerce($item->type) ?? ItemType::ITEM;
-        $bare = self::resolveBareTitle($item);
+        $bare = strtoupper(trim($bareProductTitle));
+
+        if ($item->hasCatalogGroup()) {
+            $bare = app(ItemIdentityBuilder::class)->productDisplayName(
+                $itemType,
+                $bare,
+                (string) ($item->group->variant ?? ''),
+                (string) ($item->group->master ?? ''),
+            );
+        } elseif ($bare === '' && trim((string) $item->pcode) !== '') {
+            $bare = $itemType === ItemType::ITEM
+                ? app(ItemIdentityBuilder::class)->normalizeManufacturedPcode((string) $item->pcode)
+                : strtoupper(trim((string) $item->pcode));
+        }
+
         $warnaTag = $item->tags->firstWhere('type', Tag::TYPE_WARNA);
         $sizeTag = $item->tags->firstWhere('type', Tag::TYPE_SIZE);
         if (! $sizeTag && (int) $item->size > 0) {
             $sizeTag = Tag::find((int) $item->size);
         }
 
-        return app(ItemIdentityBuilder::class)->buildName($bare, $warnaTag, $sizeTag);
+        return app(ItemIdentityBuilder::class)->buildItemDisplayName($itemType, $bare, $warnaTag, $sizeTag);
     }
 
     /**

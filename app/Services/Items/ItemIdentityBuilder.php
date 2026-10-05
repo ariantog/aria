@@ -324,6 +324,38 @@ class ItemIdentityBuilder
     }
 
     /**
+     * Asset lancar display name: {product title} - {warna} - {size}
+     * Manufactured items use buildManufacturedDisplayName() (color is on pcode, not warna tag).
+     */
+    public function buildItemDisplayName(
+        ItemType $type,
+        string $bareTitle,
+        ?Tag $warnaTag,
+        ?Tag $sizeTag,
+    ): string {
+        if ($type === ItemType::ITEM) {
+            return $this->buildManufacturedDisplayName($bareTitle, $sizeTag);
+        }
+
+        return $this->buildName($bareTitle, $warnaTag, $sizeTag);
+    }
+
+    /**
+     * Manufactured display name: {product title} - {size?}
+     * All-size omits size. Color/warna is not repeated — it lives on pcode / item_group.variant.
+     */
+    public function buildManufacturedDisplayName(string $bareTitle, ?Tag $sizeTag): string
+    {
+        $parts = [strtoupper(trim($bareTitle))];
+
+        if ($sizeTag && ! $this->isAllSize($sizeTag)) {
+            $parts[] = strtoupper($sizeTag->code);
+        }
+
+        return implode(' - ', array_filter($parts, fn ($p) => $p !== ''));
+    }
+
+    /**
      * Display name: {product title} - {warna} - {size}
      * All-size omits the size segment: {product title} - {warna}
      * e.g. ELBOW STRAP - BLACKWHITE, SLASH RUNNING SHIRT - BLUE - S
@@ -637,6 +669,24 @@ class ItemIdentityBuilder
      */
     public function itemColorInfo(Item $item): array
     {
+        $itemType = $item->type instanceof ItemType ? $item->type : ItemType::coerce($item->type) ?? ItemType::ITEM;
+
+        if ($itemType === ItemType::ITEM) {
+            $variant = strtoupper(trim((string) ($item->group?->variant ?? '')));
+            if ($variant !== '') {
+                $warna = $item->relationLoaded('tags')
+                    ? $item->tags->firstWhere('type', Tag::TYPE_WARNA)
+                    : null;
+
+                return [
+                    'code' => $variant,
+                    'name' => $warna
+                        ? strtoupper(trim((string) ($warna->name ?: $warna->code)))
+                        : 'Color '.$variant,
+                ];
+            }
+        }
+
         $warna = $item->relationLoaded('tags')
             ? $item->tags->firstWhere('type', Tag::TYPE_WARNA)
             : null;
@@ -645,13 +695,6 @@ class ItemIdentityBuilder
             return [
                 'code' => strtoupper($warna->code),
                 'name' => $warna->name,
-            ];
-        }
-
-        if ($item->type === ItemType::ITEM && $item->group?->variant) {
-            return [
-                'code' => strtoupper($item->group->variant),
-                'name' => 'Color '.$item->group->variant,
             ];
         }
 

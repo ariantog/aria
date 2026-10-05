@@ -13,7 +13,7 @@ class JubelioOrderSyncStatus
     /** API fetch empty (SELL) or original sell missing (RETURN). */
     public const ERROR_PAYLOAD = 3;
 
-    /** Outside max-age window or ineligible Jubelio status (e.g. COMPLETED). */
+    /** Outside max-age window or ineligible Jubelio status (e.g. DRAFT / canceled). */
     public const ERROR_SKIPPED = 4;
 
     public const SUCCESS = 10;

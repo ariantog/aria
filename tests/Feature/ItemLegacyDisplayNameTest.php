@@ -68,7 +68,7 @@ it('infers bare product title from legacy display names and skips technical name
 
     $newRow = collect($preview['rows'])->firstWhere('id', $newItem->id);
     expect($newRow)->not->toBeNull()
-        ->and(strtoupper($newRow['proposed']))->toBe('CORE SHORTS - RED - XL');
+        ->and(strtoupper($newRow['proposed']))->toBe('CORE SHORTS - XL');
 });
 
 it('apply syncs parent title and rebuilds items.name for all colorways', function () {
@@ -105,8 +105,8 @@ it('apply syncs parent title and rebuilds items.name for all colorways', functio
     $result = $this->service->applyForParentKey($parentKey);
 
     expect($result['product_title'])->toBe('CORE SHORTS')
-        ->and($newItem->fresh()->name)->toBe('CORE SHORTS - RED - XL')
-        ->and($legacyItem->fresh()->name)->toBe('CORE SHORTS - ARMY GREEN - XL');
+        ->and($newItem->fresh()->name)->toBe('CORE SHORTS - XL')
+        ->and($legacyItem->fresh()->name)->toBe('CORE SHORTS - XL');
 });
 
 it('renders display name sync page and applies via http', function () {

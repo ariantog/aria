@@ -10,6 +10,7 @@ use App\Services\InventoryService;
 use App\Services\Items\ItemIdentityBuilder;
 use App\Services\ItemService;
 use App\Support\ItemPricing;
+use App\Support\ItemProductTitle;
 
 beforeEach(function () {
     $this->user = User::factory()->create();
@@ -62,8 +63,8 @@ test('updateColorway renames group and regenerates item display names', function
 
     expect($group->name)->toBe('SLASH RUNNING SHIRT')
         ->and($group->description)->toBe('NEW DESC')
-        ->and($small->name)->toBe('SLASH RUNNING SHIRT - BLUE - S')
-        ->and($medium->name)->toBe('SLASH RUNNING SHIRT - BLUE - M');
+        ->and($small->name)->toBe('SLASH RUNNING SHIRT - S')
+        ->and($medium->name)->toBe('SLASH RUNNING SHIRT - M');
 });
 
 test('updateColorway changes price on one size without affecting siblings', function () {
@@ -158,7 +159,44 @@ test('colorway edit page renders with size matrix and preview', function () {
         ->assertSee('Edit colorway', false)
         ->assertSee('data-testid="colorway-size-matrix"', false)
         ->assertSee('data-testid="colorway-name-preview"', false)
+        ->assertSee('data-testid="colorway-save"', false)
+        ->assertSee('data-testid="colorway-pricing-price-scope-colorway"', false)
+        ->assertDontSee('Whole group', false)
+        ->assertDontSee('This SKU', false)
         ->assertSee('AJD-CX90233-23-S', false);
+});
+
+test('manufactured colorway edit preview omits warna tag from live name preview config', function () {
+    $group = ItemGroup::factory()->create([
+        'master' => 'CX90032-06',
+        'variant' => '06',
+        'name' => 'CX90032-06',
+    ]);
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => $group->id,
+        'pcode' => 'CX90032-06',
+        'code' => 'AJD-CX90032-06-M',
+        'name' => 'CX90032-06 - BLACK - M',
+        'price' => 100000,
+    ]);
+    $blackTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLACK', 'name' => 'Black']);
+    $mediumTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'Medium']);
+    $item->tags()->sync([$this->typeTag->id, $blackTag->id, $mediumTag->id, $this->jahitTag->id]);
+
+    expect(ItemProductTitle::buildDisplayNameWithBareTitle($item->fresh(['group', 'tags']), 'Renamed Shirt'))
+        ->toBe('RENAMED SHIRT - M');
+
+    $this->actingAs($this->user)
+        ->get(route('items.colorway-edit', $group))
+        ->assertOk()
+        ->assertSee('AJD-CX90032-06-M', false)
+        ->assertSee('06', false)
+        ->assertSee('BLACK', false)
+        ->assertDontSee('CX90032-06 - BLACK - M', false)
+        ->assertDontSee('warnaCode":"BLACK', false)
+        ->assertDontSee('AJD-CX90032-06-BLACK-M', false);
 });
 
 test('colorway update via HTTP persists per-size price', function () {
@@ -206,5 +244,5 @@ test('colorway update via HTTP persists per-size price', function () {
         ->and($group->description)->toBe('VIA FORM')
         ->and((float) $small->price)->toBe(150000.0)
         ->and((float) $medium->price)->toBe(120000.0)
-        ->and($small->name)->toBe('RENAMED SHIRT - BLUE - S');
+        ->and($small->name)->toBe('RENAMED SHIRT - S');
 });

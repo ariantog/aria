@@ -385,7 +385,7 @@ it('shows effective item display name on transaction detail when group uses lega
     $this->actingAs($this->user)
         ->get(route('transactions.show', $transaction))
         ->assertOk()
-        ->assertSee('GROUP ALIAS NAME - NAVY - S', false)
+        ->assertSee('GROUP ALIAS NAME - S', false)
         ->assertDontSee('ITEM DISPLAY NAME - NAVY - S', false);
 });
 

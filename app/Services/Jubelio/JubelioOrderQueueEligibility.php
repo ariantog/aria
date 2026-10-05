@@ -9,10 +9,10 @@ use Carbon\CarbonInterface;
 class JubelioOrderQueueEligibility
 {
     /** @var list<string> */
-    private const ELIGIBLE_SELL_STATUSES = ['SHIPPED', 'RETURNED'];
+    private const ELIGIBLE_SELL_STATUSES = ['SHIPPED', 'COMPLETED', 'RETURNED'];
 
-    /** @var list<string> */
-    private const TERMINAL_SELL_STATUSES = ['COMPLETED', 'CANCELED', 'CANCELLED'];
+    /** @var list<string> Jubelio statuses that must never post (COMPLETED is postable). */
+    private const TERMINAL_SELL_STATUSES = ['CANCELED', 'CANCELLED'];
 
     /**
      * @param  array<string, mixed>  $row
@@ -76,7 +76,7 @@ class JubelioOrderQueueEligibility
             if (! $this->isEligibleListRow($row)) {
                 $status = $this->primarySellStatus($row);
                 if (! in_array($status, self::ELIGIBLE_SELL_STATUSES, true)) {
-                    return 'Order tidak diproses: status Jubelio harus SHIPPED (bukan COMPLETED / status lain).';
+                    return 'Order tidak diproses: status Jubelio harus SHIPPED atau COMPLETED (bukan status lain).';
                 }
                 if (($row['is_canceled'] ?? 'N') === 'Y') {
                     return 'Order dibatalkan di Jubelio — tidak diproses.';
@@ -197,6 +197,6 @@ class JubelioOrderQueueEligibility
     {
         $label = strtoupper(trim((string) ($status ?? 'COMPLETED')));
 
-        return 'Order tidak diproses: status Jubelio '.$label.' (hanya SHIPPED yang diposting ke Aria).';
+        return 'Order tidak diproses: status Jubelio '.$label.' (tidak diposting ke Aria).';
     }
 }

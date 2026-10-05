@@ -100,6 +100,8 @@ class JubelioController extends Controller
             $q->where('status', 1)->whereIn('error_type', [1, 3]);
         } elseif ($request->status == 'pending') {
             $q->where('status', 0);
+        } elseif ($request->status === 'all') {
+            // No sync-status filter — show every jubelioorders row (optionally scoped by invoice / gudang).
         } elseif (! $request->invoice && $warehouseId <= 0) {
             $q->where('status', 0);
         }
@@ -109,7 +111,7 @@ class JubelioController extends Controller
             $resolver->applyWarehouseFilter($q, $warehouseId);
         }
 
-        $stats = Jubelioorder::selectRaw('COUNT(CASE WHEN status=0 THEN 1 END) as pending, COUNT(CASE WHEN status=2 AND error_type=10 THEN 1 END) as success, COUNT(CASE WHEN status=2 AND error_type=2 THEN 1 END) as warning, COUNT(CASE WHEN status=1 AND error_type IN (1, 3) THEN 1 END) as error')->first();
+        $stats = Jubelioorder::selectRaw('COUNT(CASE WHEN status=0 THEN 1 END) as pending, COUNT(CASE WHEN status=2 AND error_type=10 THEN 1 END) as success, COUNT(CASE WHEN status=2 AND error_type=2 THEN 1 END) as warning, COUNT(CASE WHEN status=1 AND error_type IN (1, 3) THEN 1 END) as error, COUNT(*) as total')->first();
         $syncIndex = $resolver->syncIndex();
         $syncsByWarehouseId = $resolver->syncsGroupedByWarehouse();
         $orders = $q->paginate(15)->withQueryString();
@@ -159,6 +161,7 @@ class JubelioController extends Controller
                 'success' => (int) $stats->success,
                 'warning' => (int) $stats->warning,
                 'error' => (int) $stats->error,
+                'total' => (int) $stats->total,
             ],
             'mappedWarehouses' => $mappedWarehouses,
             'filters' => $request->only(['status', 'invoice', 'warehouse_id']),
@@ -339,7 +342,8 @@ class JubelioController extends Controller
         }
 
         $d = $request->all();
-        if (($d['status'] ?? '') === 'SHIPPED') {
+        $webhookStatus = strtoupper(trim((string) ($d['status'] ?? '')));
+        if (in_array($webhookStatus, ['SHIPPED', 'COMPLETED'], true)) {
             $cutoff = config('services.jubelio.webhook_order_cutoff_date', '2025-03-06');
             $transactionDate = $d['transaction_date'] ?? null;
             if ($cutoff && is_string($transactionDate) && $transactionDate !== ''
