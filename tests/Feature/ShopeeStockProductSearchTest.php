@@ -34,11 +34,10 @@ it('hydrates search_item item_id_list via get_item_base_info', function () {
         $url = $request->url();
         $method = $request->method();
 
-        if ($method === 'POST' && str_contains($url, '/api/v2/product/search_item')) {
-            expect($request->hasHeader('Content-Type', 'application/json'))->toBeTrue();
-            $payload = $request->data();
-            expect($payload)->not->toHaveKey('offset');
-            expect($payload['page_size'])->toBeInt();
+        if ($method === 'GET' && str_contains($url, '/api/v2/product/search_item')) {
+            expect($url)->toContain('item_name=')
+                ->and($url)->toContain('page_size=')
+                ->and($url)->toContain('item_status=NORMAL');
 
             return Http::response([
                 'error' => '',
@@ -81,7 +80,7 @@ it('does not call get_item_list for plain name queries like knee', function () {
             return Http::response(['error' => 'should not list'], 500);
         }
 
-        if ($request->method() === 'POST' && str_contains($request->url(), 'search_item')) {
+        if ($request->method() === 'GET' && str_contains($request->url(), 'search_item')) {
             return Http::response([
                 'error' => '',
                 'response' => ['item_id_list' => [], 'total_count' => 0],
@@ -103,7 +102,7 @@ it('does not call unpackaged model search when name search is empty', function (
             return Http::response(['error' => 'product.error_unknown'], 200);
         }
 
-        if ($request->method() === 'POST' && str_contains($request->url(), 'search_item')) {
+        if ($request->method() === 'GET' && str_contains($request->url(), 'search_item')) {
             return Http::response([
                 'error' => '',
                 'response' => ['item_id_list' => [], 'total_count' => 0],
@@ -142,8 +141,8 @@ it('finds exact model_sku on a catalog page', function () {
         }
 
         if (str_contains($url, 'get_model_list')) {
-            $body = $request->data();
-            $itemId = (int) ($body['item_id'] ?? 0);
+            parse_str(parse_url($url, PHP_URL_QUERY) ?: '', $query);
+            $itemId = (int) ($query['item_id'] ?? 0);
 
             if ($itemId === 5001) {
                 return Http::response([
@@ -190,7 +189,7 @@ it('does not treat plain words as variation codes for catalog scan', function ()
 
 it('loads product by numeric shopee item id without search_item', function () {
     Http::fake(function (\Illuminate\Http\Client\Request $request) {
-        if ($request->method() === 'POST' && str_contains($request->url(), 'search_item')) {
+        if ($request->method() === 'GET' && str_contains($request->url(), 'search_item')) {
             return Http::response(['error' => 'should not call search'], 500);
         }
 

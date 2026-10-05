@@ -79,11 +79,7 @@ class ShopeeStockApiService
         $itemIds = [];
 
         foreach ($this->itemNameSearchQueries($keyword) as $query) {
-            foreach ($this->searchItemIds([
-                'page_size' => $pageSize,
-                'item_name' => $query,
-                'item_status' => $statusFilter,
-            ]) as $id) {
+            foreach ($this->searchItemIdsByName($query, $pageSize, $statusFilter) as $id) {
                 $itemIds[$id] = true;
             }
 
@@ -260,15 +256,25 @@ class ShopeeStockApiService
     }
 
     /**
-     * @param  array<string, mixed>  $body
+     * Shopee v2.product.search_item is GET (query params), not POST JSON.
+     *
+     * @param  list<string>  $itemStatus
      * @return list<int>
      */
-    private function searchItemIds(array $body): array
+    private function searchItemIdsByName(string $itemName, int $pageSize, array $itemStatus): array
     {
-        unset($body['offset']);
+        $itemName = trim($itemName);
+        if ($itemName === '') {
+            return [];
+        }
 
         $data = $this->openApi->decodeShopResponse(
-            $this->openApi->shopApiPost('/api/v2/product/search_item', $this->normalizeSearchItemBody($body)),
+            $this->openApi->shopApiGet('/api/v2/product/search_item', [
+                'page_size' => min(50, max(1, $pageSize)),
+                'item_name' => $itemName,
+            ], [
+                'item_status' => array_values($itemStatus),
+            ]),
             'Shopee product search',
         );
 
@@ -284,21 +290,6 @@ class ShopeeStockApiService
         }
 
         return array_values(array_filter(array_map('intval', $ids), fn (int $id) => $id > 0));
-    }
-
-    /**
-     * @param  array<string, mixed>  $body
-     * @return array<string, mixed>
-     */
-    private function normalizeSearchItemBody(array $body): array
-    {
-        $body['page_size'] = (int) ($body['page_size'] ?? 20);
-
-        if (isset($body['item_status']) && is_array($body['item_status'])) {
-            $body['item_status'] = array_values(array_map('strval', $body['item_status']));
-        }
-
-        return $body;
     }
 
     /**
@@ -419,7 +410,7 @@ class ShopeeStockApiService
         }
 
         $data = $this->openApi->decodeShopResponse(
-            $this->openApi->shopApiPost('/api/v2/product/get_model_list', [
+            $this->openApi->shopApiGet('/api/v2/product/get_model_list', [
                 'item_id' => $itemId,
             ]),
             'Shopee model list',
