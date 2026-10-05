@@ -22,6 +22,12 @@ $breadcrumbs = [
         <button type="submit" class="rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700">Search</button>
     </form>
 
+    @if(!empty($searchErrorHint))
+        <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" data-testid="shopee-search-api-error">
+            Shopee API: {{ $searchErrorHint }}
+        </div>
+    @endif
+
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white">
         <table class="w-full text-sm">
             <thead class="bg-gray-50 text-xs uppercase text-gray-500">
@@ -42,6 +48,9 @@ $breadcrumbs = [
                         <form method="POST" action="{{ route('items.shopee-link', $item->id) }}">
                             @csrf
                             <input type="hidden" name="shopee_item_id" value="{{ $row['item_id'] ?? '' }}">
+                            @if(!empty($row['model_id']))
+                                <input type="hidden" name="shopee_model_id" value="{{ $row['model_id'] }}">
+                            @endif
                             <button type="submit" class="rounded-lg bg-orange-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-700">Link</button>
                         </form>
                     </td>

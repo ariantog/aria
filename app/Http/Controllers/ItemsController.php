@@ -509,11 +509,15 @@ class ItemsController extends Controller
 
         $query = (string) $request->input('q', $item->code);
         $results = $stockApi->searchItems($query);
+        $openApi = $stockApi->openApiClient();
 
         return view('items.shopee-search', [
             'item' => $item,
             'query' => $query,
             'searchResults' => $results,
+            'searchErrorHint' => $results === []
+                ? $openApi->formatOAuthErrorForUser($openApi->getLastOAuthError())
+                : null,
         ]);
     }
 
