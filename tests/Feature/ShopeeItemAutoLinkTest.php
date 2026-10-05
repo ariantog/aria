@@ -14,6 +14,7 @@ use Mockery\MockInterface;
 beforeEach(function () {
     $this->artisan('migrate', ['--path' => 'database/migrations/2026_10_03_100000_install_shopee_stock_tables.php']);
     $this->artisan('migrate', ['--path' => 'database/migrations/2026_10_05_100000_install_shopee_item_link_auto_tables.php']);
+    $this->artisan('migrate', ['--path' => 'database/migrations/2026_10_05_140000_add_catalog_scan_offset_to_shopee_item_link_runners.php']);
 
     app(PermissionGenerator::class)->generateForModule('ShopeeStock');
     User::factory()->create();
@@ -57,7 +58,8 @@ it('auto-links when model_sku matches exactly once', function () {
 
     $this->mock(ShopeeStockApiService::class, function (MockInterface $mock) {
         $mock->shouldReceive('isReady')->andReturn(true);
-        $mock->shouldReceive('searchItems')
+        $mock->shouldReceive('itemNameSearchQueries')->andReturn(['AJD-CX90324-05-S']);
+        $mock->shouldReceive('discoverCandidatesForSku')
             ->once()
             ->with('AJD-CX90324-05-S', 50)
             ->andReturn([
@@ -91,7 +93,8 @@ it('marks ambiguous when two models share the same sku', function () {
 
     $this->mock(ShopeeStockApiService::class, function (MockInterface $mock) {
         $mock->shouldReceive('isReady')->andReturn(true);
-        $mock->shouldReceive('searchItems')->andReturn([
+        $mock->shouldReceive('itemNameSearchQueries')->andReturn(['DUPE-SKU-01']);
+        $mock->shouldReceive('discoverCandidatesForSku')->andReturn([
             ['item_id' => 6001, 'item_sku' => 'DUPE-SKU-01'],
         ]);
         $mock->shouldReceive('modelsForItem')->andReturn([

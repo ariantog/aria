@@ -346,6 +346,19 @@ class ShopeeStockOpenApiService
             return null;
         }
 
+        $this->clearOAuthLastError();
+
         return $data;
+    }
+
+    private function clearOAuthLastError(): void
+    {
+        $oauth = $this->getOAuthPayload();
+        if (! array_key_exists('last_error', $oauth) || $oauth['last_error'] === null || $oauth['last_error'] === '') {
+            return;
+        }
+
+        $oauth['last_error'] = null;
+        $this->persistOAuth($oauth);
     }
 }
