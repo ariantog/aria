@@ -17,6 +17,7 @@ use App\Services\ItemListFilter;
 use App\Services\Items\ItemGroupHierarchyService;
 use App\Services\Items\ItemGroupParentExportService;
 use App\Services\Items\ItemIdentityBuilder;
+use App\Services\Items\ItemJubelioStockService;
 use App\Services\Items\LegacyItemConverterService;
 use App\Services\ItemService;
 use App\Services\ItemStatsService;
@@ -198,7 +199,7 @@ class ItemsController extends Controller
         }
     }
 
-    public function show(Item $item, WarehouseShopeeStockService $shopeeStockService)
+    public function show(Item $item, ItemJubelioStockService $jubelioStockService, WarehouseShopeeStockService $shopeeStockService)
     {
         $item->load([
             'group',
@@ -210,6 +211,9 @@ class ItemsController extends Controller
         ]);
 
         $stock = $this->itemAvailability->partitionWarehouseItems($item->warehouseItems);
+        $jubelioDetail = $jubelioStockService->detailStockForItem($item, $stock['physical']);
+        $jubelioTotal = $jubelioDetail['total'];
+        $jubelioByWarehouse = $jubelioDetail['by_warehouse'];
 
         $showShopeeStock = (int) $item->shopee_item_id > 0
             && Gate::check(ShopeeStock::getPermissions()['view']);
@@ -230,6 +234,8 @@ class ItemsController extends Controller
             'activeStock' => $stock['available'],
             'virtualStock' => $stock['virtual_stock'],
             'deletedStock' => $stock['deleted_stock'],
+            'jubelioTotal' => $jubelioTotal,
+            'jubelioByWarehouse' => $jubelioByWarehouse,
             'canRecalculateQty' => $this->canRecalculateQty($item),
             'isAsset' => $item->type === ItemType::ASSET_LANCAR,
             'groupUrl' => $this->legacyConverter->hasProductGroup($item) && (int) $item->group_id > 0

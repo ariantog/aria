@@ -33,6 +33,10 @@ $destroyRoute = $isAsset ? route('assetlancar.destroy', $item) : route('items.de
 $legacyCodeUpdateRoute = $isAsset
     ? route('assetlancar.update-legacy-code', $item)
     : route('items.update-legacy-code', $item);
+$jubelioTotal = $jubelioTotal ?? ['linked' => false, 'on_hand' => null, 'on_order' => null, 'reserved' => null, 'available' => null, 'fetch_failed' => false];
+$jubelioByWarehouse = $jubelioByWarehouse ?? [];
+$jubelioLinked = (bool) ($jubelioTotal['linked'] ?? false);
+$fmtQty = fn ($v) => $v === null ? '—' : format_amount($v, 0);
 $showShopeeStock = $showShopeeStock ?? false;
 $shopeeStocksByWarehouse = $shopeeStocksByWarehouse ?? [];
 $shopeeFetchFailed = $shopeeFetchFailed ?? false;
@@ -253,6 +257,44 @@ $shopeeFetchFailed = $shopeeFetchFailed ?? false;
         </div>
     </div>
 
+    @if((int) $item->jubelio_item_id > 0)
+    <div class="mt-6 overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm">
+        <div class="flex flex-col gap-2 border-b border-blue-100 bg-blue-50 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <h3 class="text-sm font-semibold uppercase tracking-wider text-blue-900">Jubelio Inventory</h3>
+                <p class="mt-0.5 text-xs text-blue-800">All channels combined (not per warehouse). Per-gudang Jubelio columns appear below when the warehouse is mapped.</p>
+            </div>
+            <a href="{{ route('items.jubelio', $item) }}" class="text-xs font-medium text-blue-700 hover:underline">Open Jubelio tab</a>
+        </div>
+        <div class="p-6">
+            @if(! $jubelioLinked)
+                <p class="text-sm text-gray-500">This SKU is not linked to Jubelio yet.</p>
+            @elseif($jubelioTotal['fetch_failed'] ?? false)
+                <p class="text-sm text-red-700">Could not fetch Jubelio stock right now.</p>
+            @else
+                <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                    <div class="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                        <p class="text-[10px] font-bold uppercase tracking-widest text-gray-500">On hand</p>
+                        <p class="mt-1 font-mono text-2xl font-bold text-blue-600" data-testid="jubelio-total-on-hand">{{ $fmtQty($jubelioTotal['on_hand']) }}</p>
+                    </div>
+                    <div class="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                        <p class="text-[10px] font-bold uppercase tracking-widest text-gray-500">On order</p>
+                        <p class="mt-1 font-mono text-2xl font-bold text-orange-500" data-testid="jubelio-total-on-order">{{ $fmtQty($jubelioTotal['on_order']) }}</p>
+                    </div>
+                    <div class="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                        <p class="text-[10px] font-bold uppercase tracking-widest text-gray-500">Reserved</p>
+                        <p class="mt-1 font-mono text-2xl font-bold text-gray-700" data-testid="jubelio-total-reserved">{{ $fmtQty($jubelioTotal['reserved']) }}</p>
+                    </div>
+                    <div class="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                        <p class="text-[10px] font-bold uppercase tracking-widest text-gray-500">Available</p>
+                        <p class="mt-1 font-mono text-2xl font-bold text-green-600" data-testid="jubelio-total-available">{{ $fmtQty($jubelioTotal['available']) }}</p>
+                    </div>
+                </div>
+            @endif
+        </div>
+    </div>
+    @endif
+
     {{-- Warehouse --}}
     <div class="mt-6">
         <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
@@ -291,6 +333,7 @@ $shopeeFetchFailed = $shopeeFetchFailed ?? false;
                     'showZero' => 'showZero',
                     'variant' => 'physical',
                     'testId' => 'item-availability',
+                    'jubelioByWarehouse' => $jubelioByWarehouse,
                     'showShopeeStock' => $showShopeeStock,
                     'shopeeStocksByWarehouse' => $shopeeStocksByWarehouse,
                 ])

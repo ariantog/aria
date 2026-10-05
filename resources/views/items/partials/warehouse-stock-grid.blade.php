@@ -3,6 +3,7 @@
     'showZero' => 'showZero',
     'variant' => 'physical',
     'testId' => 'warehouse-availability',
+    'jubelioByWarehouse' => [],
     'showShopeeStock' => false,
     'shopeeStocksByWarehouse' => [],
 ])
@@ -14,6 +15,8 @@
         'virtual' => 'virtual',
         default => 'active',
     };
+    $showJubelioColumns = $variant === 'physical' && ! empty($jubelioByWarehouse);
+    $fmtJubelio = fn ($v) => $v === null ? '—' : format_amount($v, 0);
     $shopeeQtyCell = function (?array $shopee, string $field, bool $highlightMismatch = false) {
         if (! $shopee || ! ($shopee['has_sync'] ?? false)) {
             return '<span class="text-gray-300">—</span>';
@@ -76,10 +79,16 @@
                             <button type="button"
                                     @click="sortRows('qty')"
                                     class="inline-flex w-full items-center justify-end gap-1 hover:text-gray-900">
-                                Qty
+                                {{ ($showJubelioColumns || ($showShopeeStock && $variant === 'physical')) ? 'Aria qty' : 'Qty' }}
                                 <span x-show="sortCol === 'qty'" class="text-blue-600" x-text="sortDir === 'asc' ? '↑' : '↓'"></span>
                             </button>
                         </th>
+                        @if($showJubelioColumns)
+                            <th class="px-3 py-3 text-right font-bold" data-copy-col="jb_on_hand" title="Jubelio on hand at mapped location">JB on hand</th>
+                            <th class="px-3 py-3 text-right font-bold" data-copy-col="jb_on_order" title="Jubelio on order">JB on order</th>
+                            <th class="px-3 py-3 text-right font-bold" data-copy-col="jb_reserved" title="Jubelio reserved">JB rsv</th>
+                            <th class="px-3 py-3 text-right font-bold" data-copy-col="jb_available" title="Jubelio available">JB avail</th>
+                        @endif
                         @if($showShopeeStock && $variant === 'physical')
                             <th class="px-3 py-3 text-right font-bold" data-copy-col="sp_sellable" title="Shopee sellable">SP sell</th>
                             <th class="px-3 py-3 text-right font-bold" data-copy-col="sp_reserved" title="Shopee reserved">SP rsv</th>
@@ -92,10 +101,15 @@
                             $qty = (float) $wh->quantity;
                             $warehouseName = $wh->warehouse?->name ?? ('Warehouse #'.$wh->warehouse_id);
                             $warehouseUrl = $wh->warehouse ? url('/'.$wh->warehouse->type_slug.'/'.$wh->warehouse->id) : null;
+                            $jubelio = $jubelioByWarehouse[$wh->warehouse_id] ?? null;
+                            $shopee = ($shopeeStocksByWarehouse ?? [])[$wh->warehouse_id] ?? null;
+                            $rowMismatch = ($showJubelioColumns && ($jubelio['mismatch'] ?? false))
+                                || ($showShopeeStock && $variant === 'physical' && ($shopee['mismatch'] ?? false));
                         @endphp
                         <tr @class([
                             'hover:bg-gray-50',
                             'opacity-60' => $qty == 0.0,
+                            'bg-amber-50 ring-1 ring-inset ring-amber-200' => $rowMismatch,
                         ])
                             data-warehouse-id="{{ $wh->warehouse_id }}"
                             @if($qty == 0.0) x-show="{{ $showZero }}" @endif>
@@ -125,10 +139,17 @@
                                     'text-gray-400' => $qty == 0.0,
                                 ])>{{ format_amount($qty, 0) }}</span>
                             </td>
+                            @if($showJubelioColumns)
+                                @if($jubelio)
+                                    <td class="whitespace-nowrap px-3 py-2 text-right font-mono text-xs text-blue-700" data-copy-col="jb_on_hand" data-copy-value="{{ $jubelio['on_hand'] !== null ? format_copy_number($jubelio['on_hand']) : '' }}" title="{{ $jubelio['location_name'] ?? '' }}">{{ $fmtJubelio($jubelio['on_hand']) }}</td>
+                                    <td class="whitespace-nowrap px-3 py-2 text-right font-mono text-xs text-orange-600" data-copy-col="jb_on_order" data-copy-value="{{ $jubelio['on_order'] !== null ? format_copy_number($jubelio['on_order']) : '' }}">{{ $fmtJubelio($jubelio['on_order']) }}</td>
+                                    <td class="whitespace-nowrap px-3 py-2 text-right font-mono text-xs text-gray-600" data-copy-col="jb_reserved" data-copy-value="{{ $jubelio['reserved'] !== null ? format_copy_number($jubelio['reserved']) : '' }}">{{ $fmtJubelio($jubelio['reserved']) }}</td>
+                                    <td class="whitespace-nowrap px-3 py-2 text-right font-mono text-xs font-semibold {{ ($jubelio['mismatch'] ?? false) ? 'text-red-600' : 'text-green-600' }}" data-copy-col="jb_available" data-copy-value="{{ $jubelio['available'] !== null ? format_copy_number($jubelio['available']) : '' }}">{{ $fmtJubelio($jubelio['available']) }}</td>
+                                @else
+                                    <td colspan="4" class="px-3 py-2 text-right text-xs text-gray-300" data-copy-col="jb_on_hand">—</td>
+                                @endif
+                            @endif
                             @if($showShopeeStock && $variant === 'physical')
-                                @php
-                                    $shopee = ($shopeeStocksByWarehouse ?? [])[$wh->warehouse_id] ?? null;
-                                @endphp
                                 <td class="whitespace-nowrap px-3 py-2 text-right text-xs" data-copy-col="sp_sellable" @if(($shopee['sellable'] ?? null) !== null) data-copy-value="{{ format_copy_number($shopee['sellable']) }}" @endif>{!! $shopeeQtyCell($shopee, 'sellable', true) !!}</td>
                                 <td class="whitespace-nowrap px-3 py-2 text-right text-xs" data-copy-col="sp_reserved" @if(($shopee['reserved'] ?? null) !== null) data-copy-value="{{ format_copy_number($shopee['reserved']) }}" @endif>{!! $shopeeQtyCell($shopee, 'reserved') !!}</td>
                             @endif
