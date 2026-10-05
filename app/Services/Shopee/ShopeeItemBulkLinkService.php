@@ -226,12 +226,6 @@ class ShopeeItemBulkLinkService
         }
 
         $batchSummary = $this->summarize($resultRows, applied: true);
-        $recent = is_array($run->recent_results) ? $run->recent_results : [];
-        $recent = array_merge($recent, $resultRows);
-        if (count($recent) > self::PREVIEW_DISPLAY_LIMIT) {
-            $recent = array_slice($recent, -self::PREVIEW_DISPLAY_LIMIT);
-        }
-
         $failed = is_array($run->failed_results) ? $run->failed_results : [];
         $failed = $this->appendFailedResults($failed, $resultRows);
 
@@ -239,7 +233,7 @@ class ShopeeItemBulkLinkService
         $run->skipped_count += (int) $batchSummary['skipped'];
         $run->error_count += (int) $batchSummary['errors'];
         $run->processed_rows += count($batch);
-        $run->recent_results = $recent;
+        $run->recent_results = [];
         $run->failed_results = $failed;
         $run->last_batch_at = now();
 
@@ -258,7 +252,6 @@ class ShopeeItemBulkLinkService
      */
     public function runForDisplay(ShopeeBulkLinkRun $run): array
     {
-        $recent = is_array($run->recent_results) ? $run->recent_results : [];
         $failed = is_array($run->failed_results) ? $run->failed_results : [];
 
         return [
@@ -276,8 +269,8 @@ class ShopeeItemBulkLinkService
             'error_message' => $run->error_message,
             'batch_size' => self::BATCH_SIZE,
             'batch_interval_seconds' => self::BATCH_INTERVAL_SECONDS,
-            'rows' => $recent,
-            'rows_truncated' => $run->processed_rows > count($recent),
+            'rows' => [],
+            'rows_truncated' => false,
             'failed_rows' => $failed,
             'failed_rows_truncated' => $run->error_count > count($failed),
         ];
@@ -331,12 +324,7 @@ class ShopeeItemBulkLinkService
         $lookup = $this->loadItemLookupMaps($parsedRows);
         $itemsById = $this->loadItemsById($parsedRows);
 
-        $shopeeIds = collect($parsedRows)
-            ->pluck('shopee_item_id')
-            ->filter(fn ($id) => (int) $id > 0)
-            ->unique()
-            ->values()
-            ->all();
+        $shopeeIds = $this->shopeeItemIdsNeedingApi($parsedRows, $lookup, $itemsById, $overwriteExisting);
 
         $modelsByShopeeItem = [];
         $modelsPrefetched = false;
@@ -436,11 +424,10 @@ class ShopeeItemBulkLinkService
             }
         }
 
-        $alreadyLinked = (int) ($item->shopee_item_id ?? 0) > 0;
-        if ($alreadyLinked && ! $overwriteExisting) {
+        if ($this->shouldSkipLinkRow($item, $shopeeItemId, $shopeeModelId, $overwriteExisting)) {
             return $row + [
                 'status' => 'skipped',
-                'message' => 'Sudah terhubung (centang overwrite untuk ganti).',
+                'message' => $this->skipLinkMessage($item, $shopeeItemId, $shopeeModelId, $overwriteExisting),
                 'item' => $this->itemSnapshot($item),
             ];
         }
@@ -455,7 +442,7 @@ class ShopeeItemBulkLinkService
         if ($dryRun) {
             return $row + [
                 'status' => 'ready',
-                'message' => 'Siap — '.$matchLabel.'; Kode Variasi '.$shopeeModelId.'.',
+                'message' => 'Siap link — '.$matchLabel.'; Kode Variasi '.$shopeeModelId.'.',
                 'item' => $this->itemSnapshot($item),
             ];
         }
@@ -478,11 +465,106 @@ class ShopeeItemBulkLinkService
             ];
         }
 
+        if ($result['unchanged'] ?? false) {
+            return $row + [
+                'status' => 'skipped',
+                'message' => 'Sudah terhubung — ID sama.',
+                'item' => $this->itemSnapshot($item->fresh()),
+            ];
+        }
+
         return $row + [
             'status' => 'linked',
             'message' => $matchLabel.' — terhubung (model '.($result['shopee_model_id'] ?? $shopeeModelId).')',
             'item' => $this->itemSnapshot($item->fresh()),
         ];
+    }
+
+    private function shouldSkipLinkRow(Item $item, int $shopeeItemId, int $shopeeModelId, bool $overwriteExisting): bool
+    {
+        $existingItemId = (int) ($item->shopee_item_id ?? 0);
+        if ($existingItemId <= 0) {
+            return false;
+        }
+
+        if ($shopeeItemId <= 0) {
+            $shopeeItemId = $existingItemId;
+        }
+
+        if (! $overwriteExisting) {
+            return true;
+        }
+
+        $existingModelId = (int) ($item->shopee_model_id ?? 0);
+        if ($shopeeModelId <= 0) {
+            return true;
+        }
+
+        return $existingItemId === $shopeeItemId && $existingModelId === $shopeeModelId;
+    }
+
+    private function skipLinkMessage(Item $item, int $shopeeItemId, int $shopeeModelId, bool $overwriteExisting): string
+    {
+        if (! $overwriteExisting) {
+            return 'Sudah terhubung — lewati (centang overwrite untuk ganti).';
+        }
+
+        $existingItemId = (int) ($item->shopee_item_id ?? 0);
+        $existingModelId = (int) ($item->shopee_model_id ?? 0);
+        if ($shopeeItemId <= 0) {
+            $shopeeItemId = $existingItemId;
+        }
+
+        if ($existingItemId === $shopeeItemId && $existingModelId === $shopeeModelId) {
+            return 'Sudah terhubung — ID sama.';
+        }
+
+        return 'Sudah terhubung — lewati.';
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $parsedRows
+     * @param  array{legacy: array<string, Item>, code: array<string, Item>}  $lookup
+     * @param  array<int, Item>  $itemsById
+     * @return list<int>
+     */
+    private function shopeeItemIdsNeedingApi(array $parsedRows, array $lookup, array $itemsById, bool $overwriteExisting): array
+    {
+        $ids = [];
+
+        foreach ($parsedRows as $row) {
+            $code = isset($row['code']) ? trim((string) $row['code']) : '';
+            $ariaItemId = (int) ($row['aria_item_id'] ?? 0);
+            $shopeeItemId = (int) ($row['shopee_item_id'] ?? 0);
+            $shopeeModelId = (int) ($row['shopee_model_id'] ?? 0);
+
+            $item = null;
+            if ($ariaItemId > 0) {
+                $item = $itemsById[$ariaItemId] ?? null;
+            }
+            if ($item === null && $code !== '') {
+                $resolved = $this->resolveItemBySku($code, $lookup['legacy'], $lookup['code']);
+                $item = $resolved['item'] ?? null;
+            }
+
+            if ($item === null || $shopeeModelId <= 0) {
+                continue;
+            }
+
+            if ($this->shouldSkipLinkRow($item, $shopeeItemId, $shopeeModelId, $overwriteExisting)) {
+                continue;
+            }
+
+            if ($shopeeItemId <= 0) {
+                $shopeeItemId = (int) ($item->shopee_item_id ?? 0);
+            }
+
+            if ($shopeeItemId > 0) {
+                $ids[$shopeeItemId] = $shopeeItemId;
+            }
+        }
+
+        return array_values($ids);
     }
 
     /**

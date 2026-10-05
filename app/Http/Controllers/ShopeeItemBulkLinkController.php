@@ -28,7 +28,6 @@ class ShopeeItemBulkLinkController extends Controller
 
         $resultRows = array_merge(
             $preview['rows'] ?? [],
-            $displayRun['rows'] ?? [],
             $displayRun['failed_rows'] ?? [],
         );
 

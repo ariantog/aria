@@ -18,7 +18,7 @@ class ShopeeItemLinkApplier
 
     /**
      * @param  list<array<string, mixed>>|null  $prefetchedModels
-     * @return array{ok: bool, message?: string, shopee_model_id?: ?int}
+     * @return array{ok: bool, unchanged?: bool, message?: string, shopee_model_id?: ?int}
      */
     public function apply(Item $item, int $shopeeItemId, ?int $explicitModelId = null, ?array $prefetchedModels = null): array
     {
@@ -59,7 +59,7 @@ class ShopeeItemLinkApplier
         $newModelId = (int) ($storedModelId ?? 0);
 
         if ($existingItemId === $shopeeItemId && $existingModelId === $newModelId) {
-            return ['ok' => true, 'shopee_model_id' => $storedModelId];
+            return ['ok' => true, 'unchanged' => true, 'shopee_model_id' => $storedModelId];
         }
 
         $this->persistLinkOnly($item, $shopeeItemId, $storedModelId);

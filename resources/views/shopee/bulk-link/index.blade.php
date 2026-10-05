@@ -93,14 +93,8 @@ $batchSize = \App\Services\Shopee\ShopeeItemBulkLinkService::BATCH_SIZE;
             @endif
         </div>
         @endif
-        @if(! empty($displayRun['rows']))
-        <div class="mt-5 border-t border-gray-100 pt-4">
-            <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-700">Batch terakhir</h3>
-            @include('shopee.bulk-link.partials.result-table', ['rows' => $displayRun['rows'], 'itemModels' => $itemModels ?? collect()])
-            @if($displayRun['rows_truncated'] ?? false)
-            <p class="mt-2 text-xs text-gray-500">Menampilkan batch terakhir (max {{ count($displayRun['rows']) }} baris).</p>
-            @endif
-        </div>
+        @if(($displayRun['error_count'] ?? 0) === 0 && ($displayRun['status'] ?? '') === 'completed')
+        <p class="mt-3 text-sm text-emerald-700" data-testid="shopee-bulk-link-no-errors">Tidak ada baris gagal — semua sudah ter-link atau dilewati.</p>
         @endif
     </div>
     @endif
