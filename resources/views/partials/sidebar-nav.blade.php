@@ -164,6 +164,7 @@
     }
     if ($hasPerm('shopee-stock-sync') || $isSuperAdmin) {
         $shopeeNavLabels[] = 'Warehouse Map';
+        $shopeeNavLabels[] = 'Auto Link';
     }
 
     $journalNavLabels = ['Journals'];
@@ -607,7 +608,7 @@
 
 {{-- ── Shopee (Ads + Stock Checker) ──────────────────────────────────── --}}
 @if($hasPerm('shopee-ads-view') || $hasPerm('shopee-stock-sync') || $isSuperAdmin)
-@php $shopeActive = $isActive('/shopee-ads') || $isActive('/shopee-sync'); @endphp
+@php $shopeActive = $isActive('/shopee-ads') || $isActive('/shopee-sync') || $isActive('/shopee/auto-link'); @endphp
 <div x-data="{ open: {{ $shopeActive ? 'true' : 'false' }} }"
      class="mb-1"
      x-show="navGroupVisible(@js($shopeeNavLabels))"
@@ -625,6 +626,7 @@
         @endif
         @if($hasPerm('shopee-stock-sync') || $isSuperAdmin)
         <a href="{{ route('shopee.sync.index') }}" x-show="navLinkVisible('Warehouse Map', 'Shopee')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/shopee-sync') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Warehouse Map</a>
+        <a href="{{ route('shopee.auto-link.index') }}" x-show="navLinkVisible('Auto Link', 'Shopee')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/shopee/auto-link') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Auto Link</a>
         @endif
     </div>
 </div>
