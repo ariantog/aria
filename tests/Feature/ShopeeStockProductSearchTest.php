@@ -36,6 +36,9 @@ it('hydrates search_item item_id_list via get_item_base_info', function () {
 
         if ($method === 'POST' && str_contains($url, '/api/v2/product/search_item')) {
             expect($request->hasHeader('Content-Type', 'application/json'))->toBeTrue();
+            $payload = $request->data();
+            expect($payload)->not->toHaveKey('offset');
+            expect($payload['page_size'])->toBeInt();
 
             return Http::response([
                 'error' => '',
@@ -149,4 +152,35 @@ it('builds name search fragments from aria sku codes', function () {
 
     expect($queries)->toContain('AJD-CX90324-05-S')
         ->and($queries)->toContain('CX90324-05');
+});
+
+it('loads product by numeric shopee item id without search_item', function () {
+    Http::fake(function (\Illuminate\Http\Client\Request $request) {
+        if ($request->method() === 'POST' && str_contains($request->url(), 'search_item')) {
+            return Http::response(['error' => 'should not call search'], 500);
+        }
+
+        if ($request->method() === 'GET' && str_contains($request->url(), 'get_item_base_info')) {
+            return Http::response([
+                'error' => '',
+                'response' => [
+                    'item_list' => [
+                        [
+                            'item_id' => 844078646,
+                            'item_name' => 'Knee Wrap',
+                            'item_sku' => 'KNEEWRAP-01',
+                        ],
+                    ],
+                ],
+            ]);
+        }
+
+        return Http::response(['error' => 'unexpected'], 500);
+    });
+
+    $rows = app(ShopeeStockApiService::class)->searchItems('844078646');
+
+    expect($rows)->toHaveCount(1)
+        ->and($rows[0]['item_id'])->toBe(844078646)
+        ->and($rows[0]['item_name'])->toBe('Knee Wrap');
 });
