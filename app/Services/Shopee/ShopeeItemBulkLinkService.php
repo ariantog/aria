@@ -5,6 +5,7 @@ namespace App\Services\Shopee;
 use App\Models\Item;
 use App\Models\ShopeeBulkLinkRun;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 
 class ShopeeItemBulkLinkService
@@ -83,6 +84,26 @@ class ShopeeItemBulkLinkService
         if ($token !== '' && strlen($token) === 32) {
             Cache::forget(self::SESSION_KEY.':'.$token);
         }
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     * @return Collection<int, Item>
+     */
+    public function loadItemsForResultRows(array $rows): Collection
+    {
+        $ids = collect($rows)
+            ->map(fn (array $row) => (int) (($row['item']['id'] ?? 0)))
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($ids === []) {
+            return collect();
+        }
+
+        return Item::query()->whereIn('id', $ids)->get()->keyBy('id');
     }
 
     public function startApply(string $token, bool $overwriteExisting = false, ?int $userId = null): ShopeeBulkLinkRun
@@ -503,7 +524,6 @@ class ShopeeItemBulkLinkService
         return [
             'id' => (int) $item->id,
             'code' => (string) $item->code,
-            'show_url' => $item->showUrl(),
             'shopee_item_id' => $item->shopee_item_id ? (int) $item->shopee_item_id : null,
             'shopee_model_id' => $item->shopee_model_id ? (int) $item->shopee_model_id : null,
         ];

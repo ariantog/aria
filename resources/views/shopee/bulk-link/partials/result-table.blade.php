@@ -1,3 +1,4 @@
+@php $itemModels = $itemModels ?? collect(); @endphp
 <div class="mt-4 overflow-x-auto">
     <table class="min-w-full text-left text-sm">
         <thead class="border-b border-gray-200 bg-gray-50 text-[10px] uppercase tracking-wider text-gray-500">
@@ -21,12 +22,15 @@
                     default => 'bg-red-50 text-red-800',
                 };
                 $item = $row['item'] ?? null;
+                $itemModel = ($item && isset($item['id'])) ? ($itemModels[$item['id']] ?? null) : null;
             @endphp
             <tr class="align-top">
                 <td class="whitespace-nowrap px-3 py-2 font-mono text-xs text-gray-500">{{ $row['line'] ?? '—' }}</td>
                 <td class="px-3 py-2">
-                    @if($item)
-                        <a href="{{ $item['show_url'] ?? route('items.show', $item['id']) }}" class="font-mono text-xs text-blue-600 hover:underline">{{ $item['code'] }}</a>
+                    @if($itemModel)
+                        <a href="{{ $itemModel->showUrl() }}" class="font-mono text-xs text-blue-600 hover:underline">{{ $itemModel->code }}</a>
+                    @elseif($item)
+                        <span class="font-mono text-xs text-gray-700">{{ $item['code'] ?? '—' }}</span>
                     @else
                         <span class="font-mono text-xs text-gray-700">{{ $row['code'] ?? '—' }}</span>
                     @endif

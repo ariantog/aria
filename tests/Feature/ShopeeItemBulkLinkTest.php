@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\ItemType;
 use App\Models\Item;
 use App\Models\ShopeeBulkLinkRun;
 use App\Models\User;
@@ -164,6 +165,27 @@ it('renders bulk link page for sync permission', function () {
         ->assertOk()
         ->assertSee('Shopee Bulk Link', false)
         ->assertSee('data-testid="shopee-bulk-link-preview"', false);
+});
+
+it('bulk preview item links match transaction show showUrl for asset lancar', function () {
+    $item = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'code' => 'ASSET-LINK-SKU',
+        'shopee_item_id' => null,
+    ]);
+
+    $csv = "Kode Produk,Kode Variasi,SKU\n9001,8001,ASSET-LINK-SKU\n";
+    $upload = UploadedFile::fake()->createWithContent('shopee.csv', $csv);
+
+    $this->actingAs($this->user)
+        ->post(route('shopee.bulk-link.preview'), ['file' => $upload])
+        ->assertRedirect(route('shopee.bulk-link.index'));
+
+    $this->actingAs($this->user)
+        ->get(route('shopee.bulk-link.index'))
+        ->assertOk()
+        ->assertSee($item->showUrl(), false)
+        ->assertDontSee(route('items.show', $item->id), false);
 });
 
 it('keeps preview in cache and stores only token in session', function () {
