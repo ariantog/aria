@@ -41,6 +41,10 @@ class ShopeeStockApiService
     }
 
     /**
+     * Search Shopee catalog for manual link UI and auto-link discovery.
+     *
+     * Shopee `search_item` returns `item_id_list` only — hydrate via `get_item_base_info`.
+     *
      * @return list<array<string, mixed>>
      */
     public function searchItems(string $keyword, int $pageSize = 20): array
@@ -50,12 +54,40 @@ class ShopeeStockApiService
             return [];
         }
 
-        $data = $this->openApi->decodeShopResponse(
-            $this->openApi->shopApiPost('/api/v2/product/search_item', [
-                'item_sku' => $keyword,
-                'page_size' => min(50, max(1, $pageSize)),
+        $pageSize = min(50, max(1, $pageSize));
+        $statusFilter = ['NORMAL', 'UNLIST'];
+
+        $itemIds = $this->searchItemIds([
+            'page_size' => $pageSize,
+            'offset' => 0,
+            'item_sku' => $keyword,
+            'item_status' => $statusFilter,
+        ]);
+
+        if ($itemIds === []) {
+            $itemIds = $this->searchItemIds([
+                'page_size' => $pageSize,
                 'offset' => 0,
-            ]),
+                'item_name' => $keyword,
+                'item_status' => $statusFilter,
+            ]);
+        }
+
+        if ($itemIds !== []) {
+            return $this->itemSummariesForIds($itemIds);
+        }
+
+        return $this->searchUnpackagedModelsAsRows($keyword, $pageSize);
+    }
+
+    /**
+     * @param  array<string, mixed>  $body
+     * @return list<int>
+     */
+    private function searchItemIds(array $body): array
+    {
+        $data = $this->openApi->decodeShopResponse(
+            $this->openApi->shopApiPost('/api/v2/product/search_item', $body),
             'Shopee product search',
         );
 
@@ -64,9 +96,103 @@ class ShopeeStockApiService
         }
 
         $response = $data['response'] ?? $data;
-        $items = $response['item_list'] ?? $response['items'] ?? [];
+        $ids = $response['item_id_list'] ?? [];
 
-        return is_array($items) ? array_values(array_filter($items, 'is_array')) : [];
+        if (! is_array($ids)) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map('intval', $ids), fn (int $id) => $id > 0));
+    }
+
+    /**
+     * @param  list<int>  $itemIds
+     * @return list<array<string, mixed>>
+     */
+    private function itemSummariesForIds(array $itemIds): array
+    {
+        $itemIds = array_values(array_unique(array_filter(array_map('intval', $itemIds), fn (int $id) => $id > 0)));
+        if ($itemIds === []) {
+            return [];
+        }
+
+        $data = $this->openApi->decodeShopResponse(
+            $this->openApi->shopApiGet('/api/v2/product/get_item_base_info', [
+                'item_id_list' => implode(',', array_slice($itemIds, 0, 50)),
+            ]),
+            'Shopee item base info',
+        );
+
+        if ($data === null) {
+            return array_map(
+                fn (int $id) => ['item_id' => $id, 'item_name' => '', 'item_sku' => ''],
+                $itemIds,
+            );
+        }
+
+        $response = $data['response'] ?? $data;
+        $items = $response['item_list'] ?? [];
+
+        if (! is_array($items)) {
+            return array_map(
+                fn (int $id) => ['item_id' => $id, 'item_name' => '', 'item_sku' => ''],
+                $itemIds,
+            );
+        }
+
+        $rows = [];
+        foreach (array_values(array_filter($items, 'is_array')) as $item) {
+            $rows[] = [
+                'item_id' => (int) ($item['item_id'] ?? 0),
+                'item_name' => (string) ($item['item_name'] ?? $item['name'] ?? ''),
+                'item_sku' => (string) ($item['item_sku'] ?? $item['sku'] ?? ''),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function searchUnpackagedModelsAsRows(string $keyword, int $pageSize): array
+    {
+        $body = [
+            'page_size' => min(50, max(1, $pageSize)),
+            'unpackaged_sku_id' => $keyword,
+        ];
+
+        $data = $this->openApi->decodeShopResponse(
+            $this->openApi->shopApiPost('/api/v2/product/search_unpackaged_model_list', $body),
+            'Shopee unpackaged model search',
+        );
+
+        if ($data === null) {
+            return [];
+        }
+
+        $response = $data['response'] ?? $data;
+        $models = $response['model_list'] ?? [];
+
+        if (! is_array($models)) {
+            return [];
+        }
+
+        $rows = [];
+        foreach (array_values(array_filter($models, 'is_array')) as $model) {
+            $itemId = (int) ($model['item_id'] ?? 0);
+            if ($itemId <= 0) {
+                continue;
+            }
+            $rows[] = [
+                'item_id' => $itemId,
+                'model_id' => (int) ($model['model_id'] ?? 0),
+                'item_name' => (string) ($model['item_name'] ?? ''),
+                'item_sku' => (string) ($model['model_sku'] ?? $model['unpackaged_sku_id'] ?? ''),
+            ];
+        }
+
+        return $rows;
     }
 
     /**
@@ -90,7 +216,7 @@ class ShopeeStockApiService
         }
 
         $response = $data['response'] ?? $data;
-        $models = $response['model'] ?? [];
+        $models = $response['model'] ?? $response['model_list'] ?? [];
 
         return is_array($models) ? array_values(array_filter($models, 'is_array')) : [];
     }

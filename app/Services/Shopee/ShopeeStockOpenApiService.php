@@ -44,7 +44,9 @@ class ShopeeStockOpenApiService
             'has_token' => filled($oauth['access_token'] ?? null),
             'shop_id' => $oauth['shop_id'] ?? null,
             'expires_at' => $expiresAt?->toIso8601String(),
-            'is_expired' => $expiresAt?->isPast() ?? true,
+            'is_expired' => $expiresAt !== null
+                ? $expiresAt->isPast()
+                : ! filled($oauth['access_token'] ?? null),
             'last_error' => $oauth['last_error'] ?? null,
             'redirect_url' => $this->getOAuthRedirectUrl(),
         ];
@@ -246,7 +248,7 @@ class ShopeeStockOpenApiService
             return $request->get($url, array_merge($baseQuery, $query));
         }
 
-        return $request->post($url.'?'.http_build_query($baseQuery), $body);
+        return $request->asJson()->post($url.'?'.http_build_query($baseQuery), $body);
     }
 
     /**
@@ -257,7 +259,7 @@ class ShopeeStockOpenApiService
         $sign = $this->signPublic($path, $timestamp);
         $url = rtrim(config('services.shopee_stock.base_url'), '/').$path;
 
-        return Http::timeout(30)->post($url.'?'.http_build_query([
+        return Http::timeout(30)->asJson()->post($url.'?'.http_build_query([
             'partner_id' => (int) config('services.shopee_stock.partner_id'),
             'timestamp' => $timestamp,
             'sign' => $sign,
