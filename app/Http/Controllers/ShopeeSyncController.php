@@ -7,6 +7,7 @@ use App\Models\ShopeeStock;
 use App\Models\Shopeesync;
 use App\Services\Shopee\ShopeeStockApiService;
 use App\Services\Shopee\ShopeeStockOpenApiService;
+use App\Services\ShopeeAds\ShopeeAdsApiService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -42,7 +43,9 @@ class ShopeeSyncController extends Controller
             'filters' => $request->only(['name']),
             'connection' => array_merge($status, [
                 'ready' => $this->stockApi->isReady(),
+                'authorized' => $this->openApi->hasShopAuthorization(),
             ]),
+            'adsOAuthConnected' => app(ShopeeAdsApiService::class)->hasShopAuthorization(),
             'oauthErrorHint' => $this->openApi->formatOAuthErrorForUser($this->openApi->getLastOAuthError()),
             'flash' => ['success' => session('success'), 'error' => session('fail') ?? session('errorMessage') ?? session('error')],
         ]);

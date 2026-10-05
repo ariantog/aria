@@ -10,6 +10,13 @@ $breadcrumbs = [
 @endphp
 
 <div class="flex flex-col gap-6 p-4">
+    @if(session('success'))
+        <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ session('success') }}</div>
+    @endif
+    @if(session('error'))
+        <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ session('error') }}</div>
+    @endif
+
     <div class="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div>
             <h1 class="text-2xl font-bold">Shopee Warehouse Mapping</h1>
@@ -27,30 +34,58 @@ $breadcrumbs = [
         </div>
     </div>
 
-    <div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-800">
+    @php
+        $stockConnected = (bool) ($connection['authorized'] ?? false);
+        $stockApiReady = (bool) ($connection['ready'] ?? false);
+    @endphp
+    <div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-800" data-testid="shopee-stock-oauth-panel">
         <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
                 <p class="font-medium">STOCK CHECKER app (OAuth terpisah dari COREADS / Shopee Ads)</p>
+                <p class="mt-2 text-lg font-semibold {{ $stockConnected ? 'text-green-700' : 'text-red-700' }}" data-testid="shopee-stock-oauth-status">
+                    {{ $stockConnected ? 'Connected' : 'Not connected' }}
+                </p>
                 @if($connection['configured'] ?? false)
                     <p class="mt-1 text-xs text-gray-600">
                         Redirect URL terdaftar:
                         <code class="rounded bg-white px-1">{{ $connection['redirect_url'] ?? '—' }}</code>
-                        @if($connection['ready'] ?? false)
+                        @if($connection['shop_id'] ?? null)
                             · shop_id <span class="font-mono">{{ $connection['shop_id'] }}</span>
                         @endif
                     </p>
                 @else
                     <p class="mt-1 text-xs text-amber-800">Set <code>SHOPEE_STOCK_PARTNER_ID</code> / <code>SHOPEE_STOCK_PARTNER_KEY</code> di .env (Live Partner dari app STOCK CHECKER).</p>
                 @endif
+                @if($stockConnected && ! $stockApiReady)
+                    <p class="mt-2 text-xs text-amber-900">
+                        Token STOCK CHECKER tersimpan, tapi API belum siap — pastikan <code>SHOPEE_STOCK_PARTNER_ID</code> / <code>SHOPEE_STOCK_PARTNER_KEY</code> benar di .env lalu refresh halaman.
+                    </p>
+                @endif
+                @if(($adsOAuthConnected ?? false) && ! $stockConnected)
+                    <p class="mt-2 text-xs text-amber-900">
+                        Shopee Ads (COREADS) sudah terhubung, tapi cek stok butuh authorize terpisah di halaman ini — bukan dari menu <strong>Shopee → Ads</strong>.
+                    </p>
+                @endif
                 @if($oauthErrorHint ?? null)
                     <p class="mt-2 text-xs text-red-700">{{ $oauthErrorHint }}</p>
+                @elseif($connection['last_error'] ?? null)
+                    <p class="mt-2 text-xs text-red-700">{{ $connection['last_error'] }}</p>
                 @endif
             </div>
             @can(\App\Models\ShopeeStock::getPermissions()['sync'])
+            @if(! $stockConnected)
             <a href="{{ route('shopee.sync.authorize') }}"
-               class="inline-flex rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700">
+               class="inline-flex rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700"
+               data-testid="shopee-stock-authorize-button">
                 Authorize Shopee (Stock)
             </a>
+            @else
+            <a href="{{ route('shopee.sync.authorize') }}"
+               class="inline-flex rounded-lg border border-orange-300 bg-white px-4 py-2 text-sm font-medium text-orange-800 hover:bg-orange-50"
+               data-testid="shopee-stock-reauthorize-button">
+                Re-authorize
+            </a>
+            @endif
             @endcan
         </div>
     </div>
