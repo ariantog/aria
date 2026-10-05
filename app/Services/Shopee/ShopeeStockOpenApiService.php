@@ -202,6 +202,35 @@ class ShopeeStockOpenApiService
     }
 
     /**
+     * Signed GET URL for Http::pool (each call gets a fresh timestamp/sign).
+     *
+     * @param  array<string, mixed>  $query
+     */
+    public function signedShopGetUrl(string $path, array $query = []): ?string
+    {
+        $token = $this->getAccessToken();
+        $oauth = $this->getOAuthPayload();
+        $shopId = (int) ($oauth['shop_id'] ?? 0);
+
+        if (! $token || $shopId <= 0) {
+            return null;
+        }
+
+        $timestamp = time();
+        $sign = $this->signShop($path, $timestamp, $token, $shopId);
+
+        $baseQuery = [
+            'partner_id' => (int) config('services.shopee_stock.partner_id'),
+            'timestamp' => $timestamp,
+            'access_token' => $token,
+            'shop_id' => $shopId,
+            'sign' => $sign,
+        ];
+
+        return rtrim(config('services.shopee_stock.base_url'), '/').$path.'?'.http_build_query(array_merge($baseQuery, $query));
+    }
+
+    /**
      * @param  array<string, mixed>  $body
      */
     public function shopApiPost(string $path, array $body = []): Response

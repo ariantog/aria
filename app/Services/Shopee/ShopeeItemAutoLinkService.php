@@ -218,9 +218,9 @@ class ShopeeItemAutoLinkService
         $summaries = $this->stockApi->discoverCandidatesForSku($searchQ, 50);
         $apiCalls += $this->estimateNameDiscoverApiCalls($searchQ, $summaries !== []);
 
-        $scanned = 0;
+        $rowsToScan = [];
         foreach ($summaries as $row) {
-            if ($scanned >= self::MODEL_SCAN_LIMIT) {
+            if (count($rowsToScan) >= self::MODEL_SCAN_LIMIT) {
                 break;
             }
 
@@ -229,9 +229,19 @@ class ShopeeItemAutoLinkService
                 continue;
             }
 
-            $scanned++;
-            $models = $this->stockApi->modelsForItem($itemId);
-            $apiCalls++;
+            $rowsToScan[] = $row;
+        }
+
+        $scanItemIds = array_values(array_unique(array_map(
+            fn (array $row) => (int) ($row['item_id'] ?? 0),
+            $rowsToScan,
+        )));
+        $modelsByItem = $this->stockApi->modelsByItemIds($scanItemIds);
+        $apiCalls += count($scanItemIds);
+
+        foreach ($rowsToScan as $row) {
+            $itemId = (int) ($row['item_id'] ?? 0);
+            $models = $modelsByItem[$itemId] ?? [];
             $candidateVariations += count($models);
 
             if ($models === []) {
