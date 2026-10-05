@@ -15,6 +15,10 @@ $breadcrumbs = [
 <div class="flex flex-col gap-4 p-4 sm:p-6">
     <div>
         <h1 class="text-2xl font-bold text-gray-900">Shopee Auto Link</h1>
+        <p class="mt-2 text-sm">
+            <a href="{{ route('shopee.bulk-link.index') }}" class="font-medium text-orange-700 hover:underline">Bulk Link</a>
+            — upload Excel/CSV jika Anda sudah punya daftar <span class="font-mono">shopee_item_id</span>.
+        </p>
         <p class="mt-1 text-sm text-gray-500">
             Cron runs <strong>hourly</strong> and tries up to <strong>50</strong> unlinked SKUs per tick — same rules as manual Link SKU: exact <span class="font-mono">Kode Variasi</span> / <span class="font-mono">model_sku</span> only (never parent SKU when the listing has size/color rows). Uses name search + catalog scan.
             Same eligibility as Jubelio auto-link: stock in a Shopee-mapped warehouse, rolling id window + {{ $stats['retry_campaign_days'] }}-day campaign, {{ $stats['retry_spacing_hours'] }}h spacing, max {{ $stats['max_attempts'] }} failed tries, ~{{ $stats['calls_cap'] }} Shopee API calls/hour.
