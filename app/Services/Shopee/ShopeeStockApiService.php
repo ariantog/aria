@@ -2,10 +2,21 @@
 
 namespace App\Services\Shopee;
 
+use Illuminate\Http\Client\Pool;
+use Illuminate\Support\Facades\Http;
+
 class ShopeeStockApiService
 {
     /** Max `search_item` calls when resolving one keyword (name fragments only). */
     private const MAX_NAME_SEARCH_QUERIES = 4;
+
+    /** Concurrent Shopee get_model_list requests per pool wave. */
+    private const MODEL_LIST_POOL_SIZE = 20;
+
+    /**
+     * @var array<int, list<array<string, mixed>>>
+     */
+    private array $modelsForItemCache = [];
 
     public function __construct(
         private ShopeeStockOpenApiService $openApi,
@@ -64,10 +75,10 @@ class ShopeeStockApiService
     {
         $needle = strtoupper(trim($ariaSku));
         $rows = [];
-        $fetched = 0;
 
+        $summariesToExpand = [];
         foreach ($itemSummaries as $summary) {
-            if ($fetched >= $maxItems) {
+            if (count($summariesToExpand) >= $maxItems) {
                 break;
             }
 
@@ -76,8 +87,18 @@ class ShopeeStockApiService
                 continue;
             }
 
-            $fetched++;
-            $models = $this->modelsForItem($itemId);
+            $summariesToExpand[] = $summary;
+        }
+
+        $itemIds = array_values(array_unique(array_map(
+            fn (array $summary) => (int) ($summary['item_id'] ?? 0),
+            $summariesToExpand,
+        )));
+        $modelsByItem = $this->modelsByItemIds($itemIds);
+
+        foreach ($summariesToExpand as $summary) {
+            $itemId = (int) ($summary['item_id'] ?? 0);
+            $models = $modelsByItem[$itemId] ?? [];
             $itemName = (string) ($summary['item_name'] ?? '');
             $parentSku = (string) ($summary['item_sku'] ?? '');
 
@@ -268,17 +289,13 @@ class ShopeeStockApiService
         $page = $this->fetchCatalogItemIds($offset, $pageSize);
         $apiCalls++;
 
+        $itemIdsToFetch = array_slice($page['item_ids'], 0, max(1, $maxModelFetches));
+        $modelsByItem = $this->modelsByItemIds($itemIdsToFetch);
+        $apiCalls += count($itemIdsToFetch);
+
         $matches = [];
-        $fetched = 0;
-
-        foreach ($page['item_ids'] as $itemId) {
-            if ($fetched >= $maxModelFetches) {
-                break;
-            }
-
-            $models = $this->modelsForItem($itemId);
-            $apiCalls++;
-            $fetched++;
+        foreach ($itemIdsToFetch as $itemId) {
+            $models = $modelsByItem[$itemId] ?? [];
 
             foreach ($models as $model) {
                 if (strtoupper(trim((string) ($model['model_sku'] ?? ''))) !== $needle) {
@@ -497,21 +514,14 @@ class ShopeeStockApiService
             return [];
         }
 
-        $data = $this->openApi->decodeShopResponse(
-            $this->openApi->shopApiGet('/api/v2/product/get_model_list', [
-                'item_id' => $itemId,
-            ]),
-            'Shopee model list',
-        );
-
-        if ($data === null) {
-            return [];
+        if (array_key_exists($itemId, $this->modelsForItemCache)) {
+            return $this->modelsForItemCache[$itemId];
         }
 
-        $response = $data['response'] ?? $data;
-        $models = $response['model'] ?? $response['model_list'] ?? [];
+        $models = $this->fetchModelsForItem($itemId);
+        $this->modelsForItemCache[$itemId] = $models;
 
-        return is_array($models) ? array_values(array_filter($models, 'is_array')) : [];
+        return $models;
     }
 
     /**
@@ -520,15 +530,94 @@ class ShopeeStockApiService
      */
     public function modelsByItemIds(array $itemIds): array
     {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $itemIds), fn ($id) => $id > 0)));
+        if ($ids === []) {
+            return [];
+        }
+
         $out = [];
-        foreach (array_values(array_unique(array_filter(array_map('intval', $itemIds), fn ($id) => $id > 0))) as $itemId) {
-            $models = $this->modelsForItem($itemId);
-            if ($models !== []) {
-                $out[$itemId] = $models;
+        $missing = [];
+
+        foreach ($ids as $itemId) {
+            if (array_key_exists($itemId, $this->modelsForItemCache)) {
+                $cached = $this->modelsForItemCache[$itemId];
+                if ($cached !== []) {
+                    $out[$itemId] = $cached;
+                }
+
+                continue;
+            }
+
+            $missing[] = $itemId;
+        }
+
+        foreach (array_chunk($missing, self::MODEL_LIST_POOL_SIZE) as $chunk) {
+            $responses = Http::pool(function (Pool $pool) use ($chunk) {
+                foreach ($chunk as $itemId) {
+                    $url = $this->openApi->signedShopGetUrl('/api/v2/product/get_model_list', [
+                        'item_id' => $itemId,
+                    ]);
+                    if ($url !== null) {
+                        $pool->as((string) $itemId)->timeout(30)->get($url);
+                    }
+                }
+            });
+
+            foreach ($chunk as $itemId) {
+                $key = (string) $itemId;
+                $response = $responses[$key] ?? null;
+                $models = $response !== null
+                    ? $this->parseModelListResponse($response)
+                    : [];
+                $this->modelsForItemCache[$itemId] = $models;
+                if ($models !== []) {
+                    $out[$itemId] = $models;
+                }
             }
         }
 
         return $out;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function fetchModelsForItem(int $itemId): array
+    {
+        $data = $this->openApi->decodeShopResponse(
+            $this->openApi->shopApiGet('/api/v2/product/get_model_list', [
+                'item_id' => $itemId,
+            ]),
+            'Shopee model list',
+        );
+
+        return $this->modelsFromDecodedPayload($data);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function parseModelListResponse(\Illuminate\Http\Client\Response $response): array
+    {
+        $data = $this->openApi->decodeShopResponse($response, 'Shopee model list');
+
+        return $this->modelsFromDecodedPayload($data);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $data
+     * @return list<array<string, mixed>>
+     */
+    private function modelsFromDecodedPayload(?array $data): array
+    {
+        if ($data === null) {
+            return [];
+        }
+
+        $response = $data['response'] ?? $data;
+        $models = $response['model'] ?? $response['model_list'] ?? [];
+
+        return is_array($models) ? array_values(array_filter($models, 'is_array')) : [];
     }
 
     /**

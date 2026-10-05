@@ -101,9 +101,8 @@ $batchSize = \App\Services\Shopee\ShopeeItemBulkLinkService::BATCH_SIZE;
 
     @if(! ($stockReady ?? false))
     <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-        STOCK CHECKER belum siap — apply butuh OAuth di
+        STOCK CHECKER belum siap — bulk link apply tetap jalan (hanya menulis ID dari file). OAuth diperlukan untuk halaman stok Shopee per gudang / item.
         <a href="{{ route('shopee.sync.index') }}" class="font-medium underline">Warehouse Map</a>.
-        Preview tetap bisa tanpa OAuth.
     </div>
     @endif
 

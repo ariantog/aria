@@ -324,20 +324,9 @@ class ShopeeItemBulkLinkService
         $lookup = $this->loadItemLookupMaps($parsedRows);
         $itemsById = $this->loadItemsById($parsedRows);
 
-        $shopeeIds = $this->shopeeItemIdsNeedingApi($parsedRows, $lookup, $itemsById, $overwriteExisting);
-
+        // Bulk apply trusts Shopee export Kode Produk + Kode Variasi — no get_model_list fan-out.
         $modelsByShopeeItem = [];
-        $modelsPrefetched = false;
-        if (! $dryRun && $shopeeIds !== [] && $this->stockApi->isReady()) {
-            $modelsByShopeeItem = $this->stockApi->modelsByItemIds($shopeeIds);
-            $modelsPrefetched = true;
-        } elseif (! $dryRun && $shopeeIds !== [] && ! $this->stockApi->isReady()) {
-            return array_map(fn (array $row) => $row + [
-                'status' => 'error',
-                'message' => 'STOCK CHECKER OAuth belum siap.',
-                'item' => null,
-            ], $parsedRows);
-        }
+        $modelsPrefetched = ! $dryRun;
 
         $out = [];
         foreach ($parsedRows as $row) {
@@ -520,51 +509,6 @@ class ShopeeItemBulkLinkService
         }
 
         return 'Sudah terhubung — lewati.';
-    }
-
-    /**
-     * @param  list<array<string, mixed>>  $parsedRows
-     * @param  array{legacy: array<string, Item>, code: array<string, Item>}  $lookup
-     * @param  array<int, Item>  $itemsById
-     * @return list<int>
-     */
-    private function shopeeItemIdsNeedingApi(array $parsedRows, array $lookup, array $itemsById, bool $overwriteExisting): array
-    {
-        $ids = [];
-
-        foreach ($parsedRows as $row) {
-            $code = isset($row['code']) ? trim((string) $row['code']) : '';
-            $ariaItemId = (int) ($row['aria_item_id'] ?? 0);
-            $shopeeItemId = (int) ($row['shopee_item_id'] ?? 0);
-            $shopeeModelId = (int) ($row['shopee_model_id'] ?? 0);
-
-            $item = null;
-            if ($ariaItemId > 0) {
-                $item = $itemsById[$ariaItemId] ?? null;
-            }
-            if ($item === null && $code !== '') {
-                $resolved = $this->resolveItemBySku($code, $lookup['legacy'], $lookup['code']);
-                $item = $resolved['item'] ?? null;
-            }
-
-            if ($item === null || $shopeeModelId <= 0) {
-                continue;
-            }
-
-            if ($this->shouldSkipLinkRow($item, $shopeeItemId, $shopeeModelId, $overwriteExisting)) {
-                continue;
-            }
-
-            if ($shopeeItemId <= 0) {
-                $shopeeItemId = (int) ($item->shopee_item_id ?? 0);
-            }
-
-            if ($shopeeItemId > 0) {
-                $ids[$shopeeItemId] = $shopeeItemId;
-            }
-        }
-
-        return array_values($ids);
     }
 
     /**

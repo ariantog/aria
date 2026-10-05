@@ -69,6 +69,29 @@ it('matches legacy sku before current code on bulk preview', function () {
         ->and($preview['rows'][0]['item']['id'])->toBe($legacyItem->id);
 });
 
+it('applies bulk link without calling shopee model list api when oauth is down', function () {
+    $item = Item::factory()->create([
+        'code' => 'NO-OAUTH-LINK',
+        'shopee_item_id' => null,
+    ]);
+
+    $this->mock(ShopeeStockApiService::class, function ($mock) {
+        $mock->shouldReceive('isReady')->andReturn(false);
+        $mock->shouldReceive('modelsByItemIds')->never();
+        $mock->shouldReceive('modelsForItem')->never();
+    });
+
+    $csv = "code,shopee_item_id,shopee_model_id\nNO-OAUTH-LINK,9006001,8006001\n";
+    $upload = UploadedFile::fake()->createWithContent('links.csv', $csv);
+
+    $service = app(ShopeeItemBulkLinkService::class);
+    $run = $service->startApply($service->preview($upload)['token']);
+
+    expect($run->linked_count)->toBe(1)
+        ->and($item->fresh()->shopee_item_id)->toBe(9006001)
+        ->and($item->fresh()->shopee_model_id)->toBe(8006001);
+});
+
 it('starts apply in batches and completes small files in one batch', function () {
     $item = Item::factory()->create([
         'code' => 'BULK-LINK-SKU',
@@ -79,18 +102,7 @@ it('starts apply in batches and completes small files in one batch', function ()
 
     $this->mock(ShopeeStockApiService::class, function ($mock) {
         $mock->shouldReceive('isReady')->andReturn(true);
-        $mock->shouldReceive('modelsByItemIds')
-            ->once()
-            ->with([9002002])
-            ->andReturn([
-                9002002 => [
-                    [
-                        'model_id' => 8002,
-                        'model_sku' => 'BULK-LINK-SKU',
-                        'stock_info_v2' => ['seller_stock' => []],
-                    ],
-                ],
-            ]);
+        $mock->shouldReceive('modelsByItemIds')->never();
     });
 
     $csv = "code,shopee_item_id,shopee_model_id\nBULK-LINK-SKU,9002002,8002\n";
@@ -117,7 +129,7 @@ it('rate limits bulk link to one batch per minute', function () {
 
     $this->mock(ShopeeStockApiService::class, function ($mock) {
         $mock->shouldReceive('isReady')->andReturn(true);
-        $mock->shouldReceive('modelsByItemIds')->andReturn([]);
+        $mock->shouldReceive('modelsByItemIds')->never();
     });
 
     $rows = [];
@@ -263,21 +275,7 @@ it('stores and displays failed link rows after cron batches finish', function ()
 
     $this->mock(ShopeeStockApiService::class, function ($mock) {
         $mock->shouldReceive('isReady')->andReturn(true);
-        $mock->shouldReceive('modelsByItemIds')
-            ->once()
-            ->andReturnUsing(function (array $ids) {
-                expect($ids)->toContain(9003001);
-
-                return [
-                    9003001 => [
-                        [
-                            'model_id' => 8003001,
-                            'model_sku' => 'OK-LINK-SKU',
-                            'stock_info_v2' => ['seller_stock' => []],
-                        ],
-                    ],
-                ];
-            });
+        $mock->shouldReceive('modelsByItemIds')->never();
     });
 
     $csv = "code,shopee_item_id,shopee_model_id\nOK-LINK-SKU,9003001,8003001\nMISSING-SKU,9003002,8003002\n";

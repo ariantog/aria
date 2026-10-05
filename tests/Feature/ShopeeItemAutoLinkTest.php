@@ -70,12 +70,14 @@ it('auto-links when model_sku matches exactly once', function () {
             ->andReturn([
                 ['item_id' => 5001, 'item_sku' => 'CX90324-05', 'item_name' => 'Shirt'],
             ]);
-        $mock->shouldReceive('modelsForItem')
+        $mock->shouldReceive('modelsByItemIds')
             ->once()
-            ->with(5001)
+            ->with([5001])
             ->andReturn([
-                ['model_id' => 9001, 'model_sku' => 'AJD-CX90324-05-S'],
-                ['model_id' => 9002, 'model_sku' => 'AJD-CX90324-05-M'],
+                5001 => [
+                    ['model_id' => 9001, 'model_sku' => 'AJD-CX90324-05-S'],
+                    ['model_id' => 9002, 'model_sku' => 'AJD-CX90324-05-M'],
+                ],
             ]);
     });
 
@@ -107,10 +109,14 @@ it('marks ambiguous when two models share the same sku', function () {
         $mock->shouldReceive('discoverCandidatesForSku')->andReturn([
             ['item_id' => 6001, 'item_sku' => 'DUPE-SKU-01'],
         ]);
-        $mock->shouldReceive('modelsForItem')->andReturn([
-            ['model_id' => 1, 'model_sku' => 'DUPE-SKU-01'],
-            ['model_id' => 2, 'model_sku' => 'DUPE-SKU-01'],
-        ]);
+        $mock->shouldReceive('modelsByItemIds')
+            ->with([6001])
+            ->andReturn([
+                6001 => [
+                    ['model_id' => 1, 'model_sku' => 'DUPE-SKU-01'],
+                    ['model_id' => 2, 'model_sku' => 'DUPE-SKU-01'],
+                ],
+            ]);
     });
 
     $result = app(ShopeeItemAutoLinkService::class)->discoverForItem($item->fresh());
@@ -140,10 +146,14 @@ it('does not link parent sku when aria sku is a specific variation', function ()
         $mock->shouldReceive('discoverCandidatesForSku')->andReturn([
             ['item_id' => 40623293040, 'item_sku' => 'KNEESUPPORT-21', 'item_name' => 'Knee Support'],
         ]);
-        $mock->shouldReceive('modelsForItem')->with(40623293040)->andReturn([
-            ['model_id' => 1, 'model_sku' => 'KNEESUPPORT-21-NAVY-S'],
-            ['model_id' => 2, 'model_sku' => 'KNEESUPPORT-21-RED-S'],
-        ]);
+        $mock->shouldReceive('modelsByItemIds')
+            ->with([40623293040])
+            ->andReturn([
+                40623293040 => [
+                    ['model_id' => 1, 'model_sku' => 'KNEESUPPORT-21-NAVY-S'],
+                    ['model_id' => 2, 'model_sku' => 'KNEESUPPORT-21-RED-S'],
+                ],
+            ]);
     });
 
     $result = app(ShopeeItemAutoLinkService::class)->discoverForItem($item->fresh());
