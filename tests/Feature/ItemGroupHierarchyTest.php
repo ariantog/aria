@@ -4,11 +4,13 @@ use App\Enums\ItemType;
 use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\ItemGroup;
+use App\Models\ItemParentPrice;
 use App\Models\Tag;
 use App\Models\User;
 use App\Models\WarehouseItem;
 use App\Services\Items\ItemGroupHierarchyService;
 use App\Services\Items\ItemIdentityBuilder;
+use App\Support\ItemProductTitle;
 
 beforeEach(function () {
     $this->user = User::factory()->create();
@@ -219,6 +221,42 @@ it('parent detail finds leftover slash-master groups under the canonical CX00122
         ->and($slashDetail)->not->toBeNull()
         ->and(collect($detail['colors'])->pluck('group_id'))->toContain($group->id)
         ->and($this->builder->itemParentKey($item->fresh(['tags', 'group'])))->toBe('1:AJD:CX00122');
+});
+
+it('parent detail product name uses parent catalog title not colorway pcode placeholder', function () {
+    $group = ItemGroup::factory()->create([
+        'master' => 'CP26006',
+        'variant' => '01',
+        'name' => 'CP26006-01',
+    ]);
+
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CP26006-01',
+        'code' => 'C34-CP26006-01-S',
+    ]);
+    $item->tags()->attach([$this->typeTag->id, $this->pinkTag->id, $this->sizeS->id]);
+
+    $parentKey = $this->builder->itemParentKey($item->fresh(['tags', 'group']));
+
+    ItemParentPrice::query()->create([
+        'parent_key' => $parentKey,
+        'product_name' => 'COMPRESSION SHORT',
+    ]);
+
+    $detail = $this->hierarchy->parentDetail($parentKey, fetchJubelio: false);
+
+    expect($detail['product_name'])->toBe('COMPRESSION SHORT')
+        ->and($detail['uses_placeholder'])->toBeFalse();
+
+    ItemParentPrice::query()->where('parent_key', $parentKey)->delete();
+    ItemProductTitle::flushRequestCache();
+
+    $detailWithoutParent = $this->hierarchy->parentDetail($parentKey, fetchJubelio: false);
+
+    expect($detailWithoutParent['product_name'])->toBe('CP26006')
+        ->and($detailWithoutParent['uses_placeholder'])->toBeTrue();
 });
 
 it('renders group list and parent detail pages', function () {
