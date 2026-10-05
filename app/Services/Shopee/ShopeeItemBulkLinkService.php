@@ -44,18 +44,45 @@ class ShopeeItemBulkLinkService
         $previewRows = $this->evaluateRows($parsed, dryRun: true);
 
         $token = bin2hex(random_bytes(16));
-        Cache::put(self::SESSION_KEY.':'.$token, [
-            'filename' => $file->getClientOriginalName(),
-            'rows' => $parsed,
-        ], now()->addHours(2));
-
-        return [
+        $display = [
             'token' => $token,
             'rows' => array_slice($previewRows, 0, self::PREVIEW_DISPLAY_LIMIT),
             'rows_total' => count($previewRows),
             'rows_truncated' => count($previewRows) > self::PREVIEW_DISPLAY_LIMIT,
             'summary' => $this->summarize($previewRows),
         ];
+
+        Cache::put(self::SESSION_KEY.':'.$token, [
+            'filename' => $file->getClientOriginalName(),
+            'rows' => $parsed,
+            'display' => $display,
+        ], now()->addHours(2));
+
+        return $display;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function previewForToken(string $token): ?array
+    {
+        if ($token === '' || strlen($token) !== 32) {
+            return null;
+        }
+
+        $payload = Cache::get(self::SESSION_KEY.':'.$token);
+        if (! is_array($payload) || ! is_array($payload['display'] ?? null)) {
+            return null;
+        }
+
+        return $payload['display'];
+    }
+
+    public function forgetPreviewToken(string $token): void
+    {
+        if ($token !== '' && strlen($token) === 32) {
+            Cache::forget(self::SESSION_KEY.':'.$token);
+        }
     }
 
     public function startApply(string $token, bool $overwriteExisting = false, ?int $userId = null): ShopeeBulkLinkRun
