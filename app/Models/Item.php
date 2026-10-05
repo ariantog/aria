@@ -162,6 +162,11 @@ class Item extends Model
         return $this->hasMany(JubelioItemLinkAttempt::class);
     }
 
+    public function shopeeLinkAttempts(): HasMany
+    {
+        return $this->hasMany(ShopeeItemLinkAttempt::class);
+    }
+
     public function latestJubelioLinkAttempt(): HasOne
     {
         return $this->hasOne(JubelioItemLinkAttempt::class)->latestOfMany();

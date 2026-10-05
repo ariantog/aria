@@ -205,6 +205,16 @@ class ScheduledTaskSeeder extends Seeder
         );
 
         \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'app:shopee-auto-link-items'],
+            [
+                'name' => 'Shopee Auto Link Items',
+                'frequency' => 'everyFiveMinutes',
+                'active' => true,
+                'description' => 'Searches Shopee product API for unlinked SKUs (exact item_sku / model_sku). Batched to ~200 API calls/hour; stock required in Shopee-mapped warehouses.',
+            ]
+        );
+
+        \App\Models\ScheduledTask::updateOrCreate(
             ['command' => 'shopee-ads:process'],
             [
                 'name' => 'Shopee Ads Process',

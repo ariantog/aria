@@ -139,6 +139,12 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::patch('shopee-sync/{sync}', [App\Http\Controllers\ShopeeSyncController::class, 'update'])->name('shopee.sync.update');
     Route::delete('shopee-sync/{sync}', [App\Http\Controllers\ShopeeSyncController::class, 'destroy'])->name('shopee.sync.delete');
 
+    Route::get('shopee/auto-link', [App\Http\Controllers\ShopeeItemAutoLinkController::class, 'index'])->name('shopee.auto-link.index');
+    Route::post('shopee/auto-link/pause', [App\Http\Controllers\ShopeeItemAutoLinkController::class, 'pause'])->name('shopee.auto-link.pause');
+    Route::post('shopee/auto-link/resume', [App\Http\Controllers\ShopeeItemAutoLinkController::class, 'resume'])->name('shopee.auto-link.resume');
+    Route::post('shopee/auto-link/run-batch', [App\Http\Controllers\ShopeeItemAutoLinkController::class, 'runBatch'])->name('shopee.auto-link.run-batch');
+    Route::post('shopee/auto-link/items/{item}/reset-attempts', [App\Http\Controllers\ShopeeItemAutoLinkController::class, 'resetItem'])->name('shopee.auto-link.reset-item');
+
     Route::get('addrbook', fn () => abort(404));
     Route::resource('addrbook', App\Http\Controllers\AddrbookController::class)->except(['index']);
     Route::get('addrbook/{addrbook}/transactions', [App\Http\Controllers\AddrbookController::class, 'transactions'])->name('addrbook.transactions');

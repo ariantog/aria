@@ -512,6 +512,15 @@ class SidebarFavoriteRegistry
                 'active_prefix' => '/shopee-sync',
             ],
             [
+                'key' => 'shopee-auto-link',
+                'label' => 'Auto Link',
+                'group' => 'Shopee',
+                'permission' => 'shopee-stock-sync',
+                'route' => 'shopee.auto-link.index',
+                'params' => [],
+                'active_prefix' => '/shopee/auto-link',
+            ],
+            [
                 'key' => 'journal-accounts',
                 'label' => 'Journal Accounts',
                 'group' => 'Journals',

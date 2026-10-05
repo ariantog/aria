@@ -28,6 +28,11 @@ $breadcrumbs = [
                 <input type="text" name="name" value="{{ $filters['name'] ?? '' }}" placeholder="Search Shopee warehouse..." class="h-9 w-64 rounded-md border border-gray-300 px-3 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500">
                 <button type="submit" class="rounded-lg bg-orange-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-orange-700">Search</button>
             </form>
+            @can(\App\Models\ShopeeStock::getPermissions()['sync'])
+            <a href="{{ route('shopee.auto-link.index') }}" class="inline-flex items-center gap-2 rounded-lg border border-orange-200 bg-white px-3 py-1.5 text-sm font-medium text-orange-800 hover:bg-orange-50">
+                Auto Link SKUs
+            </a>
+            @endcan
             <a href="{{ route('shopee.sync.create') }}" class="inline-flex items-center gap-2 rounded-lg bg-orange-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-orange-700">
                 Create Mapping
             </a>
