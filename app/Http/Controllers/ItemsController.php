@@ -549,7 +549,7 @@ class ItemsController extends Controller
         ]);
     }
 
-    public function updateShopeeLink(Item $item, Request $request, \App\Services\Shopee\ShopeeStockApiService $stockApi)
+    public function updateShopeeLink(Item $item, Request $request, \App\Services\Shopee\ShopeeItemLinkApplier $linkApplier)
     {
         Gate::authorize(Item::getPermissions()['edit']);
 
@@ -559,31 +559,17 @@ class ItemsController extends Controller
         ]);
 
         $modelId = (int) ($validated['shopee_model_id'] ?? 0);
-        $models = $stockApi->isReady()
-            ? $stockApi->modelsForItem((int) $validated['shopee_item_id'])
-            : [];
+        $result = $linkApplier->apply(
+            $item,
+            (int) $validated['shopee_item_id'],
+            $modelId > 0 ? $modelId : null,
+        );
 
-        if ($modelId <= 0 && $models !== []) {
-            $picked = \App\Services\Shopee\ShopeeModelStock::pickModelBySku($models, (string) $item->code);
-            if ($picked === null && count($models) > 1) {
-                return back()->withErrors([
-                    'shopee_model_id' => 'Pilih variasi (Kode Variasi) yang sama dengan SKU Aria: '.$item->code,
-                ]);
-            }
-            $modelId = (int) ($picked['model_id'] ?? ($models[0]['model_id'] ?? 0));
+        if (! ($result['ok'] ?? false)) {
+            $field = str_contains((string) ($result['message'] ?? ''), 'Variasi') ? 'shopee_model_id' : 'shopee_item_id';
+
+            return back()->withErrors([$field => (string) ($result['message'] ?? 'Gagal link.')]);
         }
-
-        if ($models !== [] && $modelId > 0) {
-            $picked = \App\Services\Shopee\ShopeeModelStock::pickModel($models, $modelId, (string) $item->code);
-            if ($picked === null) {
-                return back()->withErrors(['shopee_model_id' => 'Model ID tidak valid untuk item Shopee ini.']);
-            }
-        }
-
-        $item->update([
-            'shopee_item_id' => (int) $validated['shopee_item_id'],
-            'shopee_model_id' => $modelId > 0 ? $modelId : null,
-        ]);
 
         return redirect()->route('items.shopee', $item->id)->with('success', 'Koneksi Shopee diperbarui');
     }
