@@ -36,5 +36,16 @@ it('picks model by id or sku', function () {
     ];
 
     expect(ShopeeModelStock::pickModel($models, 11, null)['model_id'])->toBe(11)
-        ->and(ShopeeModelStock::pickModel($models, 0, 'aaa-m')['model_id'])->toBe(11);
+        ->and(ShopeeModelStock::pickModel($models, 0, 'aaa-m')['model_id'])->toBe(11)
+        ->and(ShopeeModelStock::pickModel($models, 0, 'WRONG-SKU'))->toBeNull();
+});
+
+it('pickModelBySku returns null when no exact sku match', function () {
+    $models = [
+        ['model_id' => 10, 'model_sku' => 'KNEESUPPORT-21-NAVY-S'],
+        ['model_id' => 11, 'model_sku' => 'KNEESUPPORT-21-RED-S'],
+    ];
+
+    expect(ShopeeModelStock::pickModelBySku($models, 'KNEESUPPORT-21-NAVY-S')['model_id'])->toBe(10)
+        ->and(ShopeeModelStock::pickModelBySku($models, 'KNEESUPPORT-21'))->toBeNull();
 });

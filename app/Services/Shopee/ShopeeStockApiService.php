@@ -55,6 +55,93 @@ class ShopeeStockApiService
     }
 
     /**
+     * Flatten listing hits into one row per Shopee variation (model_sku / Kode Variasi).
+     *
+     * @param  list<array<string, mixed>>  $itemSummaries
+     * @return list<array<string, mixed>>
+     */
+    public function expandSearchResultsWithModels(array $itemSummaries, string $ariaSku, int $maxItems = 12): array
+    {
+        $needle = strtoupper(trim($ariaSku));
+        $rows = [];
+        $fetched = 0;
+
+        foreach ($itemSummaries as $summary) {
+            if ($fetched >= $maxItems) {
+                break;
+            }
+
+            $itemId = (int) ($summary['item_id'] ?? 0);
+            if ($itemId <= 0) {
+                continue;
+            }
+
+            $fetched++;
+            $models = $this->modelsForItem($itemId);
+            $itemName = (string) ($summary['item_name'] ?? '');
+            $parentSku = (string) ($summary['item_sku'] ?? '');
+
+            if ($models === []) {
+                $rows[] = [
+                    'item_id' => $itemId,
+                    'model_id' => null,
+                    'item_name' => $itemName,
+                    'item_sku' => $parentSku,
+                    'parent_item_sku' => $parentSku,
+                    'model_sku' => '',
+                    'exact_match' => $needle !== '' && strtoupper(trim($parentSku)) === $needle,
+                ];
+
+                continue;
+            }
+
+            foreach ($models as $model) {
+                $modelSku = (string) ($model['model_sku'] ?? '');
+                $rows[] = [
+                    'item_id' => $itemId,
+                    'model_id' => (int) ($model['model_id'] ?? 0),
+                    'item_name' => $itemName,
+                    'item_sku' => $modelSku !== '' ? $modelSku : $parentSku,
+                    'parent_item_sku' => $parentSku,
+                    'model_sku' => $modelSku,
+                    'exact_match' => $needle !== '' && strtoupper(trim($modelSku)) === $needle,
+                ];
+            }
+        }
+
+        usort($rows, function (array $a, array $b): int {
+            $ae = ! empty($a['exact_match']);
+            $be = ! empty($b['exact_match']);
+            if ($ae !== $be) {
+                return $be <=> $ae;
+            }
+
+            return strcmp((string) ($a['model_sku'] ?? ''), (string) ($b['model_sku'] ?? ''));
+        });
+
+        return $rows;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     * @return list<array<string, mixed>>
+     */
+    public function mergeSearchResultRows(array $rows): array
+    {
+        $unique = [];
+        foreach ($rows as $row) {
+            $itemId = (int) ($row['item_id'] ?? 0);
+            $modelId = (int) ($row['model_id'] ?? 0);
+            $key = $itemId.'-'.$modelId;
+            if (! isset($unique[$key])) {
+                $unique[$key] = $row;
+            }
+        }
+
+        return array_values($unique);
+    }
+
+    /**
      * Auto-link discovery — same name search as UI, no unsupported SKU API calls.
      *
      * @return list<array<string, mixed>>
@@ -230,6 +317,7 @@ class ShopeeStockApiService
         }
 
         if (count($parts) >= 2) {
+            $queries[] = $parts[0].'-'.$parts[1];
             $queries[] = implode('-', array_slice($parts, -2));
         }
 
