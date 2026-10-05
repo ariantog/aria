@@ -33,6 +33,9 @@ $destroyRoute = $isAsset ? route('assetlancar.destroy', $item) : route('items.de
 $legacyCodeUpdateRoute = $isAsset
     ? route('assetlancar.update-legacy-code', $item)
     : route('items.update-legacy-code', $item);
+$showShopeeStock = $showShopeeStock ?? false;
+$shopeeStocksByWarehouse = $shopeeStocksByWarehouse ?? [];
+$shopeeFetchFailed = $shopeeFetchFailed ?? false;
 @endphp
 
 <div class="p-4 sm:p-6" x-data="{ showZero: false, showVirtualWarehouses: false, showDeletedWarehouses: false, legacyModalOpen: {{ $errors->has('legacy_code') ? 'true' : 'false' }} }">
@@ -278,11 +281,18 @@ $legacyCodeUpdateRoute = $isAsset
                 </div>
             </div>
             <div class="p-6">
+                @if($shopeeFetchFailed && $showShopeeStock)
+                    <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" data-testid="shopee-stock-fetch-failed">
+                        Shopee stock could not be loaded. Check OAuth / connection in System Settings.
+                    </div>
+                @endif
                 @include('items.partials.warehouse-stock-grid', [
                     'warehouseItems' => $warehouseItems,
                     'showZero' => 'showZero',
                     'variant' => 'physical',
                     'testId' => 'item-availability',
+                    'showShopeeStock' => $showShopeeStock,
+                    'shopeeStocksByWarehouse' => $shopeeStocksByWarehouse,
                 ])
 
                 @if($virtualWarehouseItems->isNotEmpty())

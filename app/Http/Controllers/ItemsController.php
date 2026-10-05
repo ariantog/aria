@@ -22,6 +22,8 @@ use App\Services\ItemService;
 use App\Services\ItemStatsService;
 use App\Services\ItemTransactionQueryService;
 use App\Services\JubelioService;
+use App\Services\Shopee\WarehouseShopeeStockService;
+use App\Models\ShopeeStock;
 use App\Support\ItemInventorySettings;
 use App\Support\LikeSearch;
 use App\Support\ItemPricing;
@@ -196,7 +198,7 @@ class ItemsController extends Controller
         }
     }
 
-    public function show(Item $item)
+    public function show(Item $item, WarehouseShopeeStockService $shopeeStockService)
     {
         $item->load([
             'group',
@@ -208,6 +210,17 @@ class ItemsController extends Controller
         ]);
 
         $stock = $this->itemAvailability->partitionWarehouseItems($item->warehouseItems);
+
+        $showShopeeStock = (int) $item->shopee_item_id > 0
+            && Gate::check(ShopeeStock::getPermissions()['view']);
+        $shopeeStocksByWarehouse = [];
+        $shopeeFetchFailed = false;
+
+        if ($showShopeeStock) {
+            $shopeeData = $shopeeStockService->stockDataForItemByWarehouses($item, $stock['physical']);
+            $shopeeStocksByWarehouse = $shopeeData['by_warehouse'];
+            $shopeeFetchFailed = $shopeeData['fetch_failed'];
+        }
 
         return view('items.show', [
             'item' => $item,
@@ -232,6 +245,9 @@ class ItemsController extends Controller
                     ? Item::getPermissions()['asset-lancar-delete']
                     : Item::getPermissions()['delete']
             ),
+            'showShopeeStock' => $showShopeeStock,
+            'shopeeStocksByWarehouse' => $shopeeStocksByWarehouse,
+            'shopeeFetchFailed' => $shopeeFetchFailed,
         ]);
     }
 

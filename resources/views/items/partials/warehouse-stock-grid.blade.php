@@ -3,6 +3,8 @@
     'showZero' => 'showZero',
     'variant' => 'physical',
     'testId' => 'warehouse-availability',
+    'showShopeeStock' => false,
+    'shopeeStocksByWarehouse' => [],
 ])
 @php
     $isDeleted = $variant === 'deleted';
@@ -11,6 +13,25 @@
         'deleted' => 'deleted',
         'virtual' => 'virtual',
         default => 'active',
+    };
+    $shopeeQtyCell = function (?array $shopee, string $field, bool $highlightMismatch = false) {
+        if (! $shopee || ! ($shopee['has_sync'] ?? false)) {
+            return '<span class="text-gray-300">—</span>';
+        }
+
+        $value = $shopee[$field] ?? null;
+        if ($value === null) {
+            return '<span class="text-gray-300">—</span>';
+        }
+
+        $classes = 'font-mono tabular-nums';
+        if ($highlightMismatch && ($shopee['mismatch'] ?? false)) {
+            $classes .= ' font-semibold text-red-600';
+        } else {
+            $classes .= ' text-gray-700';
+        }
+
+        return '<span class="' . $classes . '">' . e(format_amount($value, 0)) . '</span>';
     };
 @endphp
 
@@ -59,6 +80,10 @@
                                 <span x-show="sortCol === 'qty'" class="text-blue-600" x-text="sortDir === 'asc' ? '↑' : '↓'"></span>
                             </button>
                         </th>
+                        @if($showShopeeStock && $variant === 'physical')
+                            <th class="px-3 py-3 text-right font-bold" data-copy-col="sp_sellable" title="Shopee sellable">SP sell</th>
+                            <th class="px-3 py-3 text-right font-bold" data-copy-col="sp_reserved" title="Shopee reserved">SP rsv</th>
+                        @endif
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
@@ -100,6 +125,13 @@
                                     'text-gray-400' => $qty == 0.0,
                                 ])>{{ format_amount($qty, 0) }}</span>
                             </td>
+                            @if($showShopeeStock && $variant === 'physical')
+                                @php
+                                    $shopee = ($shopeeStocksByWarehouse ?? [])[$wh->warehouse_id] ?? null;
+                                @endphp
+                                <td class="whitespace-nowrap px-3 py-2 text-right text-xs" data-copy-col="sp_sellable" @if(($shopee['sellable'] ?? null) !== null) data-copy-value="{{ format_copy_number($shopee['sellable']) }}" @endif>{!! $shopeeQtyCell($shopee, 'sellable', true) !!}</td>
+                                <td class="whitespace-nowrap px-3 py-2 text-right text-xs" data-copy-col="sp_reserved" @if(($shopee['reserved'] ?? null) !== null) data-copy-value="{{ format_copy_number($shopee['reserved']) }}" @endif>{!! $shopeeQtyCell($shopee, 'reserved') !!}</td>
+                            @endif
                         </tr>
                     @endforeach
                 </tbody>
