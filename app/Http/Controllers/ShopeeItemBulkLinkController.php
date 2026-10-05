@@ -12,14 +12,17 @@ use Illuminate\Support\Facades\Gate;
 
 class ShopeeItemBulkLinkController extends Controller
 {
-    public function index(ShopeeStockApiService $stockApi): View
+    public function index(ShopeeStockApiService $stockApi, ShopeeItemBulkLinkService $service): View
     {
         Gate::authorize(ShopeeStock::getPermissions()['sync']);
+
+        $activeRun = $service->activeRun();
+        $activeRunDisplay = $activeRun !== null ? $service->runForDisplay($activeRun) : null;
 
         return view('shopee.bulk-link.index', [
             'stockReady' => $stockApi->isReady(),
             'preview' => session('preview'),
-            'applyResult' => session('apply_result'),
+            'activeRun' => $activeRunDisplay,
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
@@ -29,7 +32,7 @@ class ShopeeItemBulkLinkController extends Controller
         Gate::authorize(ShopeeStock::getPermissions()['sync']);
 
         $validated = $request->validate([
-            'file' => ['required', 'file', 'mimes:csv,txt,xlsx,xls', 'max:5120'],
+            'file' => ['required', 'file', 'mimes:csv,txt,xlsx,xls', 'max:20480'],
         ]);
 
         try {
@@ -53,23 +56,26 @@ class ShopeeItemBulkLinkController extends Controller
         ]);
 
         try {
-            $result = $service->apply(
+            $run = $service->startApply(
                 $validated['token'],
                 (bool) ($validated['overwrite_existing'] ?? false),
+                (int) ($request->user()?->id ?? 0),
             );
         } catch (\Throwable $e) {
             return back()->with('error', $e->getMessage());
         }
 
+        $remaining = max(0, $run->total_rows - $run->processed_rows);
+        $batchesLeft = (int) ceil($remaining / ShopeeItemBulkLinkService::BATCH_SIZE);
+
         return redirect()
             ->route('shopee.bulk-link.index')
             ->with('success', sprintf(
-                'Bulk link selesai: %d linked, %d skipped, %d error dari %d baris.',
-                $result['summary']['linked'] ?? 0,
-                $result['summary']['skipped'],
-                $result['summary']['errors'],
-                $result['summary']['total'],
-            ))
-            ->with('apply_result', $result);
+                'Bulk link dimulai: batch pertama selesai (%d / %d baris). ~%d batch berikutnya jalan otomatis (max %d baris/menit).',
+                $run->processed_rows,
+                $run->total_rows,
+                $batchesLeft,
+                ShopeeItemBulkLinkService::BATCH_SIZE,
+            ));
     }
 }

@@ -215,6 +215,16 @@ class ScheduledTaskSeeder extends Seeder
         );
 
         \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'app:process-shopee-bulk-link'],
+            [
+                'name' => 'Shopee Bulk Link Worker',
+                'frequency' => 'everyMinute',
+                'active' => true,
+                'description' => 'Continues in-progress Shopee bulk link uploads (max 1000 rows per minute per run).',
+            ]
+        );
+
+        \App\Models\ScheduledTask::updateOrCreate(
             ['command' => 'shopee-ads:process'],
             [
                 'name' => 'Shopee Ads Process',

@@ -3,6 +3,7 @@
 namespace App\Services\Shopee;
 
 use App\Models\Item;
+use App\Models\ShopeeBulkLinkRun;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
 
@@ -12,11 +13,23 @@ class ShopeeItemBulkLinkService
 
     public const PREVIEW_DISPLAY_LIMIT = 150;
 
+    public const BATCH_SIZE = 1000;
+
+    public const BATCH_INTERVAL_SECONDS = 60;
+
     public function __construct(
         private ShopeeItemBulkLinkParser $parser,
         private ShopeeItemLinkApplier $applier,
         private ShopeeStockApiService $stockApi,
     ) {}
+
+    public function activeRun(): ?ShopeeBulkLinkRun
+    {
+        return ShopeeBulkLinkRun::query()
+            ->where('status', ShopeeBulkLinkRun::STATUS_RUNNING)
+            ->orderByDesc('id')
+            ->first();
+    }
 
     /**
      * @return array{
@@ -34,7 +47,7 @@ class ShopeeItemBulkLinkService
         Cache::put(self::SESSION_KEY.':'.$token, [
             'filename' => $file->getClientOriginalName(),
             'rows' => $parsed,
-        ], now()->addHour());
+        ], now()->addHours(2));
 
         return [
             'token' => $token,
@@ -45,28 +58,172 @@ class ShopeeItemBulkLinkService
         ];
     }
 
-    /**
-     * @return array{
-     *     rows: list<array<string, mixed>>,
-     *     summary: array{total: int, ready: int, linked: int, skipped: int, errors: int},
-     * }
-     */
-    public function apply(string $token, bool $overwriteExisting = false): array
+    public function startApply(string $token, bool $overwriteExisting = false, ?int $userId = null): ShopeeBulkLinkRun
     {
+        if ($this->activeRun() !== null) {
+            throw new \InvalidArgumentException('Bulk link masih berjalan — tunggu selesai atau batalkan dari halaman ini.');
+        }
+
         $payload = Cache::pull(self::SESSION_KEY.':'.$token);
         if (! is_array($payload) || ! is_array($payload['rows'] ?? null)) {
             throw new \InvalidArgumentException('Preview kedaluwarsa — upload ulang file.');
         }
 
-        $resultRows = $this->evaluateRows($payload['rows'], dryRun: false, overwriteExisting: $overwriteExisting);
+        $rows = $payload['rows'];
+        $run = ShopeeBulkLinkRun::query()->create([
+            'user_id' => (int) ($userId ?? 0),
+            'filename' => (string) ($payload['filename'] ?? ''),
+            'overwrite_existing' => $overwriteExisting,
+            'status' => ShopeeBulkLinkRun::STATUS_RUNNING,
+            'total_rows' => count($rows),
+            'processed_rows' => 0,
+            'linked_count' => 0,
+            'skipped_count' => 0,
+            'error_count' => 0,
+            'payload' => $rows,
+            'recent_results' => [],
+        ]);
+
+        $this->processRun($run, ignoreInterval: true);
+
+        return $run->fresh() ?? $run;
+    }
+
+    public function processDueRuns(): int
+    {
+        $runs = ShopeeBulkLinkRun::query()
+            ->where('status', ShopeeBulkLinkRun::STATUS_RUNNING)
+            ->orderBy('id')
+            ->get();
+
+        $batches = 0;
+        foreach ($runs as $run) {
+            if ($this->processRun($run)) {
+                $batches++;
+            }
+        }
+
+        return $batches;
+    }
+
+    public function shouldProcessNextBatch(ShopeeBulkLinkRun $run): bool
+    {
+        if (! $run->isRunning()) {
+            return false;
+        }
+
+        if ($run->processed_rows >= $run->total_rows) {
+            return false;
+        }
+
+        if ($run->last_batch_at === null) {
+            return true;
+        }
+
+        return $run->last_batch_at->lte(now()->subSeconds(self::BATCH_INTERVAL_SECONDS));
+    }
+
+    public function processRun(ShopeeBulkLinkRun $run, bool $ignoreInterval = false): bool
+    {
+        if (! $ignoreInterval && ! $this->shouldProcessNextBatch($run)) {
+            return false;
+        }
+
+        if ($run->processed_rows >= $run->total_rows) {
+            $this->markCompleted($run);
+
+            return false;
+        }
+
+        $allRows = $run->payload;
+        if (! is_array($allRows)) {
+            $this->markFailed($run, 'Payload bulk link korup.');
+
+            return false;
+        }
+
+        $batch = array_slice($allRows, $run->processed_rows, self::BATCH_SIZE);
+        if ($batch === []) {
+            $this->markCompleted($run);
+
+            return false;
+        }
+
+        try {
+            $resultRows = $this->evaluateRows($batch, dryRun: false, overwriteExisting: (bool) $run->overwrite_existing);
+        } catch (\Throwable $e) {
+            $this->markFailed($run, $e->getMessage());
+
+            return false;
+        }
+
+        $batchSummary = $this->summarize($resultRows, applied: true);
+        $recent = is_array($run->recent_results) ? $run->recent_results : [];
+        $recent = array_merge($recent, $resultRows);
+        if (count($recent) > self::PREVIEW_DISPLAY_LIMIT) {
+            $recent = array_slice($recent, -self::PREVIEW_DISPLAY_LIMIT);
+        }
+
+        $run->linked_count += (int) ($batchSummary['linked'] ?? 0);
+        $run->skipped_count += (int) $batchSummary['skipped'];
+        $run->error_count += (int) $batchSummary['errors'];
+        $run->processed_rows += count($batch);
+        $run->recent_results = $recent;
+        $run->last_batch_at = now();
+
+        if ($run->processed_rows >= $run->total_rows) {
+            $run->status = ShopeeBulkLinkRun::STATUS_COMPLETED;
+            $run->completed_at = now();
+        }
+
+        $run->save();
+
+        return true;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function runForDisplay(ShopeeBulkLinkRun $run): array
+    {
+        $recent = is_array($run->recent_results) ? $run->recent_results : [];
 
         return [
-            'filename' => (string) ($payload['filename'] ?? ''),
-            'rows' => array_slice($resultRows, 0, self::PREVIEW_DISPLAY_LIMIT),
-            'rows_total' => count($resultRows),
-            'rows_truncated' => count($resultRows) > self::PREVIEW_DISPLAY_LIMIT,
-            'summary' => $this->summarize($resultRows, applied: true),
+            'id' => $run->id,
+            'filename' => $run->filename,
+            'status' => $run->status,
+            'total_rows' => $run->total_rows,
+            'processed_rows' => $run->processed_rows,
+            'linked_count' => $run->linked_count,
+            'skipped_count' => $run->skipped_count,
+            'error_count' => $run->error_count,
+            'progress_percent' => $run->progressPercent(),
+            'last_batch_at' => $run->last_batch_at?->toIso8601String(),
+            'completed_at' => $run->completed_at?->toIso8601String(),
+            'batch_size' => self::BATCH_SIZE,
+            'batch_interval_seconds' => self::BATCH_INTERVAL_SECONDS,
+            'rows' => $recent,
+            'rows_truncated' => $run->processed_rows > count($recent),
         ];
+    }
+
+    private function markCompleted(ShopeeBulkLinkRun $run): void
+    {
+        if ($run->status === ShopeeBulkLinkRun::STATUS_COMPLETED) {
+            return;
+        }
+
+        $run->status = ShopeeBulkLinkRun::STATUS_COMPLETED;
+        $run->completed_at = now();
+        $run->save();
+    }
+
+    private function markFailed(ShopeeBulkLinkRun $run, string $message): void
+    {
+        $run->status = ShopeeBulkLinkRun::STATUS_FAILED;
+        $run->error_message = $message;
+        $run->completed_at = now();
+        $run->save();
     }
 
     /**
@@ -86,8 +243,10 @@ class ShopeeItemBulkLinkService
             ->all();
 
         $modelsByShopeeItem = [];
+        $modelsPrefetched = false;
         if (! $dryRun && $shopeeIds !== [] && $this->stockApi->isReady()) {
             $modelsByShopeeItem = $this->stockApi->modelsByItemIds($shopeeIds);
+            $modelsPrefetched = true;
         } elseif (! $dryRun && $shopeeIds !== [] && ! $this->stockApi->isReady()) {
             return array_map(fn (array $row) => $row + [
                 'status' => 'error',
@@ -104,6 +263,7 @@ class ShopeeItemBulkLinkService
                 $lookup['code'],
                 $itemsById,
                 $modelsByShopeeItem,
+                $modelsPrefetched,
                 $dryRun,
                 $overwriteExisting,
             );
@@ -126,6 +286,7 @@ class ShopeeItemBulkLinkService
         array $codeMap,
         array $itemsById,
         array $modelsByShopeeItem,
+        bool $modelsPrefetched,
         bool $dryRun,
         bool $overwriteExisting,
     ): array {
@@ -203,7 +364,9 @@ class ShopeeItemBulkLinkService
             ];
         }
 
-        $models = $modelsByShopeeItem[$shopeeItemId] ?? null;
+        $models = $modelsPrefetched
+            ? ($modelsByShopeeItem[$shopeeItemId] ?? [])
+            : ($modelsByShopeeItem[$shopeeItemId] ?? null);
         $result = $this->applier->apply(
             $item,
             $shopeeItemId,
