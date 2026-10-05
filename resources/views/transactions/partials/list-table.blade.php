@@ -16,6 +16,7 @@
     $sort = $sort ?? null;
     $direction = $direction ?? null;
     $highlightId = $highlightId ?? null;
+    $exportExcelUrl = $exportExcelUrl ?? null;
     $hideBank = $can['bank_hidden_balance'] ?? false;
     $canEditNote = $can['edit_transaction'] ?? false;
     $typeMap = [
@@ -36,7 +37,7 @@
 
 <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"
      x-data="transactionListTable()">
-    <div class="flex items-center justify-end border-b border-gray-100 px-3 py-2">
+    <div class="flex items-center justify-end gap-2 border-b border-gray-100 px-3 py-2">
         <button type="button"
                 @click="copyRowsTable()"
                 data-testid="copy-transactions-table"
@@ -45,6 +46,14 @@
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
             <span x-text="copyFeedback ? 'Copied!' : 'Copy rows'"></span>
         </button>
+        @if($exportExcelUrl)
+            <a href="{{ $exportExcelUrl }}"
+               data-testid="export-transactions-excel-link"
+               class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                Export Excel
+            </a>
+        @endif
     </div>
     <div class="overflow-x-auto">
         <table x-ref="listTable" class="w-full min-w-[980px] text-sm">
