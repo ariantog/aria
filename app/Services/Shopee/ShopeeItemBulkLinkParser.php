@@ -7,7 +7,8 @@ use RuntimeException;
 
 class ShopeeItemBulkLinkParser
 {
-    public const MAX_ROWS = 500;
+    /** Shopee "DATA LENGKAP PRODUK" exports are ~11k+ rows. */
+    public const MAX_ROWS = 15000;
 
     /**
      * @return list<array{
@@ -88,6 +89,11 @@ class ShopeeItemBulkLinkParser
      */
     private function mapHeaders(array $headerRow): array
     {
+        $shopeeExport = $this->detectShopeeProductExportColumns($headerRow);
+        if ($shopeeExport !== null) {
+            return $shopeeExport;
+        }
+
         $columns = [
             'code' => null,
             'aria_item_id' => null,
@@ -113,33 +119,73 @@ class ShopeeItemBulkLinkParser
                 continue;
             }
 
-            if (in_array($key, ['shopee_item_id', 'shopeeitemid', 'shopee_id', 'shopeeitem', 'itemid_shopee', 'product_id'], true)) {
+            if (in_array($key, ['shopee_item_id', 'shopeeitemid', 'shopee_id', 'shopeeitem', 'itemid_shopee', 'product_id', 'kode_produk'], true)) {
                 $columns['shopee_item_id'] = (int) $index;
 
                 continue;
             }
 
-            if (in_array($key, ['shopee_model_id', 'shopeemodelid', 'model_id', 'modelid', 'variation_id', 'variasi_id'], true)) {
+            if (in_array($key, ['shopee_model_id', 'shopeemodelid', 'model_id', 'modelid', 'variation_id', 'variasi_id', 'kode_variasi'], true)) {
                 $columns['shopee_model_id'] = (int) $index;
 
                 continue;
             }
 
-            // Shopee export sometimes labels parent product column "item_id"
             if ($key === 'item_id' && $columns['shopee_item_id'] === null) {
                 $columns['shopee_item_id'] = (int) $index;
             }
         }
 
-        if ($columns['shopee_item_id'] === null) {
-            throw new RuntimeException('Kolom wajib: shopee_item_id (atau item_id).');
+        if ($columns['shopee_model_id'] === null && $columns['code'] === null && $columns['aria_item_id'] === null) {
+            throw new RuntimeException('Kolom wajib: SKU (kolom 3 export Shopee) atau code/sku.');
+        }
+
+        if ($columns['shopee_item_id'] === null && $columns['shopee_model_id'] === null) {
+            throw new RuntimeException('Kolom wajib: Kode Variasi / shopee_model_id atau Kode Produk / shopee_item_id.');
         }
 
         if ($columns['code'] === null && $columns['aria_item_id'] === null) {
-            throw new RuntimeException('Kolom wajib: code/sku (SKU Aria) atau aria_item_id.');
+            throw new RuntimeException('Kolom wajib: SKU (kolom 3 export Shopee) atau code/sku.');
         }
 
         return $columns;
+    }
+
+    /**
+     * Shopee seller export: Kode Produk | Kode Variasi | SKU (col 1 optional for matching; cols 2–3 drive link).
+     *
+     * @param  array<int, mixed>  $headerRow
+     * @return array{code: ?int, aria_item_id: ?int, shopee_item_id: ?int, shopee_model_id: ?int}|null
+     */
+    private function detectShopeeProductExportColumns(array $headerRow): ?array
+    {
+        $indices = [
+            'kode_produk' => null,
+            'kode_variasi' => null,
+            'sku' => null,
+        ];
+
+        foreach ($headerRow as $index => $cell) {
+            $key = $this->normalizeHeader((string) $cell);
+            if ($key === 'kode_produk') {
+                $indices['kode_produk'] = (int) $index;
+            } elseif ($key === 'kode_variasi') {
+                $indices['kode_variasi'] = (int) $index;
+            } elseif ($key === 'sku') {
+                $indices['sku'] = (int) $index;
+            }
+        }
+
+        if ($indices['kode_variasi'] === null || $indices['sku'] === null) {
+            return null;
+        }
+
+        return [
+            'code' => $indices['sku'],
+            'aria_item_id' => null,
+            'shopee_item_id' => $indices['kode_produk'],
+            'shopee_model_id' => $indices['kode_variasi'],
+        ];
     }
 
     /**
@@ -165,12 +211,16 @@ class ShopeeItemBulkLinkParser
             $ariaItemId = $columns['aria_item_id'] !== null
                 ? $this->parseIntCell($rawRow[$columns['aria_item_id']] ?? null)
                 : null;
-            $shopeeItemId = $this->parseIntCell($rawRow[$columns['shopee_item_id']] ?? null);
+            $shopeeItemId = $columns['shopee_item_id'] !== null
+                ? $this->parseIntCell($rawRow[$columns['shopee_item_id']] ?? null)
+                : null;
             $shopeeModelId = $columns['shopee_model_id'] !== null
                 ? $this->parseIntCell($rawRow[$columns['shopee_model_id']] ?? null)
                 : null;
 
-            if ($code === '' && ($ariaItemId === null || $ariaItemId <= 0) && ($shopeeItemId === null || $shopeeItemId <= 0)) {
+            if ($code === '' && ($ariaItemId === null || $ariaItemId <= 0)
+                && ($shopeeItemId === null || $shopeeItemId <= 0)
+                && ($shopeeModelId === null || $shopeeModelId <= 0)) {
                 $line++;
 
                 continue;
