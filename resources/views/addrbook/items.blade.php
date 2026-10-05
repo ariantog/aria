@@ -85,8 +85,9 @@ $sortLink = function (string $column) use ($filters, $sortColumn, $sortDirection
         </div>
     @endif
 
-    <div x-show="marketplaceLoading && (hasJubelio || hasShopee)" x-cloak class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800" data-testid="warehouse-items-marketplace-loading">
-        Loading Jubelio / Shopee stock in the background…
+    <div x-show="marketplaceLoading && (hasJubelio || hasShopee)" x-cloak class="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800" data-testid="warehouse-items-marketplace-loading">
+        <svg class="h-4 w-4 shrink-0 animate-spin text-blue-600" fill="none" viewBox="0 0 24 24" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+        <span>Loading Jubelio / Shopee stock in the background…</span>
     </div>
 
     <div x-show="jubelioFetchFailed && hasJubelio" x-cloak class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" data-testid="warehouse-items-jubelio-fetch-failed">
@@ -457,9 +458,16 @@ function warehouseItemsPage(filtersStorageKey, columnsStorageKey, hasJubelio, ha
             }
             return String(stock[field]);
         },
+        marketplaceLoadingCellHtml() {
+            return '<span class="inline-flex items-center justify-end text-gray-400" role="status" aria-label="Loading marketplace stock">'
+                + '<svg class="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">'
+                + '<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>'
+                + '<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>'
+                + '</svg></span>';
+        },
         jubelioQtyCell(itemId, field, highlightMismatch = false) {
             if (this.marketplaceLoading && ! this.jubelioStocks[itemId]) {
-                return '<span class="text-gray-400">…</span>';
+                return this.marketplaceLoadingCellHtml();
             }
             const jubelio = this.jubelioStocks[itemId];
             if (! jubelio || ! jubelio.linked) {
@@ -479,7 +487,7 @@ function warehouseItemsPage(filtersStorageKey, columnsStorageKey, hasJubelio, ha
         },
         shopeeQtyCell(itemId, field, highlightMismatch = false) {
             if (this.marketplaceLoading && ! this.shopeeStocks[itemId]) {
-                return '<span class="text-gray-400">…</span>';
+                return this.marketplaceLoadingCellHtml();
             }
             const shopee = this.shopeeStocks[itemId];
             if (! shopee || ! shopee.linked) {
