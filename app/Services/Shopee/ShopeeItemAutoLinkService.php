@@ -133,7 +133,7 @@ class ShopeeItemAutoLinkService
             $shopeeItemId = (int) $match['item_id'];
             $shopeeModelId = (int) ($match['model_id'] ?? 0);
 
-            if ($shopeeItemId > 0) {
+            if ($shopeeItemId > 0 && ! $this->linkNeedsModelId($shopeeItemId, $shopeeModelId)) {
                 $item->update([
                     'shopee_item_id' => $shopeeItemId,
                     'shopee_model_id' => $shopeeModelId > 0 ? $shopeeModelId : null,
@@ -148,6 +148,20 @@ class ShopeeItemAutoLinkService
                     $candidates,
                     null,
                     null,
+                    $discovery['api_calls'],
+                );
+            }
+
+            if ($shopeeItemId > 0 && $this->linkNeedsModelId($shopeeItemId, $shopeeModelId)) {
+                return $this->recordAttempt(
+                    $item,
+                    ShopeeItemLinkAttempt::OUTCOME_NO_MATCH,
+                    $searchQ,
+                    null,
+                    null,
+                    $candidates,
+                    null,
+                    'Exact Kode Variasi required (listing has variations)',
                     $discovery['api_calls'],
                 );
             }
@@ -187,58 +201,72 @@ class ShopeeItemAutoLinkService
     {
         $needle = strtoupper(trim($searchQ));
         $apiCalls = 0;
-
-        $rows = $this->stockApi->discoverCandidatesForSku($searchQ, 50);
-        $apiCalls += $this->estimateNameDiscoverApiCalls($searchQ, $rows !== []);
-
         $matches = [];
+        $candidateVariations = 0;
 
-        $itemSkuHits = collect($rows)->filter(
-            fn (array $row) => strtoupper(trim((string) ($row['item_sku'] ?? $row['sku'] ?? ''))) === $needle
+        $runner = $this->runner();
+        $catalog = $this->stockApi->findExactModelSkuOnCatalogPage(
+            $searchQ,
+            (int) ($runner->catalog_scan_offset ?? 0),
         );
+        $apiCalls += $catalog['api_calls'];
+        $runner->update([
+            'catalog_scan_offset' => $catalog['next_offset'] !== null ? $catalog['next_offset'] : 0,
+        ]);
+        $matches = array_merge($matches, $catalog['matches']);
 
-        foreach ($itemSkuHits as $row) {
+        $summaries = $this->stockApi->discoverCandidatesForSku($searchQ, 50);
+        $apiCalls += $this->estimateNameDiscoverApiCalls($searchQ, $summaries !== []);
+
+        $scanned = 0;
+        foreach ($summaries as $row) {
+            if ($scanned >= self::MODEL_SCAN_LIMIT) {
+                break;
+            }
+
             $itemId = (int) ($row['item_id'] ?? 0);
             if ($itemId <= 0) {
                 continue;
             }
 
-            $matches = array_merge($matches, $this->exactMatchesForShopeeItem($itemId, $needle, $apiCalls));
-        }
+            $scanned++;
+            $models = $this->stockApi->modelsForItem($itemId);
+            $apiCalls++;
+            $candidateVariations += count($models);
 
-        if ($matches === []) {
-            $scanned = 0;
-            foreach ($rows as $row) {
-                if ($scanned >= self::MODEL_SCAN_LIMIT) {
-                    break;
+            if ($models === []) {
+                $parentSku = strtoupper(trim((string) ($row['item_sku'] ?? '')));
+                if ($parentSku === $needle) {
+                    $matches[] = ['item_id' => $itemId, 'model_id' => 0];
                 }
-                $itemId = (int) ($row['item_id'] ?? 0);
-                if ($itemId <= 0) {
-                    continue;
-                }
-                $scanned++;
-                $matches = array_merge($matches, $this->exactModelSkuMatches($itemId, $needle, $apiCalls));
+
+                continue;
+            }
+
+            foreach ($this->filterExactModelSku($models, $needle) as $model) {
+                $matches[] = [
+                    'item_id' => $itemId,
+                    'model_id' => (int) ($model['model_id'] ?? 0),
+                ];
             }
         }
 
-        if ($matches === [] && $rows === []) {
-            $runner = $this->runner();
-            $catalog = $this->stockApi->findExactModelSkuOnCatalogPage(
-                $searchQ,
-                (int) ($runner->catalog_scan_offset ?? 0),
-            );
-            $apiCalls += $catalog['api_calls'];
-            $runner->update([
-                'catalog_scan_offset' => $catalog['next_offset'] !== null ? $catalog['next_offset'] : 0,
-            ]);
-            $matches = $catalog['matches'];
-        }
+        $matches = $this->uniqueMatches($matches);
 
         return [
-            'matches' => $this->uniqueMatches($matches),
+            'matches' => $matches,
             'api_calls' => $apiCalls,
-            'candidates' => count($rows) > 0 ? count($rows) : count($matches),
+            'candidates' => max($candidateVariations, count($summaries), count($matches)),
         ];
+    }
+
+    protected function linkNeedsModelId(int $shopeeItemId, int $shopeeModelId): bool
+    {
+        if ($shopeeModelId > 0) {
+            return false;
+        }
+
+        return $this->stockApi->modelsForItem($shopeeItemId) !== [];
     }
 
     protected function estimateNameDiscoverApiCalls(string $searchQ, bool $hydrated): int
@@ -246,50 +274,6 @@ class ShopeeItemAutoLinkService
         $searches = count($this->stockApi->itemNameSearchQueries($searchQ));
 
         return $searches + ($hydrated ? 1 : 0);
-    }
-
-    /**
-     * @return list<array{item_id: int, model_id: int}>
-     */
-    protected function exactMatchesForShopeeItem(int $itemId, string $needle, int &$apiCalls): array
-    {
-        $models = $this->stockApi->modelsForItem($itemId);
-        $apiCalls++;
-
-        if ($models === []) {
-            return [['item_id' => $itemId, 'model_id' => 0]];
-        }
-
-        $modelHits = $this->filterExactModelSku($models, $needle);
-
-        if (count($modelHits) === 1) {
-            return [['item_id' => $itemId, 'model_id' => (int) ($modelHits[0]['model_id'] ?? 0)]];
-        }
-
-        if (count($modelHits) > 1) {
-            return array_map(
-                fn (array $m) => ['item_id' => $itemId, 'model_id' => (int) ($m['model_id'] ?? 0)],
-                $modelHits,
-            );
-        }
-
-        return [];
-    }
-
-    /**
-     * @return list<array{item_id: int, model_id: int}>
-     */
-    protected function exactModelSkuMatches(int $itemId, string $needle, int &$apiCalls): array
-    {
-        $models = $this->stockApi->modelsForItem($itemId);
-        $apiCalls++;
-
-        $modelHits = $this->filterExactModelSku($models, $needle);
-
-        return array_map(
-            fn (array $m) => ['item_id' => $itemId, 'model_id' => (int) ($m['model_id'] ?? 0)],
-            $modelHits,
-        );
     }
 
     /**
