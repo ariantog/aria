@@ -90,6 +90,52 @@ test('asset lancar index exposes nb column toggle with persisted storage keys', 
         ->assertSee('x-show="showNb"', false);
 });
 
+test('items and asset lancar index show jubelio and shopee link columns', function () {
+    $linked = Item::factory()->create([
+        'code' => 'SHOPEE-LIST-LINKED',
+        'jubelio_item_id' => 88001,
+        'shopee_item_id' => 50001,
+        'shopee_model_id' => 90001,
+    ]);
+    $unlinked = Item::factory()->create([
+        'code' => 'SHOPEE-LIST-UNLINKED',
+        'jubelio_item_id' => null,
+        'shopee_item_id' => null,
+    ]);
+
+    $assetLinked = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'code' => 'ASSET-SHOPEE-LINKED',
+        'shopee_item_id' => 60002,
+        'shopee_model_id' => null,
+    ]);
+
+    foreach (['items.index' => [$linked, $unlinked], 'assetlancar.index' => [$assetLinked]] as $route => $items) {
+        $response = $this->actingAs($this->user)->get(route($route))->assertOk();
+        $response->assertSee('>Shopee<', false);
+        foreach ($items as $item) {
+            $response->assertSee('data-testid="item-list-shopee-'.$item->id.'"', false);
+        }
+    }
+
+    $this->actingAs($this->user)
+        ->get(route('items.index', ['code' => 'SHOPEE-LIST-LINKED']))
+        ->assertOk()
+        ->assertSee('50001/90001', false)
+        ->assertSee('88001', false);
+
+    $this->actingAs($this->user)
+        ->get(route('items.index', ['code' => 'SHOPEE-LIST-UNLINKED']))
+        ->assertOk()
+        ->assertSee('data-testid="item-list-shopee-'.$unlinked->id.'"', false)
+        ->assertSee('no sync', false);
+
+    $this->actingAs($this->user)
+        ->get(route('assetlancar.index', ['code' => 'ASSET-SHOPEE-LINKED']))
+        ->assertOk()
+        ->assertSee('60002', false);
+});
+
 test('items index lookup filter matches id code and legacy_code substrings', function () {
     $byCode = Item::factory()->create(['code' => 'AJD-CX90151-01-M', 'legacy_code' => null]);
     $byLegacy = Item::factory()->create(['code' => 'AJD-NEW-SKU-S', 'legacy_code' => 'OLD-90151-LEGACY']);
