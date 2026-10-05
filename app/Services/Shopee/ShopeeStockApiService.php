@@ -67,13 +67,20 @@ class ShopeeStockApiService
         }
 
         $pageSize = min(50, max(1, $pageSize));
+
+        if (ctype_digit($keyword)) {
+            $itemId = (int) $keyword;
+            if ($itemId > 0) {
+                return $this->itemSummariesForIds([$itemId]);
+            }
+        }
+
         $statusFilter = ['NORMAL', 'UNLIST'];
         $itemIds = [];
 
         foreach ($this->itemNameSearchQueries($keyword) as $query) {
             foreach ($this->searchItemIds([
                 'page_size' => $pageSize,
-                'offset' => 0,
                 'item_name' => $query,
                 'item_status' => $statusFilter,
             ]) as $id) {
@@ -85,11 +92,71 @@ class ShopeeStockApiService
             }
         }
 
-        if ($itemIds === []) {
+        if ($itemIds !== []) {
+            return $this->itemSummariesForIds(array_slice(array_keys($itemIds), 0, $pageSize));
+        }
+
+        if ($this->looksLikeVariationCode($keyword)) {
+            return $this->searchRowsForExactModelSku($keyword);
+        }
+
+        return [];
+    }
+
+    /**
+     * Kode Variasi / model_sku (e.g. KNEEWRAP-01-REDIRON) — not searchable via search_item; scan catalog.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function searchRowsForExactModelSku(string $modelSku, int $catalogOffset = 0): array
+    {
+        $scan = $this->findExactModelSkuOnCatalogPage($modelSku, $catalogOffset, 40, 15);
+        if ($scan['matches'] === []) {
             return [];
         }
 
-        return $this->itemSummariesForIds(array_slice(array_keys($itemIds), 0, $pageSize));
+        $rows = [];
+        foreach ($scan['matches'] as $match) {
+            $itemId = (int) ($match['item_id'] ?? 0);
+            $modelId = (int) ($match['model_id'] ?? 0);
+            if ($itemId <= 0) {
+                continue;
+            }
+
+            $summary = $this->itemSummariesForIds([$itemId]);
+            $name = (string) ($summary[0]['item_name'] ?? '');
+            $parentSku = (string) ($summary[0]['item_sku'] ?? '');
+
+            $modelSkuLabel = strtoupper(trim($modelSku));
+            if ($modelId > 0) {
+                foreach ($this->modelsForItem($itemId) as $model) {
+                    if ((int) ($model['model_id'] ?? 0) === $modelId) {
+                        $modelSkuLabel = (string) ($model['model_sku'] ?? $modelSkuLabel);
+                        break;
+                    }
+                }
+            }
+
+            $rows[] = [
+                'item_id' => $itemId,
+                'model_id' => $modelId > 0 ? $modelId : null,
+                'item_name' => $name,
+                'item_sku' => $modelSkuLabel,
+                'parent_item_sku' => $parentSku,
+            ];
+        }
+
+        return $rows;
+    }
+
+    public function looksLikeVariationCode(string $keyword): bool
+    {
+        $keyword = trim($keyword);
+        if ($keyword === '' || ctype_digit($keyword)) {
+            return false;
+        }
+
+        return (bool) preg_match('/^[A-Za-z0-9][A-Za-z0-9-]{2,}$/', $keyword);
     }
 
     /**
@@ -197,8 +264,10 @@ class ShopeeStockApiService
      */
     private function searchItemIds(array $body): array
     {
+        unset($body['offset']);
+
         $data = $this->openApi->decodeShopResponse(
-            $this->openApi->shopApiPost('/api/v2/product/search_item', $body),
+            $this->openApi->shopApiPost('/api/v2/product/search_item', $this->normalizeSearchItemBody($body)),
             'Shopee product search',
         );
 
@@ -214,6 +283,21 @@ class ShopeeStockApiService
         }
 
         return array_values(array_filter(array_map('intval', $ids), fn (int $id) => $id > 0));
+    }
+
+    /**
+     * @param  array<string, mixed>  $body
+     * @return array<string, mixed>
+     */
+    private function normalizeSearchItemBody(array $body): array
+    {
+        $body['page_size'] = (int) ($body['page_size'] ?? 20);
+
+        if (isset($body['item_status']) && is_array($body['item_status'])) {
+            $body['item_status'] = array_values(array_map('strval', $body['item_status']));
+        }
+
+        return $body;
     }
 
     /**

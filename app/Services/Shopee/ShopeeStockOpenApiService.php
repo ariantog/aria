@@ -333,6 +333,10 @@ class ShopeeStockOpenApiService
             return null;
         }
 
+        if (isset($data[0]) && is_array($data[0]) && array_key_exists('error', $data[0])) {
+            $data = $data[0];
+        }
+
         $error = trim((string) ($data['error'] ?? ''));
         if ($error !== '') {
             $message = trim((string) ($data['message'] ?? ''));
