@@ -6,7 +6,7 @@ beforeEach(function () {
     config(['services.jubelio.order_queue_max_age_days' => 30]);
 });
 
-it('treats channel_status completed as ineligible for queue', function () {
+it('treats shipped internal with completed channel as eligible for queue', function () {
     $eligibility = new JubelioOrderQueueEligibility;
 
     expect($eligibility->isEligibleListRow([
@@ -14,7 +14,7 @@ it('treats channel_status completed as ineligible for queue', function () {
         'channel_status' => 'COMPLETED',
         'transaction_date' => now()->toIso8601String(),
         'is_canceled' => 'N',
-    ]))->toBeFalse();
+    ]))->toBeTrue();
 });
 
 it('allows shipped rows within the max age window', function () {
@@ -46,7 +46,7 @@ it('rejects rows with missing transaction date when max age is enforced', functi
     ]))->toBeFalse();
 });
 
-it('rejects completed internal status even when transaction date is recent', function () {
+it('allows completed internal status when transaction date is recent', function () {
     $eligibility = new JubelioOrderQueueEligibility;
 
     expect($eligibility->isEligibleListRow([
@@ -54,7 +54,7 @@ it('rejects completed internal status even when transaction date is recent', fun
         'channel_status' => 'COMPLETED',
         'transaction_date' => now()->subDay()->toIso8601String(),
         'is_canceled' => 'N',
-    ]))->toBeFalse();
+    ]))->toBeTrue();
 });
 
 it('allows returned status within the max age window', function () {

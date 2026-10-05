@@ -339,7 +339,8 @@ class JubelioController extends Controller
         }
 
         $d = $request->all();
-        if (($d['status'] ?? '') === 'SHIPPED') {
+        $webhookStatus = strtoupper(trim((string) ($d['status'] ?? '')));
+        if (in_array($webhookStatus, ['SHIPPED', 'COMPLETED'], true)) {
             $cutoff = config('services.jubelio.webhook_order_cutoff_date', '2025-03-06');
             $transactionDate = $d['transaction_date'] ?? null;
             if ($cutoff && is_string($transactionDate) && $transactionDate !== ''

@@ -328,6 +328,31 @@ it('resets an import', function () {
     expect(Crongetorder::count())->toBe(0);
 });
 
+it('caps poll date range to the order queue max age window', function () {
+    config([
+        'services.jubelio.poll_days' => 14,
+        'services.jubelio.order_queue_max_age_days' => 7,
+    ]);
+
+    $capturedFrom = null;
+    $service = app(JubelioGetOrdersService::class);
+    $this->mock(JubelioService::class, function (MockInterface $mock) use (&$capturedFrom) {
+        $mock->shouldReceive('fetchSalesOrders')
+            ->once()
+            ->withArgs(function ($page, $size, $from) use (&$capturedFrom) {
+                $capturedFrom = $from;
+
+                return true;
+            })
+            ->andReturn(['totalCount' => 0, 'data' => []]);
+    });
+
+    app(JubelioGetOrdersService::class)->pollRecentDays();
+
+    $expectedFrom = now()->subDays(7)->startOfDay()->utc()->format('Y-m-d\TH:i:s\Z');
+    expect($capturedFrom)->toBe($expectedFrom);
+});
+
 it('polls recent days via dedicated command', function () {
     config(['services.jubelio.active' => true, 'services.jubelio.poll_days' => 7]);
 
@@ -368,10 +393,10 @@ it('skips ineligible orders during service reconcile helper', function () {
         ]),
     ]);
 
-    expect($queued)->toBe(1);
+    expect($queued)->toBe(2);
     expect(Jubelioorder::where('invoice', 'INV-KEEP')->exists())->toBeTrue();
     expect(Jubelioorder::where('invoice', 'INV-DROP-STATUS')->exists())->toBeFalse();
-    expect(Jubelioorder::where('invoice', 'INV-COMPLETED')->exists())->toBeFalse();
+    expect(Jubelioorder::where('invoice', 'INV-COMPLETED')->exists())->toBeTrue();
 });
 
 it('skips orders older than the queue max age window', function () {

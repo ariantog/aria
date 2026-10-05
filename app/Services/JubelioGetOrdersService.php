@@ -30,7 +30,16 @@ class JubelioGetOrdersService
     public function pollRecentDays(?int $days = null): int
     {
         $days = $days ?? (int) config('services.jubelio.poll_days', 7);
+        $maxAgeDays = $this->queueEligibility->maxAgeDays();
+        if ($maxAgeDays > 0) {
+            $days = min($days, $maxAgeDays);
+        }
+
         $from = now()->subDays($days)->startOfDay();
+        $earliest = $this->queueEligibility->earliestAllowedDate();
+        if ($earliest !== null && $from->lt($earliest)) {
+            $from = $earliest->copy();
+        }
         $to = now()->endOfDay();
 
         return $this->fetchAndQueueMissing($from, $to);
