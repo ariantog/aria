@@ -37,6 +37,9 @@ $jubelioTotal = $jubelioTotal ?? ['linked' => false, 'on_hand' => null, 'on_orde
 $jubelioByWarehouse = $jubelioByWarehouse ?? [];
 $jubelioLinked = (bool) ($jubelioTotal['linked'] ?? false);
 $fmtQty = fn ($v) => $v === null ? '—' : format_amount($v, 0);
+$showShopeeStock = $showShopeeStock ?? false;
+$shopeeStocksByWarehouse = $shopeeStocksByWarehouse ?? [];
+$shopeeFetchFailed = $shopeeFetchFailed ?? false;
 @endphp
 
 <div class="p-4 sm:p-6" x-data="{ showZero: false, showVirtualWarehouses: false, showDeletedWarehouses: false, legacyModalOpen: {{ $errors->has('legacy_code') ? 'true' : 'false' }} }">
@@ -261,9 +264,7 @@ $fmtQty = fn ($v) => $v === null ? '—' : format_amount($v, 0);
                 <h3 class="text-sm font-semibold uppercase tracking-wider text-blue-900">Jubelio Inventory</h3>
                 <p class="mt-0.5 text-xs text-blue-800">All channels combined (not per warehouse). Per-gudang Jubelio columns appear below when the warehouse is mapped.</p>
             </div>
-            @if((int) $item->jubelio_item_id > 0)
             <a href="{{ route('items.jubelio', $item) }}" class="text-xs font-medium text-blue-700 hover:underline">Open Jubelio tab</a>
-            @endif
         </div>
         <div class="p-6">
             @if(! $jubelioLinked)
@@ -322,12 +323,19 @@ $fmtQty = fn ($v) => $v === null ? '—' : format_amount($v, 0);
                 </div>
             </div>
             <div class="p-6">
+                @if($shopeeFetchFailed && $showShopeeStock)
+                    <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" data-testid="shopee-stock-fetch-failed">
+                        Shopee stock could not be loaded. Check OAuth / connection in System Settings.
+                    </div>
+                @endif
                 @include('items.partials.warehouse-stock-grid', [
                     'warehouseItems' => $warehouseItems,
                     'showZero' => 'showZero',
                     'variant' => 'physical',
                     'testId' => 'item-availability',
                     'jubelioByWarehouse' => $jubelioByWarehouse,
+                    'showShopeeStock' => $showShopeeStock,
+                    'shopeeStocksByWarehouse' => $shopeeStocksByWarehouse,
                 ])
 
                 @if($virtualWarehouseItems->isNotEmpty())

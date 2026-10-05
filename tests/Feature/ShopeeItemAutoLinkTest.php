@@ -59,6 +59,11 @@ it('auto-links when model_sku matches exactly once', function () {
     $this->mock(ShopeeStockApiService::class, function (MockInterface $mock) {
         $mock->shouldReceive('isReady')->andReturn(true);
         $mock->shouldReceive('itemNameSearchQueries')->andReturn(['AJD-CX90324-05-S']);
+        $mock->shouldReceive('findExactModelSkuOnCatalogPage')->andReturn([
+            'matches' => [],
+            'api_calls' => 1,
+            'next_offset' => 100,
+        ]);
         $mock->shouldReceive('discoverCandidatesForSku')
             ->once()
             ->with('AJD-CX90324-05-S', 50)
@@ -94,6 +99,11 @@ it('marks ambiguous when two models share the same sku', function () {
     $this->mock(ShopeeStockApiService::class, function (MockInterface $mock) {
         $mock->shouldReceive('isReady')->andReturn(true);
         $mock->shouldReceive('itemNameSearchQueries')->andReturn(['DUPE-SKU-01']);
+        $mock->shouldReceive('findExactModelSkuOnCatalogPage')->andReturn([
+            'matches' => [],
+            'api_calls' => 1,
+            'next_offset' => null,
+        ]);
         $mock->shouldReceive('discoverCandidatesForSku')->andReturn([
             ['item_id' => 6001, 'item_sku' => 'DUPE-SKU-01'],
         ]);
@@ -107,6 +117,40 @@ it('marks ambiguous when two models share the same sku', function () {
 
     expect($result['outcome'])->toBe(ShopeeItemLinkAttempt::OUTCOME_AMBIGUOUS)
         ->and($item->fresh()->shopee_item_id)->toBeNull();
+});
+
+it('does not link parent sku when aria sku is a specific variation', function () {
+    $warehouse = seedShopeeMappedWarehouse();
+
+    $item = Item::factory()->create([
+        'code' => 'KNEESUPPORT-21-NAVY-S',
+        'shopee_item_id' => null,
+    ]);
+
+    seedShopeeAutoLinkStock($item, $warehouse);
+
+    $this->mock(ShopeeStockApiService::class, function (MockInterface $mock) {
+        $mock->shouldReceive('isReady')->andReturn(true);
+        $mock->shouldReceive('itemNameSearchQueries')->andReturn(['KNEESUPPORT-21-NAVY-S']);
+        $mock->shouldReceive('findExactModelSkuOnCatalogPage')->andReturn([
+            'matches' => [],
+            'api_calls' => 1,
+            'next_offset' => 50,
+        ]);
+        $mock->shouldReceive('discoverCandidatesForSku')->andReturn([
+            ['item_id' => 40623293040, 'item_sku' => 'KNEESUPPORT-21', 'item_name' => 'Knee Support'],
+        ]);
+        $mock->shouldReceive('modelsForItem')->with(40623293040)->andReturn([
+            ['model_id' => 1, 'model_sku' => 'KNEESUPPORT-21-NAVY-S'],
+            ['model_id' => 2, 'model_sku' => 'KNEESUPPORT-21-RED-S'],
+        ]);
+    });
+
+    $result = app(ShopeeItemAutoLinkService::class)->discoverForItem($item->fresh());
+
+    expect($result['outcome'])->toBe(ShopeeItemLinkAttempt::OUTCOME_LINKED)
+        ->and($item->fresh()->shopee_item_id)->toBe(40623293040)
+        ->and($item->fresh()->shopee_model_id)->toBe(1);
 });
 
 it('renders shopee auto link dashboard', function () {

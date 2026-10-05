@@ -4,6 +4,8 @@
     'variant' => 'physical',
     'testId' => 'warehouse-availability',
     'jubelioByWarehouse' => [],
+    'showShopeeStock' => false,
+    'shopeeStocksByWarehouse' => [],
 ])
 @php
     $isDeleted = $variant === 'deleted';
@@ -15,6 +17,25 @@
     };
     $showJubelioColumns = $variant === 'physical' && ! empty($jubelioByWarehouse);
     $fmtJubelio = fn ($v) => $v === null ? '—' : format_amount($v, 0);
+    $shopeeQtyCell = function (?array $shopee, string $field, bool $highlightMismatch = false) {
+        if (! $shopee || ! ($shopee['has_sync'] ?? false)) {
+            return '<span class="text-gray-300">—</span>';
+        }
+
+        $value = $shopee[$field] ?? null;
+        if ($value === null) {
+            return '<span class="text-gray-300">—</span>';
+        }
+
+        $classes = 'font-mono tabular-nums';
+        if ($highlightMismatch && ($shopee['mismatch'] ?? false)) {
+            $classes .= ' font-semibold text-red-600';
+        } else {
+            $classes .= ' text-gray-700';
+        }
+
+        return '<span class="' . $classes . '">' . e(format_amount($value, 0)) . '</span>';
+    };
 @endphp
 
 <div x-data="warehouseAvailabilityTable()">
@@ -68,6 +89,10 @@
                             <th class="px-3 py-3 text-right font-bold" data-copy-col="jb_reserved" title="Jubelio reserved">JB rsv</th>
                             <th class="px-3 py-3 text-right font-bold" data-copy-col="jb_available" title="Jubelio available">JB avail</th>
                         @endif
+                        @if($showShopeeStock && $variant === 'physical')
+                            <th class="px-3 py-3 text-right font-bold" data-copy-col="sp_sellable" title="Shopee sellable">SP sell</th>
+                            <th class="px-3 py-3 text-right font-bold" data-copy-col="sp_reserved" title="Shopee reserved">SP rsv</th>
+                        @endif
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
@@ -77,11 +102,14 @@
                             $warehouseName = $wh->warehouse?->name ?? ('Warehouse #'.$wh->warehouse_id);
                             $warehouseUrl = $wh->warehouse ? url('/'.$wh->warehouse->type_slug.'/'.$wh->warehouse->id) : null;
                             $jubelio = $jubelioByWarehouse[$wh->warehouse_id] ?? null;
+                            $shopee = ($shopeeStocksByWarehouse ?? [])[$wh->warehouse_id] ?? null;
+                            $rowMismatch = ($showJubelioColumns && ($jubelio['mismatch'] ?? false))
+                                || ($showShopeeStock && $variant === 'physical' && ($shopee['mismatch'] ?? false));
                         @endphp
                         <tr @class([
                             'hover:bg-gray-50',
                             'opacity-60' => $qty == 0.0,
-                            'bg-amber-50 ring-1 ring-inset ring-amber-200' => $showJubelioColumns && ($jubelio['mismatch'] ?? false),
+                            'bg-amber-50 ring-1 ring-inset ring-amber-200' => $rowMismatch,
                         ])
                             data-warehouse-id="{{ $wh->warehouse_id }}"
                             @if($qty == 0.0) x-show="{{ $showZero }}" @endif>
@@ -120,6 +148,10 @@
                                 @else
                                     <td colspan="4" class="px-3 py-2 text-right text-xs text-gray-300" data-copy-col="jb_on_hand">—</td>
                                 @endif
+                            @endif
+                            @if($showShopeeStock && $variant === 'physical')
+                                <td class="whitespace-nowrap px-3 py-2 text-right text-xs" data-copy-col="sp_sellable" @if(($shopee['sellable'] ?? null) !== null) data-copy-value="{{ format_copy_number($shopee['sellable']) }}" @endif>{!! $shopeeQtyCell($shopee, 'sellable', true) !!}</td>
+                                <td class="whitespace-nowrap px-3 py-2 text-right text-xs" data-copy-col="sp_reserved" @if(($shopee['reserved'] ?? null) !== null) data-copy-value="{{ format_copy_number($shopee['reserved']) }}" @endif>{!! $shopeeQtyCell($shopee, 'reserved') !!}</td>
                             @endif
                         </tr>
                     @endforeach

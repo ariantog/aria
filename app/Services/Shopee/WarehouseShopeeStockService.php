@@ -107,4 +107,97 @@ class WarehouseShopeeStockService
             'unlinked_count' => $unlinkedCount,
         ];
     }
+
+    /**
+     * Shopee sellable/reserved for one linked item across warehouse rows (item detail page).
+     *
+     * @param  Collection<int, \App\Models\WarehouseItem>  $warehouseItems
+     * @return array{
+     *     by_warehouse: array<int, array{
+     *         linked: bool,
+     *         has_sync: bool,
+     *         sellable: ?float,
+     *         reserved: ?float,
+     *         mismatch: bool,
+     *     }>,
+     *     fetch_failed: bool,
+     * }
+     */
+    public function stockDataForItemByWarehouses(Item $item, Collection $warehouseItems): array
+    {
+        $byWarehouse = [];
+        $shopeeItemId = (int) ($item->shopee_item_id ?? 0);
+
+        if ($shopeeItemId <= 0 || $warehouseItems->isEmpty()) {
+            return ['by_warehouse' => $byWarehouse, 'fetch_failed' => false];
+        }
+
+        $warehouseIds = $warehouseItems->pluck('warehouse_id')->unique()->values();
+        $syncs = Shopeesync::query()
+            ->whereIn('warehouse_id', $warehouseIds)
+            ->orderByDesc('id')
+            ->get()
+            ->unique('warehouse_id')
+            ->keyBy('warehouse_id');
+
+        foreach ($warehouseItems as $wh) {
+            $byWarehouse[(int) $wh->warehouse_id] = [
+                'linked' => true,
+                'has_sync' => $syncs->has($wh->warehouse_id),
+                'sellable' => null,
+                'reserved' => null,
+                'mismatch' => false,
+            ];
+        }
+
+        if ($syncs->isEmpty()) {
+            return ['by_warehouse' => $byWarehouse, 'fetch_failed' => false];
+        }
+
+        $fetchFailed = false;
+        $models = [];
+
+        if (! $this->stockApi->isReady()) {
+            $fetchFailed = true;
+        } else {
+            $modelsByItem = $this->stockApi->modelsByItemIds([$shopeeItemId]);
+            $models = $modelsByItem[$shopeeItemId] ?? [];
+            if ($models === []) {
+                $fetchFailed = true;
+            }
+        }
+
+        $model = ShopeeModelStock::pickModel(
+            $models,
+            (int) ($item->shopee_model_id ?? 0),
+            (string) $item->code,
+        );
+
+        foreach ($warehouseItems as $wh) {
+            $warehouseId = (int) $wh->warehouse_id;
+            $sync = $syncs->get($warehouseId);
+            if (! $sync) {
+                continue;
+            }
+
+            $locationId = trim((string) $sync->shopee_location_id);
+            $locationFilter = $locationId !== '' ? $locationId : null;
+            $sellable = ShopeeModelStock::sellableQuantity($model, $locationFilter);
+            $reserved = ShopeeModelStock::reservedQuantity($model);
+            $ariaQty = (float) $wh->quantity;
+
+            $byWarehouse[$warehouseId] = [
+                'linked' => true,
+                'has_sync' => true,
+                'sellable' => $sellable !== null ? (float) $sellable : null,
+                'reserved' => $reserved !== null ? (float) $reserved : null,
+                'mismatch' => $sellable !== null && $ariaQty !== (float) $sellable,
+            ];
+        }
+
+        return [
+            'by_warehouse' => $byWarehouse,
+            'fetch_failed' => $fetchFailed,
+        ];
+    }
 }
