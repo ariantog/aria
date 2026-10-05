@@ -16,6 +16,8 @@ it('seeds reduced frequencies for non-essential crons while keeping jubelio orde
         ->toBe('everyFiveMinutes')
         ->and(ScheduledTask::query()->where('command', 'shopee-ads:process')->value('frequency'))
         ->toBe('everyFiveMinutes')
+        ->and(ScheduledTask::query()->where('command', 'app:shopee-auto-link-items')->value('frequency'))
+        ->toBe('everyFiveMinutes')
         ->and(ScheduledTask::query()->where('command', 'jubelio:poll-missing-orders')->value('frequency'))
         ->toBe('everyThreeHours')
         ->and(ScheduledTask::query()->where('command', 'app:backfill-warehouse-item-stats --months=3')->value('frequency'))
