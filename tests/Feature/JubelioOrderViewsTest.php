@@ -52,6 +52,32 @@ it('does not call jubelio api when rendering orders index', function () {
         ->assertSee('Shopee');
 });
 
+it('shows all sync statuses when semua tab is active with invoice search', function () {
+    $user = User::factory()->create();
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'all-skipped',
+        'source' => 1,
+        'invoice' => 'INV-ALL-SKIP-SEARCH',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 2,
+        'status' => 2,
+        'error_type' => JubelioOrderSyncStatus::ERROR_SKIPPED,
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('jubelio.index', ['status' => 'all', 'invoice' => 'INV-ALL-SKIP-SEARCH']))
+        ->assertSuccessful()
+        ->assertSee('INV-ALL-SKIP-SEARCH')
+        ->assertDontSee('No Jubelio orders found.');
+
+    $this->actingAs($user)
+        ->get(route('jubelio.index', ['status' => 'pending', 'invoice' => 'INV-ALL-SKIP-SEARCH']))
+        ->assertSuccessful()
+        ->assertSee('No Jubelio orders found.');
+});
+
 it('defaults jubelio orders index to pending only', function () {
     $user = User::factory()->create();
 

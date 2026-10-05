@@ -58,9 +58,10 @@ $td = 'px-1.5 py-2 align-top';
     @endif
 
     {{-- Stat cards --}}
-    <div class="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 md:gap-4">
         @php
         $cards = [
+            ['status' => 'all',     'title' => 'Semua',      'value' => $stats['total'],   'border' => 'border-gray-400',   'bg' => 'bg-gray-50 text-gray-700',     'ring' => 'ring-2 ring-gray-500'],
             ['status' => 'pending', 'title' => 'Pending',    'value' => $stats['pending'], 'border' => 'border-blue-500',   'bg' => 'bg-blue-50 text-blue-600',     'ring' => 'ring-2 ring-blue-500'],
             ['status' => 'success', 'title' => 'Success',    'value' => $stats['success'], 'border' => 'border-green-500',  'bg' => 'bg-green-50 text-green-600',   'ring' => 'ring-2 ring-green-500'],
             ['status' => 'warning', 'title' => 'Duplicate',  'value' => $stats['warning'], 'border' => 'border-yellow-500', 'bg' => 'bg-yellow-50 text-yellow-600', 'ring' => 'ring-2 ring-yellow-500'],
@@ -69,7 +70,10 @@ $td = 'px-1.5 py-2 align-top';
         $activeStatus = $filters['status'] ?? '';
         @endphp
         @foreach($cards as $c)
-        @php $isActive = ($c['status'] === 'pending' && $activeStatus === '') || $activeStatus === $c['status']; @endphp
+        @php
+            $isActive = $activeStatus === $c['status']
+                || ($c['status'] === 'pending' && $activeStatus === '');
+        @endphp
         <a href="{{ route('jubelio.index', ['status' => $c['status'], 'invoice' => $filters['invoice'] ?? null, 'warehouse_id' => $filters['warehouse_id'] ?? null]) }}"
            class="flex items-center justify-between rounded-lg border-l-4 {{ $c['border'] }} {{ $c['bg'] }} p-3 shadow-sm transition-all hover:opacity-90 md:p-4 {{ $isActive ? $c['ring'] : '' }}">
             <div>
