@@ -208,9 +208,9 @@ class ScheduledTaskSeeder extends Seeder
             ['command' => 'app:shopee-auto-link-items'],
             [
                 'name' => 'Shopee Auto Link Items',
-                'frequency' => 'everyFiveMinutes',
+                'frequency' => 'hourly',
                 'active' => true,
-                'description' => 'Searches Shopee product API for unlinked SKUs (exact item_sku / model_sku). Batched to ~200 API calls/hour; stock required in Shopee-mapped warehouses.',
+                'description' => 'Searches Shopee product API for unlinked SKUs (exact item_sku / model_sku). Up to 50 SKUs per run, ~200 API calls/hour cap; stock required in Shopee-mapped warehouses.',
             ]
         );
 
