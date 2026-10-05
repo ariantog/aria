@@ -139,6 +139,9 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::patch('shopee-sync/{sync}', [App\Http\Controllers\ShopeeSyncController::class, 'update'])->name('shopee.sync.update');
     Route::delete('shopee-sync/{sync}', [App\Http\Controllers\ShopeeSyncController::class, 'destroy'])->name('shopee.sync.delete');
 
+    Route::get('shopee/bulk-link', [App\Http\Controllers\ShopeeItemBulkLinkController::class, 'index'])->name('shopee.bulk-link.index');
+    Route::post('shopee/bulk-link/preview', [App\Http\Controllers\ShopeeItemBulkLinkController::class, 'preview'])->name('shopee.bulk-link.preview');
+    Route::post('shopee/bulk-link/apply', [App\Http\Controllers\ShopeeItemBulkLinkController::class, 'apply'])->name('shopee.bulk-link.apply');
     Route::get('shopee/auto-link', [App\Http\Controllers\ShopeeItemAutoLinkController::class, 'index'])->name('shopee.auto-link.index');
     Route::post('shopee/auto-link/pause', [App\Http\Controllers\ShopeeItemAutoLinkController::class, 'pause'])->name('shopee.auto-link.pause');
     Route::post('shopee/auto-link/resume', [App\Http\Controllers\ShopeeItemAutoLinkController::class, 'resume'])->name('shopee.auto-link.resume');
