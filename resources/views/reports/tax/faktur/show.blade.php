@@ -52,7 +52,7 @@ $gross = $import->fakturGross();
     @include('reports.tax.faktur.partials.cash-in-unlink-banner', [
         'import' => $import,
         'canUnlinkCashIn' => $canUnlinkCashIn ?? false,
-        'cashInLinkStatus' => $cashInLinkStatus ?? null,
+        'paymentBannerMode' => $paymentBannerMode ?? null,
     ])
 
     <div class="grid gap-4 lg:grid-cols-2">

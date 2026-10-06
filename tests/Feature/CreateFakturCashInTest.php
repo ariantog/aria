@@ -221,6 +221,38 @@ it('offers create cash in when cash in id is stale after delete', function () {
         ->assertSee('data-testid="faktur-create-cash-in-submit"', false);
 });
 
+it('shows reset banner when payment snapshot exists without cash in link', function () {
+    $data = seedFakturCashInScenario();
+    $data['import']->update([
+        'cash_in_transaction_id' => null,
+        'payment_received_amount' => 1_650_102.44,
+        'payment_received_date' => '2026-10-06',
+        'payment_variance' => -77_700,
+        'variance_transaction_id' => 636442,
+        'variance_expense_addrbook_id' => Addrbook::create([
+            'name' => 'Biaya Central Test',
+            'type' => Addrbook::TYPE_ACCOUNT,
+        ])->id,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('reports.tax.faktur.show', $data['import']->fresh()))
+        ->assertOk()
+        ->assertSee('data-testid="faktur-cash-in-unlink-banner"', false)
+        ->assertSee('data-testid="faktur-reset-payment-snapshot"', false);
+
+    $this->actingAs($this->user)
+        ->delete(route('reports.tax.faktur.cash-in.unlink', $data['import']))
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    $fresh = $data['import']->fresh();
+    expect($fresh->payment_received_amount)->toBeNull()
+        ->and($fresh->payment_received_date)->toBeNull()
+        ->and($fresh->variance_transaction_id)->toBeNull()
+        ->and($fresh->variance_expense_addrbook_id)->not->toBeNull();
+});
+
 it('forbids creating cash in without import or cash-in permission', function () {
     $data = seedFakturCashInScenario();
     $viewer = User::factory()->create();
