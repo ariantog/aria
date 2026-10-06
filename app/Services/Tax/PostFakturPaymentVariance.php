@@ -7,6 +7,7 @@ use App\Models\ReportingEntity;
 use App\Models\TaxFakturImport;
 use App\Models\Transaction;
 use App\Services\TransactionService;
+use App\Support\VarianceCashTaxAmounts;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -53,8 +54,9 @@ class PostFakturPaymentVariance
         $amount = abs($variance);
         $date = $import->payment_received_date?->toDateString() ?? now()->toDateString();
         $grandTotal = Transaction::signedAmount(Transaction::TYPE_CASH_OUT, $amount);
+        $tax = VarianceCashTaxAmounts::resolve($amount, VarianceCashTaxAmounts::inputFromImport($import));
 
-        return DB::transaction(function () use ($import, $bankId, $expenseAccount, $date, $grandTotal, $amount) {
+        return DB::transaction(function () use ($import, $bankId, $expenseAccount, $date, $grandTotal, $amount, $tax) {
             $transaction = Transaction::create([
                 'date' => $date,
                 'type' => Transaction::TYPE_CASH_OUT,
@@ -70,7 +72,9 @@ class PostFakturPaymentVariance
                 'total_items' => 0,
                 'adjustment' => 0,
                 'discount' => 0,
-                'ppn' => 0,
+                'ppn' => $tax['ppn'],
+                'ppn_dpp' => $tax['ppn_dpp'],
+                'pph' => $tax['pph'],
                 'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
             ]);
 

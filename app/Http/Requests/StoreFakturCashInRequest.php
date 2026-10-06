@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\Addrbook;
+use App\Models\TaxFakturImport;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
@@ -20,6 +21,11 @@ class StoreFakturCashInRequest extends FormRequest
             'account_id' => ['required', 'integer', 'exists:customers,id'],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'variance_expense_addrbook_id' => ['nullable', 'integer', 'exists:customers,id'],
+            'variance_record_ppn' => ['sometimes', 'boolean'],
+            'variance_record_pph' => ['sometimes', 'boolean'],
+            'variance_ppn_dpp' => ['nullable', 'numeric', 'min:0'],
+            'variance_ppn' => ['nullable', 'numeric', 'min:0'],
+            'variance_pph' => ['nullable', 'numeric', 'min:0'],
         ];
     }
 
@@ -42,6 +48,17 @@ class StoreFakturCashInRequest extends FormRequest
                 if (! $expense || (int) $expense->type !== Addrbook::TYPE_ACCOUNT) {
                     $validator->errors()->add('variance_expense_addrbook_id', 'Akun biaya selisih harus akun ledger.');
                 }
+            }
+
+            $recordPpn = filter_var($this->input('variance_record_ppn', false), FILTER_VALIDATE_BOOLEAN);
+            if (! $recordPpn) {
+                return;
+            }
+
+            /** @var TaxFakturImport|null $import */
+            $import = $this->route('import');
+            if (! $import?->reportingEntity?->is_pkp) {
+                $validator->errors()->add('variance_record_ppn', 'PPN selisih hanya untuk entitas PKP.');
             }
         });
     }

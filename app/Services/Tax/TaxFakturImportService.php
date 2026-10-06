@@ -6,6 +6,7 @@ use App\Actions\Transactions\CreateCashInFromFaktur;
 use App\Models\Addrbook;
 use App\Models\TaxFakturImport;
 use App\Models\Transaction;
+use App\Support\VarianceCashTaxAmounts;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -92,6 +93,9 @@ class TaxFakturImportService
                 'user_id' => Auth::id(),
             ]);
 
+            VarianceCashTaxAmounts::applyToImport($import, $data);
+            $import->save();
+
             $this->postVariance->execute($import->fresh());
 
             return $import->fresh();
@@ -162,7 +166,7 @@ class TaxFakturImportService
     }
 
     /**
-     * @param  array{date: string, account_id: int, amount: float, variance_expense_addrbook_id?: int|null}  $data
+     * @param  array{date: string, account_id: int, amount: float, variance_expense_addrbook_id?: int|null, variance_record_ppn?: bool, variance_record_pph?: bool, variance_ppn_dpp?: float|null, variance_ppn?: float|null, variance_pph?: float|null}  $data
      */
     public function createAndLinkCashIn(TaxFakturImport $import, array $data): TaxFakturImport
     {
@@ -177,16 +181,21 @@ class TaxFakturImportService
                 isset($data['variance_expense_addrbook_id']) && $data['variance_expense_addrbook_id']
                     ? (int) $data['variance_expense_addrbook_id']
                     : $import->variance_expense_addrbook_id,
+                $data,
             );
         });
     }
 
+    /**
+     * @param  array<string, mixed>  $varianceOptions
+     */
     public function recordPayment(
         TaxFakturImport $import,
         float $amount,
         ?string $date = null,
         ?int $cashInTransactionId = null,
         ?int $varianceExpenseAddrbookId = null,
+        array $varianceOptions = [],
     ): TaxFakturImport {
         $import->payment_received_amount = $amount;
         $import->payment_received_date = $date ?? now()->toDateString();
@@ -198,10 +207,29 @@ class TaxFakturImportService
         if ($varianceExpenseAddrbookId) {
             $import->variance_expense_addrbook_id = $varianceExpenseAddrbookId;
         }
+        VarianceCashTaxAmounts::applyToImport($import, $varianceOptions);
         $import->save();
 
         $import = $import->fresh();
         $this->postVariance->execute($import);
+
+        return $import->fresh();
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    public function updateVarianceSettings(TaxFakturImport $import, array $data): TaxFakturImport
+    {
+        if (array_key_exists('variance_expense_addrbook_id', $data)) {
+            $import->variance_expense_addrbook_id = $data['variance_expense_addrbook_id']
+                ? (int) $data['variance_expense_addrbook_id']
+                : null;
+        }
+        VarianceCashTaxAmounts::applyToImport($import, $data);
+        $import->save();
+
+        $this->postVariance->execute($import->fresh());
 
         return $import->fresh();
     }
