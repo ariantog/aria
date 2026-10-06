@@ -216,6 +216,7 @@ it('offers create cash in when cash in id is stale after delete', function () {
     $this->actingAs($this->user)
         ->get(route('reports.tax.faktur.show', $data['import']->fresh()))
         ->assertOk()
+        ->assertSee('data-testid="faktur-cash-in-unlink-banner"', false)
         ->assertSee('data-testid="faktur-clear-stale-cash-in"', false)
         ->assertSee('data-testid="faktur-create-cash-in-submit"', false);
 });

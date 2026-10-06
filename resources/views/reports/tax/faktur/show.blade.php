@@ -49,6 +49,12 @@ $gross = $import->fakturGross();
         <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ session('error') }}</div>
     @endif
 
+    @include('reports.tax.faktur.partials.cash-in-unlink-banner', [
+        'import' => $import,
+        'canUnlinkCashIn' => $canUnlinkCashIn ?? false,
+        'cashInLinkStatus' => $cashInLinkStatus ?? null,
+    ])
+
     <div class="grid gap-4 lg:grid-cols-2">
         <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm text-sm">
             <h3 class="mb-3 font-semibold text-gray-900">Data faktur</h3>
@@ -126,28 +132,13 @@ $gross = $import->fakturGross();
                 <div>
                     <dt class="text-gray-500">Cash In terkait</dt>
                     <dd>
-                        @if($import->cashInTransaction)
+                        @if(($cashInLinkStatus ?? $import->cashInLinkStatus()) === 'live' && $import->cashInTransaction)
                             <a href="{{ route('transactions.show', $import->cashInTransaction) }}" class="text-blue-600 hover:underline">
                                 #{{ $import->cashInTransaction->id }}
                             </a>
                             <span class="text-gray-500"> · {{ $import->cashInTransaction->date?->format('Y-m-d') }} · {{ $fmt(abs((float) $import->cashInTransaction->total)) }}</span>
-                            @if($canImport)
-                                <form method="POST" action="{{ route('reports.tax.faktur.cash-in.unlink', $import) }}" class="mt-1 inline"
-                                      onsubmit="return confirm('Lepas link Cash In dari faktur ini? Transaksi Cash In tidak dihapus.')">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="text-xs text-red-600 hover:underline" data-testid="faktur-unlink-cash-in">Lepas link Cash In</button>
-                                </form>
-                            @endif
-                        @elseif($import->cash_in_transaction_id)
+                        @elseif(($cashInLinkStatus ?? $import->cashInLinkStatus()) === 'stale')
                             <span class="text-amber-800">#{{ $import->cash_in_transaction_id }} tidak ditemukan (sudah dihapus?)</span>
-                            @if($canImport)
-                                <form method="POST" action="{{ route('reports.tax.faktur.cash-in.unlink', $import) }}" class="mt-1 inline">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="text-xs font-medium text-red-700 hover:underline" data-testid="faktur-clear-stale-cash-in">Bersihkan link</button>
-                                </form>
-                            @endif
                         @else
                             <span class="text-gray-400">Belum di-link</span>
                         @endif
