@@ -72,6 +72,27 @@ class TaxFakturImport extends Model
         return $this->belongsTo(Transaction::class, 'cash_in_transaction_id');
     }
 
+    /**
+     * @return 'none'|'live'|'stale'
+     */
+    public function cashInLinkStatus(): string
+    {
+        if (! $this->cash_in_transaction_id) {
+            return 'none';
+        }
+
+        if ($this->relationLoaded('cashInTransaction')) {
+            return $this->cashInTransaction ? 'live' : 'stale';
+        }
+
+        $exists = Transaction::query()
+            ->whereKey($this->cash_in_transaction_id)
+            ->where('type', Transaction::TYPE_CASH_IN)
+            ->exists();
+
+        return $exists ? 'live' : 'stale';
+    }
+
     public function varianceTransaction(): BelongsTo
     {
         return $this->belongsTo(Transaction::class, 'variance_transaction_id');

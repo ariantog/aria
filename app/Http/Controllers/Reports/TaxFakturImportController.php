@@ -91,11 +91,16 @@ class TaxFakturImportController extends Controller
         $import->load(['reportingEntity.banks', 'counterparty', 'varianceExpenseAccount', 'user', 'cashInTransaction', 'varianceTransaction', 'sellTransaction', 'sellTransactions.sender']);
 
         $lineItemMatches = app(FakturLineItemMatcher::class)->propose($import->line_items ?? []);
+        $user = request()->user();
+        $canImport = (bool) ($user?->can(Report::getPermissions()['import-tax-faktur']) ?? false);
+        $canUnlinkCashIn = $canImport || $this->userCanUnlinkFakturCashIn($user);
 
         return view('reports.tax.faktur.show', [
             'import' => $import,
             'hasPdf' => $this->resolvePdfPath($import) !== null,
-            'canImport' => request()->user()?->can(Report::getPermissions()['import-tax-faktur']) ?? false,
+            'canImport' => $canImport,
+            'canUnlinkCashIn' => $canUnlinkCashIn,
+            'cashInLinkStatus' => $import->cashInLinkStatus(),
             'expenseAccounts' => Addrbook::query()
                 ->where('type', Addrbook::TYPE_ACCOUNT)
                 ->orderBy('name')
@@ -511,7 +516,10 @@ class TaxFakturImportController extends Controller
 
     public function unlinkCashIn(TaxFakturImport $import, \App\Services\Tax\FakturCashInLinkService $cashInLinks)
     {
-        Gate::authorize(Report::getPermissions()['import-tax-faktur']);
+        Gate::authorize(Report::getPermissions()['view-tax-faktur']);
+        if (! $this->userCanUnlinkFakturCashIn(request()->user())) {
+            abort(403);
+        }
 
         if ($import->direction !== TaxFakturImport::DIRECTION_KELUARAN) {
             return back()->with('error', 'Hanya faktur keluaran yang memiliki link Cash In.');
@@ -829,6 +837,20 @@ class TaxFakturImportController extends Controller
             'source_format' => $parsed->sourceFormat,
             'line_items' => $parsed->lineItems,
         ];
+    }
+
+    private function userCanUnlinkFakturCashIn(?User $user): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        if ($user->can(Report::getPermissions()['import-tax-faktur'])) {
+            return true;
+        }
+
+        return $user->can(Report::getPermissions()['view-tax-faktur'])
+            && $user->can(Transaction::getPermissions()['type-cash-in']);
     }
 
     private function defaultCashInBankAmount(TaxFakturImport $import): float
