@@ -73,6 +73,15 @@ function seedFakturCashInScenario(): array
     return compact('entity', 'bank', 'customer', 'import');
 }
 
+function fakturCashInPostPayload(array $data, float $amount, array $extra = []): array
+{
+    return array_merge([
+        'amount' => $amount,
+        'account_id' => $data['bank']->id,
+        'date' => '2026-08-15',
+    ], $extra);
+}
+
 it('shows the create cash in form on a keluaran faktur without a linked cash in', function () {
     $data = seedFakturCashInScenario();
 
@@ -89,11 +98,7 @@ it('creates a cash in from the faktur and links it automatically', function () {
     $amount = $data['import']->fakturGross();
 
     $this->actingAs($this->user)
-        ->post(route('reports.tax.faktur.cash-in.store', $data['import']), [
-            'amount' => $amount,
-            'account_id' => $data['bank']->id,
-            'date' => '2026-08-15',
-        ])
+        ->post(route('reports.tax.faktur.cash-in.store', $data['import']), fakturCashInPostPayload($data, $amount))
         ->assertRedirect(route('reports.tax.faktur.show', $data['import']));
 
     $import = $data['import']->fresh();
@@ -116,11 +121,10 @@ it('creates a cash in from the faktur and links it automatically', function () {
 it('hides the create form after a cash in is linked', function () {
     $data = seedFakturCashInScenario();
     $this->actingAs($this->user)
-        ->post(route('reports.tax.faktur.cash-in.store', $data['import']), [
-            'amount' => 1_000_000,
-            'account_id' => $data['bank']->id,
-            'date' => '2026-08-15',
-        ]);
+        ->post(
+            route('reports.tax.faktur.cash-in.store', $data['import']),
+            fakturCashInPostPayload($data, $data['import']->fakturGross()),
+        );
 
     $this->actingAs($this->user)
         ->get(route('reports.tax.faktur.show', $data['import']->fresh()))
@@ -131,20 +135,17 @@ it('hides the create form after a cash in is linked', function () {
 it('rejects a second cash in create for the same faktur', function () {
     $data = seedFakturCashInScenario();
     $this->actingAs($this->user)
-        ->post(route('reports.tax.faktur.cash-in.store', $data['import']), [
-            'amount' => 1_000_000,
-            'account_id' => $data['bank']->id,
-            'date' => '2026-08-15',
-        ])
+        ->post(
+            route('reports.tax.faktur.cash-in.store', $data['import']),
+            fakturCashInPostPayload($data, $data['import']->fakturGross()),
+        )
         ->assertRedirect();
 
     $this->actingAs($this->user)
         ->from(route('reports.tax.faktur.show', $data['import']))
-        ->post(route('reports.tax.faktur.cash-in.store', $data['import']->fresh()), [
-            'amount' => 500_000,
-            'account_id' => $data['bank']->id,
+        ->post(route('reports.tax.faktur.cash-in.store', $data['import']->fresh()), fakturCashInPostPayload($data, 500_000, [
             'date' => '2026-08-16',
-        ])
+        ]))
         ->assertRedirect(route('reports.tax.faktur.show', $data['import']));
 
     expect(Transaction::query()->where('type', Transaction::TYPE_CASH_IN)->count())->toBe(1);
@@ -174,11 +175,10 @@ it('does not offer create cash in on masukan faktur', function () {
 it('allows creating cash in after manual unlink', function () {
     $data = seedFakturCashInScenario();
     $this->actingAs($this->user)
-        ->post(route('reports.tax.faktur.cash-in.store', $data['import']), [
-            'amount' => 1_000_000,
-            'account_id' => $data['bank']->id,
-            'date' => '2026-08-15',
-        ])
+        ->post(
+            route('reports.tax.faktur.cash-in.store', $data['import']),
+            fakturCashInPostPayload($data, $data['import']->fakturGross()),
+        )
         ->assertRedirect();
 
     $this->actingAs($this->user)
@@ -261,10 +261,24 @@ it('forbids creating cash in without import or cash-in permission', function () 
     $viewer->givePermissionTo('report-tax-faktur');
 
     $this->actingAs($viewer)
-        ->post(route('reports.tax.faktur.cash-in.store', $data['import']), [
-            'amount' => 1_000_000,
-            'account_id' => $data['bank']->id,
-            'date' => '2026-08-15',
-        ])
+        ->post(
+            route('reports.tax.faktur.cash-in.store', $data['import']),
+            fakturCashInPostPayload($data, $data['import']->fakturGross()),
+        )
         ->assertForbidden();
+});
+
+it('requires expense account when bank amount is below faktur gross', function () {
+    $data = seedFakturCashInScenario();
+
+    $this->actingAs($this->user)
+        ->from(route('reports.tax.faktur.show', $data['import']))
+        ->post(
+            route('reports.tax.faktur.cash-in.store', $data['import']),
+            fakturCashInPostPayload($data, 1_000_000),
+        )
+        ->assertRedirect(route('reports.tax.faktur.show', $data['import']))
+        ->assertSessionHasErrors('variance_expense_addrbook_id');
+
+    expect($data['import']->fresh()->cash_in_transaction_id)->toBeNull();
 });

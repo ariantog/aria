@@ -12,6 +12,10 @@
                 <option value="{{ $account->id }}" @selected((int) $expenseValue === (int) $account->id)>{{ $account->name }}</option>
             @endforeach
         </select>
+        <p x-show="varianceTaxBase() >= 0.01" x-cloak class="mt-1 text-[11px] text-amber-800">
+            Selisih (potongan): <span class="font-medium tabular-nums" x-text="'Rp ' + formatAmountId(varianceTaxBase())"></span>
+            — dialokasikan ke akun biaya (bukan Cash Out bank).
+        </p>
     </div>
 
     @if($varianceEntityIsPkp ?? false)

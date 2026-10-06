@@ -453,7 +453,7 @@ it('suggests cash in by customer and entity bank', function () {
         ->and($ids)->not->toContain($wrongCustomerCashIn->id);
 });
 
-it('posts payment variance as cash out to expense ledger', function () {
+it('posts payment variance as adjust from counterparty to expense ledger without debiting bank', function () {
     $entity = ReportingEntity::create([
         'name' => 'PT Indosport',
         'slug' => 'pt-indosport-variance',
@@ -515,11 +515,90 @@ it('posts payment variance as cash out to expense ledger', function () {
     $varianceTx = Transaction::query()->find($import->variance_transaction_id);
 
     expect($varianceTx)->not->toBeNull()
-        ->and((int) $varianceTx->type)->toBe(Transaction::TYPE_CASH_OUT)
-        ->and((int) $varianceTx->sender_id)->toBe($bank->id)
+        ->and((int) $varianceTx->type)->toBe(Transaction::TYPE_ADJUST)
+        ->and((int) $varianceTx->sender_id)->toBe($customer->id)
         ->and((int) $varianceTx->receiver_id)->toBe($expense->id)
         ->and(abs((float) $varianceTx->total))->toBe(3_555_484.0)
         ->and((float) $varianceTx->ppn)->toBe(0.0);
+
+    expect(Transaction::query()
+        ->where('type', Transaction::TYPE_CASH_OUT)
+        ->where('sender_id', $bank->id)
+        ->count())->toBe(0);
+});
+
+it('settles consignment underpayment without extra bank outflow', function () {
+    $entity = ReportingEntity::create([
+        'name' => 'PT Consignment',
+        'slug' => 'pt-consignment-var',
+        'is_pkp' => true,
+    ]);
+    $bank = Addrbook::create(['name' => 'BCA Consignment', 'type' => Addrbook::TYPE_BANK]);
+    $entity->banks()->attach($bank->id, ['is_active' => true]);
+    $customer = Addrbook::factory()->customer()->create();
+    $expense = Addrbook::create(['name' => 'Biaya Central', 'type' => Addrbook::TYPE_ACCOUNT]);
+
+    $bankReceived = 165_010_244.0;
+    $selisih = 7_770_000.0;
+
+    $cashIn = Transaction::withoutEvents(fn () => Transaction::create([
+        'date' => '2026-08-15',
+        'type' => Transaction::TYPE_CASH_IN,
+        'sender_type' => Addrbook::TYPE_CUSTOMER,
+        'sender_id' => $customer->id,
+        'receiver_type' => Addrbook::TYPE_BANK,
+        'receiver_id' => $bank->id,
+        'total' => $bankReceived,
+        'real_total' => $bankReceived,
+        'status' => Transaction::STATUS_COMPLETED,
+        'user_id' => $this->user->id,
+        'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+    ]));
+
+    $parsed = new ParsedFakturPajak(
+        fakturNumber: '04002600353827973',
+        fakturDate: Carbon::parse('2026-07-31'),
+        fakturDatePlace: 'Jakarta',
+        sellerName: 'INDOSPORT',
+        sellerNpwp: '0504330085044000',
+        buyerName: 'MDS',
+        buyerNpwp: '0013179569054000',
+        grossTotal: 155_657_877.0,
+        discountTotal: 0,
+        dpp: 155_657_877.0,
+        ppn: 17_122_367.0,
+        ppnbm: 0,
+        signatoryName: 'TEST',
+        sourceFormat: 'mds_output_tax_invoice',
+    );
+
+    $this->actingAs($this->user);
+
+    $import = app(TaxFakturImportService::class)->storeFromParsed($parsed, [
+        'direction' => TaxFakturImport::DIRECTION_KELUARAN,
+        'reporting_entity_id' => $entity->id,
+        'counterparty_id' => $customer->id,
+        'payment_received_amount' => $bankReceived,
+        'payment_received_date' => '2026-08-15',
+        'cash_in_transaction_id' => $cashIn->id,
+        'variance_expense_addrbook_id' => $expense->id,
+    ]);
+
+    $gross = $import->fakturGross();
+
+    expect($gross)->toBe(172_780_244.0)
+        ->and((float) $import->payment_received_amount)->toBe($gross)
+        ->and(abs((float) $import->payment_variance))->toBeLessThan(0.02);
+
+    $varianceTx = Transaction::query()->find($import->variance_transaction_id);
+    expect($varianceTx)->not->toBeNull()
+        ->and((int) $varianceTx->type)->toBe(Transaction::TYPE_ADJUST)
+        ->and(abs((float) $varianceTx->total))->toBe($selisih);
+
+    expect(Transaction::query()
+        ->where('type', Transaction::TYPE_CASH_OUT)
+        ->where('sender_id', $bank->id)
+        ->count())->toBe(0);
 });
 
 it('clears faktur payment link when linked cash in is deleted', function () {
@@ -600,7 +679,7 @@ it('clears faktur payment link when linked cash in is deleted', function () {
     Carbon::setTestNow();
 });
 
-it('posts payment variance cash out with PPN masukan when enabled', function () {
+it('posts payment variance adjust with PPN masukan when enabled', function () {
     $entity = ReportingEntity::create([
         'name' => 'PT Indosport PPN Var',
         'slug' => 'pt-indosport-ppn-var',
