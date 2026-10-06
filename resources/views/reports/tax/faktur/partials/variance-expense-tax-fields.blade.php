@@ -5,7 +5,8 @@
 <div class="space-y-2">
     <div>
         <label class="mb-1 block text-xs text-gray-500" for="{{ $selectId }}">{{ $label ?? 'Akun biaya selisih (opsional)' }}</label>
-        <select id="{{ $selectId }}" name="variance_expense_addrbook_id" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+        <select id="{{ $selectId }}" name="variance_expense_addrbook_id" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                @change="syncTotalFromBankAndSelisih(); syncTaxFromVariance()">
             <option value="">— Tidak ada —</option>
             @foreach($expenseAccounts as $account)
                 <option value="{{ $account->id }}" @selected((int) $expenseValue === (int) $account->id)>{{ $account->name }}</option>

@@ -6,6 +6,7 @@ use App\Actions\Transactions\CreateCashInFromFaktur;
 use App\Models\Addrbook;
 use App\Models\TaxFakturImport;
 use App\Models\Transaction;
+use App\Support\FakturPaymentTotals;
 use App\Support\VarianceCashTaxAmounts;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -94,6 +95,7 @@ class TaxFakturImportService
             ]);
 
             VarianceCashTaxAmounts::applyToImport($import, $data);
+            $this->applyNormalizedPaymentFromImport($import, $paymentReceivedAmount);
             $import->save();
 
             $this->postVariance->execute($import->fresh());
@@ -197,9 +199,7 @@ class TaxFakturImportService
         ?int $varianceExpenseAddrbookId = null,
         array $varianceOptions = [],
     ): TaxFakturImport {
-        $import->payment_received_amount = $amount;
         $import->payment_received_date = $date ?? now()->toDateString();
-        $import->payment_variance = round($amount - $import->fakturGross(), 2);
         if ($cashInTransactionId) {
             $this->assertValidCashInLink($import, $cashInTransactionId);
             $import->cash_in_transaction_id = $cashInTransactionId;
@@ -208,6 +208,22 @@ class TaxFakturImportService
             $import->variance_expense_addrbook_id = $varianceExpenseAddrbookId;
         }
         VarianceCashTaxAmounts::applyToImport($import, $varianceOptions);
+
+        $resolvedCashInId = $cashInTransactionId ?? $import->cash_in_transaction_id;
+        $cashIn = $resolvedCashInId ? Transaction::query()->find($resolvedCashInId) : null;
+        $bankAmount = FakturPaymentTotals::bankAmountFromCashIn($cashIn);
+
+        if ($bankAmount !== null) {
+            FakturPaymentTotals::applyNormalizedPayment(
+                $import,
+                $bankAmount,
+                $varianceExpenseAddrbookId ?? $import->variance_expense_addrbook_id,
+            );
+        } else {
+            $import->payment_received_amount = round($amount, 2);
+            $import->payment_variance = round($amount - $import->fakturGross(), 2);
+        }
+
         $import->save();
 
         $import = $import->fresh();
@@ -227,6 +243,19 @@ class TaxFakturImportService
                 : null;
         }
         VarianceCashTaxAmounts::applyToImport($import, $data);
+
+        $cashIn = $import->cash_in_transaction_id
+            ? Transaction::query()->find($import->cash_in_transaction_id)
+            : null;
+        $bankAmount = FakturPaymentTotals::bankAmountFromCashIn($cashIn);
+        if ($bankAmount !== null) {
+            FakturPaymentTotals::applyNormalizedPayment(
+                $import,
+                $bankAmount,
+                $import->variance_expense_addrbook_id,
+            );
+        }
+
         $import->save();
 
         $this->postVariance->execute($import->fresh());
@@ -279,5 +308,27 @@ class TaxFakturImportService
         if ($alreadyLinked) {
             throw new InvalidArgumentException('Cash In is already linked to another faktur import.');
         }
+    }
+
+    private function applyNormalizedPaymentFromImport(TaxFakturImport $import, ?float $enteredBankAmount): void
+    {
+        $cashIn = $import->cash_in_transaction_id
+            ? Transaction::query()->find($import->cash_in_transaction_id)
+            : null;
+        $bankAmount = FakturPaymentTotals::bankAmountFromCashIn($cashIn);
+
+        if ($bankAmount === null && $enteredBankAmount !== null && $import->variance_expense_addrbook_id) {
+            $bankAmount = round($enteredBankAmount, 2);
+        }
+
+        if ($bankAmount === null) {
+            return;
+        }
+
+        FakturPaymentTotals::applyNormalizedPayment(
+            $import,
+            $bankAmount,
+            $import->variance_expense_addrbook_id,
+        );
     }
 }

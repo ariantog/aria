@@ -198,6 +198,7 @@ $gross = $import->fakturGross();
         @endphp
         <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm text-sm" x-data="fakturPaymentPanel(@js([
             'fakturGross' => $gross,
+            'linkedBankAmount' => $linkedCashInBankAmount ?? null,
             'paymentAmount' => old('payment_received_amount', $import->payment_received_amount ?? ''),
             'paymentDate' => old('payment_received_date', $import->payment_received_date?->format('Y-m-d') ?? ''),
             'cashInId' => old('cash_in_transaction_id', $import->cash_in_transaction_id ?? ''),
@@ -209,7 +210,7 @@ $gross = $import->fakturGross();
             'ppnRate' => $ppnRate ?? 11,
             'pphRate' => $pphRate ?? 10,
             'tax' => $initialVarianceTax,
-        ]))" x-init="refreshSuggestions(); syncTaxFromVariance()">
+        ]))" x-init="initPaymentPanel()">
             <h3 class="mb-3 font-semibold text-gray-900">Update pembayaran</h3>
             @if(session('error'))
                 <div class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-800">{{ session('error') }}</div>
@@ -229,7 +230,7 @@ $gross = $import->fakturGross();
                     <p class="text-xs text-gray-500">Otomatis di-link. Sender = lawan transaksi. Invoice = nomor faktur. PPN tidak dicatat (sudah di faktur).</p>
                     <div class="grid gap-3 sm:grid-cols-3">
                         <div>
-                            <label class="mb-1 block text-xs text-gray-500" for="create_cash_in_amount">Jumlah (Rp)</label>
+                            <label class="mb-1 block text-xs text-gray-500" for="create_cash_in_amount">Jumlah bank diterima (Rp)</label>
                             <input type="number" step="0.01" min="0.01" id="create_cash_in_amount" name="amount"
                                    x-model="paymentAmount"
                                    required
@@ -286,9 +287,16 @@ $gross = $import->fakturGross();
                 <div class="grid gap-3 sm:grid-cols-2">
                     <div>
                         <label class="mb-1 block text-xs text-gray-500" for="show_payment_received_amount">Jumlah diterima — nett + PPN (Rp)</label>
+                        <p class="mb-1 text-[11px] text-gray-500">Total pembayaran faktur = Cash In bank + biaya selisih (jika ada akun biaya).</p>
                         <input type="number" step="0.01" id="show_payment_received_amount" name="payment_received_amount"
                                x-model="paymentAmount" @input="refreshSuggestions(); onPaymentAmountChange()"
-                               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm tabular-nums">
+                               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm tabular-nums"
+                               :readonly="linkedBankAmount !== null && linkedBankAmount !== ''"
+                               :class="linkedBankAmount !== null && linkedBankAmount !== '' ? 'bg-gray-50' : ''">
+                        <p x-show="linkedBankAmount !== null && linkedBankAmount !== ''" x-cloak class="mt-1 text-[11px] text-gray-500">
+                            Bank (Cash In): <span class="font-medium tabular-nums" x-text="'Rp ' + formatAmountId(linkedBankAmount)"></span>
+                            · Total di atas = bank + selisih biaya.
+                        </p>
                     </div>
                     <div>
                         <label class="mb-1 block text-xs text-gray-500" for="show_payment_received_date">Tanggal bayar</label>
@@ -583,10 +591,29 @@ document.addEventListener('alpine:init', () => {
             pph: config.tax?.pph != null ? Number(config.tax.pph) : null,
             ppn_manual: false,
         },
-        varianceTaxBase() {
+        bankPaymentAmount() {
+            if (this.linkedBankAmount !== null && this.linkedBankAmount !== '') {
+                return Number(this.linkedBankAmount);
+            }
             const paid = Number(this.paymentAmount || 0);
-            const diff = paid - this.fakturGross;
+            if (paid < this.fakturGross - 0.01) {
+                return paid;
+            }
+
+            return paid;
+        },
+        varianceTaxBase() {
+            const bank = this.bankPaymentAmount();
+            const diff = bank - this.fakturGross;
             return diff < -0.01 ? Math.round(Math.abs(diff) * 100) / 100 : 0;
+        },
+        syncTotalFromBankAndSelisih() {
+            if (this.linkedBankAmount === null || this.linkedBankAmount === '') {
+                return;
+            }
+            const bank = Number(this.linkedBankAmount);
+            const selisih = this.varianceTaxBase();
+            this.paymentAmount = selisih >= 0.01 ? Math.round((bank + selisih) * 100) / 100 : bank;
         },
         resetTax() {
             this.tax.record_ppn = false;
@@ -638,15 +665,25 @@ document.addEventListener('alpine:init', () => {
                 this.syncTaxFromVariance();
             }
         },
+        formatAmountId(value) {
+            const n = Number(value || 0);
+            return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(n);
+        },
     });
 
     Alpine.data('fakturPaymentPanel', (config) => ({
         ...varianceTaxMixin(config),
+        linkedBankAmount: config.linkedBankAmount ?? null,
         paymentAmount: config.paymentAmount ?? '',
         paymentDate: config.paymentDate ?? '',
         cashInId: config.cashInId ?? '',
         suggestions: [],
         suggestionsUrl: config.suggestionsUrl,
+        initPaymentPanel() {
+            this.syncTotalFromBankAndSelisih();
+            this.syncTaxFromVariance();
+            this.refreshSuggestions();
+        },
         async refreshSuggestions() {
             const params = new URLSearchParams({
                 counterparty_id: config.counterpartyId,
