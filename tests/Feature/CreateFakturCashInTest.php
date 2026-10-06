@@ -171,6 +171,55 @@ it('does not offer create cash in on masukan faktur', function () {
     expect($data['import']->fresh()->cash_in_transaction_id)->toBeNull();
 });
 
+it('allows creating cash in after manual unlink', function () {
+    $data = seedFakturCashInScenario();
+    $this->actingAs($this->user)
+        ->post(route('reports.tax.faktur.cash-in.store', $data['import']), [
+            'amount' => 1_000_000,
+            'account_id' => $data['bank']->id,
+            'date' => '2026-08-15',
+        ])
+        ->assertRedirect();
+
+    $this->actingAs($this->user)
+        ->delete(route('reports.tax.faktur.cash-in.unlink', $data['import']->fresh()))
+        ->assertRedirect(route('reports.tax.faktur.show', $data['import']))
+        ->assertSessionHas('success');
+
+    expect($data['import']->fresh()->cash_in_transaction_id)->toBeNull();
+
+    $this->actingAs($this->user)
+        ->get(route('reports.tax.faktur.show', $data['import']->fresh()))
+        ->assertOk()
+        ->assertSee('data-testid="faktur-create-cash-in-submit"', false);
+});
+
+it('offers create cash in when cash in id is stale after delete', function () {
+    $data = seedFakturCashInScenario();
+    $cashIn = Transaction::withoutEvents(fn () => Transaction::create([
+        'date' => '2026-08-15',
+        'type' => Transaction::TYPE_CASH_IN,
+        'sender_type' => Addrbook::TYPE_CUSTOMER,
+        'sender_id' => $data['customer']->id,
+        'receiver_type' => Addrbook::TYPE_BANK,
+        'receiver_id' => $data['bank']->id,
+        'total' => 500_000,
+        'real_total' => 500_000,
+        'status' => Transaction::STATUS_COMPLETED,
+        'user_id' => $this->user->id,
+        'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+    ]));
+
+    $data['import']->update(['cash_in_transaction_id' => $cashIn->id]);
+    $cashIn->delete();
+
+    $this->actingAs($this->user)
+        ->get(route('reports.tax.faktur.show', $data['import']->fresh()))
+        ->assertOk()
+        ->assertSee('data-testid="faktur-clear-stale-cash-in"', false)
+        ->assertSee('data-testid="faktur-create-cash-in-submit"', false);
+});
+
 it('forbids creating cash in without import or cash-in permission', function () {
     $data = seedFakturCashInScenario();
     $viewer = User::factory()->create();

@@ -6,6 +6,7 @@ use App\Models\Addrbook;
 use App\Models\TaxFakturImport;
 use App\Models\Transaction;
 use App\Services\StandaloneInvoiceSettlement;
+use App\Services\Tax\FakturCashInLinkService;
 use App\Services\TransactionService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
@@ -82,7 +83,7 @@ class CreateCashInFromFaktur
             throw new InvalidArgumentException('Hanya faktur keluaran yang bisa membuat Cash In.');
         }
 
-        if ($import->cash_in_transaction_id) {
+        if (app(FakturCashInLinkService::class)->hasLiveCashInLink($import)) {
             throw new InvalidArgumentException('Faktur ini sudah punya Cash In terkait.');
         }
     }

@@ -131,6 +131,23 @@ $gross = $import->fakturGross();
                                 #{{ $import->cashInTransaction->id }}
                             </a>
                             <span class="text-gray-500"> · {{ $import->cashInTransaction->date?->format('Y-m-d') }} · {{ $fmt(abs((float) $import->cashInTransaction->total)) }}</span>
+                            @if($canImport)
+                                <form method="POST" action="{{ route('reports.tax.faktur.cash-in.unlink', $import) }}" class="mt-1 inline"
+                                      onsubmit="return confirm('Lepas link Cash In dari faktur ini? Transaksi Cash In tidak dihapus.')">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="text-xs text-red-600 hover:underline" data-testid="faktur-unlink-cash-in">Lepas link Cash In</button>
+                                </form>
+                            @endif
+                        @elseif($import->cash_in_transaction_id)
+                            <span class="text-amber-800">#{{ $import->cash_in_transaction_id }} tidak ditemukan (sudah dihapus?)</span>
+                            @if($canImport)
+                                <form method="POST" action="{{ route('reports.tax.faktur.cash-in.unlink', $import) }}" class="mt-1 inline">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="text-xs font-medium text-red-700 hover:underline" data-testid="faktur-clear-stale-cash-in">Bersihkan link</button>
+                                </form>
+                            @endif
                         @else
                             <span class="text-gray-400">Belum di-link</span>
                         @endif
