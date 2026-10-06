@@ -100,6 +100,9 @@ class TaxFakturImportController extends Controller
                 ->where('type', Addrbook::TYPE_ACCOUNT)
                 ->orderBy('name')
                 ->get(['id', 'name']),
+            'varianceEntityIsPkp' => (bool) ($import->reportingEntity?->is_pkp ?? false),
+            'ppnRate' => (float) \App\Models\Setting::getValue('ppn_rate', 11),
+            'pphRate' => (float) config('reporting.pph_withholding_rate', 10),
             ...$this->sellFormContext($import->counterparty_id, $lineItemMatches, request()->user()),
             ...$this->cashInFormContext($import, request()->user()),
         ]);
@@ -376,7 +379,17 @@ class TaxFakturImportController extends Controller
             'payment_received_date' => ['nullable', 'date'],
             'cash_in_transaction_id' => ['nullable', 'integer', 'exists:transactions,id'],
             'variance_expense_addrbook_id' => ['nullable', 'integer', 'exists:customers,id'],
+            'variance_record_ppn' => ['sometimes', 'boolean'],
+            'variance_record_pph' => ['sometimes', 'boolean'],
+            'variance_ppn_dpp' => ['nullable', 'numeric', 'min:0'],
+            'variance_ppn' => ['nullable', 'numeric', 'min:0'],
+            'variance_pph' => ['nullable', 'numeric', 'min:0'],
         ]);
+
+        if (filter_var($data['variance_record_ppn'] ?? false, FILTER_VALIDATE_BOOLEAN)
+            && ! ($import->reportingEntity?->is_pkp ?? false)) {
+            return back()->withInput()->with('error', 'PPN selisih hanya untuk entitas PKP.');
+        }
 
         try {
             if (array_key_exists('cash_in_transaction_id', $data)) {
@@ -397,11 +410,10 @@ class TaxFakturImportController extends Controller
                     isset($data['variance_expense_addrbook_id']) && $data['variance_expense_addrbook_id']
                         ? (int) $data['variance_expense_addrbook_id']
                         : $import->variance_expense_addrbook_id,
+                    $data,
                 );
-            } elseif (isset($data['variance_expense_addrbook_id'])) {
-                $import->variance_expense_addrbook_id = $data['variance_expense_addrbook_id'] ?: null;
-                $import->save();
-                app(\App\Services\Tax\PostFakturPaymentVariance::class)->execute($import->fresh());
+            } elseif ($this->hasVarianceSettingChanges($data)) {
+                $import = $importService->updateVarianceSettings($import->fresh(), $data);
             }
         } catch (InvalidArgumentException $e) {
             return back()->withInput()->with('error', $e->getMessage());
@@ -797,6 +809,29 @@ class TaxFakturImportController extends Controller
             'source_format' => $parsed->sourceFormat,
             'line_items' => $parsed->lineItems,
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function hasVarianceSettingChanges(array $data): bool
+    {
+        $keys = [
+            'variance_expense_addrbook_id',
+            'variance_record_ppn',
+            'variance_record_pph',
+            'variance_ppn_dpp',
+            'variance_ppn',
+            'variance_pph',
+        ];
+
+        foreach ($keys as $key) {
+            if (array_key_exists($key, $data)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function hydrateParsed(array $data): ParsedFakturPajak
