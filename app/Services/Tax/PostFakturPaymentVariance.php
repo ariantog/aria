@@ -7,6 +7,7 @@ use App\Models\ReportingEntity;
 use App\Models\TaxFakturImport;
 use App\Models\Transaction;
 use App\Services\TransactionService;
+use App\Support\FakturPaymentTotals;
 use App\Support\VarianceCashTaxAmounts;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -28,17 +29,30 @@ class PostFakturPaymentVariance
             return $import->varianceTransaction;
         }
 
-        $variance = $import->payment_variance !== null ? (float) $import->payment_variance : null;
-        if ($variance === null || abs($variance) < 0.01) {
-            return null;
-        }
-
         if (! $import->variance_expense_addrbook_id) {
             return null;
         }
 
-        if ($variance > 0) {
-            return null;
+        $bankAmount = FakturPaymentTotals::bankAmountFromCashIn(
+            $import->cashInTransaction ?? ($import->cash_in_transaction_id
+                ? Transaction::query()->find($import->cash_in_transaction_id)
+                : null),
+        );
+
+        $selisih = $bankAmount !== null
+            ? FakturPaymentTotals::selisihAmount(
+                $import,
+                $bankAmount,
+                (int) $import->variance_expense_addrbook_id,
+            )
+            : null;
+
+        if ($selisih === null || $selisih < 0.01) {
+            $variance = $import->payment_variance !== null ? (float) $import->payment_variance : null;
+            if ($variance === null || $variance >= -0.01) {
+                return null;
+            }
+            $selisih = abs($variance);
         }
 
         $expenseAccount = Addrbook::query()->find($import->variance_expense_addrbook_id);
@@ -51,7 +65,7 @@ class PostFakturPaymentVariance
             throw new InvalidArgumentException('Cannot post variance without a bank on the linked Cash In or reporting entity.');
         }
 
-        $amount = abs($variance);
+        $amount = $selisih;
         $date = $import->payment_received_date?->toDateString() ?? now()->toDateString();
         $grandTotal = Transaction::signedAmount(Transaction::TYPE_CASH_OUT, $amount);
         $tax = VarianceCashTaxAmounts::resolve($amount, VarianceCashTaxAmounts::inputFromImport($import));

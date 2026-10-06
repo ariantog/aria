@@ -508,7 +508,9 @@ it('posts payment variance as cash out to expense ledger', function () {
     ]);
 
     expect($import->cash_in_transaction_id)->toBe($cashIn->id)
-        ->and($import->variance_transaction_id)->not->toBeNull();
+        ->and($import->variance_transaction_id)->not->toBeNull()
+        ->and((float) $import->payment_received_amount)->toBe($import->fakturGross())
+        ->and(abs((float) $import->payment_variance))->toBeLessThan(0.02);
 
     $varianceTx = Transaction::query()->find($import->variance_transaction_id);
 
@@ -518,6 +520,84 @@ it('posts payment variance as cash out to expense ledger', function () {
         ->and((int) $varianceTx->receiver_id)->toBe($expense->id)
         ->and(abs((float) $varianceTx->total))->toBe(3_555_484.0)
         ->and((float) $varianceTx->ppn)->toBe(0.0);
+});
+
+it('clears faktur payment link when linked cash in is deleted', function () {
+    Carbon::setTestNow(Carbon::parse('2026-09-15 10:00:00'));
+
+    $entity = ReportingEntity::create([
+        'name' => 'PT Unlink Cash In',
+        'slug' => 'pt-unlink-cash-in',
+        'is_pkp' => true,
+    ]);
+    $bank = Addrbook::create(['name' => 'BCA Unlink', 'type' => Addrbook::TYPE_BANK]);
+    $entity->banks()->attach($bank->id, ['is_active' => true]);
+    $customer = Addrbook::factory()->customer()->create();
+
+    $cashIn = Transaction::withoutEvents(fn () => Transaction::create([
+        'date' => '2026-09-10',
+        'type' => Transaction::TYPE_CASH_IN,
+        'sender_type' => Addrbook::TYPE_CUSTOMER,
+        'sender_id' => $customer->id,
+        'receiver_type' => Addrbook::TYPE_BANK,
+        'receiver_id' => $bank->id,
+        'total' => 20_000_000,
+        'real_total' => 20_000_000,
+        'status' => Transaction::STATUS_COMPLETED,
+        'user_id' => $this->user->id,
+        'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+    ]));
+
+    $parsed = new ParsedFakturPajak(
+        fakturNumber: '04002600777777777',
+        fakturDate: Carbon::parse('2026-09-01'),
+        fakturDatePlace: 'Jakarta',
+        sellerName: 'INDOSPORT',
+        sellerNpwp: '0504330085044000',
+        buyerName: 'MDS',
+        buyerNpwp: '0013179569054000',
+        grossTotal: 21_221_157.0,
+        discountTotal: 0,
+        dpp: 19_452_728.0,
+        ppn: 2_334_327.0,
+        ppnbm: 0,
+        signatoryName: 'TEST',
+        sourceFormat: 'mds_output_tax_invoice',
+    );
+
+    app(PermissionGenerator::class)->generateForModule('Transaction');
+    $this->user->givePermissionTo([
+        'transactions-delete',
+        'transactions-show',
+    ]);
+
+    $this->actingAs($this->user);
+
+    $import = app(TaxFakturImportService::class)->storeFromParsed($parsed, [
+        'direction' => TaxFakturImport::DIRECTION_KELUARAN,
+        'reporting_entity_id' => $entity->id,
+        'counterparty_id' => $customer->id,
+        'payment_received_amount' => 20_000_000,
+        'payment_received_date' => '2026-09-10',
+        'cash_in_transaction_id' => $cashIn->id,
+    ]);
+
+    expect($import->cash_in_transaction_id)->toBe($cashIn->id);
+
+    $this->delete(route('transactions.destroy', $cashIn))
+        ->assertRedirect(route('transactions.index'))
+        ->assertSessionHas('success');
+
+    expect(Transaction::find($cashIn->id))->toBeNull();
+
+    $import->refresh();
+
+    expect($import->cash_in_transaction_id)->toBeNull()
+        ->and($import->payment_received_amount)->toBeNull()
+        ->and($import->payment_received_date)->toBeNull()
+        ->and($import->variance_transaction_id)->toBeNull();
+
+    Carbon::setTestNow();
 });
 
 it('posts payment variance cash out with PPN masukan when enabled', function () {

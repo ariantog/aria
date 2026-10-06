@@ -756,6 +756,8 @@ class TransactionsController extends Controller
             $service->revertTransaction($transaction);
             app(WarehouseItemStatsRecorder::class)->revertTransaction($transaction);
 
+            app(\App\Services\Tax\FakturCashInLinkService::class)->unlinkDeletedCashIn($transaction);
+
             $this->archiveTransactionToDeleted($transactionData, $detailRows);
 
             $transaction->details()->delete();

@@ -739,9 +739,10 @@ class TaxFakturImportController extends Controller
             'cashInBanks' => $banks,
             'defaultCashInBankId' => $defaultBankId,
             'cashInMinDate' => app(BookClosingService::class)->getMinAllowedDate()->toDateString(),
-            'defaultCashInAmount' => $import->payment_received_amount !== null
-                ? (float) $import->payment_received_amount
-                : $import->fakturGross(),
+            'defaultCashInAmount' => $this->defaultCashInBankAmount($import),
+            'linkedCashInBankAmount' => $import->cashInTransaction
+                ? abs((float) $import->cashInTransaction->total)
+                : null,
             'defaultCashInDate' => $paymentDate ?: now()->toDateString(),
         ];
     }
@@ -809,6 +810,26 @@ class TaxFakturImportController extends Controller
             'source_format' => $parsed->sourceFormat,
             'line_items' => $parsed->lineItems,
         ];
+    }
+
+    private function defaultCashInBankAmount(TaxFakturImport $import): float
+    {
+        if ($import->cashInTransaction) {
+            return abs((float) $import->cashInTransaction->total);
+        }
+
+        if ($import->payment_received_amount !== null && $import->varianceTransaction) {
+            return max(0, round(
+                (float) $import->payment_received_amount - abs((float) $import->varianceTransaction->total),
+                2,
+            ));
+        }
+
+        if ($import->payment_received_amount !== null) {
+            return (float) $import->payment_received_amount;
+        }
+
+        return $import->fakturGross();
     }
 
     /**
