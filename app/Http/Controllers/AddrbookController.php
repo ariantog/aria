@@ -13,6 +13,7 @@ use App\Models\Location;
 use App\Models\Operation;
 use App\Models\ReportingEntity;
 use App\Models\ReportingLedgerRole;
+use App\Models\ShopeeStock;
 use App\Models\Tag;
 use App\Services\ExportSellExportService;
 use App\Services\ExportSellQueryService;
@@ -335,7 +336,8 @@ class AddrbookController extends Controller
             : 0;
 
         $shopeeSync = $shopeeStockService->syncForWarehouse($a->id);
-        $shopeeUnlinkedCount = $shopeeSync
+        $canViewShopeeStock = $shopeeSync !== null && Gate::check(ShopeeStock::getPermissions()['view']);
+        $shopeeUnlinkedCount = $canViewShopeeStock
             ? $items->getCollection()->filter(fn (Item $item) => (int) $item->shopee_item_id <= 0)->count()
             : 0;
 
@@ -349,7 +351,7 @@ class AddrbookController extends Controller
             'marketplaceItemIds' => $items->pluck('id')->values()->all(),
             'jubelioSync' => $jubelioSync,
             'jubelioUnlinkedCount' => $jubelioUnlinkedCount,
-            'shopeeSync' => $shopeeSync,
+            'shopeeSync' => $canViewShopeeStock ? $shopeeSync : null,
             'shopeeUnlinkedCount' => $shopeeUnlinkedCount,
             'can' => [
                 'bank_hidden_balance' => ! (request()->user()?->is_superadmin ?? false) && (request()->user()?->can('addrbook-bank-account-hidden-balance') ?? false),
@@ -374,7 +376,12 @@ class AddrbookController extends Controller
         $validated = $request->validate([
             'item_ids' => ['required', 'array', 'max:'.WarehouseStockQueryService::PER_PAGE],
             'item_ids.*' => ['integer', 'min:1'],
+            'include_jubelio' => ['sometimes', 'boolean'],
+            'include_shopee' => ['sometimes', 'boolean'],
         ]);
+
+        $includeJubelio = $request->boolean('include_jubelio', true);
+        $includeShopee = $request->boolean('include_shopee', false);
 
         $itemIds = array_values(array_unique(array_map('intval', $validated['item_ids'])));
         if ($itemIds === []) {
@@ -400,12 +407,12 @@ class AddrbookController extends Controller
         ];
 
         $jubelioSync = $jubelioStockService->syncForWarehouse($a->id);
-        if ($jubelioSync) {
+        if ($includeJubelio && $jubelioSync) {
             $payload['jubelio'] = $jubelioStockService->stockDataForItems($jubelioSync, $items);
         }
 
         $shopeeSync = $shopeeStockService->syncForWarehouse($a->id);
-        if ($shopeeSync) {
+        if ($includeShopee && $shopeeSync && Gate::check(ShopeeStock::getPermissions()['view'])) {
             $payload['shopee'] = $shopeeStockService->stockDataForItems($shopeeSync, $items);
         }
 
