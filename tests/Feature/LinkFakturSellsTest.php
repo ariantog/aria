@@ -290,7 +290,9 @@ it('links sells from the faktur show form', function () {
         ->assertOk()
         ->assertSee('INV-A', false)
         ->assertSee('INV-B', false)
-        ->assertSee('data-testid="faktur-link-sells"', false);
+        ->assertSee('data-testid="faktur-link-sells"', false)
+        ->assertSee('data-testid="faktur-link-sells-selected-totals"', false)
+        ->assertSee('selectedDppSum()', false);
 });
 
 it('unlinks a sell and restores faktur in drill-down when none remain', function () {
