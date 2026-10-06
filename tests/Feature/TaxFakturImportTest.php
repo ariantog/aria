@@ -47,6 +47,10 @@ beforeEach(function () {
         '--path' => 'database/migrations/2026_09_02_180000_add_down_payment_total_to_tax_faktur_imports_table.php',
         '--force' => true,
     ]);
+    Artisan::call('migrate', [
+        '--path' => 'database/migrations/2026_10_06_120000_add_variance_tax_fields_to_tax_faktur_imports_table.php',
+        '--force' => true,
+    ]);
 });
 
 it('calculates expected payment on due day next month after faktur', function () {
@@ -512,7 +516,70 @@ it('posts payment variance as cash out to expense ledger', function () {
         ->and((int) $varianceTx->type)->toBe(Transaction::TYPE_CASH_OUT)
         ->and((int) $varianceTx->sender_id)->toBe($bank->id)
         ->and((int) $varianceTx->receiver_id)->toBe($expense->id)
-        ->and(abs((float) $varianceTx->total))->toBe(3_555_484.0);
+        ->and(abs((float) $varianceTx->total))->toBe(3_555_484.0)
+        ->and((float) $varianceTx->ppn)->toBe(0.0);
+});
+
+it('posts payment variance cash out with PPN masukan when enabled', function () {
+    $entity = ReportingEntity::create([
+        'name' => 'PT Indosport PPN Var',
+        'slug' => 'pt-indosport-ppn-var',
+        'is_pkp' => true,
+    ]);
+    $bank = Addrbook::create(['name' => 'BCA PPN Var', 'type' => Addrbook::TYPE_BANK]);
+    $entity->banks()->attach($bank->id, ['is_active' => true]);
+    $customer = Addrbook::factory()->customer()->create();
+    $expense = Addrbook::create(['name' => 'Biaya MDS PPN', 'type' => Addrbook::TYPE_ACCOUNT]);
+
+    $cashIn = Transaction::withoutEvents(fn () => Transaction::create([
+        'date' => '2026-08-15',
+        'type' => Transaction::TYPE_CASH_IN,
+        'sender_type' => Addrbook::TYPE_CUSTOMER,
+        'sender_id' => $customer->id,
+        'receiver_type' => Addrbook::TYPE_BANK,
+        'receiver_id' => $bank->id,
+        'total' => 20_000_000,
+        'real_total' => 20_000_000,
+        'status' => Transaction::STATUS_COMPLETED,
+        'user_id' => $this->user->id,
+        'submit_type' => Transaction::SUBMIT_TYPE_MANUAL,
+    ]));
+
+    $parsed = new ParsedFakturPajak(
+        fakturNumber: '04002600888888888',
+        fakturDate: Carbon::parse('2026-07-31'),
+        fakturDatePlace: 'Jakarta',
+        sellerName: 'INDOSPORT',
+        sellerNpwp: '0504330085044000',
+        buyerName: 'MDS',
+        buyerNpwp: '0013179569054000',
+        grossTotal: 21_221_157.0,
+        discountTotal: 0,
+        dpp: 19_452_728.0,
+        ppn: 2_334_327.0,
+        ppnbm: 0,
+        signatoryName: 'TEST',
+        sourceFormat: 'mds_output_tax_invoice',
+    );
+
+    $this->actingAs($this->user);
+
+    $import = app(TaxFakturImportService::class)->storeFromParsed($parsed, [
+        'direction' => TaxFakturImport::DIRECTION_KELUARAN,
+        'reporting_entity_id' => $entity->id,
+        'counterparty_id' => $customer->id,
+        'payment_received_amount' => 20_000_000,
+        'payment_received_date' => '2026-08-15',
+        'cash_in_transaction_id' => $cashIn->id,
+        'variance_expense_addrbook_id' => $expense->id,
+        'variance_record_ppn' => true,
+    ]);
+
+    $varianceTx = Transaction::query()->find($import->variance_transaction_id);
+
+    expect($varianceTx)->not->toBeNull()
+        ->and((float) $varianceTx->ppn)->toBeGreaterThan(0)
+        ->and((float) $varianceTx->ppn_dpp)->toBeGreaterThan(0);
 });
 
 function seedKeluaranLinkFilterScenario(User $user): array

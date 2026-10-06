@@ -186,36 +186,44 @@ $gross = $import->fakturGross();
     </div>
 
     @if($canImport)
-        <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm text-sm" x-data="{
-            paymentAmount: '{{ old('payment_received_amount', $import->payment_received_amount ?? '') }}',
-            paymentDate: '{{ old('payment_received_date', $import->payment_received_date?->format('Y-m-d') ?? '') }}',
-            cashInId: '{{ old('cash_in_transaction_id', $import->cash_in_transaction_id ?? '') }}',
-            suggestions: [],
-            suggestionsUrl: @js(route('reports.tax.faktur.cash-in-suggestions')),
-            async refreshSuggestions() {
-                const params = new URLSearchParams({
-                    counterparty_id: @js($import->counterparty_id),
-                    reporting_entity_id: @js($import->reporting_entity_id),
-                    faktur_number: @js($import->faktur_number),
-                    exclude_import_id: @js($import->id),
-                });
-                if (this.paymentAmount) params.set('payment_received_amount', this.paymentAmount);
-                if (this.paymentDate) params.set('payment_received_date', this.paymentDate);
-                const response = await fetch(this.suggestionsUrl + '?' + params.toString(), {
-                    headers: { 'Accept': 'application/json' },
-                });
-                if (!response.ok) return;
-                const data = await response.json();
-                this.suggestions = data.suggestions || [];
-            }
-        }" x-init="refreshSuggestions()">
+        @php
+            $varianceTx = $import->varianceTransaction;
+            $initialVarianceTax = [
+                'record_ppn' => (bool) old('variance_record_ppn', $import->variance_record_ppn ?? ($varianceTx && (float) $varianceTx->ppn >= 0.01)),
+                'record_pph' => (bool) old('variance_record_pph', $import->variance_record_pph ?? ($varianceTx && (float) ($varianceTx->pph ?? 0) >= 0.01)),
+                'ppn_dpp' => old('variance_ppn_dpp', $import->variance_ppn_dpp ?? $varianceTx?->ppn_dpp),
+                'ppn' => old('variance_ppn', $import->variance_ppn ?? ($varianceTx ? (float) $varianceTx->ppn : null)),
+                'pph' => old('variance_pph', $import->variance_pph ?? $varianceTx?->pph),
+            ];
+        @endphp
+        <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm text-sm" x-data="fakturPaymentPanel(@js([
+            'fakturGross' => $gross,
+            'paymentAmount' => old('payment_received_amount', $import->payment_received_amount ?? ''),
+            'paymentDate' => old('payment_received_date', $import->payment_received_date?->format('Y-m-d') ?? ''),
+            'cashInId' => old('cash_in_transaction_id', $import->cash_in_transaction_id ?? ''),
+            'suggestionsUrl' => route('reports.tax.faktur.cash-in-suggestions'),
+            'counterpartyId' => $import->counterparty_id,
+            'reportingEntityId' => $import->reporting_entity_id,
+            'fakturNumber' => $import->faktur_number,
+            'importId' => $import->id,
+            'ppnRate' => $ppnRate ?? 11,
+            'pphRate' => $pphRate ?? 10,
+            'tax' => $initialVarianceTax,
+        ]))" x-init="refreshSuggestions(); syncTaxFromVariance()">
             <h3 class="mb-3 font-semibold text-gray-900">Update pembayaran</h3>
             @if(session('error'))
                 <div class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-800">{{ session('error') }}</div>
             @endif
 
             @if($canCreateCashIn ?? false)
-                <form method="POST" action="{{ route('reports.tax.faktur.cash-in.store', $import) }}" class="mb-4 space-y-3 rounded-lg border border-blue-100 bg-blue-50/40 p-3" data-testid="faktur-create-cash-in">
+                <form method="POST" action="{{ route('reports.tax.faktur.cash-in.store', $import) }}" class="mb-4 space-y-3 rounded-lg border border-blue-100 bg-blue-50/40 p-3" data-testid="faktur-create-cash-in"
+                      x-data="fakturCreateCashInPanel(@js([
+                          'fakturGross' => $gross,
+                          'initialAmount' => old('amount', $defaultCashInAmount ?? ''),
+                          'ppnRate' => $ppnRate ?? 11,
+                          'pphRate' => $pphRate ?? 10,
+                          'tax' => $initialVarianceTax,
+                      ]))" x-init="syncTaxFromVariance()">
                     @csrf
                     <p class="text-sm font-medium text-gray-900">Buat Cash In dari faktur</p>
                     <p class="text-xs text-gray-500">Otomatis di-link. Sender = lawan transaksi. Invoice = nomor faktur. PPN tidak dicatat (sudah di faktur).</p>
@@ -223,10 +231,11 @@ $gross = $import->fakturGross();
                         <div>
                             <label class="mb-1 block text-xs text-gray-500" for="create_cash_in_amount">Jumlah (Rp)</label>
                             <input type="number" step="0.01" min="0.01" id="create_cash_in_amount" name="amount"
-                                   value="{{ old('amount', $defaultCashInAmount ?? '') }}"
+                                   x-model="paymentAmount"
                                    required
                                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm tabular-nums"
-                                   data-testid="faktur-create-cash-in-amount">
+                                   data-testid="faktur-create-cash-in-amount"
+                                   @input="onPaymentAmountChange()">
                             @error('amount')
                                 <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
                             @enderror
@@ -258,15 +267,12 @@ $gross = $import->fakturGross();
                             @enderror
                         </div>
                     </div>
-                    <div>
-                        <label class="mb-1 block text-xs text-gray-500" for="create_cash_in_variance">Akun biaya selisih (opsional)</label>
-                        <select id="create_cash_in_variance" name="variance_expense_addrbook_id" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
-                            <option value="">— Tidak ada —</option>
-                            @foreach($expenseAccounts as $account)
-                                <option value="{{ $account->id }}" @selected((int) old('variance_expense_addrbook_id', $import->variance_expense_addrbook_id) === $account->id)>{{ $account->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
+                    @include('reports.tax.faktur.partials.variance-expense-tax-fields', [
+                        'selectId' => 'create_cash_in_variance',
+                        'import' => $import,
+                        'expenseAccounts' => $expenseAccounts,
+                        'varianceEntityIsPkp' => $varianceEntityIsPkp ?? false,
+                    ])
                     <button type="submit" class="rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800" data-testid="faktur-create-cash-in-submit">
                         Buat &amp; link Cash In
                     </button>
@@ -281,7 +287,7 @@ $gross = $import->fakturGross();
                     <div>
                         <label class="mb-1 block text-xs text-gray-500" for="show_payment_received_amount">Jumlah diterima — nett + PPN (Rp)</label>
                         <input type="number" step="0.01" id="show_payment_received_amount" name="payment_received_amount"
-                               x-model="paymentAmount" @input="refreshSuggestions()"
+                               x-model="paymentAmount" @input="refreshSuggestions(); onPaymentAmountChange()"
                                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm tabular-nums">
                     </div>
                     <div>
@@ -300,15 +306,13 @@ $gross = $import->fakturGross();
                         </template>
                     </select>
                 </div>
-                <div>
-                    <label class="mb-1 block text-xs text-gray-500" for="show_variance_expense_addrbook_id">Akun biaya selisih</label>
-                    <select id="show_variance_expense_addrbook_id" name="variance_expense_addrbook_id" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
-                        <option value="">— Tidak ada —</option>
-                        @foreach($expenseAccounts as $account)
-                            <option value="{{ $account->id }}" @selected((int) old('variance_expense_addrbook_id', $import->variance_expense_addrbook_id) === $account->id)>{{ $account->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
+                @include('reports.tax.faktur.partials.variance-expense-tax-fields', [
+                    'selectId' => 'show_variance_expense_addrbook_id',
+                    'label' => 'Akun biaya selisih',
+                    'import' => $import,
+                    'expenseAccounts' => $expenseAccounts,
+                    'varianceEntityIsPkp' => $varianceEntityIsPkp ?? false,
+                ])
                 <button type="submit" class="rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800" data-testid="faktur-payment-update">
                     Simpan pembayaran
                 </button>
@@ -563,4 +567,109 @@ $gross = $import->fakturGross();
         </div>
     @endif
 </div>
+
+@once
+<script>
+document.addEventListener('alpine:init', () => {
+    const varianceTaxMixin = (config) => ({
+        fakturGross: Number(config.fakturGross || 0),
+        ppnRate: Number(config.ppnRate || 11),
+        pphRate: Number(config.pphRate || 10),
+        tax: {
+            record_ppn: !!config.tax?.record_ppn,
+            record_pph: !!config.tax?.record_pph,
+            ppn_dpp: config.tax?.ppn_dpp != null ? Number(config.tax.ppn_dpp) : null,
+            ppn: config.tax?.ppn != null ? Number(config.tax.ppn) : null,
+            pph: config.tax?.pph != null ? Number(config.tax.pph) : null,
+            ppn_manual: false,
+        },
+        varianceTaxBase() {
+            const paid = Number(this.paymentAmount || 0);
+            const diff = paid - this.fakturGross;
+            return diff < -0.01 ? Math.round(Math.abs(diff) * 100) / 100 : 0;
+        },
+        resetTax() {
+            this.tax.record_ppn = false;
+            this.tax.record_pph = false;
+            this.tax.ppn_dpp = null;
+            this.tax.ppn = null;
+            this.tax.pph = null;
+            this.tax.ppn_manual = false;
+        },
+        markPpnManual() {
+            this.tax.ppn_manual = true;
+        },
+        syncTaxFromVariance() {
+            if (!this.tax.record_ppn) {
+                return;
+            }
+            const payment = this.varianceTaxBase();
+            if (payment < 0.01) {
+                this.tax.ppn_dpp = null;
+                this.tax.ppn = null;
+                this.tax.pph = null;
+                return;
+            }
+            const ppnRate = this.ppnRate / 100;
+            const pphRate = this.tax.record_pph ? (this.pphRate / 100) : 0;
+            const divisor = 1 + ppnRate - pphRate;
+            this.tax.ppn_dpp = Math.round(payment / divisor * 100) / 100;
+            this.tax.ppn = Math.round(this.tax.ppn_dpp * ppnRate * 100) / 100;
+            this.tax.pph = this.tax.record_pph ? Math.round(this.tax.ppn_dpp * pphRate * 100) / 100 : null;
+        },
+        onPaymentAmountChange() {
+            if (this.tax.record_ppn && !this.tax.ppn_manual) {
+                this.syncTaxFromVariance();
+            }
+        },
+        onRecordPpnToggle() {
+            if (!this.tax.record_ppn) {
+                this.resetTax();
+                return;
+            }
+            this.tax.ppn_manual = false;
+            this.syncTaxFromVariance();
+        },
+        onRecordPphToggle() {
+            if (!this.tax.record_pph) {
+                this.tax.pph = null;
+            }
+            if (!this.tax.ppn_manual) {
+                this.syncTaxFromVariance();
+            }
+        },
+    });
+
+    Alpine.data('fakturPaymentPanel', (config) => ({
+        ...varianceTaxMixin(config),
+        paymentAmount: config.paymentAmount ?? '',
+        paymentDate: config.paymentDate ?? '',
+        cashInId: config.cashInId ?? '',
+        suggestions: [],
+        suggestionsUrl: config.suggestionsUrl,
+        async refreshSuggestions() {
+            const params = new URLSearchParams({
+                counterparty_id: config.counterpartyId,
+                reporting_entity_id: config.reportingEntityId,
+                faktur_number: config.fakturNumber,
+                exclude_import_id: config.importId,
+            });
+            if (this.paymentAmount) params.set('payment_received_amount', this.paymentAmount);
+            if (this.paymentDate) params.set('payment_received_date', this.paymentDate);
+            const response = await fetch(this.suggestionsUrl + '?' + params.toString(), {
+                headers: { 'Accept': 'application/json' },
+            });
+            if (!response.ok) return;
+            const data = await response.json();
+            this.suggestions = data.suggestions || [];
+        },
+    }));
+
+    Alpine.data('fakturCreateCashInPanel', (config) => ({
+        ...varianceTaxMixin(config),
+        paymentAmount: config.initialAmount ?? '',
+    }));
+});
+</script>
+@endonce
 @endsection
