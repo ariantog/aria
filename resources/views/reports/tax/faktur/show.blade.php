@@ -340,14 +340,18 @@ $gross = $import->fakturGross();
         <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm text-sm" x-data="{
             suggestions: [],
             invoiceQuery: '',
-            selected: {},
+            selectedIds: [],
             suggestionsUrl: @js(route('reports.tax.faktur.sell-suggestions')),
+            selectedIdSet() {
+                return new Set(this.selectedIds.map((id) => String(id)));
+            },
             selectedCount() {
-                return Object.keys(this.selected).filter((id) => this.selected[id]).length;
+                return this.selectedIds.length;
             },
             selectedSum(field) {
+                const ids = this.selectedIdSet();
                 return this.suggestions.reduce((sum, item) => {
-                    if (!this.selected[item.id]) {
+                    if (!ids.has(String(item.id))) {
                         return sum;
                     }
 
@@ -381,6 +385,8 @@ $gross = $import->fakturGross();
                 if (!response.ok) return;
                 const data = await response.json();
                 this.suggestions = data.suggestions || [];
+                const visible = new Set(this.suggestions.map((item) => String(item.id)));
+                this.selectedIds = this.selectedIds.filter((id) => visible.has(String(id)));
             }
         }" x-init="refreshSuggestions()">
             <h3 class="mb-1 font-semibold text-gray-900">Link Sell yang sudah ada</h3>
@@ -412,7 +418,7 @@ $gross = $import->fakturGross();
                             <template x-for="item in suggestions" :key="item.id">
                                 <tr class="border-b">
                                     <td class="px-3 py-2">
-                                        <input type="checkbox" name="sell_transaction_ids[]" :value="item.id" x-model="selected[item.id]" class="rounded border-gray-300">
+                                        <input type="checkbox" name="sell_transaction_ids[]" :value="item.id" x-model="selectedIds" class="rounded border-gray-300">
                                     </td>
                                     <td class="px-3 py-2 tabular-nums">
                                         #<span x-text="item.id"></span>

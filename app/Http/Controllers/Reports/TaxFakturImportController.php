@@ -491,8 +491,14 @@ class TaxFakturImportController extends Controller
             'sell_transaction_ids.*' => ['integer', 'exists:transactions,id'],
         ]);
 
+        $sellIds = collect($data['sell_transaction_ids'])
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
         try {
-            $linkFakturSells->attach($import, $data['sell_transaction_ids']);
+            $linkFakturSells->attach($import, $sellIds);
         } catch (InvalidArgumentException $e) {
             return back()->withInput()->with('error', $e->getMessage());
         }
