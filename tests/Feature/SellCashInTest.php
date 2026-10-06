@@ -212,6 +212,39 @@ it('shows all linked cash-ins on a sell and defaults the next amount to the sell
         ->and($html)->toContain('Paid');
 });
 
+it('keeps the cash in switch when this sell is paid but invoice linking is still incomplete', function () {
+    Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => $this->sell->invoice,
+        'sender_type' => (string) Addrbook::TYPE_WAREHOUSE,
+        'sender_id' => $this->warehouse->id,
+        'receiver_type' => (string) Addrbook::TYPE_CUSTOMER,
+        'receiver_id' => $this->customer->id,
+        'total' => -500_000,
+        'real_total' => -500_000,
+        'status' => Transaction::STATUS_COMPLETED,
+        'user_id' => $this->user->id,
+    ]);
+
+    Transaction::factory()->create([
+        'type' => Transaction::TYPE_CASH_IN,
+        'invoice' => $this->sell->invoice,
+        'sender_type' => (string) Addrbook::TYPE_CUSTOMER,
+        'sender_id' => $this->customer->id,
+        'receiver_type' => (string) Addrbook::TYPE_BANK,
+        'receiver_id' => $this->bank->id,
+        'total' => 1_500_000,
+        'real_total' => 1_500_000,
+        'status' => Transaction::STATUS_COMPLETED,
+        'user_id' => $this->user->id,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('transactions.show', $this->sell))
+        ->assertOk()
+        ->assertSee('data-testid="sell-cash-in-switch"', false);
+});
+
 it('hides the cash in create form when the sell is fully paid by linked cash-ins', function () {
     Transaction::factory()->create([
         'type' => Transaction::TYPE_CASH_IN,

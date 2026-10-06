@@ -355,6 +355,7 @@ class TransactionsController extends Controller
                 : $sellCashInPresenter->forCashIn($transaction),
             Transaction::TYPE_CASH_OUT => $sellCashInPresenter->forCashOut($transaction),
             Transaction::TYPE_BUY => $sellCashInPresenter->forBuy($transaction),
+            Transaction::TYPE_RETURN => $sellCashInPresenter->forReturn($transaction),
             default => null,
         };
         $cashBankId = match ((int) $transaction->type) {

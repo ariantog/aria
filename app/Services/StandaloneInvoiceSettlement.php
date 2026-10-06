@@ -10,6 +10,9 @@ use Illuminate\Validation\ValidationException;
 
 class StandaloneInvoiceSettlement
 {
+    public function __construct(
+        private readonly InvoiceTransactionLinkService $invoiceLinks,
+    ) {}
     /**
      * Completed cash-in rows that share this invoice number count as payments.
      * Sender/receiver and bank transfers are ignored.
@@ -33,6 +36,22 @@ class StandaloneInvoiceSettlement
     }
 
     /**
+     * @return Collection<int, Transaction>
+     */
+    public function returns(StandaloneInvoice $invoice): Collection
+    {
+        return $this->completedTransactionsOfType($invoice->number, Transaction::TYPE_RETURN);
+    }
+
+    /**
+     * @return Collection<int, Transaction>
+     */
+    public function cashOuts(StandaloneInvoice $invoice): Collection
+    {
+        return $this->completedTransactionsOfType($invoice->number, Transaction::TYPE_CASH_OUT);
+    }
+
+    /**
      * @param  list<string>  $numbers
      * @return array<string, array{cash_in: float, sell: float}>
      */
@@ -48,7 +67,12 @@ class StandaloneInvoiceSettlement
         }
 
         $rows = Transaction::query()
-            ->whereIn('type', [Transaction::TYPE_CASH_IN, Transaction::TYPE_SELL])
+            ->whereIn('type', [
+                Transaction::TYPE_CASH_IN,
+                Transaction::TYPE_RETURN,
+                Transaction::TYPE_SELL,
+                Transaction::TYPE_CASH_OUT,
+            ])
             ->countsInReporting()
             ->whereIn('invoice', $numbers)
             ->selectRaw('invoice, type, SUM(ABS(total)) as amount')
@@ -57,12 +81,23 @@ class StandaloneInvoiceSettlement
 
         $totals = [];
         foreach ($numbers as $number) {
-            $totals[$number] = ['cash_in' => 0.0, 'sell' => 0.0];
+            $totals[$number] = [
+                'cash_in' => 0.0,
+                'return' => 0.0,
+                'sell' => 0.0,
+                'cash_out' => 0.0,
+            ];
         }
 
         foreach ($rows as $row) {
-            $key = (int) $row->type === Transaction::TYPE_SELL ? 'sell' : 'cash_in';
-            $totals[(string) $row->invoice][$key] = (float) $row->amount;
+            $invoice = (string) $row->invoice;
+            $key = match ((int) $row->type) {
+                Transaction::TYPE_SELL => 'sell',
+                Transaction::TYPE_CASH_OUT => 'cash_out',
+                Transaction::TYPE_RETURN => 'return',
+                default => 'cash_in',
+            };
+            $totals[$invoice][$key] = (float) $row->amount;
         }
 
         return $totals;
@@ -75,6 +110,11 @@ class StandaloneInvoiceSettlement
      *     due: float,
      *     paid_total: float,
      *     sell_total: float,
+     *     return_total: float,
+     *     cash_out_total: float,
+     *     credit_total: float,
+     *     debit_total: float,
+     *     linking_complete: bool,
      *     discount: float,
      *     remaining: float,
      *     status: string,
@@ -83,6 +123,8 @@ class StandaloneInvoiceSettlement
      *     amounts_match: bool,
      *     payments: Collection<int, Transaction>,
      *     sells: Collection<int, Transaction>,
+     *     returns: Collection<int, Transaction>,
+     *     cash_outs: Collection<int, Transaction>,
      *     related: Collection<int, Transaction>
      * }|null
      */
@@ -100,6 +142,11 @@ class StandaloneInvoiceSettlement
      *     due: float,
      *     paid_total: float,
      *     sell_total: float,
+     *     return_total: float,
+     *     cash_out_total: float,
+     *     credit_total: float,
+     *     debit_total: float,
+     *     linking_complete: bool,
      *     discount: float,
      *     remaining: float,
      *     status: string,
@@ -108,6 +155,8 @@ class StandaloneInvoiceSettlement
      *     amounts_match: bool,
      *     payments: Collection<int, Transaction>,
      *     sells: Collection<int, Transaction>,
+     *     returns: Collection<int, Transaction>,
+     *     cash_outs: Collection<int, Transaction>,
      *     related: Collection<int, Transaction>
      * }
      */
@@ -116,13 +165,21 @@ class StandaloneInvoiceSettlement
         $invoice->loadMissing('paidBy');
         $payments = $this->cashIns($invoice);
         $sells = $this->sells($invoice);
+        $returns = $this->returns($invoice);
+        $cashOuts = $this->cashOuts($invoice);
         $paidTotal ??= $this->sumAbsTotals($payments);
         $sellTotal ??= $this->sumAbsTotals($sells);
+        $returnTotal = $this->sumAbsTotals($returns);
+        $cashOutTotal = $this->sumAbsTotals($cashOuts);
+        $linkTotals = $this->invoiceLinks->totalsForInvoice($invoice->number);
+        $creditTotal = $linkTotals['credit'];
+        $debitTotal = $linkTotals['debit'];
+        $linkingComplete = $linkTotals['is_complete'];
         $invoiceAmount = $invoice->billedAmount();
         $discount = round($invoice->discountAmount(), 2);
         $due = round($invoice->balanceDue(), 2);
-        $amountsMatch = $this->amountsMatch($invoiceAmount, $paidTotal, $sellTotal);
-        $status = $this->statusFromTotals($invoiceAmount, $paidTotal, $sellTotal);
+        $amountsMatch = $this->amountsMatch($invoiceAmount, $creditTotal, $debitTotal, $linkingComplete);
+        $status = $this->statusFromTotals($invoiceAmount, $creditTotal, $debitTotal, $linkingComplete);
 
         return [
             'invoice' => $invoice,
@@ -130,6 +187,11 @@ class StandaloneInvoiceSettlement
             'due' => $due,
             'paid_total' => round($paidTotal, 2),
             'sell_total' => round($sellTotal, 2),
+            'return_total' => round($returnTotal, 2),
+            'cash_out_total' => round($cashOutTotal, 2),
+            'credit_total' => $creditTotal,
+            'debit_total' => $debitTotal,
+            'linking_complete' => $linkingComplete,
             'discount' => $discount,
             'remaining' => round(max(0, $invoiceAmount - $paidTotal), 2),
             'status' => $status,
@@ -138,13 +200,22 @@ class StandaloneInvoiceSettlement
             'amounts_match' => $amountsMatch,
             'payments' => $payments,
             'sells' => $sells,
+            'returns' => $returns,
+            'cash_outs' => $cashOuts,
             'related' => collect(),
         ];
     }
 
     public function status(StandaloneInvoice $invoice, float $paidTotal, float $sellTotal = 0.0): string
     {
-        return $this->statusFromTotals($invoice->billedAmount(), $paidTotal, $sellTotal);
+        $linkTotals = $this->invoiceLinks->totalsForInvoice($invoice->number);
+
+        return $this->statusFromTotals(
+            $invoice->billedAmount(),
+            $linkTotals['credit'],
+            $linkTotals['debit'],
+            $linkTotals['is_complete'],
+        );
     }
 
     public function updateDiscount(StandaloneInvoice $invoice, float $discount, ?User $user = null): StandaloneInvoice
@@ -184,26 +255,35 @@ class StandaloneInvoiceSettlement
         return $invoice ? $this->reconcile($invoice, $user) : null;
     }
 
-    protected function statusFromTotals(float $invoiceAmount, float $paidTotal, float $sellTotal): string
-    {
-        if ($this->amountsMatch($invoiceAmount, $paidTotal, $sellTotal)) {
+    protected function statusFromTotals(
+        float $invoiceAmount,
+        float $creditTotal,
+        float $debitTotal,
+        bool $linkingComplete,
+    ): string {
+        if ($this->amountsMatch($invoiceAmount, $creditTotal, $debitTotal, $linkingComplete)) {
             return StandaloneInvoice::STATUS_PAID;
         }
 
-        return ($paidTotal > 0 || $sellTotal > 0)
+        return ($creditTotal > 0 || $debitTotal > 0)
             ? StandaloneInvoice::STATUS_PARTIAL
             : StandaloneInvoice::STATUS_UNPAID;
     }
 
-    protected function amountsMatch(float $invoiceAmount, float $paidTotal, float $sellTotal): bool
-    {
+    protected function amountsMatch(
+        float $invoiceAmount,
+        float $creditTotal,
+        float $debitTotal,
+        bool $linkingComplete,
+    ): bool {
         $invoiceAmount = round($invoiceAmount, 2);
-        $paidTotal = round($paidTotal, 2);
-        $sellTotal = round($sellTotal, 2);
+        $creditTotal = round($creditTotal, 2);
+        $debitTotal = round($debitTotal, 2);
 
         return $invoiceAmount > 0
-            && $invoiceAmount === $paidTotal
-            && $invoiceAmount === $sellTotal;
+            && $linkingComplete
+            && $invoiceAmount === $creditTotal
+            && $invoiceAmount === $debitTotal;
     }
 
     protected function assertDiscount(StandaloneInvoice $invoice, float $discount): void
