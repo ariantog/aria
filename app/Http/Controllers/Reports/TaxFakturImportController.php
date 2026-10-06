@@ -509,6 +509,25 @@ class TaxFakturImportController extends Controller
             ->with('success', 'Sell dilepas dari faktur.');
     }
 
+    public function unlinkCashIn(TaxFakturImport $import, \App\Services\Tax\FakturCashInLinkService $cashInLinks)
+    {
+        Gate::authorize(Report::getPermissions()['import-tax-faktur']);
+
+        if ($import->direction !== TaxFakturImport::DIRECTION_KELUARAN) {
+            return back()->with('error', 'Hanya faktur keluaran yang memiliki link Cash In.');
+        }
+
+        if (! $import->cash_in_transaction_id) {
+            return back()->with('error', 'Faktur ini tidak punya Cash In terkait.');
+        }
+
+        $cashInLinks->clearPaymentLink($import);
+
+        return redirect()
+            ->route('reports.tax.faktur.show', $import->fresh())
+            ->with('success', 'Link Cash In dilepas. Anda bisa buat atau link Cash In baru.');
+    }
+
     public function postSell(Request $request, TaxFakturImport $import, PostFakturSell $postFakturSell)
     {
         Gate::authorize(Report::getPermissions()['import-tax-faktur']);
@@ -727,7 +746,7 @@ class TaxFakturImportController extends Controller
         $canCreateCashIn = (bool) $user?->can(Report::getPermissions()['import-tax-faktur'])
             && (bool) $user?->can(Transaction::getPermissions()['type-cash-in'])
             && $import->direction === TaxFakturImport::DIRECTION_KELUARAN
-            && ! $import->cash_in_transaction_id
+            && ! app(\App\Services\Tax\FakturCashInLinkService::class)->hasLiveCashInLink($import)
             && $counterparty
             && in_array((int) $counterparty->type, Addrbook::cashPartyTypes(), true)
             && $banks->isNotEmpty();
