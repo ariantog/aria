@@ -101,6 +101,7 @@ class TaxFakturImportController extends Controller
             'canImport' => $canImport,
             'canUnlinkCashIn' => $canUnlinkCashIn,
             'cashInLinkStatus' => $import->cashInLinkStatus(),
+            'paymentBannerMode' => $import->paymentBannerMode(),
             'expenseAccounts' => Addrbook::query()
                 ->where('type', Addrbook::TYPE_ACCOUNT)
                 ->orderBy('name')
@@ -525,15 +526,15 @@ class TaxFakturImportController extends Controller
             return back()->with('error', 'Hanya faktur keluaran yang memiliki link Cash In.');
         }
 
-        if (! $import->cash_in_transaction_id) {
-            return back()->with('error', 'Faktur ini tidak punya Cash In terkait.');
+        if ($import->paymentBannerMode() === 'none') {
+            return back()->with('error', 'Tidak ada data pembayaran / Cash In yang perlu direset.');
         }
 
         $cashInLinks->clearPaymentLink($import);
 
         return redirect()
             ->route('reports.tax.faktur.show', $import->fresh())
-            ->with('success', 'Link Cash In dilepas. Anda bisa buat atau link Cash In baru.');
+            ->with('success', 'Data pembayaran faktur direset. Anda bisa buat atau link Cash In baru.');
     }
 
     public function postSell(Request $request, TaxFakturImport $import, PostFakturSell $postFakturSell)

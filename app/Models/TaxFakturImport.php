@@ -93,6 +93,27 @@ class TaxFakturImport extends Model
         return $exists ? 'live' : 'stale';
     }
 
+    /**
+     * Banner on faktur detail for Cash In / payment snapshot issues.
+     *
+     * @return 'none'|'live'|'stale'|'orphaned'
+     */
+    public function paymentBannerMode(): string
+    {
+        $cashInStatus = $this->cashInLinkStatus();
+        if ($cashInStatus === 'live' || $cashInStatus === 'stale') {
+            return $cashInStatus;
+        }
+
+        if ($this->payment_received_amount !== null
+            || $this->payment_received_date !== null
+            || $this->variance_transaction_id) {
+            return 'orphaned';
+        }
+
+        return 'none';
+    }
+
     public function varianceTransaction(): BelongsTo
     {
         return $this->belongsTo(Transaction::class, 'variance_transaction_id');
