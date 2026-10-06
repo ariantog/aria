@@ -12,6 +12,7 @@ use App\Models\Location;
 use App\Models\Operation;
 use App\Models\ReportingEntity;
 use App\Models\ReportingLedgerRole;
+use App\Models\ShopeeStock;
 use App\Models\Tag;
 use App\Services\ExportSellExportService;
 use App\Services\ExportSellQueryService;
@@ -200,6 +201,15 @@ class AddrbookController extends Controller
         return app()->call([$this, 'itemsExport'], ['id' => $addrbook->id]);
     }
 
+    public function itemsTypeShopeeStock(string $type, Addrbook $addrbook, Request $request, WarehouseShopeeStockService $shopeeStockService)
+    {
+        return app()->call([$this, 'itemsShopeeStock'], [
+            'id' => $addrbook->id,
+            'request' => $request,
+            'shopeeStockService' => $shopeeStockService,
+        ]);
+    }
+
     public function itemAge($id, Request $request, WarehouseItemAgeService $ageService)
     {
         $a = Addrbook::withTrashed()->findOrFail($id);
@@ -336,15 +346,12 @@ class AddrbookController extends Controller
         }
 
         $shopeeSync = $shopeeStockService->syncForWarehouse($a->id);
-        $shopeeStocks = [];
-        $shopeeFetchFailed = false;
+        $canViewShopeeStock = $shopeeSync !== null && Gate::check(ShopeeStock::getPermissions()['view']);
         $shopeeUnlinkedCount = 0;
-
-        if ($shopeeSync) {
-            $shopeeData = $shopeeStockService->stockDataForItems($shopeeSync, $items->getCollection());
-            $shopeeStocks = $shopeeData['stocks'];
-            $shopeeFetchFailed = $shopeeData['fetch_failed'];
-            $shopeeUnlinkedCount = $shopeeData['unlinked_count'];
+        if ($canViewShopeeStock) {
+            $shopeeUnlinkedCount = $items->getCollection()
+                ->filter(fn ($item) => (int) ($item->shopee_item_id ?? 0) <= 0)
+                ->count();
         }
 
         return view('addrbook.items', [
@@ -357,14 +364,54 @@ class AddrbookController extends Controller
             'jubelioStocks' => $jubelioStocks,
             'jubelioFetchFailed' => $jubelioFetchFailed,
             'jubelioUnlinkedCount' => $jubelioUnlinkedCount,
-            'shopeeSync' => $shopeeSync,
-            'shopeeStocks' => $shopeeStocks,
-            'shopeeFetchFailed' => $shopeeFetchFailed,
+            'shopeeSync' => $canViewShopeeStock ? $shopeeSync : null,
             'shopeeUnlinkedCount' => $shopeeUnlinkedCount,
+            'shopeeStockUrl' => $canViewShopeeStock
+                ? route('addrbook.type.items.shopee-stock', ['type' => $this->addrbookTypeSlug($a), 'addrbook' => $a->id])
+                : null,
             'can' => [
                 'bank_hidden_balance' => ! (request()->user()?->is_superadmin ?? false) && (request()->user()?->can('addrbook-bank-account-hidden-balance') ?? false),
             ],
             'flash' => ['success' => session('success'), 'error' => session('error')],
+        ]);
+    }
+
+    public function itemsShopeeStock($id, Request $request, WarehouseShopeeStockService $shopeeStockService)
+    {
+        $a = Addrbook::withTrashed()->findOrFail($id);
+        if (! Addrbook::typeHasWarehouseStock((int) $a->type)) {
+            abort(404);
+        }
+        Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['warehouse-items']);
+        Gate::authorize(ShopeeStock::getPermissions()['view']);
+        $this->authorizeAddrbookLocation($a);
+
+        $shopeeSync = $shopeeStockService->syncForWarehouse($a->id);
+        if ($shopeeSync === null) {
+            return response()->json(['message' => 'Warehouse tidak ter-map ke Shopee.'], 404);
+        }
+
+        $validated = $request->validate([
+            'item_ids' => ['required', 'array', 'min:1', 'max:'.WarehouseStockQueryService::PER_PAGE],
+            'item_ids.*' => ['integer', 'min:1'],
+        ]);
+
+        $itemIds = array_values(array_unique(array_map('intval', $validated['item_ids'])));
+        $items = $a->items()->whereIn('items.id', $itemIds)->get();
+        if ($items->isEmpty()) {
+            return response()->json([
+                'stocks' => (object) [],
+                'fetch_failed' => false,
+                'unlinked_count' => 0,
+            ]);
+        }
+
+        $shopeeData = $shopeeStockService->stockDataForItems($shopeeSync, $items);
+
+        return response()->json([
+            'stocks' => $shopeeData['stocks'],
+            'fetch_failed' => $shopeeData['fetch_failed'],
+            'unlinked_count' => $shopeeData['unlinked_count'],
         ]);
     }
 

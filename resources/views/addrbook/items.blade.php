@@ -43,25 +43,6 @@ $sortLink = function (string $column) use ($filters, $sortColumn, $sortDirection
         fn ($value) => $value !== null && $value !== '',
     ));
 };
-$shopeeQtyCell = function (?array $shopee, string $field, bool $highlightMismatch = false) {
-    if (! $shopee || ! ($shopee['linked'] ?? false)) {
-        return '<span class="text-gray-300">—</span>';
-    }
-
-    $value = $shopee[$field] ?? null;
-    if ($value === null) {
-        return '<span class="text-gray-300">—</span>';
-    }
-
-    $classes = 'font-mono tabular-nums';
-    if ($highlightMismatch && ($shopee['mismatch'] ?? false)) {
-        $classes .= ' font-semibold text-red-600';
-    } else {
-        $classes .= ' text-gray-700';
-    }
-
-    return '<span class="' . $classes . '">' . e(format_amount($value, 0)) . '</span>';
-};
 $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMismatch = false) {
     if (! $jubelio || ! ($jubelio['linked'] ?? false)) {
         return '<span class="text-gray-300">—</span>';
@@ -83,7 +64,7 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
 };
 @endphp
 
-<div class="flex flex-col gap-4 p-3 sm:p-4" x-data="warehouseItemsPage(@js($filtersStorageKey), @js($columnsStorageKey), @js($hasJubelio), @js($hasShopee), @js($hasGroupAliasColumn))">
+<div class="flex flex-col gap-4 p-3 sm:p-4" x-data="warehouseItemsPage(@js($filtersStorageKey), @js($columnsStorageKey), @js($hasJubelio), @js($hasShopee), @js($hasGroupAliasColumn), @js($shopeeStockUrl ?? null), @js($hasShopee ? $items->pluck('id')->values()->all() : []))">
     {{-- Header --}}
     <div class="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
@@ -129,14 +110,14 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
         </div>
     @endif
 
-    @if(($shopeeUnlinkedCount ?? 0) > 0)
-        <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+    @if($hasShopee && ($shopeeUnlinkedCount ?? 0) > 0)
+        <div x-show="loadShopeeStock" x-cloak class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
             <strong>{{ $shopeeUnlinkedCount }}</strong> item(s) on this page are not linked to Shopee (missing Shopee item ID).
         </div>
     @endif
 
-    @if(($shopeeFetchFailed ?? false) && $hasShopee)
-        <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+    @if($hasShopee)
+        <div x-show="loadShopeeStock && shopeeFetchFailed" x-cloak class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" data-testid="warehouse-items-shopee-fetch-failed">
             Could not fetch Shopee stock right now. Aria stock is still shown below.
         </div>
     @endif
@@ -211,6 +192,14 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
                     <span x-text="copyFeedback ? 'Copied!' : 'Copy rows'"></span>
                 </button>
+                @if($hasShopee)
+                <label class="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                       data-testid="warehouse-items-load-shopee">
+                    <input type="checkbox" x-model="loadShopeeStock" class="rounded border-gray-300 text-gray-800 focus:ring-gray-400">
+                    <span>Load Shopee qty</span>
+                    <span x-show="shopeeLoading" x-cloak class="text-xs font-normal text-gray-400">Loading…</span>
+                </label>
+                @endif
                 <a href="{{ $exportUrl . (count($exportQuery) ? '?' . http_build_query($exportQuery) : '') }}"
                    class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
@@ -263,8 +252,8 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
                         <th class="px-3 py-2.5 text-right font-medium" data-copy-col="jb_available" title="Jubelio available">Avail</th>
                     @endif
                     @if($hasShopee)
-                        <th class="px-3 py-2.5 text-right font-medium" data-copy-col="sp_sellable" title="Shopee sellable">SP sell</th>
-                        <th class="px-3 py-2.5 text-right font-medium" data-copy-col="sp_reserved" title="Shopee reserved">SP rsv</th>
+                        <th class="px-3 py-2.5 text-right font-medium" data-copy-col="sp_sellable" title="Shopee sellable" x-show="loadShopeeStock">SP sell</th>
+                        <th class="px-3 py-2.5 text-right font-medium" data-copy-col="sp_reserved" title="Shopee reserved" x-show="loadShopeeStock">SP rsv</th>
                     @endif
                     <th class="w-12 px-3 py-2.5 text-center font-medium"></th>
                 </tr>
@@ -277,11 +266,10 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
                         $desc = $item->catalogDescription() ?: '-';
                         $qty = (float) ($item->pivot->quantity ?? 0);
                         $jubelio = ($jubelioStocks ?? [])[$item->id] ?? null;
-                        $shopee = ($shopeeStocks ?? [])[$item->id] ?? null;
                         $itemShowUrl = $item->showUrl();
                         $itemEditUrl = $item->editUrl();
                         $jubelioLinked = $jubelio && ($jubelio['linked'] ?? false);
-                        $shopeeLinked = $shopee && ($shopee['linked'] ?? false);
+                        $shopeeLinked = (int) ($item->shopee_item_id ?? 0) > 0;
                         $itemAlias = trim((string) ($item->alias ?? ''));
                         $groupAlias = $hasGroupAliasColumn ? trim((string) ($item->group?->alias ?? '')) : '';
                     @endphp
@@ -332,12 +320,18 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
                         @endif
                         @if($hasShopee)
                             @if(! $shopeeLinked)
-                                <td colspan="2" class="px-3 py-2.5 text-right" data-copy-col="sp_sellable">
+                                <td colspan="2" class="px-3 py-2.5 text-right" data-copy-col="sp_sellable" x-show="loadShopeeStock">
                                     <span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">Not linked</span>
                                 </td>
                             @else
-                                <td class="whitespace-nowrap px-3 py-2.5 text-right text-xs" data-copy-col="sp_sellable" @if($shopee['sellable'] !== null) data-copy-value="{{ format_copy_number($shopee['sellable']) }}" @endif>{!! $shopeeQtyCell($shopee, 'sellable', true) !!}</td>
-                                <td class="whitespace-nowrap px-3 py-2.5 text-right text-xs" data-copy-col="sp_reserved" @if($shopee['reserved'] !== null) data-copy-value="{{ format_copy_number($shopee['reserved']) }}" @endif>{!! $shopeeQtyCell($shopee, 'reserved') !!}</td>
+                                <td class="whitespace-nowrap px-3 py-2.5 text-right text-xs" data-copy-col="sp_sellable" x-show="loadShopeeStock"
+                                    :data-copy-value="shopeeCopyValue({{ $item->id }}, 'sellable')">
+                                    <span x-html="shopeeQtyHtml({{ $item->id }}, 'sellable', true)"></span>
+                                </td>
+                                <td class="whitespace-nowrap px-3 py-2.5 text-right text-xs" data-copy-col="sp_reserved" x-show="loadShopeeStock"
+                                    :data-copy-value="shopeeCopyValue({{ $item->id }}, 'reserved')">
+                                    <span x-html="shopeeQtyHtml({{ $item->id }}, 'reserved', false)"></span>
+                                </td>
                             @endif
                         @endif
                         <td class="px-3 py-2.5 text-center">
@@ -358,7 +352,7 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
 
 @push('scripts')
 <script>
-function warehouseItemsPage(filtersStorageKey, columnsStorageKey, hasJubelio, hasShopee, hasGroupAliasColumn) {
+function warehouseItemsPage(filtersStorageKey, columnsStorageKey, hasJubelio, hasShopee, hasGroupAliasColumn, shopeeStockUrl, shopeeItemIds) {
     return {
         showImage: false,
         showId: true,
@@ -367,6 +361,13 @@ function warehouseItemsPage(filtersStorageKey, columnsStorageKey, hasJubelio, ha
         showItemAlias: false,
         showGroupAlias: false,
         highlightMismatch: true,
+        loadShopeeStock: false,
+        shopeeStockUrl: shopeeStockUrl,
+        shopeeItemIds: shopeeItemIds || [],
+        shopeeStocks: {},
+        shopeeLoading: false,
+        shopeeFetchFailed: false,
+        shopeeFetchToken: 0,
         onlineName: false,
         filtersOpen: true,
         filtersStorageKey: filtersStorageKey,
@@ -408,6 +409,9 @@ function warehouseItemsPage(filtersStorageKey, columnsStorageKey, hasJubelio, ha
                 if (this.hasJubelio && typeof columns.highlightMismatch === 'boolean') {
                     this.highlightMismatch = columns.highlightMismatch;
                 }
+                if (this.hasShopee && typeof columns.loadShopeeStock === 'boolean') {
+                    this.loadShopeeStock = columns.loadShopeeStock;
+                }
             } catch (e) {}
 
             this.$watch('showId', () => this.persistColumns());
@@ -421,9 +425,26 @@ function warehouseItemsPage(filtersStorageKey, columnsStorageKey, hasJubelio, ha
             if (this.hasJubelio) {
                 this.$watch('highlightMismatch', () => this.persistColumns());
             }
+            if (this.hasShopee) {
+                this.$watch('loadShopeeStock', (value) => {
+                    this.persistColumns();
+                    if (value) {
+                        this.fetchShopeeStock();
+                    } else {
+                        this.shopeeFetchToken++;
+                        this.shopeeStocks = {};
+                        this.shopeeLoading = false;
+                        this.shopeeFetchFailed = false;
+                    }
+                    this.$nextTick(() => this.refreshTableScrollWidth());
+                });
+            }
 
             this.$nextTick(() => {
                 this.refreshTableScrollWidth();
+                if (this.hasShopee && this.loadShopeeStock) {
+                    this.fetchShopeeStock();
+                }
             });
             window.addEventListener('resize', () => this.refreshTableScrollWidth());
         },
@@ -441,8 +462,93 @@ function warehouseItemsPage(filtersStorageKey, columnsStorageKey, hasJubelio, ha
             if (this.hasJubelio) {
                 columns.highlightMismatch = this.highlightMismatch;
             }
+            if (this.hasShopee) {
+                columns.loadShopeeStock = this.loadShopeeStock;
+            }
             localStorage.setItem(this.columnsStorageKey, JSON.stringify(columns));
             this.$nextTick(() => this.refreshTableScrollWidth());
+        },
+        async fetchShopeeStock() {
+            if (! this.shopeeStockUrl || this.shopeeItemIds.length === 0) {
+                return;
+            }
+
+            const token = ++this.shopeeFetchToken;
+            this.shopeeLoading = true;
+            this.shopeeFetchFailed = false;
+
+            try {
+                const url = new URL(this.shopeeStockUrl, window.location.origin);
+                this.shopeeItemIds.forEach((id, index) => {
+                    url.searchParams.append('item_ids[' + index + ']', String(id));
+                });
+
+                const response = await fetch(url.toString(), {
+                    headers: {
+                        Accept: 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    credentials: 'same-origin',
+                });
+
+                if (! response.ok) {
+                    throw new Error('Shopee stock request failed');
+                }
+
+                const data = await response.json();
+                if (token !== this.shopeeFetchToken) {
+                    return;
+                }
+
+                this.shopeeStocks = data.stocks || {};
+                this.shopeeFetchFailed = !! data.fetch_failed;
+            } catch (e) {
+                if (token !== this.shopeeFetchToken) {
+                    return;
+                }
+                this.shopeeFetchFailed = true;
+                this.shopeeStocks = {};
+            } finally {
+                if (token === this.shopeeFetchToken) {
+                    this.shopeeLoading = false;
+                    this.$nextTick(() => this.refreshTableScrollWidth());
+                }
+            }
+        },
+        shopeeRow(itemId) {
+            return this.shopeeStocks[itemId] || this.shopeeStocks[String(itemId)] || null;
+        },
+        shopeeQtyHtml(itemId, field, highlightMismatch) {
+            if (this.shopeeLoading) {
+                return '<span class="text-gray-400">…</span>';
+            }
+
+            const row = this.shopeeRow(itemId);
+            if (! row || ! row.linked) {
+                return '<span class="text-gray-300">—</span>';
+            }
+
+            const value = row[field];
+            if (value === null || value === undefined) {
+                return '<span class="text-gray-300">—</span>';
+            }
+
+            let classes = 'font-mono tabular-nums';
+            if (highlightMismatch && row.mismatch) {
+                classes += ' font-semibold text-red-600';
+            } else {
+                classes += ' text-gray-700';
+            }
+
+            return '<span class="' + classes + '">' + formatNumberId(value) + '</span>';
+        },
+        shopeeCopyValue(itemId, field) {
+            const row = this.shopeeRow(itemId);
+            if (! row || row[field] === null || row[field] === undefined) {
+                return '';
+            }
+
+            return String(row[field]);
         },
         refreshTableScrollWidth() {
             const table = this.$refs.itemsTable;
@@ -494,7 +600,7 @@ function warehouseItemsPage(filtersStorageKey, columnsStorageKey, hasJubelio, ha
                 return this.hasJubelio;
             }
             if (col.startsWith('sp_')) {
-                return this.hasShopee;
+                return this.hasShopee && this.loadShopeeStock;
             }
 
             return true;
