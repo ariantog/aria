@@ -102,6 +102,27 @@ it('sums multiple cash-in and sell transactions toward one invoice', function ()
         ->and($snapshot['is_paid'])->toBeFalse();
 });
 
+it('marks the invoice paid when cash-in plus return equals sell', function () {
+    cashInFor($this->invoice->number, 6_000_000);
+    sellFor($this->invoice->number, 10_000_000);
+    Transaction::factory()->create([
+        'type' => Transaction::TYPE_RETURN,
+        'invoice' => $this->invoice->number,
+        'sender_type' => (string) Addrbook::TYPE_CUSTOMER,
+        'sender_id' => $this->customer->id,
+        'receiver_type' => (string) Addrbook::TYPE_WAREHOUSE,
+        'receiver_id' => $this->warehouse->id,
+        'total' => 4_000_000,
+        'real_total' => 4_000_000,
+        'status' => Transaction::STATUS_COMPLETED,
+        'user_id' => $this->user->id,
+    ]);
+
+    $invoice = app(StandaloneInvoiceSettlement::class)->reconcile($this->invoice, $this->user);
+
+    expect($invoice->isMarkedPaid())->toBeTrue();
+});
+
 it('marks the invoice paid when invoice, sell, and cash-in totals match', function () {
     cashInFor($this->invoice->number, 6_000_000);
     cashInFor($this->invoice->number, 4_000_000, Transaction::STATUS_COMPLETED, test()->otherCustomer->id, test()->otherBank->id);

@@ -12,6 +12,7 @@ class SellCashInPresenter
     public function __construct(
         private readonly BookClosingService $bookClosing,
         private readonly UserPreferenceService $userPreferences,
+        private readonly InvoiceTransactionLinkService $invoiceLinks,
     ) {}
 
     public function userCanCreate(?User $user): bool
@@ -79,6 +80,7 @@ class SellCashInPresenter
         $linkedCashIns = $this->linkedCashInsForSell($transaction, $invoiceSettlement);
         $paidTotal = $this->sumAbsTotals($linkedCashIns);
         $sellRemaining = round(max(0, $sellTotal - $paidTotal), 2);
+        $linkingComplete = $this->invoiceLinks->isLinkingComplete((string) $transaction->invoice);
 
         $defaultAmount = $sellRemaining;
         if ($invoiceSettlement && (float) ($invoiceSettlement['remaining'] ?? 0) > 0.009) {
@@ -88,7 +90,7 @@ class SellCashInPresenter
         $data = $this->formData($user, $defaultAmount);
         $data['can_create'] = $data['can_create']
             && (int) $transaction->status !== Transaction::STATUS_CANCELLED
-            && $defaultAmount > 0.009;
+            && ! $linkingComplete;
         $data['linked'] = $linkedCashIns;
         $data['paid_total'] = $paidTotal;
         $data['remaining'] = round($defaultAmount, 2);
@@ -128,8 +130,8 @@ class SellCashInPresenter
             return null;
         }
 
-        $linked = $this->linkedTransactions(
-            (string) $transaction->invoice,
+        $linked = $this->linkedTransactionsByNumbers(
+            $this->invoiceLinks->invoiceNumbersFor((string) $transaction->invoice, $transaction),
             Transaction::TYPE_BUY,
         );
 
@@ -153,8 +155,8 @@ class SellCashInPresenter
             return null;
         }
 
-        $linked = $this->linkedTransactions(
-            (string) $transaction->invoice,
+        $linked = $this->linkedTransactionsByNumbers(
+            $this->invoiceLinks->invoiceNumbersFor((string) $transaction->invoice, $transaction),
             Transaction::TYPE_CASH_OUT,
         );
 
@@ -170,6 +172,31 @@ class SellCashInPresenter
     }
 
     /**
+     * @return array{title: string, linked: Collection<int, Transaction>, party: 'sender'|'receiver'}|null
+     */
+    public function forReturn(Transaction $transaction): ?array
+    {
+        if ((int) $transaction->type !== Transaction::TYPE_RETURN) {
+            return null;
+        }
+
+        $linked = $this->linkedTransactionsByNumbers(
+            $this->invoiceLinks->invoiceNumbersFor((string) $transaction->invoice, $transaction),
+            Transaction::TYPE_SELL,
+        );
+
+        if ($linked->isEmpty()) {
+            return null;
+        }
+
+        return [
+            'title' => 'Linked sell',
+            'linked' => $linked,
+            'party' => 'receiver',
+        ];
+    }
+
+    /**
      * Cash-ins linked to this sell match either the sell invoice or its transaction id.
      * Staff often edit a manual cash-in to the sell id while the sell keeps an invoice-maker number.
      *
@@ -178,7 +205,7 @@ class SellCashInPresenter
     private function linkedCashInsForSell(Transaction $sell, ?array $invoiceSettlement = null): Collection
     {
         $linked = $this->linkedTransactionsByNumbers(
-            $this->invoiceNumbersFor($sell),
+            $this->invoiceLinks->invoiceNumbersFor((string) $sell->invoice, $sell),
             Transaction::TYPE_CASH_IN,
         );
 
@@ -200,35 +227,26 @@ class SellCashInPresenter
      */
     private function linkedSellsForCashIn(Transaction $cashIn): Collection
     {
-        $invoice = trim((string) $cashIn->invoice);
-        $linked = $this->linkedTransactionsByNumbers([$invoice], Transaction::TYPE_SELL);
+        $numbers = $this->invoiceLinks->invoiceNumbersFor((string) $cashIn->invoice, $cashIn);
+        $linked = $this->linkedTransactionsByNumbers($numbers, Transaction::TYPE_SELL);
 
-        if ($invoice !== '' && ctype_digit($invoice)) {
-            $byId = Transaction::query()
-                ->with(['sender', 'receiver'])
-                ->where('type', Transaction::TYPE_SELL)
-                ->where('id', (int) $invoice)
-                ->countsInReporting()
-                ->get();
+        foreach ($numbers as $number) {
+            if ($number !== '' && ctype_digit($number)) {
+                $byId = Transaction::query()
+                    ->with(['sender', 'receiver'])
+                    ->where('type', Transaction::TYPE_SELL)
+                    ->where('id', (int) $number)
+                    ->countsInReporting()
+                    ->get();
 
-            $linked = $linked
-                ->merge($byId)
-                ->unique(fn (Transaction $transaction) => $transaction->id)
-                ->values();
+                $linked = $linked
+                    ->merge($byId)
+                    ->unique(fn (Transaction $transaction) => $transaction->id)
+                    ->values();
+            }
         }
 
         return $this->sortLinkedTransactions($linked);
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function invoiceNumbersFor(Transaction $transaction): array
-    {
-        return array_values(array_unique(array_filter([
-            trim((string) $transaction->invoice),
-            (string) $transaction->id,
-        ], static fn (string $number) => $number !== '')));
     }
 
     /**
