@@ -581,6 +581,73 @@ below — do not reuse sell-transaction `sender_id` logic for outbound `AdjustSt
 Canonical code: `App\Services\Jubelio\JubelioOrderWarehouseResolver`,
 `App\Actions\Jubelio\ProcessJubelioOrder`, `JubelioOrderShowPresenter`.
 
+#### Inbound order catch-up (webhook → queue → cron post)
+
+**Flow:** Jubelio webhooks (and poll/get-orders backfill) insert **`jubelioorders`** rows;
+**`jubelio:order-jubelio-to-aria`** / manual **Process** runs `ProcessJubelioOrder` to create
+**SELL** / **RETURN** transactions (`submit_type = 2`).
+
+**Canonical eligibility:** `App\Services\Jubelio\JubelioOrderQueueEligibility`,
+`App\Services\Jubelio\JubelioSellInvoiceGuard`, `App\Services\JubelioGetOrdersService`,
+webhook sell path in `JubelioController@webhookOrder`. Tests:
+`JubelioOrderQueueEligibilityTest`, `JubelioOrderProcessEligibilityTest`,
+`JubelioOrderGuardsRegressionTest`, `JubelioWebhookTest`, `JubelioGetOrdersTest`.
+
+**Rolling window:** `config('services.jubelio.order_queue_max_age_days')` (default **30**).
+Rows without `transaction_date` / `created_date` are **ineligible** (fail closed). Poll uses
+`min(poll_days, order_queue_max_age_days)` and never queries API dates before
+`earliestAllowedDate()` (`JubelioGetOrdersService::pollRecentDays`).
+
+**Jubelio sell statuses (API / list rows — not the same as Aria sync tabs below):**
+
+| Jubelio status | Catch-up queue & post |
+|----------------|------------------------|
+| **SHIPPED**, **COMPLETED**, **RETURNED** | Eligible when in rolling window and not canceled |
+| **CANCELED** / **CANCELLED** | Terminal — never post |
+| Other (e.g. DRAFT) | Ineligible |
+
+- **`COMPLETED` is postable**, not “ignore forever.” Marketplaces often move **SHIPPED → COMPLETED**
+  before Aria cron runs; the live API may show `channel_status = COMPLETED` while
+  `jubelioorders.order_status` is still **SHIPPED**. **Do not** treat **COMPLETED** as terminal
+  for queue/post (regression caused skipped sells and false errors like “hanya SHIPPED”).
+- Eligibility inspects **`internal_status`, `channel_status`, `wms_status`, `status`, `order_status`**
+  (see `sellStatusValues()`). Any **CANCELED** field blocks; post uses fresh API payload at process time.
+
+**Do not insert into `jubelioorders` (webhook / get-orders / poll)** when:
+
+- Sell **invoice** already exists in **`transactions`** or **`jubelioorders`**
+  (`JubelioSellInvoiceGuard` / `existingInvoiceLookup`).
+- **Transaction date** is outside the rolling window (or missing when max age is enforced).
+- Row fails **`isEligibleListRow()`** / **`isEligibleApiOrder()`** (wrong status, canceled, etc.).
+
+**Webhook sells** (`source = 1`): accept webhook body when **`status` is SHIPPED or COMPLETED**;
+same duplicate/window/eligibility checks; optional `fetchSalesOrder` merge when store/loc unmapped.
+
+**Poll & get-orders** (`source = 2`, `jubelio:poll-missing-orders`, `/jubelio-get-orders`):
+API list → **`queueEligibleRows()`** — eligible **SHIPPED/COMPLETED/RETURNED** in window, skip
+invoices already in Aria. **Must not** call Jubelio API per row on `/jubelio` index.
+
+**Process** (`ProcessJubelioOrder`): duplicate **`transactions`** check first; then eligibility on
+stored row + fetched payload. Outside window → permanent skip; duplicate → `ERROR_DUPLICATE`; do not
+revive legacy “reject all COMPLETED before post” behavior.
+
+#### Jubelio orders index — sync-status filters (`/jubelio`)
+
+List filters are **Aria queue/sync state** (`jubelioorders.status`, `error_type`), **not** Jubelio
+`order_status` (SHIPPED/COMPLETED on the row).
+
+| UI tab / query | List query |
+|----------------|------------|
+| Default (no `status`, no invoice, no gudang) | **Pending only** (`status = 0`) |
+| **`status=all`** (**Semua** card) | **All** sync statuses |
+| `status=pending` / `success` / `warning` / `error` | Matching sync bucket |
+| **Invoice search only** (no `status` param) | All sync statuses (pending default bypassed) |
+
+- Search form keeps a hidden **`status`** — clicking **Search** preserves the active tab. To find an
+  invoice across skipped/success/error rows, select **Semua** first (or use invoice-only URL without
+  `status=`). **Clear** resets invoice, gudang, and status.
+- Stat cards preserve `invoice` and `warehouse_id` when switching tabs.
+
 #### `jubeliosyncs` lookup key (SELL and RETURN)
 
 - One row = one **store + location** pair → one Aria gudang + one channel customer.
@@ -656,10 +723,11 @@ because stock never moved when qty was 0. **Maintainer playbook:**
 Do **not** use `jubelio:order-jubelio-to-aria --truncate` — it bulk-deletes all `submit_type = 2`
 transactions and resets every order.
 
-#### Jubelio orders index (`/jubelio`)
+#### Jubelio orders index — list rendering (`/jubelio`)
 
 - **Must not call the Jubelio API per row.** Use denormalized `jubelioorders` columns +
-  `resolveForIndex()` + preloaded `jubeliosync` index.
+  `resolveForIndex()` + preloaded `jubeliosync` index. (Sync-status tab rules: **Inbound order catch-up**
+  → **Jubelio orders index — sync-status filters** above.)
 - List qty/total may be `—` until detail or **Refresh payload** — intentional.
 - Empty gudang hint: “store/loc kosong” only when **both** store unset (`0`) **and** location
   unset (`0`); **`location_id = -1` is not empty**.

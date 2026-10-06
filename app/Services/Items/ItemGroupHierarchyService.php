@@ -8,6 +8,7 @@ use App\Models\ItemGroup;
 use App\Models\Tag;
 use App\Services\JubelioService;
 use App\Support\ItemImageResolver;
+use App\Support\ItemProductTitle;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator as Paginator;
@@ -590,11 +591,56 @@ class ItemGroupHierarchyService
      */
     protected function resolveProductName(Collection $groups, string $parentKey, ItemType $itemType): string
     {
-        return $this->resolveProductNameFromNames(
-            $groups->map(fn (ItemGroup $group) => $group->name)->filter()->unique()->values()->all(),
-            $parentKey,
-            $itemType,
-        );
+        $parentTitle = ItemProductTitle::parentProductNameForKey($parentKey);
+        if ($parentTitle !== '') {
+            return $parentTitle;
+        }
+
+        $realTitles = $groups
+            ->map(function (ItemGroup $group) use ($itemType) {
+                $storedName = trim((string) $group->name);
+                if ($storedName === '') {
+                    return null;
+                }
+
+                $sample = $group->items->first();
+                if ($sample !== null) {
+                    $pcode = (string) $sample->pcode;
+                    if (ItemProductTitle::isPcodePlaceholderName($itemType, $storedName, $pcode)) {
+                        return null;
+                    }
+                }
+
+                return strtoupper(
+                    $this->identityBuilder->productDisplayName(
+                        $itemType,
+                        $storedName,
+                        (string) ($group->variant ?? ''),
+                        (string) ($group->master ?? ''),
+                    )
+                );
+            })
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($realTitles->count() === 1) {
+            return (string) $realTitles->first();
+        }
+
+        if ($realTitles->isNotEmpty()) {
+            return (string) $realTitles->first();
+        }
+
+        if ($itemType === ItemType::ITEM) {
+            $parts = explode(':', $parentKey);
+
+            return strtoupper($parts[2] ?? '');
+        }
+
+        $parentLabel = explode(':', $parentKey, 2)[1] ?? '';
+
+        return strtoupper($parentLabel);
     }
 
     /**

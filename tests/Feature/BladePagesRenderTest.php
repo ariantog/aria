@@ -52,6 +52,7 @@ it('renders the transactions index with its rows', function () {
         ->assertSee('INV-SMOKE-1', false)
         ->assertSee('Test Supplier', false)
         ->assertSee('data-testid="copy-transactions-table"', false)
+        ->assertSee('data-testid="export-transactions-excel-link"', false)
         ->assertSee('data-copy-col="invoice"', false)
         ->assertSee('data-copy-value="1000000"', false)
         ->assertSee('copyRowsTable()', false);

@@ -147,6 +147,31 @@ final class ItemProductTitle
         return strtoupper($stored) !== strtoupper($built);
     }
 
+    public static function parentProductNameForKey(string $parentKey): string
+    {
+        if (! self::hasColumn('item_parent_prices', 'product_name')) {
+            return '';
+        }
+
+        $parentKey = trim($parentKey);
+        if ($parentKey === '') {
+            return '';
+        }
+
+        if (! array_key_exists($parentKey, self::$parentRecordCache)) {
+            self::$parentRecordCache[$parentKey] = ItemParentPrice::query()
+                ->where('parent_key', $parentKey)
+                ->first();
+        }
+
+        return strtoupper(trim((string) (self::$parentRecordCache[$parentKey]?->product_name ?? '')));
+    }
+
+    public static function isPcodePlaceholderName(ItemType $type, string $storedName, string $pcode): bool
+    {
+        return self::isPcodePlaceholder($type, $storedName, $pcode);
+    }
+
     public static function syncParentProductName(string $parentKey, string $productName): void
     {
         if (! self::hasColumn('item_parent_prices', 'product_name')) {

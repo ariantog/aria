@@ -280,22 +280,24 @@ it('shows jubelio on-hand stock for synced warehouses', function () {
         ]);
     }
 
-    $this->mock(JubelioService::class, function (MockInterface $mock) {
+    $jubelioResponse = [
+        'data' => [[
+            'item_id' => 123,
+            'location_stocks' => [[
+                'location_id' => 10,
+                'on_hand' => 40,
+                'on_order' => 5,
+                'reserved' => 2,
+                'available' => 38,
+            ]],
+        ]],
+    ];
+
+    $this->mock(JubelioService::class, function (MockInterface $mock) use ($jubelioResponse) {
         $mock->shouldReceive('fetchItemsAllStocks')
             ->once()
             ->with([123])
-            ->andReturn([
-                'data' => [[
-                    'item_id' => 123,
-                    'location_stocks' => [[
-                        'location_id' => 10,
-                        'on_hand' => 40,
-                        'on_order' => 5,
-                        'reserved' => 2,
-                        'available' => 38,
-                    ]],
-                ]],
-            ]);
+            ->andReturn($jubelioResponse);
     });
 
     $response = $this->actingAs($user)
@@ -306,13 +308,12 @@ it('shows jubelio on-hand stock for synced warehouses', function () {
         ->assertSee('On order', false)
         ->assertSee('Avail', false)
         ->assertSee('Gudang Pusat', false)
-        ->assertSee('40', false)
-        ->assertSee('5', false)
-        ->assertSee('38', false)
+        ->assertSee('data-testid="warehouse-items-marketplace-loading"', false)
+        ->assertSee('animate-spin', false)
+        ->assertSee('loadMarketplaceStock', false)
         ->assertSee('data-testid="warehouse-items-column-toggles"', false)
         ->assertSee('data-testid="warehouse-items-highlight-mismatch"', false)
         ->assertSee('x-model="highlightMismatch"', false)
-        ->assertSee('bg-amber-50', false)
         ->assertSee('x-model="showName"', false)
         ->assertSee('x-model="showImage"', false)
         ->assertSee('x-model="showDescription"', false)
@@ -321,6 +322,41 @@ it('shows jubelio on-hand stock for synced warehouses', function () {
         ->assertSee('data-testid="warehouse-items-scroll-top"', false)
         ->assertSee('Not linked', false)
         ->assertSee('item(s) on this page are not linked to Jubelio', false);
+
+    $this->actingAs($user)
+        ->postJson(route('addrbook.type.items.marketplace-stock', ['warehouse', $warehouse->id]), [
+            'item_ids' => [$linkedItem->id, $unlinkedItem->id],
+        ])
+        ->assertOk()
+        ->assertJsonPath('jubelio.stocks.'.$linkedItem->id.'.on_hand', 40)
+        ->assertJsonPath('jubelio.stocks.'.$linkedItem->id.'.available', 38)
+        ->assertJsonPath('jubelio.stocks.'.$linkedItem->id.'.mismatch', true)
+        ->assertJsonPath('jubelio.unlinked_count', 1);
+});
+
+it('does not call jubelio api during warehouse items page render', function () {
+    User::factory()->create();
+    $user = User::factory()->create();
+    $user->givePermissionTo('addrbook-warehouse-items');
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    seedWarehouseJubelioSync($warehouse);
+
+    $item = Item::factory()->create(['jubelio_item_id' => 123]);
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $item->id,
+        'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 1,
+    ]);
+
+    $this->mock(JubelioService::class, function (MockInterface $mock) {
+        $mock->shouldNotReceive('fetchItemsAllStocks');
+    });
+
+    $this->actingAs($user)
+        ->get(route('addrbook.type.items', ['warehouse', $warehouse->id]))
+        ->assertOk();
 });
 
 it('shows jubelio stock when mapped location id is -1 pusat', function () {
@@ -364,9 +400,15 @@ it('shows jubelio stock when mapped location id is -1 pusat', function () {
     $this->actingAs($user)
         ->get(route('addrbook.type.items', ['warehouse', $warehouse->id]))
         ->assertOk()
-        ->assertSee('Pusat', false)
-        ->assertSee('9', false)
-        ->assertSee('8', false);
+        ->assertSee('Pusat', false);
+
+    $this->actingAs($user)
+        ->postJson(route('addrbook.type.items.marketplace-stock', ['warehouse', $warehouse->id]), [
+            'item_ids' => [$linkedItem->id],
+        ])
+        ->assertOk()
+        ->assertJsonPath('jubelio.stocks.'.$linkedItem->id.'.on_hand', 9)
+        ->assertJsonPath('jubelio.stocks.'.$linkedItem->id.'.available', 8);
 });
 
 it('does not show jubelio column when warehouse is not mapped', function () {

@@ -43,28 +43,9 @@ $sortLink = function (string $column) use ($filters, $sortColumn, $sortDirection
         fn ($value) => $value !== null && $value !== '',
     ));
 };
-$jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMismatch = false) {
-    if (! $jubelio || ! ($jubelio['linked'] ?? false)) {
-        return '<span class="text-gray-300">—</span>';
-    }
-
-    $value = $jubelio[$field] ?? null;
-    if ($value === null) {
-        return '<span class="text-gray-300">—</span>';
-    }
-
-    $classes = 'font-mono tabular-nums';
-    if ($highlightMismatch && ($jubelio['mismatch'] ?? false)) {
-        $classes .= ' font-semibold text-red-600';
-    } else {
-        $classes .= ' text-gray-700';
-    }
-
-    return '<span class="' . $classes . '">' . e(format_amount($value, 0)) . '</span>';
-};
 @endphp
 
-<div class="flex flex-col gap-4 p-3 sm:p-4" x-data="warehouseItemsPage(@js($filtersStorageKey), @js($columnsStorageKey), @js($hasJubelio), @js($hasShopee), @js($hasGroupAliasColumn), @js($shopeeStockUrl ?? null), @js($hasShopee ? $items->pluck('id')->values()->all() : []))">
+<div class="flex flex-col gap-4 p-3 sm:p-4" x-data="warehouseItemsPage(@js($filtersStorageKey), @js($columnsStorageKey), @js($hasJubelio), @js($hasShopee), @js($hasGroupAliasColumn), @js($marketplaceStockUrl ?? ''), @js($marketplaceItemIds ?? []))">
     {{-- Header --}}
     <div class="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
@@ -104,11 +85,14 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
         </div>
     @endif
 
-    @if(($jubelioFetchFailed ?? false) && $hasJubelio)
-        <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-            Could not fetch Jubelio stock right now. Aria stock is still shown below.
-        </div>
-    @endif
+    <div x-show="marketplaceLoading && hasJubelio" x-cloak class="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800" data-testid="warehouse-items-marketplace-loading">
+        <svg class="h-4 w-4 shrink-0 animate-spin text-blue-600" fill="none" viewBox="0 0 24 24" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+        <span>Loading Jubelio stock in the background…</span>
+    </div>
+
+    <div x-show="jubelioFetchFailed && hasJubelio" x-cloak class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" data-testid="warehouse-items-jubelio-fetch-failed">
+        Could not fetch Jubelio stock right now. Aria stock is still shown below.
+    </div>
 
     @if($hasShopee && ($shopeeUnlinkedCount ?? 0) > 0)
         <div x-show="loadShopeeStock" x-cloak class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -116,11 +100,9 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
         </div>
     @endif
 
-    @if($hasShopee)
-        <div x-show="loadShopeeStock && shopeeFetchFailed" x-cloak class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" data-testid="warehouse-items-shopee-fetch-failed">
-            Could not fetch Shopee stock right now. Aria stock is still shown below.
-        </div>
-    @endif
+    <div x-show="loadShopeeStock && shopeeFetchFailed && hasShopee" x-cloak class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" data-testid="warehouse-items-shopee-fetch-failed">
+        Could not fetch Shopee stock right now. Aria stock is still shown below.
+    </div>
 
     @include('items.partials.list-filters', [
         'formAction' => $baseUrl,
@@ -265,16 +247,15 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
                         $onlineNm = $item->catalogDescription2() ?: $normalName;
                         $desc = $item->catalogDescription() ?: '-';
                         $qty = (float) ($item->pivot->quantity ?? 0);
-                        $jubelio = ($jubelioStocks ?? [])[$item->id] ?? null;
                         $itemShowUrl = $item->showUrl();
                         $itemEditUrl = $item->editUrl();
-                        $jubelioLinked = $jubelio && ($jubelio['linked'] ?? false);
-                        $shopeeLinked = (int) ($item->shopee_item_id ?? 0) > 0;
+                        $jubelioLinked = (int) $item->jubelio_item_id > 0;
+                        $shopeeLinked = (int) $item->shopee_item_id > 0;
                         $itemAlias = trim((string) ($item->alias ?? ''));
                         $groupAlias = $hasGroupAliasColumn ? trim((string) ($item->group?->alias ?? '')) : '';
                     @endphp
                     <tr class="cursor-pointer align-top"
-                        :class="highlightMismatch && @js($jubelioLinked && ($jubelio['mismatch'] ?? false)) ? 'bg-amber-50 ring-1 ring-inset ring-amber-200 hover:bg-amber-100' : 'hover:bg-gray-50'"
+                        :class="rowHighlightClass({{ $item->id }}, @js($jubelioLinked), @js($shopeeLinked))"
                         onclick="window.location='{{ $itemShowUrl }}'">
                         <td class="whitespace-nowrap px-3 py-2.5 font-mono text-xs" data-copy-col="id" x-show="showId">
                             <a href="{{ $itemShowUrl }}" onclick="event.stopPropagation()" class="text-blue-600 hover:underline">{{ $item->id }}</a>
@@ -312,10 +293,10 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
                                     </span>
                                 </td>
                             @else
-                                <td class="whitespace-nowrap px-3 py-2.5 text-right text-xs" data-copy-col="jb_on_hand" @if($jubelio['on_hand'] !== null) data-copy-value="{{ format_copy_number($jubelio['on_hand']) }}" @endif>{!! $jubelioQtyCell($jubelio, 'on_hand') !!}</td>
-                                <td class="whitespace-nowrap px-3 py-2.5 text-right text-xs" data-copy-col="jb_on_order" @if($jubelio['on_order'] !== null) data-copy-value="{{ format_copy_number($jubelio['on_order']) }}" @endif>{!! $jubelioQtyCell($jubelio, 'on_order') !!}</td>
-                                <td class="whitespace-nowrap px-3 py-2.5 text-right text-xs" data-copy-col="jb_reserved" @if($jubelio['reserved'] !== null) data-copy-value="{{ format_copy_number($jubelio['reserved']) }}" @endif>{!! $jubelioQtyCell($jubelio, 'reserved') !!}</td>
-                                <td class="whitespace-nowrap px-3 py-2.5 text-right text-xs" data-copy-col="jb_available" @if($jubelio['available'] !== null) data-copy-value="{{ format_copy_number($jubelio['available']) }}" @endif>{!! $jubelioQtyCell($jubelio, 'available', true) !!}</td>
+                                <td class="whitespace-nowrap px-3 py-2.5 text-right text-xs" data-copy-col="jb_on_hand" :data-copy-value="marketplaceCopyValue({{ $item->id }}, 'jubelio', 'on_hand')" x-html="jubelioQtyCell({{ $item->id }}, 'on_hand')"></td>
+                                <td class="whitespace-nowrap px-3 py-2.5 text-right text-xs" data-copy-col="jb_on_order" :data-copy-value="marketplaceCopyValue({{ $item->id }}, 'jubelio', 'on_order')" x-html="jubelioQtyCell({{ $item->id }}, 'on_order')"></td>
+                                <td class="whitespace-nowrap px-3 py-2.5 text-right text-xs" data-copy-col="jb_reserved" :data-copy-value="marketplaceCopyValue({{ $item->id }}, 'jubelio', 'reserved')" x-html="jubelioQtyCell({{ $item->id }}, 'reserved')"></td>
+                                <td class="whitespace-nowrap px-3 py-2.5 text-right text-xs" data-copy-col="jb_available" :data-copy-value="marketplaceCopyValue({{ $item->id }}, 'jubelio', 'available')" x-html="jubelioQtyCell({{ $item->id }}, 'available', true)"></td>
                             @endif
                         @endif
                         @if($hasShopee)
@@ -324,14 +305,8 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
                                     <span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">Not linked</span>
                                 </td>
                             @else
-                                <td class="whitespace-nowrap px-3 py-2.5 text-right text-xs" data-copy-col="sp_sellable" x-show="loadShopeeStock"
-                                    :data-copy-value="shopeeCopyValue({{ $item->id }}, 'sellable')">
-                                    <span x-html="shopeeQtyHtml({{ $item->id }}, 'sellable', true)"></span>
-                                </td>
-                                <td class="whitespace-nowrap px-3 py-2.5 text-right text-xs" data-copy-col="sp_reserved" x-show="loadShopeeStock"
-                                    :data-copy-value="shopeeCopyValue({{ $item->id }}, 'reserved')">
-                                    <span x-html="shopeeQtyHtml({{ $item->id }}, 'reserved', false)"></span>
-                                </td>
+                                <td class="whitespace-nowrap px-3 py-2.5 text-right text-xs" data-copy-col="sp_sellable" x-show="loadShopeeStock" :data-copy-value="marketplaceCopyValue({{ $item->id }}, 'shopee', 'sellable')" x-html="shopeeQtyCell({{ $item->id }}, 'sellable', true)"></td>
+                                <td class="whitespace-nowrap px-3 py-2.5 text-right text-xs" data-copy-col="sp_reserved" x-show="loadShopeeStock" :data-copy-value="marketplaceCopyValue({{ $item->id }}, 'shopee', 'reserved')" x-html="shopeeQtyCell({{ $item->id }}, 'reserved')"></td>
                             @endif
                         @endif
                         <td class="px-3 py-2.5 text-center">
@@ -352,7 +327,7 @@ $jubelioQtyCell = function (?array $jubelio, string $field, bool $highlightMisma
 
 @push('scripts')
 <script>
-function warehouseItemsPage(filtersStorageKey, columnsStorageKey, hasJubelio, hasShopee, hasGroupAliasColumn, shopeeStockUrl, shopeeItemIds) {
+function warehouseItemsPage(filtersStorageKey, columnsStorageKey, hasJubelio, hasShopee, hasGroupAliasColumn, marketplaceStockUrl, pageItemIds) {
     return {
         showImage: false,
         showId: true,
@@ -362,11 +337,7 @@ function warehouseItemsPage(filtersStorageKey, columnsStorageKey, hasJubelio, ha
         showGroupAlias: false,
         highlightMismatch: true,
         loadShopeeStock: false,
-        shopeeStockUrl: shopeeStockUrl,
-        shopeeItemIds: shopeeItemIds || [],
-        shopeeStocks: {},
         shopeeLoading: false,
-        shopeeFetchFailed: false,
         shopeeFetchToken: 0,
         onlineName: false,
         filtersOpen: true,
@@ -375,6 +346,13 @@ function warehouseItemsPage(filtersStorageKey, columnsStorageKey, hasJubelio, ha
         hasJubelio: hasJubelio,
         hasShopee: hasShopee,
         hasGroupAliasColumn: hasGroupAliasColumn,
+        marketplaceStockUrl: marketplaceStockUrl,
+        pageItemIds: pageItemIds,
+        marketplaceLoading: false,
+        jubelioStocks: {},
+        shopeeStocks: {},
+        jubelioFetchFailed: false,
+        shopeeFetchFailed: false,
         copyFeedback: false,
         copyFeedbackTimer: null,
         tableScrollWidth: 0,
@@ -442,11 +420,189 @@ function warehouseItemsPage(filtersStorageKey, columnsStorageKey, hasJubelio, ha
 
             this.$nextTick(() => {
                 this.refreshTableScrollWidth();
+                if (this.hasJubelio) {
+                    this.loadMarketplaceStock();
+                }
                 if (this.hasShopee && this.loadShopeeStock) {
                     this.fetchShopeeStock();
                 }
             });
             window.addEventListener('resize', () => this.refreshTableScrollWidth());
+        },
+        async loadMarketplaceStock() {
+            if (! this.hasJubelio || ! this.marketplaceStockUrl || ! this.pageItemIds.length) {
+                return;
+            }
+
+            this.marketplaceLoading = true;
+            this.jubelioFetchFailed = false;
+
+            try {
+                const response = await fetch(this.marketplaceStockUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]')?.content ?? '',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({
+                        item_ids: this.pageItemIds,
+                        include_jubelio: true,
+                        include_shopee: false,
+                    }),
+                });
+
+                if (! response.ok) {
+                    this.jubelioFetchFailed = true;
+                    return;
+                }
+
+                const data = await response.json();
+                if (data.jubelio) {
+                    this.jubelioStocks = data.jubelio.stocks ?? {};
+                    this.jubelioFetchFailed = !! data.jubelio.fetch_failed;
+                }
+            } catch (e) {
+                this.jubelioFetchFailed = true;
+            } finally {
+                this.marketplaceLoading = false;
+                this.$nextTick(() => this.refreshTableScrollWidth());
+            }
+        },
+        async fetchShopeeStock() {
+            if (! this.hasShopee || ! this.marketplaceStockUrl || ! this.pageItemIds.length) {
+                return;
+            }
+
+            const token = ++this.shopeeFetchToken;
+            this.shopeeLoading = true;
+            this.shopeeFetchFailed = false;
+
+            try {
+                const response = await fetch(this.marketplaceStockUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]')?.content ?? '',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({
+                        item_ids: this.pageItemIds,
+                        include_jubelio: false,
+                        include_shopee: true,
+                    }),
+                });
+
+                if (! response.ok) {
+                    throw new Error('Shopee stock request failed');
+                }
+
+                const data = await response.json();
+                if (token !== this.shopeeFetchToken) {
+                    return;
+                }
+
+                if (data.shopee) {
+                    this.shopeeStocks = data.shopee.stocks ?? {};
+                    this.shopeeFetchFailed = !! data.shopee.fetch_failed;
+                }
+            } catch (e) {
+                if (token !== this.shopeeFetchToken) {
+                    return;
+                }
+                this.shopeeFetchFailed = true;
+                this.shopeeStocks = {};
+            } finally {
+                if (token === this.shopeeFetchToken) {
+                    this.shopeeLoading = false;
+                    this.$nextTick(() => this.refreshTableScrollWidth());
+                }
+            }
+        },
+        formatMarketplaceQty(value) {
+            if (value === null || value === undefined) {
+                return null;
+            }
+            const num = Number(value);
+            if (Number.isNaN(num)) {
+                return null;
+            }
+            return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(num);
+        },
+        marketplaceCopyValue(itemId, source, field) {
+            const stock = source === 'jubelio' ? this.jubelioStocks[itemId] : this.shopeeStocks[itemId];
+            if (! stock || stock[field] === null || stock[field] === undefined) {
+                return '';
+            }
+            return String(stock[field]);
+        },
+        marketplaceLoadingCellHtml() {
+            return '<span class="inline-flex items-center justify-end text-gray-400" role="status" aria-label="Loading marketplace stock">'
+                + '<svg class="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">'
+                + '<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>'
+                + '<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>'
+                + '</svg></span>';
+        },
+        jubelioQtyCell(itemId, field, highlightMismatch = false) {
+            if (this.marketplaceLoading && ! this.jubelioStocks[itemId]) {
+                return this.marketplaceLoadingCellHtml();
+            }
+            const jubelio = this.jubelioStocks[itemId];
+            if (! jubelio || ! jubelio.linked) {
+                return '<span class="text-gray-300">—</span>';
+            }
+            const formatted = this.formatMarketplaceQty(jubelio[field]);
+            if (formatted === null) {
+                return '<span class="text-gray-300">—</span>';
+            }
+            let classes = 'font-mono tabular-nums';
+            if (highlightMismatch && jubelio.mismatch) {
+                classes += ' font-semibold text-red-600';
+            } else {
+                classes += ' text-gray-700';
+            }
+            return '<span class="' + classes + '">' + formatted + '</span>';
+        },
+        shopeeQtyCell(itemId, field, highlightMismatch = false) {
+            if (! this.loadShopeeStock) {
+                return '<span class="text-gray-300">—</span>';
+            }
+            if (this.shopeeLoading && ! this.shopeeStocks[itemId]) {
+                return this.marketplaceLoadingCellHtml();
+            }
+            const shopee = this.shopeeStocks[itemId];
+            if (! shopee || ! shopee.linked) {
+                return '<span class="text-gray-300">—</span>';
+            }
+            const formatted = this.formatMarketplaceQty(shopee[field]);
+            if (formatted === null) {
+                return '<span class="text-gray-300">—</span>';
+            }
+            let classes = 'font-mono tabular-nums';
+            if (highlightMismatch && shopee.mismatch) {
+                classes += ' font-semibold text-red-600';
+            } else {
+                classes += ' text-gray-700';
+            }
+            return '<span class="' + classes + '">' + formatted + '</span>';
+        },
+        rowHighlightClass(itemId, jubelioLinked, shopeeLinked) {
+            if (! this.highlightMismatch) {
+                return 'hover:bg-gray-50';
+            }
+            const jubelio = this.jubelioStocks[itemId];
+            if (jubelioLinked && jubelio && jubelio.mismatch) {
+                return 'bg-amber-50 ring-1 ring-inset ring-amber-200 hover:bg-amber-100';
+            }
+            if (this.loadShopeeStock) {
+                const shopee = this.shopeeStocks[itemId];
+                if (shopeeLinked && shopee && shopee.mismatch) {
+                    return 'bg-amber-50 ring-1 ring-inset ring-amber-200 hover:bg-amber-100';
+                }
+            }
+            return 'hover:bg-gray-50';
         },
         persistColumns() {
             const columns = {
@@ -467,88 +623,6 @@ function warehouseItemsPage(filtersStorageKey, columnsStorageKey, hasJubelio, ha
             }
             localStorage.setItem(this.columnsStorageKey, JSON.stringify(columns));
             this.$nextTick(() => this.refreshTableScrollWidth());
-        },
-        async fetchShopeeStock() {
-            if (! this.shopeeStockUrl || this.shopeeItemIds.length === 0) {
-                return;
-            }
-
-            const token = ++this.shopeeFetchToken;
-            this.shopeeLoading = true;
-            this.shopeeFetchFailed = false;
-
-            try {
-                const url = new URL(this.shopeeStockUrl, window.location.origin);
-                this.shopeeItemIds.forEach((id, index) => {
-                    url.searchParams.append('item_ids[' + index + ']', String(id));
-                });
-
-                const response = await fetch(url.toString(), {
-                    headers: {
-                        Accept: 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest',
-                    },
-                    credentials: 'same-origin',
-                });
-
-                if (! response.ok) {
-                    throw new Error('Shopee stock request failed');
-                }
-
-                const data = await response.json();
-                if (token !== this.shopeeFetchToken) {
-                    return;
-                }
-
-                this.shopeeStocks = data.stocks || {};
-                this.shopeeFetchFailed = !! data.fetch_failed;
-            } catch (e) {
-                if (token !== this.shopeeFetchToken) {
-                    return;
-                }
-                this.shopeeFetchFailed = true;
-                this.shopeeStocks = {};
-            } finally {
-                if (token === this.shopeeFetchToken) {
-                    this.shopeeLoading = false;
-                    this.$nextTick(() => this.refreshTableScrollWidth());
-                }
-            }
-        },
-        shopeeRow(itemId) {
-            return this.shopeeStocks[itemId] || this.shopeeStocks[String(itemId)] || null;
-        },
-        shopeeQtyHtml(itemId, field, highlightMismatch) {
-            if (this.shopeeLoading) {
-                return '<span class="text-gray-400">…</span>';
-            }
-
-            const row = this.shopeeRow(itemId);
-            if (! row || ! row.linked) {
-                return '<span class="text-gray-300">—</span>';
-            }
-
-            const value = row[field];
-            if (value === null || value === undefined) {
-                return '<span class="text-gray-300">—</span>';
-            }
-
-            let classes = 'font-mono tabular-nums';
-            if (highlightMismatch && row.mismatch) {
-                classes += ' font-semibold text-red-600';
-            } else {
-                classes += ' text-gray-700';
-            }
-
-            return '<span class="' + classes + '">' + formatNumberId(value) + '</span>';
-        },
-        shopeeCopyValue(itemId, field) {
-            const row = this.shopeeRow(itemId);
-            if (! row || row[field] === null || row[field] === undefined) {
-                return '';
-            }
-
-            return String(row[field]);
         },
         refreshTableScrollWidth() {
             const table = this.$refs.itemsTable;

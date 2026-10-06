@@ -58,7 +58,7 @@ it('does not fetch shopee stock on initial warehouse items page load', function 
         ->toContain('data-testid="warehouse-items-load-shopee"');
 });
 
-it('lazy loads shopee stock via json endpoint for warehouse items', function () {
+it('lazy loads shopee stock via marketplace endpoint when requested', function () {
     User::factory()->create();
     $user = User::factory()->create();
     $user->givePermissionTo(['addrbook-warehouse-items', 'shopee-stock-view']);
@@ -106,17 +106,46 @@ it('lazy loads shopee stock via json endpoint for warehouse items', function () 
             ]);
     });
 
-    $response = $this->actingAs($user)
-        ->getJson(route('addrbook.type.items.shopee-stock', [
-            'type' => 'warehouse',
-            'addrbook' => $warehouse->id,
+    $this->actingAs($user)
+        ->postJson(route('addrbook.type.items.marketplace-stock', ['warehouse', $warehouse->id]), [
             'item_ids' => [$item->id],
-        ]))
-        ->assertOk();
+            'include_jubelio' => false,
+            'include_shopee' => true,
+        ])
+        ->assertOk()
+        ->assertJsonPath('shopee.stocks.'.$item->id.'.sellable', 4)
+        ->assertJsonPath('shopee.stocks.'.$item->id.'.reserved', 1);
+});
 
-    expect((float) $response->json('stocks.'.$item->id.'.sellable'))->toBe(4.0)
-        ->and((float) $response->json('stocks.'.$item->id.'.reserved'))->toBe(1.0)
-        ->and($response->json('fetch_failed'))->toBeFalse();
+it('does not call shopee api during warehouse items page render', function () {
+    User::factory()->create();
+    $user = User::factory()->create();
+    $user->givePermissionTo('addrbook-warehouse-items');
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    Shopeesync::create([
+        'warehouse_id' => $warehouse->id,
+        'shop_id' => 0,
+        'shopee_location_id' => 'IDZ',
+        'shopee_warehouse_id' => 99,
+        'shopee_warehouse_name' => 'Pickup WH',
+    ]);
+
+    $item = Item::factory()->create(['shopee_item_id' => 555001]);
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $item->id,
+        'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 1,
+    ]);
+
+    $this->mock(ShopeeStockApiService::class, function ($mock) {
+        $mock->shouldNotReceive('modelsByItemIds');
+    });
+
+    $this->actingAs($user)
+        ->get(route('addrbook.type.items', ['warehouse', $warehouse->id]))
+        ->assertOk();
 });
 
 it('requires shopee-stock-view permission for item shopee tab', function () {
@@ -150,7 +179,7 @@ it('renders item shopee tab when permitted', function () {
         ->assertSee('Shopee Product Link', false);
 });
 
-it('forbids lazy shopee stock endpoint without shopee-stock-view', function () {
+it('forbids shopee marketplace fetch without shopee-stock-view', function () {
     User::factory()->create();
     $user = User::factory()->create();
     $user->givePermissionTo('addrbook-warehouse-items');
@@ -165,10 +194,10 @@ it('forbids lazy shopee stock endpoint without shopee-stock-view', function () {
     ]);
 
     $this->actingAs($user)
-        ->getJson(route('addrbook.type.items.shopee-stock', [
-            'type' => 'warehouse',
-            'addrbook' => $warehouse->id,
+        ->postJson(route('addrbook.type.items.marketplace-stock', ['warehouse', $warehouse->id]), [
             'item_ids' => [1],
-        ]))
-        ->assertForbidden();
+            'include_shopee' => true,
+        ])
+        ->assertOk()
+        ->assertJsonPath('shopee', null);
 });
