@@ -345,6 +345,25 @@ $gross = $import->fakturGross();
             selectedCount() {
                 return Object.keys(this.selected).filter((id) => this.selected[id]).length;
             },
+            selectedSum(field) {
+                return this.suggestions.reduce((sum, item) => {
+                    if (!this.selected[item.id]) {
+                        return sum;
+                    }
+
+                    return sum + Number(item[field] || 0);
+                }, 0);
+            },
+            selectedDppSum() {
+                return Math.round(this.selectedSum('dpp') * 100) / 100;
+            },
+            selectedPpnSum() {
+                return Math.round(this.selectedSum('ppn') * 100) / 100;
+            },
+            formatAmountId(value) {
+                const n = Number(value || 0);
+                return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(n);
+            },
             async refreshSuggestions() {
                 const params = new URLSearchParams({
                     counterparty_id: @js($import->counterparty_id),
@@ -405,6 +424,15 @@ $gross = $import->fakturGross();
                                 </tr>
                             </template>
                         </tbody>
+                        <tfoot x-show="selectedCount() > 0" x-cloak>
+                            <tr class="border-t-2 border-gray-200 bg-gray-50 text-sm font-medium text-gray-900" data-testid="faktur-link-sells-selected-totals">
+                                <td class="px-3 py-2" colspan="3">
+                                    Terpilih (<span x-text="selectedCount()"></span>)
+                                </td>
+                                <td class="px-3 py-2 text-right tabular-nums" x-text="formatAmountId(selectedDppSum())"></td>
+                                <td class="px-3 py-2 text-right tabular-nums" x-text="formatAmountId(selectedPpnSum())"></td>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
                 <p class="text-xs text-gray-500" x-show="suggestions.length === 0" x-cloak>Tidak ada Sell customer ini di jendela tanggal faktur. Coba cari invoice.</p>
