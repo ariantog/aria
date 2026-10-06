@@ -50,13 +50,32 @@ class StoreFakturCashInRequest extends FormRequest
                 }
             }
 
+            /** @var TaxFakturImport|null $import */
+            $import = $this->route('import');
+            if ($import) {
+                $amount = (float) $this->input('amount');
+                $gross = $import->fakturGross();
+
+                if ($amount > $gross + 0.01) {
+                    $validator->errors()->add(
+                        'amount',
+                        'Masukkan jumlah yang benar-benar masuk ke bank, bukan total faktur. Total faktur: Rp '.number_format($gross, 2, ',', '.').'.',
+                    );
+                }
+
+                if ($amount < $gross - 0.01 && ! $expenseId) {
+                    $validator->errors()->add(
+                        'variance_expense_addrbook_id',
+                        'Pilih akun biaya selisih (potongan konsinyasi / MDS) bila bank diterima kurang dari total faktur.',
+                    );
+                }
+            }
+
             $recordPpn = filter_var($this->input('variance_record_ppn', false), FILTER_VALIDATE_BOOLEAN);
             if (! $recordPpn) {
                 return;
             }
 
-            /** @var TaxFakturImport|null $import */
-            $import = $this->route('import');
             if (! $import?->reportingEntity?->is_pkp) {
                 $validator->errors()->add('variance_record_ppn', 'PPN selisih hanya untuk entitas PKP.');
             }

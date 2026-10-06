@@ -7,7 +7,7 @@ use App\Models\TaxFakturImport;
 class VarianceCashTaxAmounts
 {
     /**
-     * Resolve PPN masukan amounts for a faktur payment-variance cash out.
+     * Resolve PPN masukan amounts for a faktur payment-variance adjust.
      *
      * @param  array{record_ppn?: bool, record_pph?: bool, ppn_dpp?: float|null, ppn?: float|null, pph?: float|null}  $input
      * @return array{ppn: float, ppn_dpp: float|null, pph: float|null}

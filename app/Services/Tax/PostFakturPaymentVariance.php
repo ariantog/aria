@@ -3,7 +3,6 @@
 namespace App\Services\Tax;
 
 use App\Models\Addrbook;
-use App\Models\ReportingEntity;
 use App\Models\TaxFakturImport;
 use App\Models\Transaction;
 use App\Services\TransactionService;
@@ -20,8 +19,8 @@ class PostFakturPaymentVariance
     ) {}
 
     /**
-     * Post payment variance as a Cash Out to the expense ledger (e.g. biaya MDS).
-     * Only negative variance (underpayment / fees) is posted automatically.
+     * Post consignment / fee selisih as Adjust: counterparty → expense ledger.
+     * Does not move bank cash (underpayment vs faktur gross is not a second bank outflow).
      */
     public function execute(TaxFakturImport $import): ?Transaction
     {
@@ -60,22 +59,19 @@ class PostFakturPaymentVariance
             throw new InvalidArgumentException('Variance expense account must be a ledger account.');
         }
 
-        $bankId = $this->resolveBankId($import);
-        if (! $bankId) {
-            throw new InvalidArgumentException('Cannot post variance without a bank on the linked Cash In or reporting entity.');
-        }
+        $counterparty = $this->resolveCounterparty($import);
 
         $amount = $selisih;
         $date = $import->payment_received_date?->toDateString() ?? now()->toDateString();
-        $grandTotal = Transaction::signedAmount(Transaction::TYPE_CASH_OUT, $amount);
+        $grandTotal = Transaction::signedAmount(Transaction::TYPE_ADJUST, $amount);
         $tax = VarianceCashTaxAmounts::resolve($amount, VarianceCashTaxAmounts::inputFromImport($import));
 
-        return DB::transaction(function () use ($import, $bankId, $expenseAccount, $date, $grandTotal, $amount, $tax) {
+        return DB::transaction(function () use ($import, $counterparty, $expenseAccount, $date, $grandTotal, $amount, $tax) {
             $transaction = Transaction::create([
                 'date' => $date,
-                'type' => Transaction::TYPE_CASH_OUT,
-                'sender_type' => Addrbook::TYPE_BANK,
-                'sender_id' => $bankId,
+                'type' => Transaction::TYPE_ADJUST,
+                'sender_type' => (int) $counterparty->type,
+                'sender_id' => $counterparty->id,
                 'receiver_type' => Addrbook::TYPE_ACCOUNT,
                 'receiver_id' => $expenseAccount->id,
                 'invoice' => $import->faktur_number,
@@ -105,25 +101,18 @@ class PostFakturPaymentVariance
         });
     }
 
-    private function resolveBankId(TaxFakturImport $import): ?int
+    private function resolveCounterparty(TaxFakturImport $import): Addrbook
     {
-        if ($import->cash_in_transaction_id) {
-            $cashIn = Transaction::query()->find($import->cash_in_transaction_id);
-            if ($cashIn && (int) $cashIn->receiver_type === Addrbook::TYPE_BANK) {
-                return (int) $cashIn->receiver_id;
-            }
+        $import->loadMissing('counterparty');
+        $party = $import->counterparty;
+        if (! $party && $import->counterparty_id) {
+            $party = Addrbook::query()->find($import->counterparty_id);
         }
 
-        $entity = $import->reportingEntity;
-        if (! $entity) {
-            $entity = ReportingEntity::query()->find($import->reporting_entity_id);
+        if (! $party || ! in_array((int) $party->type, Addrbook::cashPartyTypes(), true)) {
+            throw new InvalidArgumentException('Cannot post variance without a faktur counterparty (customer / reseller / supplier).');
         }
 
-        $bank = $entity?->banks()
-            ->wherePivot('is_active', true)
-            ->orderBy('customers.id')
-            ->first();
-
-        return $bank ? (int) $bank->id : null;
+        return $party;
     }
 }
