@@ -82,19 +82,44 @@ class SellCashInPresenter
         $sellRemaining = round(max(0, $sellTotal - $paidTotal), 2);
         $linkingComplete = $this->invoiceLinks->isLinkingComplete((string) $transaction->invoice);
 
+        $invoiceRemaining = $invoiceSettlement
+            ? round(max(0, (float) ($invoiceSettlement['remaining'] ?? 0)), 2)
+            : 0.0;
+        $invoiceAmount = $invoiceSettlement
+            ? round((float) ($invoiceSettlement['invoice_amount'] ?? 0), 2)
+            : 0.0;
+        $invoicePaidTotal = $invoiceSettlement
+            ? round((float) ($invoiceSettlement['paid_total'] ?? 0), 2)
+            : 0.0;
+
         $defaultAmount = $sellRemaining;
-        if ($invoiceSettlement && (float) ($invoiceSettlement['remaining'] ?? 0) > 0.009) {
-            $defaultAmount = min($sellRemaining, (float) $invoiceSettlement['remaining']);
+        if ($invoiceSettlement && $invoiceRemaining > 0.009) {
+            $defaultAmount = $sellRemaining > 0.009
+                ? min($sellRemaining, $invoiceRemaining)
+                : $invoiceRemaining;
         }
 
         $data = $this->formData($user, $defaultAmount);
-        $data['can_create'] = $data['can_create']
-            && (int) $transaction->status !== Transaction::STATUS_CANCELLED
-            && ! $linkingComplete;
+        if ($invoiceSettlement) {
+            $invoice = $invoiceSettlement['invoice'] ?? null;
+            $data['can_create'] = $data['can_create']
+                && (int) $transaction->status !== Transaction::STATUS_CANCELLED
+                && $invoiceRemaining > 0.009;
+            $data['auto_enable'] = true;
+            $data['hide_date'] = true;
+            $data['return_invoice_id'] = $invoice?->id;
+            $data['paid_total'] = $invoicePaidTotal;
+            $data['remaining'] = $invoiceRemaining;
+            $data['sell_total'] = $invoiceAmount > 0.009 ? $invoiceAmount : $sellTotal;
+        } else {
+            $data['can_create'] = $data['can_create']
+                && (int) $transaction->status !== Transaction::STATUS_CANCELLED
+                && ! $linkingComplete;
+            $data['paid_total'] = $paidTotal;
+            $data['remaining'] = round($defaultAmount, 2);
+            $data['sell_total'] = $sellTotal;
+        }
         $data['linked'] = $linkedCashIns;
-        $data['paid_total'] = $paidTotal;
-        $data['remaining'] = round($defaultAmount, 2);
-        $data['sell_total'] = $sellTotal;
 
         return $data;
     }
