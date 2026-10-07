@@ -22,6 +22,17 @@ class Jubelioorder extends Model
         'stock_error_items' => 'array',
     ];
 
+    protected static function booted(): void
+    {
+        static::saving(function (Jubelioorder $order): void {
+            // Payload is always fetched from Jubelio API (JubelioOrderPayloadService).
+            // Legacy L10 rows may still have JSON here; never persist it on save.
+            if ($order->payload !== null && $order->payload !== '') {
+                $order->payload = null;
+            }
+        });
+    }
+
     public static function clearPayloadCache(): void
     {
         self::$resolvedPayloadCache = [];
