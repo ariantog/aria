@@ -19,6 +19,7 @@ class StoreSellCashInRequest extends FormRequest
             'date' => ['nullable', 'date'],
             'account_id' => ['required', 'integer', 'exists:customers,id'],
             'amount' => ['required', 'numeric', 'min:0.01'],
+            'return_invoice_id' => ['nullable', 'integer', 'exists:standalone_invoices,id'],
         ];
     }
 

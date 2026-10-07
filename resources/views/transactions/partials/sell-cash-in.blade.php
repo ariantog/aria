@@ -11,9 +11,12 @@
     $paidTotal = (float) ($sellCashIn['paid_total'] ?? 0);
     $remaining = (float) ($sellCashIn['remaining'] ?? 0);
     $sellTotal = (float) ($sellCashIn['sell_total'] ?? 0);
+    $autoEnable = (bool) ($sellCashIn['auto_enable'] ?? false);
+    $hideDate = (bool) ($sellCashIn['hide_date'] ?? false);
+    $returnInvoiceId = $sellCashIn['return_invoice_id'] ?? null;
     $hasCashInErrors = $errors->has('amount') || $errors->has('account_id') || $errors->has('date');
     $fmt = fn ($n) => format_amount($n);
-    $initialEnabled = $hasCashInErrors ? 'true' : 'false';
+    $initialEnabled = ($autoEnable || $hasCashInErrors) ? 'true' : 'false';
     $initialAmount = $hasCashInErrors && old('amount') !== null ? (float) old('amount') : $defaultAmount;
 @endphp
 @if($sellCashIn && $transaction && ($canCreate || $linked->isNotEmpty()))
@@ -26,9 +29,13 @@
         date: @js(old('date', $defaultDate)),
         minDate: @js($minDate),
         dateValid() {
+            @if($hideDate)
+            return true;
+            @else
             if (!this.date) return false;
             if (this.minDate && this.date < this.minDate) return false;
             return true;
+            @endif
         },
         amountValid() {
             return Number(this.amount) >= 0.01;
@@ -44,7 +51,7 @@
         <div>
             <h2 class="text-sm font-semibold text-gray-900">Cash In</h2>
             <p class="mt-0.5 text-xs text-gray-500">Record payment from {{ $transaction->receiver?->name ?: 'the receiver' }} with the same invoice.</p>
-            @if($paidTotal > 0.009)
+            @if($paidTotal > 0.009 || ($autoEnable && ($remaining > 0.009 || $sellTotal > 0.009)))
             <p class="mt-1 text-xs text-gray-600" data-testid="sell-cash-in-summary">
                 Paid {{ $fmt($paidTotal) }} of {{ $fmt($sellTotal) }}
                 @if($remaining > 0.009)
@@ -53,7 +60,7 @@
             </p>
             @endif
         </div>
-        @if($canCreate)
+        @if($canCreate && ! $autoEnable)
         <label class="inline-flex cursor-pointer items-center gap-2" title="Create cash in">
             <span class="text-xs font-medium text-gray-600" x-text="enabled ? 'On' : 'Off'">Off</span>
             <span class="relative inline-flex h-6 w-11 shrink-0 items-center">
@@ -85,9 +92,21 @@
 
     @if($canCreate)
     <form method="POST" action="{{ route('transactions.sell-cash-in.store', $transaction) }}"
-          x-show="enabled" x-cloak class="space-y-4 px-4 py-4 sm:px-5">
+          @if(! $autoEnable) x-show="enabled" x-cloak @endif
+          class="space-y-4 px-4 py-4 sm:px-5">
         @csrf
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        @if($returnInvoiceId)
+            <input type="hidden" name="return_invoice_id" value="{{ $returnInvoiceId }}">
+        @endif
+        @if($hideDate)
+            <input type="hidden" name="date" value="{{ $defaultDate }}">
+        @endif
+        <div @class([
+            'grid grid-cols-1 gap-4',
+            'sm:grid-cols-2' => $hideDate,
+            'sm:grid-cols-3' => ! $hideDate,
+        ])>
+            @if(! $hideDate)
             <div>
                 <label for="sell-cash-in-date" class="mb-1 block text-sm font-medium text-gray-700">Date</label>
                 <input type="date" id="sell-cash-in-date" name="date" x-model="date"
@@ -99,6 +118,7 @@
                     <p class="mt-1 text-xs text-red-500">{{ $message }}</p>
                 @enderror
             </div>
+            @endif
             <div>
                 <label for="sell-cash-in-amount" class="mb-1 block text-sm font-medium text-gray-700">Amount (Rp)</label>
                 <input type="number" id="sell-cash-in-amount" name="amount" min="0.01" step="any"
@@ -127,7 +147,11 @@
         </div>
         <div class="flex items-center justify-end gap-3">
             <p x-show="!canSubmit()" x-cloak class="mr-auto text-xs text-gray-400">
-                Choose a date, bank, and amount to create cash in.
+                @if($hideDate)
+                    Choose a bank and amount to create cash in.
+                @else
+                    Choose a date, bank, and amount to create cash in.
+                @endif
             </p>
             <button type="submit" :disabled="!canSubmit()"
                     data-testid="sell-cash-in-submit"

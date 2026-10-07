@@ -253,6 +253,13 @@ class TransactionsController extends Controller
             'amount' => (float) $request->validated('amount'),
         ]);
 
+        $returnInvoiceId = $request->validated('return_invoice_id');
+        if ($returnInvoiceId) {
+            return redirect()
+                ->route('invoice-maker.show', (int) $returnInvoiceId)
+                ->with('success', 'Cash In created.');
+        }
+
         return redirect()
             ->route('transactions.show', $transaction)
             ->with('success', 'Cash In created.');
