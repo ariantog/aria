@@ -148,6 +148,36 @@ it('does not treat cash-in alone as paid without matching sell', function () {
         ->and($snapshot['status'])->toBe(StandaloneInvoice::STATUS_PARTIAL);
 });
 
+it('marks paid when discount bridges a higher sell total and matching cash-in', function () {
+    sellFor($this->invoice->number, 10_000_000);
+    cashInFor($this->invoice->number, 9_997_500);
+
+    $this->invoice->update(['discount_amount' => 2_500]);
+
+    $snapshot = app(StandaloneInvoiceSettlement::class)->snapshot($this->invoice->fresh());
+
+    expect($snapshot['invoice_amount'])->toBe(9_997_500.0)
+        ->and($snapshot['credit_total'])->toBe(9_997_500.0)
+        ->and($snapshot['debit_total'])->toBe(10_000_000.0)
+        ->and($snapshot['linking_complete'])->toBeFalse()
+        ->and($snapshot['is_paid'])->toBeTrue()
+        ->and($snapshot['status'])->toBe(StandaloneInvoice::STATUS_PAID);
+});
+
+it('auto-pays when discount is edited after sell exceeds cash-in', function () {
+    sellFor($this->invoice->number, 10_000_000);
+    cashInFor($this->invoice->number, 9_400_000);
+
+    $this->actingAs($this->user)
+        ->patch(route('invoice-maker.discount', $this->invoice), [
+            'discount_amount' => 600_000,
+        ])
+        ->assertRedirect(route('invoice-maker.show', $this->invoice))
+        ->assertSessionHas('success', 'Discount saved. Invoice marked as paid — sell, cash-in, and invoice amounts match.');
+
+    expect($this->invoice->fresh()->isMarkedPaid())->toBeTrue();
+});
+
 it('auto-pays when discount is edited after sell and cash-in already exist', function () {
     cashInFor($this->invoice->number, 9_400_000);
     sellFor($this->invoice->number, 9_400_000);
