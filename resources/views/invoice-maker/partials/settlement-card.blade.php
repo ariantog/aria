@@ -27,20 +27,45 @@
         billedAmount() {
             return Math.max(0, Math.round((this.subtotal - Number(this.discount || 0)) * 100) / 100);
         },
+        creditTotal() {
+            return Math.round((Number(this.cashIn) + Number(this.returnTotal)) * 100) / 100;
+        },
+        debitTotal() {
+            return Math.round((Number(this.sell) + Number(this.cashOut)) * 100) / 100;
+        },
         linkingComplete() {
-            const credit = Math.round((Number(this.cashIn) + Number(this.returnTotal)) * 100) / 100;
-            const debit = Math.round((Number(this.sell) + Number(this.cashOut)) * 100) / 100;
+            const credit = this.creditTotal();
+            const debit = this.debitTotal();
             return credit > 0 && credit === debit;
+        },
+        discountGap() {
+            const debit = this.debitTotal();
+            const credit = this.creditTotal();
+            return debit > credit ? Math.round((debit - credit) * 100) / 100 : 0;
+        },
+        discountSettlesDebitGap() {
+            const discount = Math.round(Number(this.discount || 0) * 100) / 100;
+            return discount > 0 && this.discountGap() === discount;
         },
         amountsMatch() {
             const invoice = this.billedAmount();
-            const credit = Math.round((Number(this.cashIn) + Number(this.returnTotal)) * 100) / 100;
-            const debit = Math.round((Number(this.sell) + Number(this.cashOut)) * 100) / 100;
-            return invoice > 0 && this.linkingComplete() && invoice === credit && invoice === debit;
+            const credit = this.creditTotal();
+            const debit = this.debitTotal();
+            if (invoice <= 0 || invoice !== credit) {
+                return false;
+            }
+            if (this.linkingComplete() && invoice === debit) {
+                return true;
+            }
+            return this.discountSettlesDebitGap();
         },
         canWriteOff() {
-            const credit = Math.round((Number(this.cashIn) + Number(this.returnTotal)) * 100) / 100;
-            return this.linkingComplete() && this.billedAmount() !== credit;
+            const credit = this.creditTotal();
+            const invoice = this.billedAmount();
+            if (this.linkingComplete()) {
+                return invoice !== credit;
+            }
+            return this.discountGap() > 0 && ! this.discountSettlesDebitGap();
         },
         useRemainingAsDiscount() {
             if (!this.canWriteOff()) {
@@ -101,7 +126,7 @@
             <dt class="font-semibold text-gray-900">Match</dt>
             <dd class="text-sm font-semibold" :class="amountsMatch() ? 'text-green-700' : 'text-amber-700'">
                 <span x-show="amountsMatch()">Paid — amounts match</span>
-                <span x-show="!amountsMatch()">Waiting for invoice = credit = debit and (cash-in + return) = (sell + cash-out)</span>
+                <span x-show="!amountsMatch()">Waiting for invoice = credit and (credit = debit, or debit − credit = discount write-off)</span>
             </dd>
         </div>
     </dl>

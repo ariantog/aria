@@ -178,8 +178,8 @@ class StandaloneInvoiceSettlement
         $invoiceAmount = $invoice->billedAmount();
         $discount = round($invoice->discountAmount(), 2);
         $due = round($invoice->balanceDue(), 2);
-        $amountsMatch = $this->amountsMatch($invoiceAmount, $creditTotal, $debitTotal, $linkingComplete);
-        $status = $this->statusFromTotals($invoiceAmount, $creditTotal, $debitTotal, $linkingComplete);
+        $amountsMatch = $this->amountsMatch($invoiceAmount, $creditTotal, $debitTotal, $linkingComplete, $discount);
+        $status = $this->statusFromTotals($invoiceAmount, $creditTotal, $debitTotal, $linkingComplete, $discount);
 
         return [
             'invoice' => $invoice,
@@ -215,6 +215,7 @@ class StandaloneInvoiceSettlement
             $linkTotals['credit'],
             $linkTotals['debit'],
             $linkTotals['is_complete'],
+            round($invoice->discountAmount(), 2),
         );
     }
 
@@ -260,8 +261,9 @@ class StandaloneInvoiceSettlement
         float $creditTotal,
         float $debitTotal,
         bool $linkingComplete,
+        float $discount = 0.0,
     ): string {
-        if ($this->amountsMatch($invoiceAmount, $creditTotal, $debitTotal, $linkingComplete)) {
+        if ($this->amountsMatch($invoiceAmount, $creditTotal, $debitTotal, $linkingComplete, $discount)) {
             return StandaloneInvoice::STATUS_PAID;
         }
 
@@ -275,15 +277,24 @@ class StandaloneInvoiceSettlement
         float $creditTotal,
         float $debitTotal,
         bool $linkingComplete,
+        float $discount = 0.0,
     ): bool {
         $invoiceAmount = round($invoiceAmount, 2);
         $creditTotal = round($creditTotal, 2);
         $debitTotal = round($debitTotal, 2);
+        $discount = round($discount, 2);
 
-        return $invoiceAmount > 0
-            && $linkingComplete
-            && $invoiceAmount === $creditTotal
-            && $invoiceAmount === $debitTotal;
+        if ($invoiceAmount <= 0 || $invoiceAmount !== $creditTotal) {
+            return false;
+        }
+
+        if ($linkingComplete && $invoiceAmount === $debitTotal) {
+            return true;
+        }
+
+        return $discount > 0
+            && $debitTotal > $creditTotal
+            && round($debitTotal - $creditTotal, 2) === $discount;
     }
 
     protected function assertDiscount(StandaloneInvoice $invoice, float $discount): void
