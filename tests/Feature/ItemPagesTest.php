@@ -53,6 +53,7 @@ test('items index shows database columns and collapsible filters', function () {
         ->assertOk()
         ->assertSee('>Barcode / Code<', false)
         ->assertSee('>Group<', false)
+        ->assertSee('>Colorway<', false)
         ->assertSee('>Name<', false)
         ->assertSee('>Desc<', false)
         ->assertSee((string) $item->id, false)
@@ -67,12 +68,53 @@ test('items index shows database columns and collapsible filters', function () {
         ->assertSee('aria-items-index-filters-open', false);
 });
 
+test('items index group column shows parent title and colorway column shows pcode', function () {
+    $typeTag = \App\Models\Tag::factory()->create([
+        'type' => \App\Models\Tag::TYPE_TYPE,
+        'item_type' => ItemType::ITEM->value,
+        'code' => 'CLN',
+        'name' => 'Shorts',
+    ]);
+    $sizeTag = \App\Models\Tag::factory()->create(['type' => \App\Models\Tag::TYPE_SIZE, 'code' => 'XL', 'name' => 'XL']);
+    $warnaTag = \App\Models\Tag::factory()->create(['type' => \App\Models\Tag::TYPE_WARNA, 'code' => 'RED', 'name' => 'RED']);
+
+    $group = \App\Models\ItemGroup::factory()->create([
+        'master' => 'CI00098-06',
+        'variant' => '06',
+        'name' => 'CI00098-06',
+    ]);
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CI00098-06',
+        'code' => 'CLN-CI00098-06-XL',
+        'name' => 'CORE SHORTS - XL',
+    ]);
+    $item->tags()->attach([$typeTag->id, $sizeTag->id, $warnaTag->id]);
+
+    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey($item->fresh(['group', 'tags']));
+    \App\Models\ItemParentPrice::query()->create([
+        'parent_key' => $parentKey,
+        'product_name' => 'CORE SHORTS',
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('items.index', ['search' => 'CLN-CI00098-06-XL']))
+        ->assertOk()
+        ->assertSee('data-testid="item-list-group-'.$item->id.'"', false)
+        ->assertSee('CORE SHORTS', false)
+        ->assertSee('data-testid="item-list-colorway-'.$item->id.'"', false)
+        ->assertSee('CI00098-06', false);
+});
+
 test('items index exposes column toggles with persisted storage keys', function () {
     $this->actingAs($this->user)
         ->get(route('items.index'))
         ->assertOk()
         ->assertSee('data-testid="items-index-column-toggles"', false)
         ->assertSee('aria-items-index-columns', false)
+        ->assertSee('x-model="showGroup"', false)
+        ->assertSee('x-model="showColorway"', false)
         ->assertSee('x-model="showName"', false)
         ->assertSee('x-model="showDesc"', false)
         ->assertSee('x-model="showImage"', false)

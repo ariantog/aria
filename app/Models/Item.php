@@ -470,6 +470,72 @@ class Item extends Model
         return route('items.group-parent-detail', $this->group_id);
     }
 
+    public function colorwayEditUrl(): ?string
+    {
+        if ((int) $this->group_id <= 0) {
+            return null;
+        }
+
+        return route('items.colorway-edit', $this->group_id);
+    }
+
+    /**
+     * Parent group title for item lists: stored parent product name, else TYPE + master label.
+     */
+    public function listParentGroupLabel(): string
+    {
+        $this->loadMissing(['group', 'tags']);
+
+        $builder = app(ItemIdentityBuilder::class);
+        $parentKey = $builder->itemParentKey($this);
+        $parentTitle = ItemProductTitle::parentProductNameForKey($parentKey);
+        if ($parentTitle !== '') {
+            return $parentTitle;
+        }
+
+        return $builder->itemParentLabel($this);
+    }
+
+    /** Parent master label (TYPE + pcode) for list link tooltips. */
+    public function listParentGroupLinkTitle(): string
+    {
+        $this->loadMissing(['group', 'tags']);
+
+        return app(ItemIdentityBuilder::class)->itemParentLabel($this);
+    }
+
+    /**
+     * Colorway label for item lists: custom colorway product name or colorway pcode.
+     */
+    public function listColorwayLabel(): string
+    {
+        $this->loadMissing(['group', 'tags']);
+
+        $itemType = $this->type instanceof ItemType ? $this->type : ItemType::coerce($this->type) ?? ItemType::ITEM;
+        $pcode = strtoupper(trim((string) $this->pcode));
+        $group = $this->group;
+
+        if ($group === null) {
+            return $pcode !== '' ? $pcode : '—';
+        }
+
+        $storedName = trim((string) $group->name);
+        if ($storedName !== '' && ! ItemProductTitle::isPcodePlaceholderName($itemType, $storedName, $pcode)) {
+            return strtoupper(app(ItemIdentityBuilder::class)->productDisplayName(
+                $itemType,
+                $storedName,
+                (string) ($group->variant ?? ''),
+                (string) ($group->master ?? ''),
+            ));
+        }
+
+        if ($pcode !== '') {
+            return $pcode;
+        }
+
+        return $storedName !== '' ? strtoupper($storedName) : '—';
+    }
+
     /**
      * Resolve an item by canonical code or preserved legacy SKU (Jubelio / imports).
      */

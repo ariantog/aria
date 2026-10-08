@@ -32,6 +32,14 @@ $columnsStorageKey = $isAsset ? 'aria-assetlancar-index-columns' : 'aria-items-i
                     Image
                 </label>
                 <label class="inline-flex items-center gap-1.5 text-sm text-gray-600">
+                    <input type="checkbox" x-model="showGroup" class="rounded border-gray-300" data-testid="items-index-toggle-group">
+                    Group
+                </label>
+                <label class="inline-flex items-center gap-1.5 text-sm text-gray-600">
+                    <input type="checkbox" x-model="showColorway" class="rounded border-gray-300" data-testid="items-index-toggle-colorway">
+                    Colorway
+                </label>
+                <label class="inline-flex items-center gap-1.5 text-sm text-gray-600">
                     <input type="checkbox" x-model="showName" class="rounded border-gray-300">
                     Name
                 </label>
@@ -78,7 +86,8 @@ $columnsStorageKey = $isAsset ? 'aria-assetlancar-index-columns' : 'aria-items-i
                     <th class="px-3 py-2.5 text-left font-medium" x-show="showImage">Image</th>
                     <th class="px-3 py-2.5 text-left font-medium">Barcode</th>
                     <th class="px-3 py-2.5 text-left font-medium">Code</th>
-                    <th class="px-3 py-2.5 text-left font-medium">Group</th>
+                    <th class="px-3 py-2.5 text-left font-medium" x-show="showGroup">Group</th>
+                    <th class="px-3 py-2.5 text-left font-medium" x-show="showColorway">Colorway</th>
                     <th class="px-3 py-2.5 text-left font-medium" x-show="showName">Name</th>
                     <th class="px-3 py-2.5 text-left font-medium" x-show="showDesc">Desc</th>
                     <th class="px-3 py-2.5 text-right font-medium">Price</th>
@@ -95,7 +104,13 @@ $columnsStorageKey = $isAsset ? 'aria-assetlancar-index-columns' : 'aria-items-i
             </thead>
             <tbody class="divide-y divide-gray-100">
                 @forelse($items as $item)
-                    @php $groupUrl = $item->groupParentUrl(); @endphp
+                    @php
+                        $groupUrl = $item->groupParentUrl();
+                        $colorwayUrl = $item->colorwayEditUrl();
+                        $parentGroupLabel = $item->listParentGroupLabel();
+                        $colorwayLabel = $item->listColorwayLabel();
+                        $parentLinkTitle = $item->listParentGroupLinkTitle();
+                    @endphp
                     <tr class="align-middle hover:bg-gray-50">
                         <td class="px-3 py-2.5" x-show="showImage">
                             @if($item->image_url)
@@ -110,11 +125,18 @@ $columnsStorageKey = $isAsset ? 'aria-assetlancar-index-columns' : 'aria-items-i
                             <a href="{{ $baseUrl }}/{{ $item->id }}" class="font-medium text-blue-600 hover:underline">{{ $item->id }}</a>
                         </td>
                         <td class="whitespace-nowrap px-3 py-2.5 text-gray-800" data-testid="item-list-code-{{ $item->id }}">{{ $item->code ?: '-' }}</td>
-                        <td class="max-w-[160px] px-3 py-2.5" data-testid="item-list-group-{{ $item->id }}">
+                        <td class="max-w-[160px] px-3 py-2.5" x-show="showGroup" data-testid="item-list-group-{{ $item->id }}">
                             @if($groupUrl)
-                                <a href="{{ $groupUrl }}" class="block truncate text-blue-600 hover:underline" title="{{ $item->group?->name ?: '-' }}">{{ $item->group?->name ?: '-' }}</a>
+                                <a href="{{ $groupUrl }}" class="block truncate text-blue-600 hover:underline" title="{{ $parentLinkTitle }}">{{ $parentGroupLabel }}</a>
                             @else
-                                <span class="text-xs text-gray-400">—</span>
+                                <span class="block truncate text-gray-800" title="{{ $parentLinkTitle }}">{{ $parentGroupLabel }}</span>
+                            @endif
+                        </td>
+                        <td class="max-w-[160px] px-3 py-2.5" x-show="showColorway" data-testid="item-list-colorway-{{ $item->id }}">
+                            @if($colorwayUrl)
+                                <a href="{{ $colorwayUrl }}" class="block truncate text-blue-600 hover:underline" title="{{ $item->group?->name ?: $colorwayLabel }}">{{ $colorwayLabel }}</a>
+                            @else
+                                <span class="block truncate text-gray-800">{{ $colorwayLabel }}</span>
                             @endif
                         </td>
                         <td class="max-w-[220px] px-3 py-2.5 text-gray-800" data-testid="item-list-name-{{ $item->id }}" x-show="showName">
@@ -157,7 +179,7 @@ $columnsStorageKey = $isAsset ? 'aria-assetlancar-index-columns' : 'aria-items-i
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="12" class="px-4 py-12 text-center text-sm italic text-gray-500">No {{ $isAsset ? 'assets' : 'items' }} found matching your filters.</td></tr>
+                    <tr><td colspan="13" class="px-4 py-12 text-center text-sm italic text-gray-500">No {{ $isAsset ? 'assets' : 'items' }} found matching your filters.</td></tr>
                 @endforelse
             </tbody>
         </table>
@@ -171,6 +193,8 @@ $columnsStorageKey = $isAsset ? 'aria-assetlancar-index-columns' : 'aria-items-i
 function itemsIndexPage(filtersStorageKey, columnsStorageKey, isAsset) {
     return {
         showImage: true,
+        showGroup: true,
+        showColorway: true,
         showName: true,
         showDesc: true,
         showNb: true,
@@ -190,6 +214,12 @@ function itemsIndexPage(filtersStorageKey, columnsStorageKey, isAsset) {
                 if (typeof columns.showImage === 'boolean') {
                     this.showImage = columns.showImage;
                 }
+                if (typeof columns.showGroup === 'boolean') {
+                    this.showGroup = columns.showGroup;
+                }
+                if (typeof columns.showColorway === 'boolean') {
+                    this.showColorway = columns.showColorway;
+                }
                 if (typeof columns.showName === 'boolean') {
                     this.showName = columns.showName;
                 }
@@ -202,6 +232,8 @@ function itemsIndexPage(filtersStorageKey, columnsStorageKey, isAsset) {
             } catch (e) {}
 
             this.$watch('showImage', () => this.persistColumns());
+            this.$watch('showGroup', () => this.persistColumns());
+            this.$watch('showColorway', () => this.persistColumns());
             this.$watch('showName', () => this.persistColumns());
             this.$watch('showDesc', () => this.persistColumns());
             if (this.isAsset) {
@@ -211,6 +243,8 @@ function itemsIndexPage(filtersStorageKey, columnsStorageKey, isAsset) {
         persistColumns() {
             const payload = {
                 showImage: this.showImage,
+                showGroup: this.showGroup,
+                showColorway: this.showColorway,
                 showName: this.showName,
                 showDesc: this.showDesc,
             };
