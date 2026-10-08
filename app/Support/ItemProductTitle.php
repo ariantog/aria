@@ -178,10 +178,13 @@ final class ItemProductTitle
             return;
         }
 
+        $parentKey = trim($parentKey);
         $productName = strtoupper(trim($productName));
         $record = ItemParentPrice::query()->firstOrNew(['parent_key' => $parentKey]);
         $record->product_name = $productName;
         $record->save();
+
+        self::$parentRecordCache[$parentKey] = $record->fresh();
     }
 
     private static function normalizeBareTitle(
