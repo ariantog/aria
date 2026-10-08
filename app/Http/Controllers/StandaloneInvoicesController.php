@@ -2,8 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Transactions\CreateCashInFromInvoice;
+use App\Http\Requests\StoreInvoiceCashInRequest;
 use App\Models\Addrbook;
 use App\Models\StandaloneInvoice;
+use App\Models\Transaction;
+use App\Services\BookClosingService;
 use App\Services\InvoiceMakerSettingsService;
 use App\Support\ItemQuantityValidator;
 use App\Services\SellCashInPresenter;
@@ -139,6 +143,30 @@ class StandaloneInvoicesController extends Controller
         return redirect()
             ->route('invoice-maker.index')
             ->with('success', 'Invoice deleted.');
+    }
+
+    public function storeCashIn(
+        StoreInvoiceCashInRequest $request,
+        StandaloneInvoice $invoice,
+        CreateCashInFromInvoice $action,
+        BookClosingService $bookClosingService,
+    ) {
+        Gate::authorize(StandaloneInvoice::getPermissions()['view']);
+        Gate::authorize(Transaction::getPermissions()['type-cash-in']);
+
+        $date = $request->validated('date') ?: now()->toDateString();
+        $bookClosingService->validateDate($date);
+
+        $action->execute($invoice, [
+            'date' => $date,
+            'sender_id' => (int) $request->validated('sender_id'),
+            'account_id' => (int) $request->validated('account_id'),
+            'amount' => (float) $request->validated('amount'),
+        ]);
+
+        return redirect()
+            ->route('invoice-maker.show', $invoice)
+            ->with('success', 'Cash In created.');
     }
 
     public function updateDiscount(Request $request, StandaloneInvoice $invoice, StandaloneInvoiceSettlement $settlement)

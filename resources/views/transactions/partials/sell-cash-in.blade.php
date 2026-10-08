@@ -1,8 +1,10 @@
 @php
     $sellCashIn = $sellCashIn ?? null;
     $transaction = $transaction ?? null;
+    $invoiceOnly = (bool) ($sellCashIn['invoice_only'] ?? false);
     $canCreate = (bool) ($sellCashIn['can_create'] ?? false);
     $banks = $sellCashIn['banks'] ?? collect();
+    $cashParties = $sellCashIn['cash_parties'] ?? collect();
     $defaultAccount = $sellCashIn['default_account'] ?? null;
     $linked = $sellCashIn['linked'] ?? collect();
     $defaultAmount = (float) ($sellCashIn['default_amount'] ?? 0);
@@ -14,18 +16,23 @@
     $autoEnable = (bool) ($sellCashIn['auto_enable'] ?? false);
     $hideDate = (bool) ($sellCashIn['hide_date'] ?? false);
     $returnInvoiceId = $sellCashIn['return_invoice_id'] ?? null;
-    $hasCashInErrors = $errors->has('amount') || $errors->has('account_id') || $errors->has('date');
+    $formAction = $invoiceOnly
+        ? ($sellCashIn['cash_in_store_url'] ?? '#')
+        : ($transaction ? route('transactions.sell-cash-in.store', $transaction) : '#');
+    $hasCashInErrors = $errors->has('amount') || $errors->has('account_id') || $errors->has('date') || $errors->has('sender_id');
     $fmt = fn ($n) => format_amount($n);
     $initialEnabled = ($autoEnable || $hasCashInErrors) ? 'true' : 'false';
     $initialAmount = $hasCashInErrors && old('amount') !== null ? (float) old('amount') : $defaultAmount;
+    $showCard = $sellCashIn && ($transaction || $invoiceOnly) && ($canCreate || $linked->isNotEmpty());
 @endphp
-@if($sellCashIn && $transaction && ($canCreate || $linked->isNotEmpty()))
+@if($showCard)
 <div class="print:hidden rounded-xl border border-gray-200 bg-white shadow-sm"
      data-testid="sell-cash-in-card"
      x-data="{
         enabled: {{ $initialEnabled }},
         amount: {{ $initialAmount }},
         accountId: @js((string) old('account_id', $defaultAccount['id'] ?? '')),
+        senderId: @js((string) old('sender_id', '')),
         date: @js(old('date', $defaultDate)),
         minDate: @js($minDate),
         dateValid() {
@@ -43,14 +50,25 @@
         accountValid() {
             return !!this.accountId;
         },
+        senderValid() {
+            @if($invoiceOnly)
+            return !!this.senderId;
+            @else
+            return true;
+            @endif
+        },
         canSubmit() {
-            return this.enabled && this.dateValid() && this.amountValid() && this.accountValid();
+            return this.enabled && this.dateValid() && this.amountValid() && this.accountValid() && this.senderValid();
         },
      }">
     <div class="flex items-start justify-between gap-3 border-b border-gray-100 px-4 py-3 sm:px-5">
         <div>
             <h2 class="text-sm font-semibold text-gray-900">Cash In</h2>
+            @if($invoiceOnly)
+            <p class="mt-0.5 text-xs text-gray-500">Record payment against invoice {{ $sellCashIn['invoice_number'] ?? '' }}. Link a sell later to reconcile stock.</p>
+            @else
             <p class="mt-0.5 text-xs text-gray-500">Record payment from {{ $transaction->receiver?->name ?: 'the receiver' }} with the same invoice.</p>
+            @endif
             @if($paidTotal > 0.009 || ($autoEnable && ($remaining > 0.009 || $sellTotal > 0.009)))
             <p class="mt-1 text-xs text-gray-600" data-testid="sell-cash-in-summary">
                 Paid {{ $fmt($paidTotal) }} of {{ $fmt($sellTotal) }}
@@ -91,11 +109,11 @@
     @endif
 
     @if($canCreate)
-    <form method="POST" action="{{ route('transactions.sell-cash-in.store', $transaction) }}"
+    <form method="POST" action="{{ $formAction }}"
           @if(! $autoEnable) x-show="enabled" x-cloak @endif
           class="space-y-4 px-4 py-4 sm:px-5">
         @csrf
-        @if($returnInvoiceId)
+        @if($returnInvoiceId && ! $invoiceOnly)
             <input type="hidden" name="return_invoice_id" value="{{ $returnInvoiceId }}">
         @endif
         @if($hideDate)
@@ -103,9 +121,26 @@
         @endif
         <div @class([
             'grid grid-cols-1 gap-4',
-            'sm:grid-cols-2' => $hideDate,
-            'sm:grid-cols-3' => ! $hideDate,
+            'sm:grid-cols-2' => $hideDate && ! $invoiceOnly,
+            'sm:grid-cols-3' => ! $hideDate && ! $invoiceOnly,
+            'sm:grid-cols-2 lg:grid-cols-3' => $invoiceOnly,
         ])>
+            @if($invoiceOnly)
+            <div class="sm:col-span-2 lg:col-span-1">
+                <label for="sell-cash-in-sender" class="mb-1 block text-sm font-medium text-gray-700">From (customer)</label>
+                <select id="sell-cash-in-sender" name="sender_id" x-model="senderId"
+                        data-testid="sell-cash-in-sender"
+                        class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                    <option value="">Select customer…</option>
+                    @foreach($cashParties as $party)
+                    <option value="{{ $party->id }}">{{ $party->name }}</option>
+                    @endforeach
+                </select>
+                @error('sender_id')
+                    <p class="mt-1 text-xs text-red-500">{{ $message }}</p>
+                @enderror
+            </div>
+            @endif
             @if(! $hideDate)
             <div>
                 <label for="sell-cash-in-date" class="mb-1 block text-sm font-medium text-gray-700">Date</label>
@@ -147,7 +182,9 @@
         </div>
         <div class="flex items-center justify-end gap-3">
             <p x-show="!canSubmit()" x-cloak class="mr-auto text-xs text-gray-400">
-                @if($hideDate)
+                @if($invoiceOnly)
+                    Choose customer, bank, and amount to create cash in.
+                @elseif($hideDate)
                     Choose a bank and amount to create cash in.
                 @else
                     Choose a date, bank, and amount to create cash in.
