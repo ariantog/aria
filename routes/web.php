@@ -360,6 +360,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('invoice-maker/{invoice}/pdf/download', [App\Http\Controllers\StandaloneInvoicesController::class, 'downloadPdf'])->name('invoice-maker.pdf.download');
     Route::post('invoice-maker/{invoice}/pdf', [App\Http\Controllers\StandaloneInvoicesController::class, 'storePdf'])->name('invoice-maker.pdf.store');
     Route::patch('invoice-maker/{invoice}/discount', [App\Http\Controllers\StandaloneInvoicesController::class, 'updateDiscount'])->name('invoice-maker.discount');
+    Route::post('invoice-maker/{invoice}/cash-in', [App\Http\Controllers\StandaloneInvoicesController::class, 'storeCashIn'])->middleware('prevent.duplicate')->name('invoice-maker.cash-in.store');
     Route::resource('invoice-maker', App\Http\Controllers\StandaloneInvoicesController::class)
         ->parameters(['invoice-maker' => 'invoice']);
 

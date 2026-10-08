@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Addrbook;
+use App\Models\StandaloneInvoice;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Support\Collection;
@@ -328,11 +329,56 @@ class SellCashInPresenter
     public function forInvoiceSettlement(array $invoiceSettlement, ?User $user): ?array
     {
         $sell = $this->primarySell($invoiceSettlement);
-        if (! $sell) {
+        if ($sell) {
+            return $this->forSell($sell, $user, $invoiceSettlement);
+        }
+
+        return $this->forInvoiceOnly($invoiceSettlement, $user);
+    }
+
+    /**
+     * @param  array<string, mixed>  $invoiceSettlement
+     * @return array<string, mixed>|null
+     */
+    private function forInvoiceOnly(array $invoiceSettlement, ?User $user): ?array
+    {
+        $invoice = $invoiceSettlement['invoice'] ?? null;
+        if (! $invoice instanceof StandaloneInvoice) {
             return null;
         }
 
-        return $this->forSell($sell, $user, $invoiceSettlement);
+        $invoiceAmount = round((float) ($invoiceSettlement['invoice_amount'] ?? 0), 2);
+        $invoicePaidCompleted = $this->completedCashInTotalFromSettlement($invoiceSettlement);
+        $remaining = round(max(0, $invoiceAmount - $invoicePaidCompleted), 2);
+
+        $payments = $invoiceSettlement['payments'] ?? collect();
+        if (! $payments instanceof Collection) {
+            $payments = collect($payments);
+        }
+
+        $defaultAmount = $remaining;
+        if ($invoice->hasDownPayment() && $remaining > 0.009) {
+            $defaultAmount = min($remaining, round((float) $invoice->dp_amount, 2));
+        }
+
+        $data = $this->formData($user, $defaultAmount);
+        $data['can_create'] = $data['can_create'] && $remaining > 0.009;
+        $data['auto_enable'] = true;
+        $data['hide_date'] = true;
+        $data['invoice_only'] = true;
+        $data['invoice_number'] = $invoice->number;
+        $data['return_invoice_id'] = $invoice->id;
+        $data['cash_in_store_url'] = route('invoice-maker.cash-in.store', $invoice);
+        $data['paid_total'] = $invoicePaidCompleted;
+        $data['remaining'] = $remaining;
+        $data['sell_total'] = $invoiceAmount;
+        $data['linked'] = $this->sortLinkedTransactions($payments);
+        $data['cash_parties'] = Addrbook::query()
+            ->whereIn('type', Addrbook::cashPartyTypes())
+            ->orderBy('name')
+            ->get();
+
+        return $data;
     }
 
     /**

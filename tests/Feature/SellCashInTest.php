@@ -490,6 +490,64 @@ it('creates a cash in from a pending sell and a soft-deleted receiver', function
         ->and((float) $cashIn->total)->toBe(250_000.0);
 });
 
+it('shows a cash in form on invoice maker when no sell is linked yet', function () {
+    $invoice = StandaloneInvoice::factory()->create([
+        'number' => 'INV/CA/2026/0043',
+        'subtotal' => 5_400_000,
+        'discount_amount' => 0,
+        'user_id' => $this->user->id,
+    ]);
+    StandaloneInvoiceLine::factory()->create([
+        'standalone_invoice_id' => $invoice->id,
+        'quantity' => 1,
+        'price' => 5_400_000,
+        'total' => 5_400_000,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('invoice-maker.show', $invoice))
+        ->assertOk()
+        ->assertSee('data-testid="sell-cash-in-card"', false)
+        ->assertSee('data-testid="sell-cash-in-amount"', false)
+        ->assertSee('data-testid="sell-cash-in-bank"', false)
+        ->assertSee('data-testid="sell-cash-in-sender"', false)
+        ->assertSee('data-testid="sell-cash-in-submit"', false)
+        ->assertSee('amount: 5400000', false);
+});
+
+it('creates cash in from invoice maker without a linked sell', function () {
+    $invoice = StandaloneInvoice::factory()->create([
+        'number' => 'INV/CA/2026/0044',
+        'subtotal' => 5_400_000,
+        'discount_amount' => 0,
+        'user_id' => $this->user->id,
+    ]);
+    StandaloneInvoiceLine::factory()->create([
+        'standalone_invoice_id' => $invoice->id,
+        'quantity' => 1,
+        'price' => 5_400_000,
+        'total' => 5_400_000,
+    ]);
+
+    $this->actingAs($this->user)
+        ->post(route('invoice-maker.cash-in.store', $invoice), [
+            'sender_id' => $this->customer->id,
+            'amount' => 2_700_000,
+            'account_id' => $this->bank->id,
+        ])
+        ->assertRedirect(route('invoice-maker.show', $invoice))
+        ->assertSessionHas('success', 'Cash In created.');
+
+    $cashIn = Transaction::query()
+        ->where('type', Transaction::TYPE_CASH_IN)
+        ->where('invoice', $invoice->number)
+        ->first();
+
+    expect($cashIn)->not->toBeNull()
+        ->and((int) $cashIn->sender_id)->toBe($this->customer->id)
+        ->and((float) $cashIn->total)->toBe(2_700_000.0);
+});
+
 it('shows an open cash in form on invoice maker when cash-in is below the billed invoice', function () {
     $invoice = StandaloneInvoice::factory()->create([
         'number' => $this->sell->invoice,
