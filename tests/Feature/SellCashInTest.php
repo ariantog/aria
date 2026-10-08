@@ -549,6 +549,40 @@ it('keeps the invoice maker cash in form when sell linking is complete but invoi
         ->assertSee('amount: 300000', false);
 });
 
+it('keeps the invoice maker cash in form when the only payment is a pending cash-in', function () {
+    Transaction::factory()->create([
+        'type' => Transaction::TYPE_CASH_IN,
+        'invoice' => $this->sell->invoice,
+        'sender_type' => (string) Addrbook::TYPE_CUSTOMER,
+        'sender_id' => $this->customer->id,
+        'receiver_type' => (string) Addrbook::TYPE_BANK,
+        'receiver_id' => $this->bank->id,
+        'total' => 1_500_000,
+        'real_total' => 1_500_000,
+        'status' => Transaction::STATUS_PENDING,
+        'user_id' => $this->user->id,
+    ]);
+
+    $invoice = StandaloneInvoice::factory()->create([
+        'number' => $this->sell->invoice,
+        'subtotal' => 1_500_000,
+        'discount_amount' => 0,
+        'user_id' => $this->user->id,
+    ]);
+    StandaloneInvoiceLine::factory()->create([
+        'standalone_invoice_id' => $invoice->id,
+        'quantity' => 1,
+        'price' => 1_500_000,
+        'total' => 1_500_000,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('invoice-maker.show', $invoice))
+        ->assertOk()
+        ->assertSee('data-testid="sell-cash-in-submit"', false)
+        ->assertSee('amount: 1500000', false);
+});
+
 it('redirects back to invoice maker after creating cash in from the invoice page', function () {
     $invoice = StandaloneInvoice::factory()->create([
         'number' => $this->sell->invoice,

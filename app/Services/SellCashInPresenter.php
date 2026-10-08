@@ -82,14 +82,14 @@ class SellCashInPresenter
         $sellRemaining = round(max(0, $sellTotal - $paidTotal), 2);
         $linkingComplete = $this->invoiceLinks->isLinkingComplete((string) $transaction->invoice);
 
-        $invoiceRemaining = $invoiceSettlement
-            ? round(max(0, (float) ($invoiceSettlement['remaining'] ?? 0)), 2)
-            : 0.0;
         $invoiceAmount = $invoiceSettlement
             ? round((float) ($invoiceSettlement['invoice_amount'] ?? 0), 2)
             : 0.0;
-        $invoicePaidTotal = $invoiceSettlement
-            ? round((float) ($invoiceSettlement['paid_total'] ?? 0), 2)
+        $invoicePaidCompleted = $invoiceSettlement
+            ? $this->completedCashInTotalFromSettlement($invoiceSettlement)
+            : 0.0;
+        $invoiceRemaining = $invoiceSettlement
+            ? round(max(0, $invoiceAmount - $invoicePaidCompleted), 2)
             : 0.0;
 
         $defaultAmount = $sellRemaining;
@@ -108,7 +108,7 @@ class SellCashInPresenter
             $data['auto_enable'] = true;
             $data['hide_date'] = true;
             $data['return_invoice_id'] = $invoice?->id;
-            $data['paid_total'] = $invoicePaidTotal;
+            $data['paid_total'] = $invoicePaidCompleted;
             $data['remaining'] = $invoiceRemaining;
             $data['sell_total'] = $invoiceAmount > 0.009 ? $invoiceAmount : $sellTotal;
         } else {
@@ -373,5 +373,22 @@ class SellCashInPresenter
     private function sumAbsTotals(Collection $transactions): float
     {
         return (float) $transactions->sum(fn (Transaction $transaction) => abs((float) $transaction->total));
+    }
+
+    /**
+     * Pending cash-ins count toward settlement status but not toward closing the invoice-maker form.
+     *
+     * @param  array<string, mixed>  $invoiceSettlement
+     */
+    private function completedCashInTotalFromSettlement(array $invoiceSettlement): float
+    {
+        $payments = $invoiceSettlement['payments'] ?? collect();
+        if (! $payments instanceof Collection) {
+            $payments = collect($payments);
+        }
+
+        return round((float) $payments
+            ->filter(fn (Transaction $transaction) => (int) $transaction->status === Transaction::STATUS_COMPLETED)
+            ->sum(fn (Transaction $transaction) => abs((float) $transaction->total)), 2);
     }
 }
