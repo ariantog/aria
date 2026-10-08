@@ -58,6 +58,32 @@ test('buildDisplayName appends size for manufactured items without warna segment
         ->toBe('RUNNING SHIRT - M');
 });
 
+test('syncParentProductName refreshes in-request parent cache for rebuilds', function () {
+    $group = ItemGroup::factory()->create([
+        'master' => 'CX90233-23',
+        'variant' => '23',
+        'name' => 'CX90233-23',
+    ]);
+
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CX90233-23',
+    ]);
+
+    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey($item);
+    ItemParentPrice::query()->create([
+        'parent_key' => $parentKey,
+        'product_name' => 'OLD PARENT',
+    ]);
+
+    expect(ItemProductTitle::parentProductNameForKey($parentKey))->toBe('OLD PARENT');
+
+    ItemProductTitle::syncParentProductName($parentKey, 'NEW PARENT');
+
+    expect(ItemProductTitle::resolveBareTitle($item->fresh(['group'])))->toBe('NEW PARENT');
+});
+
 test('buildDisplayNameWithBareTitle matches colorway save naming for manufactured items', function () {
     $group = ItemGroup::factory()->create(['name' => 'RUNNING SHIRT']);
     $warna = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLACK', 'name' => 'Black']);

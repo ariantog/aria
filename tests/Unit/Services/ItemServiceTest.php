@@ -8,6 +8,7 @@ use App\Services\ImageService;
 use App\Services\InventoryService;
 use App\Services\Items\ItemIdentityBuilder;
 use App\Services\ItemService;
+use App\Support\ItemProductTitle;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
@@ -151,6 +152,43 @@ test('apply parent group product name with reset clears colorway titles and casc
         'product_name' => 'PARENT RUNNING SHIRT',
         'price' => 75000,
     ]);
+});
+
+test('apply parent group product name with reset rebuilds items when parent cache was warmed', function () {
+    $mediumTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'Medium']);
+
+    $input = (object) [
+        'pcode' => 'CX90233-23',
+        'type' => ItemType::ITEM->value,
+        'price' => 100000,
+        'product_name' => 'Colorway Title',
+    ];
+
+    $tags = [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id, $mediumTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ];
+
+    $this->itemService->create($input, $tags);
+
+    $group = ItemGroup::where('master', 'CX90233-23')->where('variant', '23')->firstOrFail();
+    $parentKey = app(ItemIdentityBuilder::class)->itemParentKey(Item::where('group_id', $group->id)->first());
+
+    ItemProductTitle::syncParentProductName($parentKey, 'OLD PARENT TITLE');
+    ItemProductTitle::parentProductNameForKey($parentKey);
+
+    $this->itemService->applyParentGroupProductName(
+        $parentKey,
+        'Fresh Parent Title',
+        [$group->id],
+        resetColorwayTitlesToInherit: true,
+    );
+
+    $small = Item::where('code', 'AJD-CX90233-23-S')->firstOrFail();
+
+    expect($small->name)->toBe('FRESH PARENT TITLE - S');
 });
 
 test('apply parent group product name without reset keeps colorway title', function () {

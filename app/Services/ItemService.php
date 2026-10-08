@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use InvalidArgumentException;
 
 class ItemService
@@ -381,6 +382,9 @@ class ItemService
                         (string) ($group->master ?? ''),
                         (string) ($group->variant ?? ''),
                     );
+                    if (Schema::hasColumn($group->getTable(), 'alias')) {
+                        $group->alias = '';
+                    }
                     $group->save();
                 }
 
