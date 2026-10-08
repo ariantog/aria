@@ -1,10 +1,22 @@
 @php
+    use App\Models\Addrbook;
     $sellCashIn = $sellCashIn ?? null;
     $transaction = $transaction ?? null;
     $invoiceOnly = (bool) ($sellCashIn['invoice_only'] ?? false);
     $canCreate = (bool) ($sellCashIn['can_create'] ?? false);
     $banks = $sellCashIn['banks'] ?? collect();
-    $cashParties = $sellCashIn['cash_parties'] ?? collect();
+    $cashPartyLookupUrl = route('transactions.lookup', [
+        'type' => 'cash-in',
+        'role' => 'sender',
+        'addrbook_type' => Addrbook::cashPartyTypes(),
+    ]);
+    $initialSender = null;
+    if (old('sender_id')) {
+        $oldSender = Addrbook::query()->find((int) old('sender_id'));
+        if ($oldSender) {
+            $initialSender = ['id' => $oldSender->id, 'name' => $oldSender->name];
+        }
+    }
     $defaultAccount = $sellCashIn['default_account'] ?? null;
     $linked = $sellCashIn['linked'] ?? collect();
     $defaultAmount = (float) ($sellCashIn['default_amount'] ?? 0);
@@ -119,65 +131,96 @@
         @if($hideDate)
             <input type="hidden" name="date" value="{{ $defaultDate }}">
         @endif
-        <div @class([
-            'grid grid-cols-1 gap-4',
-            'sm:grid-cols-2' => $hideDate && ! $invoiceOnly,
-            'sm:grid-cols-3' => ! $hideDate && ! $invoiceOnly,
-            'sm:grid-cols-2 lg:grid-cols-3' => $invoiceOnly,
-        ])>
+        <div class="space-y-4">
             @if($invoiceOnly)
-            <div class="sm:col-span-2 lg:col-span-1">
-                <label for="sell-cash-in-sender" class="mb-1 block text-sm font-medium text-gray-700">From (customer)</label>
-                <select id="sell-cash-in-sender" name="sender_id" x-model="senderId"
-                        data-testid="sell-cash-in-sender"
-                        class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                    <option value="">Select customer…</option>
-                    @foreach($cashParties as $party)
-                    <option value="{{ $party->id }}">{{ $party->name }}</option>
-                    @endforeach
-                </select>
+            <div>
+                <label for="sell-cash-in-sender-query" class="mb-1 block text-sm font-medium text-gray-700">From (customer)</label>
+                <input type="hidden" name="sender_id" x-model="senderId">
+                <div x-data="asyncCombobox({
+                    endpoint: @js($cashPartyLookupUrl),
+                    placeholder: 'Search customer, reseller, supplier, or ledger…',
+                    initial: @js($initialSender),
+                    onSelect: (item) => { senderId = item ? String(item.id) : ''; }
+                })" class="relative">
+                    <div class="relative flex h-10 w-full overflow-hidden rounded-lg border focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500"
+                         :class="!senderValid() ? 'border-red-400 bg-red-50' : 'border-gray-300'">
+                        <input type="text" id="sell-cash-in-sender-query"
+                               x-model="query"
+                               @input="handleInput()"
+                               @focus="handleFocus()"
+                               @keydown="handleKeydown($event)"
+                               @keyup="handleKeyup($event)"
+                               :readonly="keyboardNavLock()"
+                               data-testid="sell-cash-in-sender"
+                               :placeholder="placeholder"
+                               class="flex-1 border-none bg-transparent px-3 py-2 text-sm outline-none placeholder-gray-400"
+                               autocomplete="off">
+                        <button type="button" @click="open = !open; if(!items.length) doSearch(query)"
+                                class="flex shrink-0 items-center px-2 text-gray-400">
+                            <svg x-show="!loading" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4"/></svg>
+                            <svg x-show="loading" class="h-4 w-4 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                        </button>
+                    </div>
+                    <div x-show="open" x-cloak @click.away="open = false" class="combobox-options" x-ref="optionsList">
+                        <div x-show="!loading && items.length === 0" class="px-3 py-2 text-sm text-gray-400" x-text="emptyMessage()"></div>
+                        <template x-for="(item, idx) in items" :key="item.id">
+                            <div @click="selectItem(item)"
+                                 @mouseenter="activeIndex = idx"
+                                 class="combobox-option"
+                                 :class="{ 'active': activeIndex === idx }">
+                                <span x-text="item.name"></span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
                 @error('sender_id')
                     <p class="mt-1 text-xs text-red-500">{{ $message }}</p>
                 @enderror
             </div>
             @endif
-            @if(! $hideDate)
-            <div>
-                <label for="sell-cash-in-date" class="mb-1 block text-sm font-medium text-gray-700">Date</label>
-                <input type="date" id="sell-cash-in-date" name="date" x-model="date"
-                       min="{{ $minDate }}"
-                       data-testid="sell-cash-in-date"
-                       class="w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                       :class="!dateValid() ? 'border-red-400 bg-red-50' : 'border-gray-300'">
-                @error('date')
-                    <p class="mt-1 text-xs text-red-500">{{ $message }}</p>
-                @enderror
-            </div>
-            @endif
-            <div>
-                <label for="sell-cash-in-amount" class="mb-1 block text-sm font-medium text-gray-700">Amount (Rp)</label>
-                <input type="number" id="sell-cash-in-amount" name="amount" min="0.01" step="any"
-                       x-model.number="amount"
-                       data-testid="sell-cash-in-amount"
-                       class="w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                       :class="!amountValid() ? 'border-red-400 bg-red-50' : 'border-gray-300'">
-                @error('amount')
-                    <p class="mt-1 text-xs text-red-500">{{ $message }}</p>
-                @enderror
-            </div>
-            <div>
-                <label for="sell-cash-in-bank" class="mb-1 block text-sm font-medium text-gray-700">Bank</label>
-                <select id="sell-cash-in-bank" name="account_id" x-model="accountId"
-                        data-testid="sell-cash-in-bank"
-                        class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                    <option value="">Select bank account…</option>
-                    @foreach($banks as $bank)
-                    <option value="{{ $bank->id }}" @selected((string) ($defaultAccount['id'] ?? '') === (string) $bank->id)>{{ $bank->name }}</option>
-                    @endforeach
-                </select>
-                @error('account_id')
-                    <p class="mt-1 text-xs text-red-500">{{ $message }}</p>
-                @enderror
+            <div @class([
+                'grid grid-cols-1 gap-4',
+                'sm:grid-cols-2' => $hideDate || $invoiceOnly,
+                'sm:grid-cols-3' => ! $hideDate && ! $invoiceOnly,
+            ])>
+                @if(! $hideDate)
+                <div>
+                    <label for="sell-cash-in-date" class="mb-1 block text-sm font-medium text-gray-700">Date</label>
+                    <input type="date" id="sell-cash-in-date" name="date" x-model="date"
+                           min="{{ $minDate }}"
+                           data-testid="sell-cash-in-date"
+                           class="w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                           :class="!dateValid() ? 'border-red-400 bg-red-50' : 'border-gray-300'">
+                    @error('date')
+                        <p class="mt-1 text-xs text-red-500">{{ $message }}</p>
+                    @enderror
+                </div>
+                @endif
+                <div>
+                    <label for="sell-cash-in-amount" class="mb-1 block text-sm font-medium text-gray-700">Amount (Rp)</label>
+                    <input type="number" id="sell-cash-in-amount" name="amount" min="0.01" step="any"
+                           x-model.number="amount"
+                           data-testid="sell-cash-in-amount"
+                           class="w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                           :class="!amountValid() ? 'border-red-400 bg-red-50' : 'border-gray-300'">
+                    @error('amount')
+                        <p class="mt-1 text-xs text-red-500">{{ $message }}</p>
+                    @enderror
+                </div>
+                <div>
+                    <label for="sell-cash-in-bank" class="mb-1 block text-sm font-medium text-gray-700">Bank</label>
+                    <select id="sell-cash-in-bank" name="account_id" x-model="accountId"
+                            data-testid="sell-cash-in-bank"
+                            class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                        <option value="">Select bank account…</option>
+                        @foreach($banks as $bank)
+                        <option value="{{ $bank->id }}" @selected((string) ($defaultAccount['id'] ?? '') === (string) $bank->id)>{{ $bank->name }}</option>
+                        @endforeach
+                    </select>
+                    @error('account_id')
+                        <p class="mt-1 text-xs text-red-500">{{ $message }}</p>
+                    @enderror
+                </div>
             </div>
         </div>
         <div class="flex items-center justify-end gap-3">
