@@ -373,10 +373,6 @@ class SellCashInPresenter
         $data['remaining'] = $remaining;
         $data['sell_total'] = $invoiceAmount;
         $data['linked'] = $this->sortLinkedTransactions($payments);
-        $data['cash_parties'] = Addrbook::query()
-            ->whereIn('type', Addrbook::cashPartyTypes())
-            ->orderBy('name')
-            ->get();
 
         return $data;
     }

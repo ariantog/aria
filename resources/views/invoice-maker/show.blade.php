@@ -89,8 +89,8 @@ $fmt = fn ($n) => format_currency($n);
         <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ session('success') }}</div>
     @endif
 
-    <div class="grid gap-4 lg:grid-cols-3">
-        <div class="space-y-4 lg:col-span-2">
+    <div class="grid gap-4 xl:grid-cols-12">
+        <div class="space-y-4 xl:col-span-7">
             <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
                 <dl class="grid gap-3 sm:grid-cols-2 text-sm">
                     <div><dt class="text-gray-500">Recipient</dt><dd class="font-medium whitespace-pre-line text-gray-900">{{ $invoice->recipient }}</dd></div>
@@ -148,7 +148,7 @@ $fmt = fn ($n) => format_currency($n);
             </div>
         </div>
 
-        <div class="space-y-4">
+        <div class="space-y-4 xl:col-span-5">
             <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm text-sm">
                 <h3 class="mb-2 font-semibold text-gray-900">Terms of Payment</h3>
                 <ul class="list-disc space-y-1 pl-5 text-gray-700">
@@ -170,14 +170,6 @@ $fmt = fn ($n) => format_currency($n);
                 <h3 class="mb-2 font-semibold text-gray-900">Signatory</h3>
                 <p class="font-medium text-gray-900">{{ $invoice->signatory_name ?: '—' }}</p>
             </div>
-            @include('invoice-maker.partials.settlement-card', [
-                'settlement' => $settlement,
-                'canEdit' => $can['edit'] ?? false,
-            ])
-            @include('transactions.partials.sell-cash-in', [
-                'transaction' => $sellCashInTransaction ?? null,
-                'sellCashIn' => $sellCashIn ?? null,
-            ])
             @if($invoice->notes)
             <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm text-sm">
                 <h3 class="mb-2 font-semibold text-gray-900">Notes</h3>
@@ -185,6 +177,17 @@ $fmt = fn ($n) => format_currency($n);
             </div>
             @endif
         </div>
+    </div>
+
+    <div class="grid gap-4 lg:grid-cols-2">
+        @include('invoice-maker.partials.settlement-card', [
+            'settlement' => $settlement,
+            'canEdit' => $can['edit'] ?? false,
+        ])
+        @include('transactions.partials.sell-cash-in', [
+            'transaction' => $sellCashInTransaction ?? null,
+            'sellCashIn' => $sellCashIn ?? null,
+        ])
     </div>
 </div>
 <script>
