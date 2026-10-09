@@ -16,6 +16,7 @@ it('embeds move duplicate row merge helpers on the move create form', function (
         ->assertOk()
         ->assertSee('mergeMoveDuplicateRowAt(idx)', false)
         ->assertSee('consolidateMoveDuplicateRows()', false)
-        ->assertSee('moveRowPricesMatch(a, b)', false)
+        ->assertSee('applyMoveCatalogPrice(row)', false)
+        ->assertSee('readonly tabindex="-1"', false)
         ->assertSee("if (_TxType === 'move')", false);
 });
