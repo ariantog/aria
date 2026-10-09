@@ -70,10 +70,25 @@ class ShopeeAdsEngineService
         $slots = $this->itemAdsSlotCount($settings, $multipliers, $now);
 
         if ($pool <= 0) {
-            return ShopeeAdsApiService::ITEM_AD_MIN_BUDGET;
+            return 0;
         }
 
         return max((int) floor($pool / $slots), ShopeeAdsApiService::ITEM_AD_MIN_BUDGET);
+    }
+
+    /**
+     * Individual item ads run only when the subsystem is on and the starting pool is > 0.
+     */
+    public function individualItemAdsActive(
+        ShopeeAdsSetting $settings,
+        ?ShopeeAdsBudgetMultipliers $multipliers = null,
+        ?Carbon $now = null,
+    ): bool {
+        if (! $settings->item_ads_enabled) {
+            return false;
+        }
+
+        return $this->itemAdsStartingPoolTotal($settings, $multipliers, $now) > 0;
     }
 
     private function automationTimezone(): string
@@ -122,6 +137,11 @@ class ShopeeAdsEngineService
                 $this->applyGmvMaxIncrement($settings, $increment, $schedule->run_time);
             } elseif ($schedule->ad_type === ShopeeAdsType::ProdukManual->value) {
                 $multipliers = $this->specialRules->resolveForToday($settings, $now);
+                if (! $this->individualItemAdsActive($settings, $multipliers, $now)) {
+                    $schedule->update(['last_run_at' => $now]);
+
+                    continue;
+                }
                 $pool = $multipliers->scaledItemBudgetAmount($schedule->increment_idr);
                 $deleted = $this->applyItemAdsIncrement($settings, $pool, $schedule->run_time);
 
@@ -331,7 +351,8 @@ class ShopeeAdsEngineService
         $this->dailyReset($settings);
         $settings->update(['last_daily_reset_at' => $now]);
 
-        if ($settings->item_ads_enabled && ($settings->item_replenish_enabled || $settings->item_auto_topup_enabled)) {
+        if ($this->individualItemAdsActive($settings)
+            && ($settings->item_replenish_enabled || $settings->item_auto_topup_enabled)) {
             $this->replenishItemAds($settings->fresh(), fillToCap: true);
         }
 
@@ -439,7 +460,7 @@ class ShopeeAdsEngineService
      */
     public function applyItemAdsIncrement(ShopeeAdsSetting $settings, int $poolIdr, ?string $runTime = null): int
     {
-        if (! $settings->item_ads_enabled) {
+        if (! $this->individualItemAdsActive($settings)) {
             return 0;
         }
 
@@ -620,7 +641,18 @@ class ShopeeAdsEngineService
         $multipliers = $this->specialRules->resolveForToday($settings);
         $starting = $this->itemAdBudgetPerSlot($settings, $multipliers);
 
-        if (! $settings->item_ads_enabled || ! $settings->item_replenish_enabled) {
+        if (! $this->individualItemAdsActive($settings, $multipliers)) {
+            if (! $settings->item_ads_enabled) {
+                $message = 'Item ads subsystem disabled';
+            } else {
+                $message = 'Individual item ads disabled (starting budget 0)';
+            }
+            $this->telegram->notifyReplenish(0, $starting, $message);
+
+            return ['created' => 0, 'message' => $message];
+        }
+
+        if (! $settings->item_replenish_enabled) {
             $message = 'Item ads or auto-replenish disabled';
             $this->telegram->notifyReplenish(0, $starting, $message);
 
@@ -751,6 +783,23 @@ class ShopeeAdsEngineService
         }
 
         $this->syncItemAds();
+
+        if (! $this->individualItemAdsActive($settings)) {
+            $message = sprintf(
+                'Manual boost ×%s: GMV %s, %d item ad(s) updated',
+                $multiplier,
+                $gmvApplied ? 'updated' : 'skipped',
+                0,
+            );
+            $this->telegram->notifyManualBoost($multiplier, $gmvApplied, 0);
+
+            return [
+                'gmv' => $gmvApplied,
+                'items' => 0,
+                'message' => $message,
+            ];
+        }
+
         $ads = $this->activeItemAdModels();
 
         $liveByCampaign = collect($this->api->listManualProductAds(true))
@@ -861,18 +910,26 @@ class ShopeeAdsEngineService
             $ads = collect();
         }
 
-        foreach ($ads as $ad) {
-            $before = (int) $ad->budget;
-            if ($this->api->setItemAdBudget($ad->campaign_id, $itemStart)) {
-                $ad->update([
-                    'budget' => $itemStart,
-                    'status' => 'ongoing',
-                    'increments_today' => 0,
-                    'low_roas_streak' => 0,
-                    'turned_off' => false,
-                ]);
-                $this->recordHistory(ShopeeAdsType::ProdukManual->value, $ad->campaign_id, 'daily_reset', $before, $itemStart, null, 'Daily reset item ad');
-                $itemResetCount++;
+        if ($this->individualItemAdsActive($settings, $multipliers)) {
+            foreach ($ads as $ad) {
+                $before = (int) $ad->budget;
+                if ($this->api->setItemAdBudget($ad->campaign_id, $itemStart)) {
+                    $ad->update([
+                        'budget' => $itemStart,
+                        'status' => 'ongoing',
+                        'increments_today' => 0,
+                        'low_roas_streak' => 0,
+                        'turned_off' => false,
+                    ]);
+                    $this->recordHistory(ShopeeAdsType::ProdukManual->value, $ad->campaign_id, 'daily_reset', $before, $itemStart, null, 'Daily reset item ad');
+                    $itemResetCount++;
+                }
+            }
+        } elseif ($settings->item_ads_enabled && $ads->isNotEmpty()) {
+            foreach ($ads as $ad) {
+                if ($this->stopItemAdLocally($ad, 'Individual item ads disabled (starting budget 0)')) {
+                    $itemResetCount++;
+                }
             }
         }
 
@@ -1065,6 +1122,37 @@ class ShopeeAdsEngineService
         return ShopeeAdsItemAd::query()
             ->whereIn('campaign_id', $liveIds)
             ->get();
+    }
+
+    /**
+     * Stop a live item ad on Shopee and mark the tracked row as ended (budget 0).
+     */
+    private function stopItemAdLocally(ShopeeAdsItemAd $ad, string $reason): bool
+    {
+        if (! $this->api->stopItemAd($ad->campaign_id)) {
+            return false;
+        }
+
+        $before = (int) $ad->budget;
+        $ad->update([
+            'budget' => 0,
+            'status' => 'ended',
+            'turned_off' => true,
+            'increments_today' => 0,
+            'low_roas_streak' => 0,
+        ]);
+
+        $this->recordHistory(
+            ShopeeAdsType::ProdukManual->value,
+            $ad->campaign_id,
+            'stop',
+            $before,
+            0,
+            null,
+            $reason,
+        );
+
+        return true;
     }
 
     /**

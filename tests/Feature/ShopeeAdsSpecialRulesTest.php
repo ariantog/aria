@@ -138,6 +138,8 @@ it('applies manual budget boost with configured multiplier', function () {
         'manual_boost_multiplier' => 1.5,
         'gms_campaign_id' => 'gmv-boost',
         'gms_current_budget' => 100000,
+        'item_ads_enabled' => true,
+        'item_ad_starting_budget' => 60000,
     ]);
 
     \App\Models\ShopeeAdsItemAd::query()->create([

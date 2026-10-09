@@ -45,8 +45,6 @@ class ShopeeAdsSetting extends Model
         'item_split_high',
         'item_split_mid',
         'item_split_low',
-        'item_replenish_hour',
-        'item_replenish_minute',
         'last_daily_reset_at',
         'last_replenish_at',
         'last_item_replenish_at',
