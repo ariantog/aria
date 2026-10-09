@@ -359,12 +359,13 @@
                             <div class="sm:col-span-2">
                                 <label class="mb-1 block text-xs font-medium text-gray-500 sm:hidden">Price</label>
                                 <input type="number" x-model.number="item.price" :id="'price_' + idx"
-                                       @input="recalcItem(idx)"
+                                       @unless($isMove) @input="recalcItem(idx)" @endunless
                                        @keydown="rowKeydown(idx, 'price', $event)"
                                        @keyup="rowKeyup(idx, 'price', $event)"
                                        enterkeyhint="next"
                                        min="0" step="0.01"
-                                       class="{{ $rowInput }}">
+                                       @if($isMove) readonly tabindex="-1" @endif
+                                       class="{{ $rowInput }} @if($isMove) cursor-default bg-gray-50 text-gray-600 @endif">
                             </div>
                             {{-- Subtotal --}}
                             <div class="flex items-center justify-between sm:col-span-1 sm:block sm:text-right">
@@ -593,7 +594,7 @@ const _Prefill = @json($prefill ?? null);
 const _ItemLookupUrl = @json(route('transactions.item-by-id', ['type' => $type]));
 const _ItemLookupByCodeUrl = @json(route('transactions.item-by-code', ['type' => $type]));
 const _JubelioSync = @json($jubelio_sync ?? ['synced_warehouse_ids' => []]);
-const _AfterQtyField = @js($isMove ? 'price' : 'disc');
+const _AfterQtyField = @js($isMove ? null : 'disc');
 const _BarcodeScannerLibUrl = 'https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/zxing-browser.min.js';
 const _CanSellCashIn = @js((bool) ($type === 'sell' && ($sellCashIn['can_create'] ?? false)));
 const _CashInDefaultAccount = @js($sellCashIn['default_account'] ?? null);
@@ -720,7 +721,8 @@ function createTransaction() {
                     row.name = ci.name || '';
                     row.quantity = Number(ci.quantity || 1);
                     this.storeCatalogPricesOnRow(row, ci);
-                    row.price = this.resolveRowPrice(ci, { preferLinePrice: true });
+                    row.price = this.resolveRowPrice(ci, { preferLinePrice: _TxType !== 'move' });
+                    this.applyMoveCatalogPrice(row);
                     const gross = Number(row.quantity || 0) * Number(row.price || 0);
                     row.discount = gross > 0 ? (Number(ci.discount || 0) / gross) * 100 : 0;
                     row.warehouse_item = this.warehouseItemsFrom(ci);
@@ -1018,7 +1020,8 @@ function createTransaction() {
             row.code = source.code || source.item_code || String(source.id ?? '');
             row.name = source.name || source.product_name || '';
             this.storeCatalogPricesOnRow(row, source);
-            row.price = this.resolveRowPrice(source);
+            row.price = this.resolveRowPrice(source, { preferLinePrice: _TxType !== 'move' });
+            this.applyMoveCatalogPrice(row);
             row.warehouse_item = this.warehouseItemsFrom(source);
             if (!row.quantity || row.quantity < 1) row.quantity = 1;
             row.track_inventory = source.track_inventory !== undefined && source.track_inventory !== null
@@ -1363,25 +1366,29 @@ function createTransaction() {
                 return true;
             }
 
-            if (field === 'qty') { suppressFieldNavigation(400); this.focusField(idx, _AfterQtyField); return true; }
+            if (field === 'qty') {
+                suppressFieldNavigation(400);
+                if (_TxType === 'move') {
+                    this.priceEnter(idx);
+                    return true;
+                }
+                this.focusField(idx, _AfterQtyField);
+                return true;
+            }
             if (field === 'disc') { suppressFieldNavigation(400); this.focusField(idx, 'price'); return true; }
             if (field === 'price') { suppressFieldNavigation(400); this.priceEnter(idx); return true; }
 
             return false;
         },
 
-        moveRowPricesMatch(a, b) {
-            const normalize = (v) => {
-                if (v === null || v === undefined || v === '') return null;
-                const n = Number(v);
-                return Number.isNaN(n) ? null : n;
-            };
-            const pa = normalize(a);
-            const pb = normalize(b);
-            if (pa === null && pb === null) return true;
-            if (pa === null || pb === null) return false;
-
-            return pa === pb;
+        applyMoveCatalogPrice(row) {
+            if (_TxType !== 'move' || !row?.item_id) {
+                return;
+            }
+            const catalog = Number(row._catalog_price ?? 0);
+            if (!Number.isNaN(catalog) && catalog > 0) {
+                row.price = catalog;
+            }
         },
 
         findMoveDuplicateRowIdx(idx) {
@@ -1392,9 +1399,8 @@ function createTransaction() {
 
             return this.form.items.findIndex((other, i) => {
                 if (i === idx) return false;
-                if (String(other.item_id) !== itemId) return false;
 
-                return this.moveRowPricesMatch(other.price, row.price);
+                return String(other.item_id) === itemId;
             });
         },
 
@@ -1403,6 +1409,8 @@ function createTransaction() {
             if (targetIdx < 0) return idx;
             const row = this.form.items[idx];
             const target = this.form.items[targetIdx];
+            this.applyMoveCatalogPrice(target);
+            this.applyMoveCatalogPrice(row);
             target.quantity = Number(target.quantity || 0) + Number(row.quantity || 0);
             this.recalcItem(targetIdx);
             this.form.items.splice(idx, 1);
@@ -1619,7 +1627,9 @@ function createTransaction() {
                     row.code = ci.code || '';
                     row.name = ci.name || '';
                     row.quantity = Number(ci.quantity || 1);
-                    row.price = this.resolveRowPrice(ci, { preferLinePrice: true });
+                    this.storeCatalogPricesOnRow(row, ci);
+                    row.price = this.resolveRowPrice(ci, { preferLinePrice: _TxType !== 'move' });
+                    this.applyMoveCatalogPrice(row);
                     const gross = Number(row.quantity || 0) * Number(row.price || 0);
                     row.discount = gross > 0 ? (Number(ci.discount || 0) / gross) * 100 : 0;
                     row.warehouse_item = this.warehouseItemsFrom(ci);
