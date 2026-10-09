@@ -96,12 +96,15 @@ class ShopeeAdsController extends Controller
             'item_ad_starting_budget' => [
                 'required',
                 'integer',
-                'min:'.ShopeeAdsApiService::ITEM_AD_MIN_BUDGET,
+                'min:0',
                 function (string $attribute, mixed $value, \Closure $fail): void {
+                    if ((int) $value === 0) {
+                        return;
+                    }
                     $slots = max(1, (int) request()->input('max_item_ads', 1));
                     $minTotal = $slots * ShopeeAdsApiService::ITEM_AD_MIN_BUDGET;
                     if ((int) $value < $minTotal) {
-                        $fail("Item ads starting pool must be at least Rp {$minTotal} ({$slots} slots × min budget).");
+                        $fail("Item ads starting pool must be at least Rp {$minTotal} ({$slots} slots × min budget), or 0 to disable individual item ads.");
                     }
                 },
             ],

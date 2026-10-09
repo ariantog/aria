@@ -394,7 +394,8 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4';
                 </label>
                 <label class="block">
                     <span class="{{ $saLabel }}">Item ads starting pool (÷ max item ads per slot)</span>
-                    <input type="number" name="item_ad_starting_budget" min="{{ $settings->max_item_ads * 25000 }}" value="{{ $settings->item_ad_starting_budget }}" class="{{ $saInput }}" required>
+                    <input type="number" name="item_ad_starting_budget" min="0" value="{{ $settings->item_ad_starting_budget }}" class="{{ $saInput }}" required>
+                    <p class="mt-1 text-xs {{ $saTextMuted }}">0 = individual item ads disabled (daily reset stops live ads; no replenish/increment).</p>
                 </label>
                 <label class="block">
                     <span class="{{ $saLabel }}">Max item ads</span>

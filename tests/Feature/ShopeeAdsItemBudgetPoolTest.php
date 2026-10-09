@@ -76,6 +76,49 @@ it('resets each item ad to per-slot budget from the shared pool', function () {
     expect(ShopeeAdsItemAd::find('item-reset')->budget)->toBe(25000);
 });
 
+it('treats zero item ads starting pool as disabled', function () {
+    $settings = ShopeeAdsSetting::current();
+    $settings->update([
+        'item_ad_starting_budget' => 0,
+        'max_item_ads' => 4,
+        'item_ads_enabled' => true,
+        'item_replenish_enabled' => true,
+    ]);
+
+    ShopeeAdsItemAd::query()->create([
+        'campaign_id' => 'item-off',
+        'item_id' => 77,
+        'budget' => 50000,
+        'status' => 'ongoing',
+    ]);
+
+    $api = Mockery::mock(ShopeeAdsApiService::class);
+    $api->shouldReceive('hasShopAuthorization')->andReturn(false);
+    $api->shouldReceive('getGmsCampaign')->andReturn(null);
+    $api->shouldReceive('stopItemAd')->once()->with('item-off')->andReturn(true);
+    $api->shouldNotReceive('setItemAdBudget');
+
+    $engine = new ShopeeAdsEngineService(
+        $api,
+        app(ShopeeAdsSpecialRulesService::class),
+        Mockery::mock(ShopeeAdsTelegramNotifier::class)->shouldIgnoreMissing(),
+    );
+
+    expect($engine->itemAdBudgetPerSlot($settings))->toBe(0)
+        ->and($engine->individualItemAdsActive($settings))->toBeFalse();
+
+    $engine->dailyReset($settings);
+
+    $ad = ShopeeAdsItemAd::find('item-off');
+    expect($ad->budget)->toBe(0)
+        ->and($ad->turned_off)->toBeTrue()
+        ->and($ad->status)->toBe('ended');
+
+    $replenish = $engine->replenishItemAds($settings);
+    expect($replenish['created'])->toBe(0)
+        ->and($replenish['message'])->toBe('Individual item ads disabled (starting budget 0)');
+});
+
 it('uses scaled combined cap on double date for headroom', function () {
     Carbon\Carbon::setTestNow(Carbon\Carbon::parse('2026-08-08 10:00:00', 'Asia/Jakarta'));
 
