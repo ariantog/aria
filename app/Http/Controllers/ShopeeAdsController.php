@@ -119,8 +119,6 @@ class ShopeeAdsController extends Controller
             'item_replenish_max_per_run' => ['required', 'integer', 'min:1'],
             'daily_reset_hour' => ['required', 'integer', 'min:0', 'max:23'],
             'daily_reset_minute' => ['required', 'integer', 'min:0', 'max:59'],
-            'item_replenish_hour' => ['required', 'integer', 'min:0', 'max:23'],
-            'item_replenish_minute' => ['required', 'integer', 'min:0', 'max:59'],
             'double_date_gmv_multiplier' => ['required', 'numeric', 'min:1', 'max:10'],
             'double_date_item_ads_multiplier' => ['required', 'numeric', 'min:1', 'max:10'],
             'double_date_item_budget_multiplier' => ['required', 'numeric', 'min:1', 'max:10'],

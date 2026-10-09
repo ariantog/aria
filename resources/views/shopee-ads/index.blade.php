@@ -432,14 +432,7 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4';
                 <label class="block">
                     <span class="{{ $saLabel }}">Item replenish max per schedule</span>
                     <input type="number" name="item_replenish_max_per_run" value="{{ $settings->item_replenish_max_per_run }}" class="{{ $saInput }}" required>
-                    <p class="mt-1 text-xs {{ $saTextMuted }}">Max new ads after each produk_manual increment schedule. Daily reset fills to max {{ $settings->max_item_ads }} in one run. Legacy WIB time below is ignored by cron.</p>
-                </label>
-                <label class="block opacity-60">
-                    <span class="{{ $saLabel }}">Item replenish WIB (legacy, unused)</span>
-                    <div class="mt-1 flex gap-2">
-                        <input type="number" name="item_replenish_hour" value="{{ $settings->item_replenish_hour }}" class="{{ $saInputSm }}" required>
-                        <input type="number" name="item_replenish_minute" value="{{ $settings->item_replenish_minute }}" class="{{ $saInputSm }}" required>
-                    </div>
+                    <p class="mt-1 text-xs {{ $saTextMuted }}">Max new ads after each produk_manual increment schedule. Daily reset fills to max {{ $settings->max_item_ads }} in one run.</p>
                 </label>
             </div>
             <div class="flex flex-wrap gap-4 text-sm text-gray-700">
