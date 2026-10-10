@@ -136,7 +136,7 @@ class TransactionsController extends Controller
             'id' => ['required', 'integer', 'min:1'],
         ]);
 
-        $item = \App\Models\Item::with('warehouseItems')->find($validated['id']);
+        $item = \App\Models\Item::with(['warehouseItems', 'group', 'tags'])->find($validated['id']);
         if (! $item) {
             return response()->json(['item' => null]);
         }
@@ -213,7 +213,7 @@ class TransactionsController extends Controller
      */
     private function itemLookupPayload(\App\Models\Item $item): array
     {
-        $item->loadMissing(['warehouseItems', 'group']);
+        $item->loadMissing(['warehouseItems', 'group', 'tags']);
 
         return [
             'id' => $item->id,
@@ -584,7 +584,7 @@ class TransactionsController extends Controller
         if ($whid) {
             $itemsQuery->with(['warehouseItems' => fn ($q) => $q->where('warehouse_id', $whid)]);
         }
-        $items = $itemsQuery->with('group')->get()->keyBy('id');
+        $items = $itemsQuery->with(['group', 'tags'])->get()->keyBy('id');
         $type = (string) ($validated['type'] ?? '');
         $priceSource = $type !== ''
             ? config('transaction_rules.'.$type.'.price_source', 'price')
