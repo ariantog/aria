@@ -324,8 +324,8 @@ class ItemIdentityBuilder
     }
 
     /**
-     * Asset lancar display name: {product title} - {warna} - {size}
-     * Manufactured items use buildManufacturedDisplayName() (color is on pcode, not warna tag).
+     * Display name: {product title} - {warna label} - {size?}
+     * Manufactured SKUs use the warna tag label (e.g. MINT), not the pcode color number.
      */
     public function buildItemDisplayName(
         ItemType $type,
@@ -334,19 +334,26 @@ class ItemIdentityBuilder
         ?Tag $sizeTag,
     ): string {
         if ($type === ItemType::ITEM) {
-            return $this->buildManufacturedDisplayName($bareTitle, $sizeTag);
+            return $this->buildManufacturedDisplayName($bareTitle, $sizeTag, $warnaTag);
         }
 
         return $this->buildName($bareTitle, $warnaTag, $sizeTag);
     }
 
     /**
-     * Manufactured display name: {product title} - {size?}
-     * All-size omits size. Color/warna is not repeated — it lives on pcode / item_group.variant.
+     * Manufactured display name: {product title} - {warna?} - {size?}
+     * All-size omits size. Warna uses tag name (fallback code), matching item create/edit preview.
      */
-    public function buildManufacturedDisplayName(string $bareTitle, ?Tag $sizeTag): string
+    public function buildManufacturedDisplayName(string $bareTitle, ?Tag $sizeTag, ?Tag $warnaTag = null): string
     {
         $parts = [strtoupper(trim($bareTitle))];
+
+        if ($warnaTag) {
+            $warnaDisplay = strtoupper(trim((string) ($warnaTag->name ?: $warnaTag->code)));
+            if ($warnaDisplay !== '') {
+                $parts[] = $warnaDisplay;
+            }
+        }
 
         if ($sizeTag && ! $this->isAllSize($sizeTag)) {
             $parts[] = strtoupper($sizeTag->code);

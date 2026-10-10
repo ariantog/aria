@@ -20,8 +20,8 @@ $breadcrumbs = [
     'parentTitle' => $titleForm['parent_title'] ?? '',
     'effectiveTitle' => $titleForm['effective_title'] ?? '',
     'rows' => $previewRows,
-    'warnaCode' => $isAsset ? ($color['code'] ?? '') : '',
-    'warnaName' => $isAsset ? ($color['name'] ?? '') : '',
+    'warnaCode' => $color['code'] ?? '',
+    'warnaName' => $color['name'] ?? '',
 ]))">
     <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <a href="{{ route('items.group-parent-detail', $parentGroupId) }}" class="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-100">
@@ -286,8 +286,8 @@ function colorwayForm(config) {
         buildName(title, sizeCode) {
             const sc = (sizeCode || '').toUpperCase();
             const parts = [title];
-            if (this.isAsset) {
-                const wn = this.warnaName || this.warnaCode || '???';
+            const wn = (this.warnaName || this.warnaCode || '').toUpperCase().trim();
+            if (wn && wn !== '???') {
                 parts.push(wn);
             }
             if (sc && sc !== this.allSizeCode && sc !== '—') {

@@ -159,7 +159,12 @@ describe('buildCode', function () {
 });
 
 describe('buildManufacturedDisplayName', function () {
-    it('omits warna and keeps title with size', function () {
+    it('includes warna tag label between title and size', function () {
+        expect($this->builder->buildManufacturedDisplayName('SLASH RUNNING SHIRT', $this->sizeTag, $this->warnaTag))
+            ->toBe('SLASH RUNNING SHIRT - BLUE - S');
+    });
+
+    it('omits warna segment when tag is absent', function () {
         expect($this->builder->buildManufacturedDisplayName('SLASH RUNNING SHIRT', $this->sizeTag))
             ->toBe('SLASH RUNNING SHIRT - S');
     });
