@@ -118,6 +118,7 @@ class TransactionsController extends Controller
             'prefill' => $this->resolveCreatePrefill($type, $request, $draftService, $userPreferences),
             'jubelio_sync' => $jubelioSyncPresenter->createFormSyncConfig(),
             'jubelio_active' => (bool) config('services.jubelio.active'),
+            'can_submit_jubelio_unlinked' => \App\Services\Jubelio\JubelioUnlinkedSubmitGuard::userMaySubmitWithUnlinked(Auth::user()),
             'sellCashIn' => $type === 'sell' ? app(SellCashInPresenter::class)->formData(Auth::user()) : null,
             'ppn_included_system_default' => Addrbook::defaultPpnIncluded(),
         ]);

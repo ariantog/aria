@@ -572,7 +572,12 @@
                     @endif
                 </div>
                 <div class="border-t border-gray-100 p-5">
-                    <p x-show="!canSubmit()" x-cloak class="mb-2 text-center text-xs text-gray-400">
+                    <p x-show="jubelioUnlinkedSubmitBlocked()" x-cloak
+                       data-testid="jubelio-unlinked-submit-block"
+                       class="mb-2 text-center text-xs text-amber-800">
+                        Satu atau lebih baris belum terhubung ke Jubelio — simpan dinonaktifkan. Hubungkan SKU di Item Links, atau minta izin <span class="font-mono text-[10px]">transactions-submit-jubelio-unlinked</span>.
+                    </p>
+                    <p x-show="!canSubmit() && !jubelioUnlinkedSubmitBlocked()" x-cloak class="mb-2 text-center text-xs text-gray-400">
                         Choose sender, receiver, a valid date, and at least one complete item to save.
                     </p>
                     <button type="button" @click="submitForm()" :disabled="submitting || !canSubmit()"
@@ -641,6 +646,7 @@ const _ItemLookupByCodeUrl = @json(route('transactions.item-by-code', ['type' =>
 const _JubelioSync = @json($jubelio_sync ?? ['synced_warehouse_ids' => []]);
 const _JubelioActive = @js((bool) ($jubelio_active ?? false));
 const _JubelioStockPreviewUrl = @json(route('transactions.jubelio-stock-preview', ['type' => $type]));
+const _CanSubmitJubelioUnlinked = @js((bool) ($can_submit_jubelio_unlinked ?? false));
 const _AfterQtyField = @js($isMove ? null : 'disc');
 const _BarcodeScannerLibUrl = 'https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/zxing-browser.min.js';
 const _CanSellCashIn = @js((bool) ($type === 'sell' && ($sellCashIn['can_create'] ?? false)));
@@ -1018,7 +1024,24 @@ function createTransaction() {
                 && !this.form.items.some(i => this.itemInvalid(i))
                 && this.cashInDateValid()
                 && this.cashInAmountValid()
-                && this.cashInAccountValid();
+                && this.cashInAccountValid()
+                && !this.jubelioUnlinkedSubmitBlocked();
+        },
+
+        /** Any filled line without jubelio_item_id on a Jubelio-mapped sell/move warehouse. */
+        hasJubelioUnlinkedLinesForSubmit() {
+            if (_TxType !== 'sell' && _TxType !== 'move') {
+                return false;
+            }
+            if (! this.jubelioWarehouseMapped()) {
+                return false;
+            }
+
+            return this.form.items.some(row => row.item_id && ! this.itemJubelioLinked(row));
+        },
+
+        jubelioUnlinkedSubmitBlocked() {
+            return ! _CanSubmitJubelioUnlinked && this.hasJubelioUnlinkedLinesForSubmit();
         },
 
         newItemRow() {
