@@ -4,6 +4,7 @@
     ];
     $pcodePlaceholder = $isAsset ? 'GLOVE-01' : 'CX90233-23';
     $editingItem = isset($item);
+    $colorwayEditUrl = $colorwayEditUrl ?? null;
 @endphp
 <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
     <div class="flex items-center gap-3 border-b border-gray-100 px-5 py-4">
@@ -15,11 +16,16 @@
     <div class="p-5">
         <div>
             <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-pcode">Production Code (PCode) <span class="text-red-500">*</span></label>
+            @if($editingItem)
+            <input type="hidden" name="pcode" value="{{ $fi['pcode'] ?? old('pcode') }}">
+            <p id="item-form-pcode" class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-mono text-gray-800" data-testid="item-form-pcode">{{ $fi['pcode'] ?? old('pcode') }}</p>
+            @else
             <input type="text" id="item-form-pcode" name="pcode" x-model="form.pcode" value="{{ $fi['pcode'] ?? old('pcode') }}" required
                    data-testid="item-form-pcode"
                    placeholder="{{ $pcodePlaceholder }}" list="{{ $isAsset ? 'asset-pcode-suggestions' : '' }}"
                    @input="onPcodeInput()" @blur="onPcodeBlur()" @change="onPcodeBlur()"
                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('pcode') border-red-500 @enderror">
+            @endif
             @if($isAsset && !empty($assetPcodeSuggestions ?? []))
             <datalist id="asset-pcode-suggestions">
                 @foreach($assetPcodeSuggestions as $suggestion)
@@ -35,7 +41,11 @@
                 @else
                     Format: <span class="font-mono">XX12345-23</span>.
                 @endif
-                Product name and catalog fields are under <span class="font-medium">Catalog &amp; pricing</span>.
+                @if($editingItem && $colorwayEditUrl)
+                    Change pcode on the <a href="{{ $colorwayEditUrl }}" class="font-medium text-blue-600 underline hover:text-blue-800">colorway editor</a>.
+                @else
+                    Product name and catalog fields are under <span class="font-medium">Catalog &amp; pricing</span>.
+                @endif
             </p>
         </div>
     </div>

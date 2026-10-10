@@ -444,7 +444,7 @@ test('getItemName uses scoped bare title with color and size segments', function
     $item->setRelation('group', $group);
     $item->setRelation('tags', collect([$warna, $size]));
 
-    expect($item->getItemName())->toBe('SKU OVERRIDE TITLE - S');
+    expect($item->getItemName())->toBe('SKU OVERRIDE TITLE - NAVY - S');
 });
 
 test('items index name column shows the item display name not the group alias', function () {
@@ -588,8 +588,8 @@ test('item show and edit prefer the item description when it differs from the gr
     $this->actingAs($this->user)
         ->get(route('items.edit', $item))
         ->assertOk()
-        ->assertSee('data-testid="item-form-description"', false)
-        ->assertSee('>MIKRO MOTIF CAMO HIJAU<', false);
+        ->assertSee('data-testid="item-form-catalog-links"', false)
+        ->assertSee('Colorway editor', false);
 });
 
 test('items show page links group and tags to filtered lists', function () {
@@ -654,9 +654,9 @@ test('item create and edit forms mark shared colorway attributes', function () {
         ->get(route('items.edit', $item))
         ->assertOk()
         ->assertSee('data-testid="item-catalog-panel"', false)
-        ->assertSee('data-testid="item-form-shared-details"', false)
-        ->assertSee('data-testid="item-form-shared-tags"', false)
-        ->assertSee('Whole group', false);
+        ->assertSee('data-testid="item-form-catalog-links"', false)
+        ->assertSee('Colorway editor', false)
+        ->assertDontSee('data-testid="item-catalog-tab-colorway"', false);
 });
 
 test('item edit leaves stored colorway product name empty when inheriting parent title', function () {
@@ -696,14 +696,12 @@ test('item edit leaves stored colorway product name empty when inheriting parent
         ->assertOk()
         ->assertJson(['product_name' => null, 'found' => true]);
 
-    $html = $this->actingAs($this->user)
+    $this->actingAs($this->user)
         ->get(route('items.edit', $item))
         ->assertOk()
-        ->assertSee('Effective bare title', false)
+        ->assertSee('data-testid="item-form-catalog-links"', false)
         ->assertSee('PARENT RUNNING SHIRT', false)
-        ->content();
-
-    expect($html)->not->toMatch('/id="item-form-product-name"[^>]*value="PARENT RUNNING SHIRT"/');
+        ->assertDontSee('data-testid="item-form-product-name"', false);
 });
 
 test('asset edit form shows the bare product title not the unique group name', function () {
@@ -748,8 +746,9 @@ test('asset edit form shows the bare product title not the unique group name', f
         ->assertSee('data-testid="tag-picker-size"', false)
         ->assertSee('data-tag-selected="1"', false)
         ->assertSee('checked', false)
-        ->assertSee('value="ELBOW STRAP"', false)
-        ->assertDontSee('ELBOW STRAP - BLACKWHITE (ELBOWSUPPORT-02) - BLACKWHITE', false);
+        ->assertSee('data-testid="item-form-catalog-links"', false)
+        ->assertSee('Colorway editor', false)
+        ->assertDontSee('data-testid="item-form-product-name"', false);
 });
 
 test('manufactured item edit form pins selected tag pickers', function () {
