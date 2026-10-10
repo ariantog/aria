@@ -78,6 +78,8 @@ it('embeds db-backed jubelio sync config and warning hooks on the sell create fo
         ->assertSee('jubelioStockInfoLine(item)', false)
         ->assertSee('data-testid="jubelio-stock-info"', false)
         ->assertSee('refreshJubelioStockPreview()', false)
+        ->assertSee('refreshJubelioWarnings()', false)
+        ->assertSee('row.jubelio_item_id = Number(ci.jubelio_item_id ?? 0)', false)
         ->assertSee("_TxType === 'sell'", false);
 });
 
@@ -92,5 +94,31 @@ it('embeds move-specific sender-or-receiver jubelio check on the move create for
         ->assertOk()
         ->assertSee("_TxType === 'move'", false)
         ->assertSee('mapped(this.form.sender_id) || mapped(this.form.receiver_id)', false)
-        ->assertSee('"synced_warehouse_ids":['.$syncedReceiver->id.']', false);
+        ->assertSee('"synced_warehouse_ids":['.$syncedReceiver->id.']', false)
+        ->assertSee('async uploadCSV(event)', false)
+        ->assertSee('consolidateMoveDuplicateRows()', false)
+        ->assertSee('this.refreshJubelioWarnings()', false);
+});
+
+it('returns jubelio_item_id from batch parse for sell csv rows', function () {
+    $this->user->givePermissionTo('transactions-type-sell');
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $linked = Item::factory()->create(['code' => 'BATCH-LINKED', 'jubelio_item_id' => 901]);
+    $unlinked = Item::factory()->create(['code' => 'BATCH-UNLINKED', 'jubelio_item_id' => null]);
+
+    $csv = \Illuminate\Http\UploadedFile::fake()->createWithContent(
+        'batch.csv',
+        "BATCH-LINKED,1,10000\nBATCH-UNLINKED,2,20000\n",
+    );
+
+    $this->actingAs($this->user)
+        ->postJson(route('transactions.batch-parse'), [
+            'csv_file' => $csv,
+            'warehouse_id' => $warehouse->id,
+            'type' => 'sell',
+        ])
+        ->assertSuccessful()
+        ->assertJsonPath('data.0.jubelio_item_id', 901)
+        ->assertJsonPath('data.1.jubelio_item_id', 0);
 });

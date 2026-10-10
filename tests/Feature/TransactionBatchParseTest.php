@@ -39,6 +39,7 @@ it('parses a csv and returns warehouse stock for the selected warehouse', functi
         ->assertJsonPath('data.0.quantity', 2)
         ->assertJsonPath('data.0.price', 50_000)
         ->assertJsonPath('data.0.csv_price', 0)
+        ->assertJsonPath('data.0.jubelio_item_id', (int) ($item->jubelio_item_id ?? 0))
         ->assertJsonPath('data.0.warehouse_stock', 12)
         ->assertJsonPath('data.0.warehouse_item.0.warehouse_id', (string) $warehouse->id)
         ->assertJsonPath('data.0.subtotal', 100_000);
