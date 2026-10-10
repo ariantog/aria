@@ -93,6 +93,11 @@ class ItemService
             $groupName = $this->groupNameFromInput($catalogInput, $inputType, $pcode, $item->group, $item);
             $group = $this->resolveGroup($inputType, $pcode, $groupName, $warnaTag, $catalogInput, $item);
 
+            if ($catalogTab === 'colorway' && $this->userClearedColorwayProductName($catalogInput)) {
+                $this->clearColorwayTitleOverrides($group);
+                $group->save();
+            }
+
             $this->applyItemIdentity(
                 $item,
                 $inputType,
@@ -187,6 +192,10 @@ class ItemService
             );
 
             $group->name = $storedName;
+
+            if ($this->userClearedColorwayProductName($input)) {
+                $this->clearColorwayTitleOverrides($group);
+            }
 
             $catalogAttributes = [
                 'brand' => isset($input->brand)
@@ -746,6 +755,12 @@ class ItemService
             );
         }
 
+        if ($item !== null && $productNameSubmitted && $name === '') {
+            return $type === ItemType::ITEM
+                ? $this->identityBuilder->normalizeManufacturedPcode($pcode)
+                : strtoupper(trim($pcode));
+        }
+
         if ($item !== null && $existing !== null && ! $productNameSubmitted) {
             $existingStored = trim((string) ($existing->name ?? ''));
             if ($existingStored !== ''
@@ -814,8 +829,12 @@ class ItemService
      *     reseller_price: float,
      * }|null
      */
-    public function catalogHintsForPcode(ItemType $type, string $pcode, ?string $typeCode = null): ?array
-    {
+    public function catalogHintsForPcode(
+        ItemType $type,
+        string $pcode,
+        ?string $typeCode = null,
+        bool $storedColorwayTitleOnly = false,
+    ): ?array {
         $pcode = strtoupper(trim($pcode));
 
         if ($pcode === '') {
@@ -843,7 +862,7 @@ class ItemService
             ? $this->catalogHintsFromItem($type, $pcode, $item)
             : null;
 
-        if ($type === ItemType::ITEM) {
+        if ($type === ItemType::ITEM && ! $storedColorwayTitleOnly) {
             $resolvedTypeCode = $this->normalizeManufacturedTypeCodeHint($typeCode)
                 ?? ($item !== null ? $this->identityBuilder->manufacturedTypeCode($item) : null);
 
@@ -869,7 +888,46 @@ class ItemService
             }
         }
 
+        if ($storedColorwayTitleOnly && $catalog !== null) {
+            $catalog['product_name'] = $this->normalizeStoredColorwayHintProductName(
+                $type,
+                $normalizedPcode,
+                $catalog['product_name'] ?? null,
+                $item,
+            );
+        }
+
         return $catalog;
+    }
+
+    protected function normalizeStoredColorwayHintProductName(
+        ItemType $type,
+        string $pcode,
+        mixed $productName,
+        ?Item $item,
+    ): ?string {
+        $productName = is_string($productName) ? trim($productName) : null;
+
+        if ($productName === null || $productName === '') {
+            return null;
+        }
+
+        if ($this->isPcodeLikeProductName($productName, $pcode, $item)) {
+            return null;
+        }
+
+        if ($item?->group !== null
+            && ItemCatalogTitleForm::groupNameIsPlaceholder(
+                $type,
+                (string) $item->group->name,
+                $pcode,
+                $item->group,
+                $this->identityBuilder,
+            )) {
+            return null;
+        }
+
+        return $productName;
     }
 
     public function productNameIsPcodePlaceholder(ItemType $type, string $name, string $pcode, ?Item $item = null): bool
@@ -893,13 +951,22 @@ class ItemService
     protected function catalogHintsFromItem(ItemType $type, string $pcode, Item $item): array
     {
         $productName = null;
+        $group = $item->group;
+        $groupUsesPlaceholder = $group !== null
+            && ItemCatalogTitleForm::groupNameIsPlaceholder(
+                $type,
+                (string) $group->name,
+                $pcode,
+                $group,
+                $this->identityBuilder,
+            );
 
-        if ($item->group) {
+        if ($group !== null && ! $groupUsesPlaceholder) {
             $fromGroup = $this->identityBuilder->productDisplayName(
                 $type,
-                (string) $item->group->name,
-                (string) ($item->group->variant ?? ''),
-                (string) ($item->group->master ?? ''),
+                (string) $group->name,
+                (string) ($group->variant ?? ''),
+                (string) ($group->master ?? ''),
             );
 
             if ($fromGroup !== '' && $fromGroup !== $pcode) {
@@ -907,7 +974,7 @@ class ItemService
             }
         }
 
-        if ($productName === null) {
+        if ($productName === null && $group === null) {
             $fromItem = $type === ItemType::ASSET_LANCAR
                 ? $this->deriveLegacyAssetProductName($item)
                 : strtoupper(trim(explode(' - ', (string) $item->name, 2)[0]));
@@ -922,8 +989,6 @@ class ItemService
             && $this->isPcodeLikeProductName($productName, $pcode, $item)) {
             $productName = null;
         }
-
-        $group = $item->group;
 
         return [
             'product_name' => $productName,
@@ -1237,6 +1302,26 @@ class ItemService
         }
 
         return strtoupper(trim($groupName)) === strtoupper(trim($pcode));
+    }
+
+    protected function userClearedColorwayProductName(object $input): bool
+    {
+        if (! property_exists($input, 'product_name') && ! isset($input->product_name)) {
+            return false;
+        }
+
+        return trim((string) ($input->product_name ?? '')) === '';
+    }
+
+    protected function clearColorwayTitleOverrides(ItemGroup $group): void
+    {
+        if (Schema::hasColumn($group->getTable(), 'alias')) {
+            $group->alias = '';
+        }
+
+        if (ItemCatalog::itemColumnExists('alias')) {
+            Item::query()->where('group_id', $group->id)->update(['alias' => '']);
+        }
     }
 
     protected function normalizeCatalogTab(mixed $tab): string

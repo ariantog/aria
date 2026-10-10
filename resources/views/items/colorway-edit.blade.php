@@ -90,7 +90,6 @@ $breadcrumbs = [
                         <div>
                             <label for="colorway-product-name" class="mb-1 block text-sm font-medium text-gray-700">
                                 Stored product name (this colorway)
-                                @if($isAsset)<span class="text-red-500">*</span>@endif
                             </label>
                             <input type="text" id="colorway-product-name" name="product_name" x-model="form.product_name"
                                    data-testid="colorway-product-name"

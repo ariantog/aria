@@ -98,5 +98,6 @@ $formItem = [
     'isAsset' => $isAsset,
     'formItem' => $formItem,
     'defaultCatalogTab' => 'size',
+    'editingItem' => true,
 ])
 @endsection

@@ -783,10 +783,6 @@ class ItemsController extends Controller
             }
         }
 
-        if ($isAsset) {
-            $rules['product_name'] = ['required', 'string', 'max:255'];
-        }
-
         $request->validate($rules, [
             'product_name.required' => 'Product name is required.',
         ]);
@@ -937,10 +933,13 @@ class ItemsController extends Controller
 
         $pcode = strtoupper(trim((string) $request->query('pcode', '')));
         $typeCode = strtoupper(trim((string) $request->query('type_code', '')));
+        $storedColorwayTitleOnly = $request->boolean('stored_colorway_title_only');
+
         $catalog = $this->itemService->catalogHintsForPcode(
             $type,
             $pcode,
             $typeCode !== '' ? $typeCode : null,
+            $storedColorwayTitleOnly,
         );
 
         return response()->json([

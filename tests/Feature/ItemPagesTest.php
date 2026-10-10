@@ -659,6 +659,53 @@ test('item create and edit forms mark shared colorway attributes', function () {
         ->assertSee('Whole group', false);
 });
 
+test('item edit leaves stored colorway product name empty when inheriting parent title', function () {
+    $typeTag = \App\Models\Tag::factory()->create([
+        'type' => \App\Models\Tag::TYPE_TYPE,
+        'item_type' => \App\Enums\ItemType::ITEM->value,
+        'code' => 'AJD',
+        'name' => 'Jacket',
+    ]);
+    $sizeTag = \App\Models\Tag::factory()->create(['type' => \App\Models\Tag::TYPE_SIZE, 'code' => 'S', 'name' => 'Small']);
+    $warnaTag = \App\Models\Tag::factory()->create(['type' => \App\Models\Tag::TYPE_WARNA, 'code' => 'BLUE', 'name' => 'BLUE']);
+    $jahitTag = \App\Models\Tag::factory()->create(['type' => \App\Models\Tag::TYPE_JAHIT, 'code' => 'J1', 'name' => 'Jahit1']);
+
+    $group = \App\Models\ItemGroup::factory()->create([
+        'master' => 'CX93249-03',
+        'variant' => '03',
+        'name' => 'CX93249-03',
+    ]);
+    $item = Item::factory()->create([
+        'type' => \App\Enums\ItemType::ITEM,
+        'group_id' => $group->id,
+        'pcode' => 'CX93249-03',
+        'code' => 'AJD-CX93249-03-S',
+        'name' => 'PARENT RUNNING SHIRT - S',
+    ]);
+    $item->tags()->attach([$typeTag->id, $sizeTag->id, $warnaTag->id, $jahitTag->id]);
+
+    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey($item);
+    \App\Support\ItemProductTitle::syncParentProductName($parentKey, 'PARENT RUNNING SHIRT');
+
+    $this->actingAs($this->user)
+        ->getJson(route('items.pcode-name', [
+            'pcode' => 'CX93249-03',
+            'type' => \App\Enums\ItemType::ITEM->value,
+            'stored_colorway_title_only' => 1,
+        ]))
+        ->assertOk()
+        ->assertJson(['product_name' => null, 'found' => true]);
+
+    $html = $this->actingAs($this->user)
+        ->get(route('items.edit', $item))
+        ->assertOk()
+        ->assertSee('Effective bare title', false)
+        ->assertSee('PARENT RUNNING SHIRT', false)
+        ->content();
+
+    expect($html)->not->toMatch('/id="item-form-product-name"[^>]*value="PARENT RUNNING SHIRT"/');
+});
+
 test('asset edit form shows the bare product title not the unique group name', function () {
     $group = \App\Models\ItemGroup::factory()->create([
         'master' => 'ELBOWSUPPORT-02',

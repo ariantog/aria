@@ -10,6 +10,7 @@
         'reseller_price' => old('reseller_price', ''),
     ];
     $catalogTabDefault = old('catalog_tab', $defaultCatalogTab ?? 'colorway');
+    $editingItem = $editingItem ?? false;
 @endphp
 @push('scripts')
 <script>
@@ -44,6 +45,7 @@ function ariaApplyPricingScope(scope, panel) {
 function itemForm() {
     return {
         isAsset: @json($isAsset),
+        editingItem: @json($editingItem),
         multiSize: @json($multiSize),
         multiWarna: @json($isAsset && $multiSize),
         allSizeCode: 'AS',
@@ -474,7 +476,8 @@ function itemForm() {
                 const typeCodeParam = typeCode && typeCode !== '???'
                     ? `&type_code=${encodeURIComponent(typeCode)}`
                     : '';
-                const url = `${this.pcodeNameUrl}?pcode=${encodeURIComponent(pcode)}&type=${this.itemType}${typeCodeParam}`;
+                const storedOnlyParam = this.editingItem ? '&stored_colorway_title_only=1' : '';
+                const url = `${this.pcodeNameUrl}?pcode=${encodeURIComponent(pcode)}&type=${this.itemType}${typeCodeParam}${storedOnlyParam}`;
                 const res = await fetch(url, {
                     headers: { 'Accept': 'application/json' },
                     credentials: 'same-origin',
