@@ -1230,6 +1230,38 @@ test('it keeps a custom group title when product name is not the pcode', functio
         ->and((float) $medium->price)->toBe(0.0);
 });
 
+test('catalog hints stored colorway only omits parent title when group inherits', function () {
+    $this->itemService->create((object) [
+        'pcode' => 'CX93249-03',
+        'type' => ItemType::ITEM->value,
+        'price' => 100000,
+    ], [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ]);
+
+    $item = Item::where('code', 'AJD-CX93249-03-S')->firstOrFail();
+    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey($item);
+    ItemProductTitle::syncParentProductName($parentKey, 'PARENT RUNNING SHIRT');
+
+    $groupIds = [$item->group_id];
+    $this->itemService->applyParentGroupProductName(
+        $parentKey,
+        'PARENT RUNNING SHIRT',
+        $groupIds,
+        resetColorwayTitlesToInherit: true,
+    );
+
+    $item->refresh();
+    $item->load('group');
+
+    expect($item->name)->toContain('PARENT RUNNING SHIRT')
+        ->and($this->itemService->catalogHintsForPcode(ItemType::ITEM, 'CX93249-03', null, true))
+        ->toMatchArray(['product_name' => null]);
+});
+
 test('item update from sku catalog tab preserves colorway title and ignores stale product_name', function () {
     $this->itemService->create((object) [
         'pcode' => 'CX93249-03',
