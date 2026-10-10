@@ -18,8 +18,9 @@ $pageItemIds = collect($preview->items())->pluck('id')->values()->all();
         <div>
             <h1 class="text-2xl font-bold tracking-tight">Selective Item Purge</h1>
             <p class="text-sm text-gray-500">
-                Hard-delete orphan items with <strong>no transaction lines</strong> and <strong>id &le; max id</strong>,
-                even when warehouse stock &gt; 0. Soft-deleted items are included.
+                Hard-delete orphan items with <strong>no transaction lines</strong> and <strong>id &le; max id</strong>.
+                By default, in-stock rows are included; check <strong>Zero warehouse qty only</strong> to hide items with warehouse stock &gt; 0.
+                Soft-deleted items are included.
             </p>
             <p class="mt-1 text-xs text-gray-500">Superadmin only. Use <strong>Delete by item id</strong> below for a single SKU without browsing the preview list.</p>
             <p class="mt-1 text-xs text-gray-500">
@@ -46,6 +47,9 @@ $pageItemIds = collect($preview->items())->pluck('id')->values()->all();
                 <input type="hidden" name="max_id" value="{{ $maxId }}">
                 @if($itemType !== null)
                 <input type="hidden" name="item_type" value="{{ $itemType }}">
+                @endif
+                @if($zeroQtyOnly)
+                <input type="hidden" name="zero_qty_only" value="1">
                 @endif
                 @if($preview->currentPage() > 1)
                 <input type="hidden" name="page" value="{{ $preview->currentPage() }}">
@@ -99,6 +103,17 @@ $pageItemIds = collect($preview->items())->pluck('id')->values()->all();
                 @endforeach
             </select>
         </div>
+        <div class="flex items-end pb-1">
+            <label class="flex cursor-pointer items-center gap-2 text-sm text-gray-700">
+                <input type="checkbox"
+                       name="zero_qty_only"
+                       value="1"
+                       data-testid="item-purge-zero-qty-only"
+                       @checked($zeroQtyOnly)
+                       class="h-4 w-4 rounded border-gray-300">
+                Zero warehouse qty only
+            </label>
+        </div>
         <button type="submit" class="h-9 rounded-md bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700">Preview</button>
     </form>
 
@@ -127,6 +142,7 @@ $pageItemIds = collect($preview->items())->pluck('id')->values()->all();
         @if($itemType !== null)
         <input type="hidden" name="item_type" value="{{ $itemType }}">
         @endif
+        <input type="hidden" name="zero_qty_only" value="{{ $zeroQtyOnly ? '1' : '0' }}">
 
         <div class="flex flex-wrap items-center justify-between gap-2 p-4 pb-0">
             <h2 class="text-lg font-semibold">Preview</h2>

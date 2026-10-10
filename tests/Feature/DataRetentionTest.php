@@ -394,6 +394,37 @@ it('lists orphan items with id lte max id on selective preview including soft-de
         ->and(collect($preview->items())->pluck('id')->all())->toEqualCanonicalizing([$orphan->id, $softDeleted->id]);
 });
 
+it('filters selective item purge preview to zero warehouse qty when requested', function () {
+    $this->travelTo('2026-08-28');
+
+    $zeroQty = Item::factory()->create(['created_at' => '2026-08-27 12:00:00']);
+    $inStock = Item::factory()->create(['created_at' => '2026-08-27 12:00:00']);
+    $warehouseId = \App\Models\Addrbook::factory()->warehouse()->create()->id;
+
+    DB::table('warehouse_item')->insert([
+        'item_id' => $inStock->id,
+        'warehouse_id' => $warehouseId,
+        'warehouse_type' => '2',
+        'quantity' => 5,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    $maxId = max($zeroQty->id, $inStock->id);
+
+    $all = $this->retention->previewSelectableItemPurge(maxId: $maxId, perPage: 100);
+    expect($all->total())->toBe(2);
+
+    $zeroOnly = $this->retention->previewSelectableItemPurge(
+        maxId: $maxId,
+        perPage: 100,
+        zeroQtyOnly: true,
+    );
+
+    expect($zeroOnly->total())->toBe(1)
+        ->and($zeroOnly->items()[0]['id'])->toBe($zeroQty->id);
+});
+
 it('paginates selective item purge preview at 100 rows sorted by id asc', function () {
     $this->travelTo('2026-08-28');
 
@@ -458,7 +489,24 @@ it('renders selective item purge with keep checkboxes and pagination', function 
         ->assertSee('>'.$orphan->id.'</a>', false)
         ->assertDontSee('#'.$orphan->id.'</a>', false)
         ->assertSee('Purge 1 on this page')
-        ->assertSee('this page only');
+        ->assertSee('this page only')
+        ->assertSee('Zero warehouse qty only');
+});
+
+it('shows zero qty filter on item purge index when query param is set', function () {
+    app(PermissionGenerator::class)->generateForModule('DataRetentionRun');
+    $user = User::query()->find(1) ?? User::factory()->create(['id' => 1]);
+
+    $this->travelTo('2026-08-28');
+    $orphan = Item::factory()->create(['created_at' => '2026-08-24 02:58:40']);
+
+    $this->actingAs($user)
+        ->get(route('data-retention.item-purge.index', [
+            'max_id' => $orphan->id,
+            'zero_qty_only' => '1',
+        ]))
+        ->assertSuccessful()
+        ->assertSee('data-testid="item-purge-zero-qty-only"', false);
 });
 
 it('purges only unchecked items on the submitted page', function () {
