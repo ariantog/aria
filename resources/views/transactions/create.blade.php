@@ -1690,6 +1690,7 @@ function createTransaction() {
             this.form.items.splice(idx, 1);
             if (this.form.items.length === 0) this.addItemRow(false);
             this.recalcTotals();
+            this.refreshJubelioWarnings();
 
             return targetIdx;
         },
