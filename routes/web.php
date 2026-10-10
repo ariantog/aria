@@ -374,6 +374,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('transactions/{type}/create', [App\Http\Controllers\TransactionsController::class, 'create'])->name('transactions.create');
     Route::get('transactions/{type}/item-by-id', [App\Http\Controllers\TransactionsController::class, 'itemById'])->name('transactions.item-by-id');
     Route::get('transactions/{type}/item-by-code', [App\Http\Controllers\TransactionsController::class, 'itemByCode'])->name('transactions.item-by-code');
+    Route::post('transactions/{type}/jubelio-stock-preview', [App\Http\Controllers\TransactionsController::class, 'jubelioStockPreview'])->name('transactions.jubelio-stock-preview');
     Route::get('transactions/{type}/lookup/{role}', [App\Http\Controllers\TransactionLookupController::class, 'search'])->name('transactions.lookup');
     Route::get('tags/lookup', [App\Http\Controllers\TagLookupController::class, 'search'])->name('tags.lookup');
     Route::resource('tags', \App\Http\Controllers\Stuff\TagController::class);

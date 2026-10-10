@@ -40,6 +40,47 @@ class WarehouseJubelioStockService
      */
     public function stockDataForItems(Jubeliosync $sync, Collection $items): array
     {
+        $base = $this->jubelioQuantitiesForItems($sync, $items);
+        $stocks = $base['stocks'];
+
+        foreach ($items as $item) {
+            $row = $stocks[$item->id] ?? null;
+            if (! $row || ! $row['linked']) {
+                continue;
+            }
+
+            $ariaQty = (float) ($item->pivot->quantity ?? 0);
+            $available = $row['available'];
+
+            $stocks[$item->id]['mismatch'] = $available !== null && $ariaQty !== $available;
+        }
+
+        return [
+            'stocks' => $stocks,
+            'fetch_failed' => $base['fetch_failed'],
+            'unlinked_count' => $base['unlinked_count'],
+        ];
+    }
+
+    /**
+     * Live Jubelio location quantities for linked items (no Aria qty / mismatch).
+     *
+     * @param  Collection<int, Item>  $items
+     * @return array{
+     *     stocks: array<int, array{
+     *         linked: bool,
+     *         on_hand: ?float,
+     *         on_order: ?float,
+     *         reserved: ?float,
+     *         available: ?float,
+     *         mismatch: bool,
+     *     }>,
+     *     fetch_failed: bool,
+     *     unlinked_count: int,
+     * }
+     */
+    public function jubelioQuantitiesForItems(Jubeliosync $sync, Collection $items): array
+    {
         $locationId = (int) $sync->jubelio_location_id;
         $stocks = [];
         $unlinkedCount = 0;
@@ -97,16 +138,13 @@ class WarehouseJubelioStockService
                 ? $this->stockCheckService->resolveLocationQuantities($locationStock)
                 : null;
 
-            $ariaQty = (float) ($item->pivot->quantity ?? 0);
-            $available = $quantities['available'] ?? null;
-
             $stocks[$item->id] = [
                 'linked' => true,
                 'on_hand' => $quantities['on_hand'] ?? null,
                 'on_order' => $quantities['on_order'] ?? null,
                 'reserved' => $quantities['reserved'] ?? null,
-                'available' => $available,
-                'mismatch' => $available !== null && $ariaQty !== $available,
+                'available' => $quantities['available'] ?? null,
+                'mismatch' => false,
             ];
         }
 

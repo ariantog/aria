@@ -250,6 +250,12 @@
                     <button type="button" @click="dismissJubelioWarning = true" class="shrink-0 text-amber-600 hover:text-amber-800">✕</button>
                 </div>
 
+                <div x-show="hasJubelioStockWarning()" x-cloak data-testid="jubelio-stock-warning"
+                     class="mx-5 mt-4 flex items-start gap-2 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-900">
+                    <svg class="mt-0.5 h-4 w-4 flex-shrink-0 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+                    <span>Stok Jubelio (available / on order) tidak cukup untuk satu atau lebih baris terhubung — cek baris oranye di bawah (oversell marketplace).</span>
+                </div>
+
                 {{-- Batch CSV rows that could not be matched (legacy_code then code) --}}
                 <div x-show="hasBatchCsvUnmatched()" x-cloak data-testid="batch-csv-unmatched"
                      class="mx-5 mt-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-950">
@@ -337,8 +343,12 @@
                                 <p x-show="item.jubelio_unlinked_warning" x-cloak
                                    class="mt-1 text-[10px] font-medium text-amber-700"
                                    data-testid="jubelio-unlinked-row-hint">
-                                    Belum terhubung ke Jubelio
+                                    Belum terhubung ke Jubelio — baris ini tidak bisa disinkronkan ke Jubelio.
                                 </p>
+                                <p x-show="item.jubelio_stock_warning" x-cloak
+                                   class="mt-1 text-[10px] font-medium text-orange-800"
+                                   data-testid="jubelio-stock-row-hint"
+                                   x-text="item.jubelio_stock_warning"></p>
                             </div>
                             {{-- Qty --}}
                             <div class="sm:col-span-1">
@@ -615,6 +625,8 @@ const _Prefill = @json($prefill ?? null);
 const _ItemLookupUrl = @json(route('transactions.item-by-id', ['type' => $type]));
 const _ItemLookupByCodeUrl = @json(route('transactions.item-by-code', ['type' => $type]));
 const _JubelioSync = @json($jubelio_sync ?? ['synced_warehouse_ids' => []]);
+const _JubelioActive = @js((bool) ($jubelio_active ?? false));
+const _JubelioStockPreviewUrl = @json(route('transactions.jubelio-stock-preview', ['type' => $type]));
 const _AfterQtyField = @js($isMove ? null : 'disc');
 const _BarcodeScannerLibUrl = 'https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/zxing-browser.min.js';
 const _CanSellCashIn = @js((bool) ($type === 'sell' && ($sellCashIn['can_create'] ?? false)));
@@ -675,6 +687,8 @@ function createTransaction() {
         serverErrors: [],
         barcodeError: '',
         dismissJubelioWarning: false,
+        jubelioStockFetchFailed: false,
+        _jubelioStockTimer: null,
         batchCsvReport: null,
         dismissBatchCsvReport: false,
         copyFeedback: false,
@@ -777,6 +791,7 @@ function createTransaction() {
             this.$watch('form.sender_id', () => { this.refreshStocks(); this.refreshJubelioWarnings(); });
             this.$watch('form.receiver_id', () => { this.refreshStocks(); this.refreshJubelioWarnings(); });
             this.refreshStocks();
+            this.refreshJubelioWarnings();
             // PPN is optional: item forms follow the counterparty ppn flag; cash/tax
             // reporting is gated by the bank's PKP reporting entity. Never assume 11%.
             this.$watch('form.sender', () => this.recalcTotals());
@@ -998,6 +1013,7 @@ function createTransaction() {
                 quantity: 1, price: null, discount: 0,
                 warehouse_stock: null, warehouse_item: [],
                 jubelio_item_id: 0, jubelio_unlinked_warning: false,
+                jubelio_marketplace_stock: null, jubelio_stock_warning: '',
                 track_inventory: true, allow_decimal_quantity: false,
                 subtotal: 0, note: '',
                 results: [], showDropdown: false, activeIndex: -1, searchTimer: null,
@@ -1020,6 +1036,7 @@ function createTransaction() {
             this.form.items.splice(idx, 1);
             if (this.form.items.length === 0) this.addItemRow(false);
             this.recalcTotals();
+            this.refreshJubelioWarnings();
         },
 
         stockFor(row) {
@@ -1053,7 +1070,10 @@ function createTransaction() {
             row.allow_decimal_quantity = !!source.allow_decimal_quantity;
             row.warehouse_stock = this.stockFor(row);
             row.jubelio_item_id = Number(source.jubelio_item_id ?? 0);
+            row.jubelio_marketplace_stock = null;
+            row.jubelio_stock_warning = '';
             this.refreshRowJubelioWarning(row);
+            this.scheduleJubelioStockPreview();
             row.results = [];
             row.showDropdown = false;
             row.activeIndex = -1;
@@ -1086,23 +1106,177 @@ function createTransaction() {
             return id > 0;
         },
 
+        jubelioLinkedLineCount() {
+            return this.form.items.filter(row => row.item_id && this.itemJubelioLinked(row)).length;
+        },
+
+        /** Sell/return-supplier: warn about Jubelio only when the cart mixes linked + unlinked lines. */
+        jubelioMixedCartSyncActive() {
+            if (_TxType === 'sell' || _TxType === 'return-supplier') {
+                return this.jubelioWarehouseMapped() && this.jubelioLinkedLineCount() > 0;
+            }
+
+            return this.jubelioWarehouseMapped();
+        },
+
         refreshRowJubelioWarning(row) {
-            row.jubelio_unlinked_warning = this.jubelioWarehouseMapped()
-                && !!row.item_id
-                && !this.itemJubelioLinked(row);
-            if (row.jubelio_unlinked_warning) this.dismissJubelioWarning = false;
+            const unlinked = !!row.item_id && !this.itemJubelioLinked(row);
+            if (_TxType === 'sell' || _TxType === 'return-supplier') {
+                row.jubelio_unlinked_warning = this.jubelioMixedCartSyncActive() && unlinked;
+            } else {
+                row.jubelio_unlinked_warning = this.jubelioWarehouseMapped() && unlinked;
+            }
+            if (row.jubelio_unlinked_warning) {
+                this.dismissJubelioWarning = false;
+            }
+            if (! this.jubelioMixedCartSyncActive()) {
+                row.jubelio_marketplace_stock = null;
+                row.jubelio_stock_warning = '';
+            } else {
+                this.refreshRowJubelioStockWarning(row);
+            }
         },
 
         refreshJubelioWarnings() {
             this.form.items.forEach(row => this.refreshRowJubelioWarning(row));
+            this.scheduleJubelioStockPreview();
+        },
+
+        refreshRowJubelioStockWarning(row) {
+            row.jubelio_stock_warning = '';
+            if (! this.jubelioMixedCartSyncActive() || ! row.item_id || ! this.itemJubelioLinked(row)) {
+                return;
+            }
+
+            const stock = row.jubelio_marketplace_stock;
+            if (! stock || ! stock.linked) {
+                if (this.jubelioStockFetchFailed) {
+                    row.jubelio_stock_warning = 'Stok Jubelio tidak dapat dimuat.';
+                }
+
+                return;
+            }
+
+            const qty = Number(row.quantity || 0);
+            const avail = stock.available;
+            const onOrder = Number(stock.on_order ?? 0);
+            const reserved = Number(stock.reserved ?? 0);
+
+            if (avail === null || avail === undefined) {
+                if (this.jubelioStockFetchFailed) {
+                    row.jubelio_stock_warning = 'Stok Jubelio tidak dapat dimuat.';
+                }
+
+                return;
+            }
+
+            if (qty > avail) {
+                let msg = 'Jubelio available ' + avail + ', jual ' + qty + '.';
+                if (onOrder > 0) {
+                    msg += ' On order: ' + onOrder + '.';
+                }
+                if (reserved > 0) {
+                    msg += ' Reserved: ' + reserved + '.';
+                }
+                row.jubelio_stock_warning = msg + ' Risiko oversell di marketplace.';
+
+                return;
+            }
+
+            if (avail <= 0 && onOrder > 0) {
+                row.jubelio_stock_warning = 'Jubelio available 0 — on order ' + onOrder + '. Stok sudah dipesan online.';
+            }
+        },
+
+        scheduleJubelioStockPreview() {
+            if (! _JubelioActive || ! _JubelioStockPreviewUrl) {
+                return;
+            }
+            if (! this.jubelioMixedCartSyncActive()) {
+                this.jubelioStockFetchFailed = false;
+
+                return;
+            }
+            clearTimeout(this._jubelioStockTimer);
+            this._jubelioStockTimer = setTimeout(() => this.refreshJubelioStockPreview(), 350);
+        },
+
+        async refreshJubelioStockPreview() {
+            if (! _JubelioActive || ! _JubelioStockPreviewUrl || ! this.jubelioMixedCartSyncActive()) {
+                return;
+            }
+
+            const warehouseId = Number(this.warehouseId() || 0);
+            if (warehouseId < 1) {
+                return;
+            }
+
+            const itemIds = this.form.items
+                .filter(row => row.item_id && this.itemJubelioLinked(row))
+                .map(row => Number(row.item_id))
+                .filter(id => id > 0);
+
+            if (itemIds.length === 0) {
+                this.jubelioStockFetchFailed = false;
+
+                return;
+            }
+
+            const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
+            let data = null;
+            try {
+                const res = await fetch(_JubelioStockPreviewUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': token,
+                    },
+                    body: JSON.stringify({ warehouse_id: warehouseId, item_ids: itemIds }),
+                });
+                if (! res.ok) {
+                    this.jubelioStockFetchFailed = true;
+                    this.form.items.forEach(row => this.refreshRowJubelioStockWarning(row));
+
+                    return;
+                }
+                data = await res.json();
+            } catch (_) {
+                this.jubelioStockFetchFailed = true;
+                this.form.items.forEach(row => this.refreshRowJubelioStockWarning(row));
+
+                return;
+            }
+
+            this.jubelioStockFetchFailed = !! data.fetch_failed;
+            const stocks = data.stocks ?? {};
+            this.form.items.forEach(row => {
+                if (! row.item_id || ! this.itemJubelioLinked(row)) {
+                    row.jubelio_marketplace_stock = null;
+
+                    return;
+                }
+                const sid = String(row.item_id);
+                row.jubelio_marketplace_stock = stocks[sid] ?? stocks[Number(sid)] ?? null;
+                this.refreshRowJubelioStockWarning(row);
+            });
         },
 
         jubelioUnlinkedCount() {
             return this.form.items.filter(row => row.jubelio_unlinked_warning).length;
         },
 
+        jubelioStockWarningCount() {
+            return this.form.items.filter(row => String(row.jubelio_stock_warning || '').trim() !== '').length;
+        },
+
         hasJubelioUnlinkedWarning() {
             return !this.dismissJubelioWarning && this.jubelioUnlinkedCount() > 0;
+        },
+
+        hasJubelioStockWarning() {
+            return this.jubelioStockWarningCount() > 0;
         },
 
         hasBatchCsvUnmatched() {
@@ -1128,11 +1302,11 @@ function createTransaction() {
 
         jubelioUnlinkedMessage() {
             const n = this.jubelioUnlinkedCount();
-            if (n === 1) {
-                return '1 item belum terhubung ke Jubelio. Transaksi tetap bisa disimpan, tetapi sinkron stok ke Jubelio membutuhkan penghubungan item terlebih dahulu.';
-            }
+            const prefix = n === 1
+                ? '1 baris belum terhubung ke Jubelio'
+                : n + ' baris belum terhubung ke Jubelio';
 
-            return n + ' item belum terhubung ke Jubelio. Transaksi tetap bisa disimpan, tetapi sinkron stok ke Jubelio membutuhkan penghubungan item terlebih dahulu.';
+            return prefix + ' — baris terhubung lain tetap bisa disinkronkan, tetapi baris ini tidak. Transaksi tetap bisa disimpan.';
         },
 
         async fetchJson(url) {
@@ -1338,6 +1512,9 @@ function createTransaction() {
             row.warehouse_item = [];
             row.jubelio_item_id = 0;
             row.jubelio_unlinked_warning = false;
+            row.jubelio_marketplace_stock = null;
+            row.jubelio_stock_warning = '';
+            this.refreshJubelioWarnings();
             const q = String(row.name || '').trim();
             clearTimeout(row.searchTimer);
             if (!q || q.length < COMBOBOX_MIN_CHARS) { row.results = []; row.showDropdown = false; return; }
@@ -1598,6 +1775,8 @@ function createTransaction() {
             const gross = Number(item.quantity || 0) * Number(item.price || 0);
             item.subtotal = gross - (gross * Number(item.discount || 0) / 100);
             if (item.item_id) item.warehouse_stock = this.stockFor(item);
+            this.refreshRowJubelioStockWarning(item);
+            this.scheduleJubelioStockPreview();
             this.recalcTotals();
         },
 
