@@ -112,6 +112,36 @@ it('uses csv price for buy batch uploads', function () {
         ->assertJsonPath('data.0.subtotal', 152_000);
 });
 
+it('prefers legacy sku over another item with the same code on sell batch upload', function () {
+    $warehouse = Addrbook::factory()->create(['type' => Addrbook::TYPE_WAREHOUSE]);
+    Item::factory()->create(['code' => 'ACCHJ0002206L', 'legacy_code' => '']);
+    $converted = Item::factory()->create([
+        'code' => 'ACC-HJ00022-06-L',
+        'legacy_code' => 'ACCHJ0002206L',
+        'name' => 'Converted Item',
+        'price' => 159_900,
+    ]);
+    WarehouseItem::create([
+        'item_id' => $converted->id,
+        'warehouse_id' => $warehouse->id,
+        'warehouse_type' => Addrbook::class,
+        'quantity' => 4,
+    ]);
+
+    $csv = UploadedFile::fake()->createWithContent('batch.csv', "ACCHJ0002206L,2,159900\n");
+
+    $this->actingAs($this->user)
+        ->postJson(route('transactions.batch-parse'), [
+            'csv_file' => $csv,
+            'warehouse_id' => $warehouse->id,
+            'type' => 'sell',
+        ])
+        ->assertSuccessful()
+        ->assertJsonPath('data.0.code', 'ACC-HJ00022-06-L')
+        ->assertJsonPath('data.0.quantity', 2)
+        ->assertJsonPath('data.0.price', 159_900);
+});
+
 it('resolves csv codes via legacy sku and skips a header row', function () {
     $warehouse = Addrbook::factory()->create(['type' => Addrbook::TYPE_WAREHOUSE]);
     $item = Item::factory()->create([

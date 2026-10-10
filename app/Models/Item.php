@@ -537,7 +537,7 @@ class Item extends Model
     }
 
     /**
-     * Resolve an item by canonical code or preserved legacy SKU (Jubelio / imports).
+     * Resolve an item by preserved legacy SKU first, then canonical code (Jubelio / imports).
      */
     public static function findBySku(string $sku): ?self
     {
@@ -547,11 +547,16 @@ class Item extends Model
             return null;
         }
 
+        $byLegacy = static::query()
+            ->whereRaw('UPPER(legacy_code) = ?', [$normalized])
+            ->first();
+
+        if ($byLegacy) {
+            return $byLegacy;
+        }
+
         return static::query()
-            ->where(function (Builder $query) use ($normalized) {
-                $query->whereRaw('UPPER(code) = ?', [$normalized])
-                    ->orWhereRaw('UPPER(legacy_code) = ?', [$normalized]);
-            })
+            ->whereRaw('UPPER(code) = ?', [$normalized])
             ->first();
     }
 
@@ -580,7 +585,7 @@ class Item extends Model
     }
 
     /**
-     * Batch-resolve items keyed by uppercase SKU (matches code or legacy_code).
+     * Batch-resolve items keyed by uppercase SKU (legacy_code match, then code).
      *
      * @param  array<int, string>  $skus
      * @return Collection<string, self>
@@ -605,13 +610,27 @@ class Item extends Model
             })
             ->get(['id', 'code', 'legacy_code', 'name']);
 
-        $keyed = collect();
+        $needles = array_fill_keys($normalized, true);
+        $legacyMap = [];
+        $codeMap = [];
 
         foreach ($items as $item) {
-            $keyed[strtoupper($item->code)] = $item;
+            $legacyKey = strtoupper(trim((string) ($item->legacy_code ?? '')));
+            if ($legacyKey !== '' && isset($needles[$legacyKey])) {
+                $legacyMap[$legacyKey] = $item;
+            }
 
-            if ($item->legacy_code) {
-                $keyed[strtoupper($item->legacy_code)] = $item;
+            $codeKey = strtoupper(trim((string) $item->code));
+            if ($codeKey !== '' && isset($needles[$codeKey])) {
+                $codeMap[$codeKey] = $item;
+            }
+        }
+
+        $keyed = collect();
+        foreach ($normalized as $sku) {
+            $item = $legacyMap[$sku] ?? $codeMap[$sku] ?? null;
+            if ($item) {
+                $keyed[$sku] = $item;
             }
         }
 
