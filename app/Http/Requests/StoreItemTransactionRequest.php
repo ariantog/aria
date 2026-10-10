@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\Addrbook;
 use App\Models\Transaction;
+use App\Services\Jubelio\JubelioUnlinkedSubmitGuard;
 use App\Support\ItemQuantityValidator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -95,6 +96,35 @@ class StoreItemTransactionRequest extends FormRequest
             foreach (ItemQuantityValidator::validateLines($items) as $message) {
                 $validator->errors()->add('items', $message);
             }
+        });
+
+        $validator->after(function (Validator $validator) {
+            $type = (string) $this->input('type', '');
+            if (! in_array($type, ['sell', 'move'], true)) {
+                return;
+            }
+
+            if (JubelioUnlinkedSubmitGuard::userMaySubmitWithUnlinked($this->user())) {
+                return;
+            }
+
+            $itemIds = collect($this->input('items', []))
+                ->pluck('item_id')
+                ->all();
+
+            if (! JubelioUnlinkedSubmitGuard::blocksSubmit(
+                $type,
+                (int) $this->input('sender_id'),
+                (int) $this->input('receiver_id'),
+                is_array($itemIds) ? $itemIds : [],
+            )) {
+                return;
+            }
+
+            $validator->errors()->add(
+                'items',
+                'Satu atau lebih baris belum terhubung ke Jubelio pada gudang terhubung — transaksi tidak dapat disimpan tanpa izin khusus.',
+            );
         });
 
         $validator->after(function (Validator $validator) {

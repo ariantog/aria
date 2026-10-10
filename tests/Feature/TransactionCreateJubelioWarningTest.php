@@ -80,6 +80,7 @@ it('embeds db-backed jubelio sync config and warning hooks on the sell create fo
         ->assertSee('refreshJubelioStockPreview()', false)
         ->assertSee('refreshJubelioWarnings()', false)
         ->assertSee('row.jubelio_item_id = Number(ci.jubelio_item_id ?? 0)', false)
+        ->assertSee('jubelioUnlinkedSubmitBlocked()', false)
         ->assertSee("_TxType === 'sell'", false);
 });
 

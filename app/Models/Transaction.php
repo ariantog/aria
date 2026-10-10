@@ -371,6 +371,7 @@ class Transaction extends Model
             'type-depreciation' => 'transactions-type-depreciation',
             'transaction-sync' => 'transactions-transaction-sync',
             'edit-invoice' => 'transactions-edit-invoice',
+            'submit-jubelio-unlinked' => 'transactions-submit-jubelio-unlinked',
         ];
     }
 
