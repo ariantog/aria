@@ -425,6 +425,43 @@ it('filters selective item purge preview to zero warehouse qty when requested', 
         ->and($zeroOnly->items()[0]['id'])->toBe($zeroQty->id);
 });
 
+it('includes orphan items whose warehouse rows net to zero or below when zero qty filter is on', function () {
+    $this->travelTo('2026-08-28');
+
+    $netZero = Item::factory()->create(['created_at' => '2026-08-27 12:00:00']);
+    $warehouseA = \App\Models\Addrbook::factory()->warehouse()->create()->id;
+    $warehouseB = \App\Models\Addrbook::factory()->warehouse()->create()->id;
+
+    DB::table('warehouse_item')->insert([
+        [
+            'item_id' => $netZero->id,
+            'warehouse_id' => $warehouseA,
+            'warehouse_type' => '2',
+            'quantity' => 5,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ],
+        [
+            'item_id' => $netZero->id,
+            'warehouse_id' => $warehouseB,
+            'warehouse_type' => '2',
+            'quantity' => -5,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ],
+    ]);
+
+    $zeroOnly = $this->retention->previewSelectableItemPurge(
+        maxId: $netZero->id,
+        perPage: 100,
+        zeroQtyOnly: true,
+    );
+
+    expect($zeroOnly->total())->toBe(1)
+        ->and($zeroOnly->items()[0]['id'])->toBe($netZero->id)
+        ->and($zeroOnly->items()[0]['warehouse_qty'])->toBe(0.0);
+});
+
 it('paginates selective item purge preview at 100 rows sorted by id asc', function () {
     $this->travelTo('2026-08-28');
 
@@ -490,7 +527,7 @@ it('renders selective item purge with keep checkboxes and pagination', function 
         ->assertDontSee('#'.$orphan->id.'</a>', false)
         ->assertSee('Purge 1 on this page')
         ->assertSee('this page only')
-        ->assertSee('Zero warehouse qty only');
+        ->assertSee('Warehouse qty ≤ 0 only');
 });
 
 it('shows zero qty filter on item purge index when query param is set', function () {

@@ -312,7 +312,8 @@ class DataRetentionService
     /**
      * Paginated preview of orphan items eligible for selective purge (id &lt;= max id, zero tx lines).
      *
-     * Includes soft-deleted items. Warehouse stock is ignored for eligibility.
+     * Includes soft-deleted items. Warehouse stock is ignored for eligibility unless
+     * {@see $zeroQtyOnly} limits the list to items whose summed warehouse qty is &lt;= 0.
      */
     public function previewSelectableItemPurge(
         int $maxId,
@@ -1290,12 +1291,9 @@ class DataRetentionService
         }
 
         if ($zeroQtyOnly) {
-            $query->whereNotExists(function ($subquery) {
-                $subquery->select(DB::raw(1))
-                    ->from('warehouse_item')
-                    ->whereColumn('warehouse_item.item_id', 'items.id')
-                    ->where('warehouse_item.quantity', '>', 0);
-            });
+            $query->whereRaw(
+                'COALESCE((SELECT SUM(warehouse_item.quantity) FROM warehouse_item WHERE warehouse_item.item_id = items.id), 0) <= 0'
+            );
         }
 
         return $query;
