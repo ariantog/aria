@@ -37,8 +37,6 @@
     </div>
 
     <div class="space-y-6 p-5">
-        @include('items.partials.form-scope-toolbar')
-
         <input type="hidden" name="catalog_tab" :value="catalogTab">
 
         <div class="border-b border-gray-200" data-testid="item-catalog-tabs">
@@ -109,7 +107,7 @@
                        class="w-full max-w-xs rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('restock_urgent_threshold') border-red-500 @enderror">
                 @error('restock_urgent_threshold')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
             </div>
-            <p class="text-xs text-gray-600">Amount scopes: use the pricing section below or the quick-scope buttons above.</p>
+            <p class="text-xs text-gray-600">Pricing scopes are in the amounts section below this tab.</p>
         </div>
 
         {{-- Colorway level --}}
@@ -187,12 +185,14 @@
             <p class="text-xs text-gray-600">Parent-level description is not stored separately yet; group detail pages aggregate colorway text.</p>
         </div>
 
+        @include('items.partials.form-scope-toolbar')
+
         @include('items.partials.form-pricing-scopes', [
             'pricingState' => $pricingState ?? [],
             'pricingPrefix' => 'pricing',
             'pricingIdPrefix' => 'item-form-pricing',
             'showEffective' => $editingItem,
-            'pricingIntro' => 'Each amount has its own scope radio. Use the quick buttons above to align them all at once.',
+            'pricingIntro' => 'Each amount has its own scope radio. Use the quick scope controls above to align them all at once.',
             'embeddedInCatalog' => true,
         ])
     </div>
