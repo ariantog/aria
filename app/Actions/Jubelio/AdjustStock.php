@@ -6,6 +6,7 @@ use App\Models\Jubeliosync;
 use App\Models\Transaction;
 use App\Services\Jubelio\JubelioAdjustmentHint;
 use App\Services\Jubelio\JubelioAdjustmentResponse;
+use App\Services\Jubelio\JubelioPartialSyncRecorder;
 use App\Services\Jubelio\JubelioStockSync;
 use App\Services\JubelioService;
 use Illuminate\Support\Facades\Auth;
@@ -60,8 +61,9 @@ class AdjustStock
 
             $binId = $this->resolveBinId($jubSync, $jubelioService);
 
-            $transaction->loadMissing('details.item');
-            $this->assertPushableLinesAreLinked($transaction);
+            $transaction->loadMissing(['details.item', 'sender', 'receiver']);
+            $partialSync = app(JubelioPartialSyncRecorder::class);
+            $skippedLines = $partialSync->skippedLines($transaction);
 
             $items = [];
             foreach ($transaction->details as $row) {
@@ -121,7 +123,12 @@ class AdjustStock
             $this->logOutcome($transaction, $side, $response->status(), $response->body(), $parsed->outcome);
 
             if ($parsed->created()) {
-                DB::transaction(function () use ($transaction, $side, $parsed) {
+                $syncedLineCount = count($items);
+                $warehouseLabel = JubelioStockSync::isSenderSide($side)
+                    ? ($transaction->sender->name ?? 'Gudang pengirim')
+                    : ($transaction->receiver->name ?? 'Gudang penerima');
+
+                DB::transaction(function () use ($transaction, $side, $parsed, $partialSync, $skippedLines, $syncedLineCount, $warehouseLabel) {
                     if (JubelioStockSync::isSenderSide($side)) {
                         $transaction->update([
                             'a_submit_by' => Auth::id(),
@@ -133,9 +140,23 @@ class AdjustStock
                             'b_reference_id' => $parsed->referenceId,
                         ]);
                     }
+
+                    $partialSync->appendSkipNoteToDescription(
+                        $transaction->fresh(),
+                        $side,
+                        $warehouseLabel,
+                        $skippedLines,
+                        $syncedLineCount,
+                        $parsed->referenceId !== null ? (string) $parsed->referenceId : null,
+                    );
                 });
 
-                return ['success' => true, 'message' => 'Jubelio adjustment successful.'];
+                $message = 'Penyesuaian Jubelio berhasil ('.$syncedLineCount.' baris).';
+                if ($skippedLines !== []) {
+                    $message .= ' '.count($skippedLines).' baris dilewati (belum terhubung) — catatan ditambahkan ke deskripsi transaksi.';
+                }
+
+                return ['success' => true, 'message' => $message];
             }
 
             if ($parsed->failed()) {
@@ -168,23 +189,6 @@ class AdjustStock
             'message' => $message,
             'hint' => JubelioAdjustmentHint::for($message),
         ];
-    }
-
-    private function assertPushableLinesAreLinked(Transaction $transaction): void
-    {
-        $missing = [];
-        foreach ($transaction->details as $row) {
-            if ((float) $row->quantity === 0.0) {
-                continue;
-            }
-            if (! $row->item?->jubelio_item_id || (int) $row->item->jubelio_item_id < 1) {
-                $missing[] = $row->item?->code ?? 'item #'.$row->item_id;
-            }
-        }
-
-        if ($missing !== []) {
-            throw new \RuntimeException('Item belum terhubung ke Jubelio: '.implode(', ', $missing));
-        }
     }
 
     private function resolveBinId(Jubeliosync $jubSync, JubelioService $jubelioService): int

@@ -128,7 +128,7 @@ $mappingMissing = $data->item_with_jubelio_count > 0;
                     'submittedBy' => $data->submitByA->username ?? null,
                     'referenceId' => $data->a_reference_id,
                     'needsSync' => true,
-                    'disabled' => $mappingMissing,
+                    'disabled' => false,
                     'role' => 'sender',
                     'side' => 1,
                     'whType' => $whA,
@@ -148,7 +148,7 @@ $mappingMissing = $data->item_with_jubelio_count > 0;
                     'submittedBy' => $data->submitByB->username ?? null,
                     'referenceId' => $data->b_reference_id,
                     'needsSync' => true,
-                    'disabled' => $mappingMissing,
+                    'disabled' => false,
                     'role' => 'receiver',
                     'side' => 2,
                     'whType' => $whB,
@@ -162,11 +162,11 @@ $mappingMissing = $data->item_with_jubelio_count > 0;
 
         <div class="md:col-span-2">
             @if($mappingMissing)
-            <div class="mb-6 flex gap-3 rounded-xl border border-red-500/30 bg-red-50 p-6 text-red-600 shadow-sm">
+            <div class="mb-6 flex gap-3 rounded-xl border border-amber-500/30 bg-amber-50 p-6 text-amber-900 shadow-sm">
                 <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
                 <div>
-                    <h3 class="mb-1 font-bold">Mapping Item Hilang</h3>
-                    <p class="text-sm opacity-80">Ada {{ $data->item_with_jubelio_count }} item dalam transaksi ini yang belum terhubung ke Jubelio. Mapping gudang bisa sama dengan transaksi lain yang berhasil push — masalah ini per baris SKU. Hubungkan tiap item di menu Item sebelum sinkron.</p>
+                    <h3 class="mb-1 font-bold">Sebagian baris belum terhubung ke Jubelio</h3>
+                    <p class="text-sm opacity-90">{{ $data->item_with_jubelio_count }} baris tidak punya <span class="font-mono">jubelio_item_id</span>. Anda tetap bisa <strong>Push to Jubelio</strong> — hanya baris terhubung yang dikirim. Baris yang dilewati dicatat otomatis di <strong>deskripsi</strong> transaksi setelah push berhasil.</p>
                 </div>
             </div>
             @endif
