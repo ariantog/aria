@@ -308,7 +308,7 @@ class WarehouseArrangementController extends Controller
 
         $itemIds = $draftItemIds->all();
         $items = Item::query()
-            ->with('warehouseItems')
+            ->with(['warehouseItems', 'group', 'tags'])
             ->whereIn('id', $itemIds)
             ->get()
             ->keyBy('id');
@@ -321,7 +321,7 @@ class WarehouseArrangementController extends Controller
             }
 
             $quantity = (float) $row['quantity'];
-            $price = (float) $item->price;
+            $price = $item->effectivePrice();
 
             $prefillItems[] = [
                 'item_id' => (string) $item->id,
