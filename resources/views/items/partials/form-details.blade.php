@@ -139,7 +139,7 @@
                        @unless($isAsset ?? false) placeholder="Leave blank to inherit parent group name" @endunless
                        class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100 @error('product_name') border-red-500 @enderror">
                 @error('product_name')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
-                <p class="mt-1 text-xs text-gray-500">Only saved when this <strong>Colorway</strong> tab is active. Blank = inherit parent (not the effective title shown above).</p>
+                <p class="mt-1 text-xs text-gray-500">Stored on <span class="font-mono">item_group.name</span> when the <strong>Colorway</strong> tab is active. Blank = inherit parent (not the effective title shown above).</p>
             </div>
             <div>
                 <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-description">Description</label>
