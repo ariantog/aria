@@ -143,7 +143,7 @@ class TransactionsController extends Controller
     }
 
     /**
-     * Resolve a typed SKU for line-item rows (canonical code, legacy_code, then name).
+     * Resolve a typed SKU for line-item rows (legacy_code, then code, then name).
      */
     public function itemByCode(string $type, Request $request)
     {

@@ -482,4 +482,16 @@ describe('Item SKU resolution', function () {
         expect($resolved->get('OLD-A')?->id)->toBe($itemA->id)
             ->and($resolved->get('NEW-B')?->id)->toBe($itemB->id);
     });
+
+    it('prefers legacy_code match when another item still uses the same sku as code', function () {
+        $stale = Item::factory()->create(['code' => 'ACCHJ0000601M', 'legacy_code' => '']);
+        $converted = Item::factory()->create([
+            'code' => 'ACC-HJ00006-01-M',
+            'legacy_code' => 'ACCHJ0000601M',
+        ]);
+
+        expect(Item::findBySku('ACCHJ0000601M')?->id)->toBe($converted->id)
+            ->and(Item::findManyBySkus(['ACCHJ0000601M'])->get('ACCHJ0000601M')?->id)->toBe($converted->id)
+            ->and($stale->id)->not->toBe($converted->id);
+    });
 });
