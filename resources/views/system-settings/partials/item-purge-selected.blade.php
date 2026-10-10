@@ -18,7 +18,7 @@
     </div>
 
     <p class="mt-2 text-xs text-gray-600">
-        Warehouse qty: <span class="tabular-nums font-medium">{{ number_format($preview['warehouse_qty'], 0, ',', '.') }}</span>
+        Physical warehouse qty: <span class="tabular-nums font-medium">{{ number_format($preview['warehouse_qty'], 0, ',', '.') }}</span>
         @if($preview['deleted_at'])
         · Soft deleted {{ \Illuminate\Support\Carbon::parse($preview['deleted_at'])->format('Y-m-d') }}
         @endif

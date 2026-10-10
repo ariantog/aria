@@ -19,7 +19,7 @@ $pageItemIds = collect($preview->items())->pluck('id')->values()->all();
             <h1 class="text-2xl font-bold tracking-tight">Selective Item Purge</h1>
             <p class="text-sm text-gray-500">
                 Hard-delete orphan items with <strong>no transaction lines</strong> and <strong>id &le; max id</strong>.
-                By default, in-stock rows are included; check <strong>Warehouse qty ≤ 0 only</strong> to hide items whose total warehouse qty is above 0.
+                By default, in-stock rows are included; check <strong>Physical qty ≤ 0 only</strong> to hide items whose physical warehouse total (virtual gudang excluded) is above 0.
                 Soft-deleted items are included.
             </p>
             <p class="mt-1 text-xs text-gray-500">Superadmin only. Use <strong>Delete by item id</strong> below for a single SKU without browsing the preview list.</p>
@@ -111,7 +111,7 @@ $pageItemIds = collect($preview->items())->pluck('id')->values()->all();
                        data-testid="item-purge-zero-qty-only"
                        @checked($zeroQtyOnly)
                        class="h-4 w-4 rounded border-gray-300">
-                Warehouse qty ≤ 0 only
+                Physical qty ≤ 0 only
             </label>
         </div>
         <button type="submit" class="h-9 rounded-md bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700">Preview</button>
@@ -165,7 +165,7 @@ $pageItemIds = collect($preview->items())->pluck('id')->values()->all();
                         <th class="px-3 py-2 font-medium">Name</th>
                         <th class="px-3 py-2 font-medium">Type</th>
                         <th class="px-3 py-2 font-medium">Deleted</th>
-                        <th class="px-3 py-2 text-right font-medium">Warehouse qty</th>
+                        <th class="px-3 py-2 text-right font-medium">Physical qty</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y">

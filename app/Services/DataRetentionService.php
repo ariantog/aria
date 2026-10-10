@@ -313,7 +313,7 @@ class DataRetentionService
      * Paginated preview of orphan items eligible for selective purge (id &lt;= max id, zero tx lines).
      *
      * Includes soft-deleted items. Warehouse stock is ignored for eligibility unless
-     * {@see $zeroQtyOnly} limits the list to items whose summed warehouse qty is &lt;= 0.
+     * {@see $zeroQtyOnly} limits the list to items whose summed physical warehouse qty is &lt;= 0.
      */
     public function previewSelectableItemPurge(
         int $maxId,
@@ -329,7 +329,7 @@ class DataRetentionService
                 'items.type',
                 'items.deleted_at',
             ])
-            ->selectRaw('COALESCE((SELECT SUM(warehouse_item.quantity) FROM warehouse_item WHERE warehouse_item.item_id = items.id), 0) as warehouse_qty')
+            ->selectRaw($this->physicalWarehouseQtySumExpression().' as warehouse_qty')
             ->orderBy('items.id')
             ->paginate($perPage)
             ->through(fn ($row) => [
@@ -364,13 +364,7 @@ class DataRetentionService
         }
 
         $hasTransactionDetails = $this->itemAppearsInTransactionDetails($id);
-        $warehouseQty = 0.0;
-
-        if (Schema::hasTable('warehouse_item')) {
-            $warehouseQty = (float) ($this->live()->table('warehouse_item')
-                ->where('item_id', $id)
-                ->sum('quantity') ?? 0);
-        }
+        $warehouseQty = $this->sumPhysicalWarehouseQty($id);
 
         $type = (int) $row->type;
         $typeLabel = ItemType::coerce($type)?->label() ?? 'Unknown';
@@ -1291,12 +1285,34 @@ class DataRetentionService
         }
 
         if ($zeroQtyOnly) {
-            $query->whereRaw(
-                'COALESCE((SELECT SUM(warehouse_item.quantity) FROM warehouse_item WHERE warehouse_item.item_id = items.id), 0) <= 0'
-            );
+            $query->whereRaw($this->physicalWarehouseQtySumExpression().' <= 0');
         }
 
         return $query;
+    }
+
+    /**
+     * Summed qty on non-deleted physical warehouses only (virtual gudang excluded).
+     */
+    protected function physicalWarehouseQtySumExpression(string $itemIdColumn = 'items.id'): string
+    {
+        $physicalType = (int) Addrbook::TYPE_WAREHOUSE;
+
+        return "COALESCE((SELECT SUM(wi.quantity) FROM warehouse_item wi INNER JOIN customers c ON c.id = wi.warehouse_id WHERE wi.item_id = {$itemIdColumn} AND c.type = {$physicalType} AND c.deleted_at IS NULL), 0)";
+    }
+
+    protected function sumPhysicalWarehouseQty(int $itemId): float
+    {
+        if (! Schema::hasTable('warehouse_item')) {
+            return 0.0;
+        }
+
+        return (float) ($this->live()->table('warehouse_item as wi')
+            ->join('customers as c', 'c.id', '=', 'wi.warehouse_id')
+            ->where('wi.item_id', $itemId)
+            ->where('c.type', Addrbook::TYPE_WAREHOUSE)
+            ->whereNull('c.deleted_at')
+            ->sum('wi.quantity') ?? 0);
     }
 
     protected function orphanItemGroupIdsQuery(): \Illuminate\Database\Query\Builder

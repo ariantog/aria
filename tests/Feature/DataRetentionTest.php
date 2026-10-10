@@ -462,6 +462,55 @@ it('includes orphan items whose warehouse rows net to zero or below when zero qt
         ->and($zeroOnly->items()[0]['warehouse_qty'])->toBe(0.0);
 });
 
+it('ignores virtual warehouse stock for zero qty filter and preview column', function () {
+    $this->travelTo('2026-08-28');
+
+    $physicalEmptyVirtualStock = Item::factory()->create(['created_at' => '2026-08-27 12:00:00']);
+    $physicalInStock = Item::factory()->create(['created_at' => '2026-08-27 12:00:00']);
+
+    $physicalWh = \App\Models\Addrbook::factory()->warehouse()->create()->id;
+    $virtualWh = \App\Models\Addrbook::factory()->create(['type' => \App\Models\Addrbook::TYPE_V_WAREHOUSE])->id;
+
+    DB::table('warehouse_item')->insert([
+        [
+            'item_id' => $physicalEmptyVirtualStock->id,
+            'warehouse_id' => $virtualWh,
+            'warehouse_type' => (string) \App\Models\Addrbook::TYPE_V_WAREHOUSE,
+            'quantity' => 99,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ],
+        [
+            'item_id' => $physicalInStock->id,
+            'warehouse_id' => $physicalWh,
+            'warehouse_type' => (string) \App\Models\Addrbook::TYPE_WAREHOUSE,
+            'quantity' => 3,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ],
+        [
+            'item_id' => $physicalInStock->id,
+            'warehouse_id' => $virtualWh,
+            'warehouse_type' => (string) \App\Models\Addrbook::TYPE_V_WAREHOUSE,
+            'quantity' => -3,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ],
+    ]);
+
+    $maxId = max($physicalEmptyVirtualStock->id, $physicalInStock->id);
+
+    $zeroOnly = $this->retention->previewSelectableItemPurge(
+        maxId: $maxId,
+        perPage: 100,
+        zeroQtyOnly: true,
+    );
+
+    expect($zeroOnly->total())->toBe(1)
+        ->and($zeroOnly->items()[0]['id'])->toBe($physicalEmptyVirtualStock->id)
+        ->and($zeroOnly->items()[0]['warehouse_qty'])->toBe(0.0);
+});
+
 it('paginates selective item purge preview at 100 rows sorted by id asc', function () {
     $this->travelTo('2026-08-28');
 
@@ -527,7 +576,7 @@ it('renders selective item purge with keep checkboxes and pagination', function 
         ->assertDontSee('#'.$orphan->id.'</a>', false)
         ->assertSee('Purge 1 on this page')
         ->assertSee('this page only')
-        ->assertSee('Warehouse qty ≤ 0 only');
+        ->assertSee('Physical qty ≤ 0 only');
 });
 
 it('shows zero qty filter on item purge index when query param is set', function () {
