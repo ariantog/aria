@@ -11,6 +11,7 @@
     ];
     $catalogTabDefault = old('catalog_tab', $defaultCatalogTab ?? 'colorway');
     $editingItem = $editingItem ?? false;
+    $titleForm = $titleForm ?? [];
 @endphp
 @push('scripts')
 <script>
@@ -64,6 +65,8 @@ function itemForm() {
             pcode: @js($formItem['pcode'] ?? ''),
             product_name: @js($formItem['product_name'] ?? ''),
         },
+        parentTitle: @js(strtoupper(trim((string) ($titleForm['parent_title'] ?? '')))),
+        effectiveTitle: @js(strtoupper(trim((string) ($titleForm['effective_title'] ?? '')))),
         defaultPrice: @js($formItem['price'] ?? ''),
         defaultCost: @js($formItem['cost'] ?? ''),
         defaultCostCnh: @js($formItem['cost_cnh'] ?? ''),
@@ -250,10 +253,28 @@ function itemForm() {
             }
         },
 
+        previewBareTitle() {
+            const typed = (this.form.product_name || '').toUpperCase().trim();
+            if (typed) {
+                return typed;
+            }
+            if (this.effectiveTitle) {
+                return this.effectiveTitle;
+            }
+            if (this.parentTitle) {
+                return this.parentTitle;
+            }
+            const pcode = (this.form.pcode || '').toUpperCase().trim();
+            if (this.isAsset) {
+                return pcode || '???';
+            }
+
+            return pcode || '???';
+        },
+
         get previewItems() {
             const pcode = (this.form.pcode || '').toUpperCase().trim();
-            const productName = (this.form.product_name || '').toUpperCase().trim()
-                || (this.isAsset ? '???' : pcode || '???');
+            const productName = this.previewBareTitle();
             if (!pcode) {
                 return [];
             }

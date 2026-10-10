@@ -330,6 +330,7 @@ test('it propagates product name change from item update to all sizes in group',
     $this->itemService->update($item->id, (object) [
         'pcode' => 'CX90233-23',
         'type' => ItemType::ITEM->value,
+        'catalog_tab' => 'colorway',
         'product_name' => 'Slash Running Shirt',
         'price' => 100000,
     ], [
@@ -1042,6 +1043,7 @@ test('it syncs shared colorway attributes to every size when one item is edited'
     $this->itemService->update($small->id, (object) [
         'pcode' => 'CX90233-23',
         'type' => ItemType::ITEM->value,
+        'catalog_tab' => 'colorway',
         'price' => 175000,
         'description' => 'Mikro motif camo hijau',
         'description2' => 'Updated nb',
@@ -1090,17 +1092,15 @@ test('it moves every size to the new pcode and keeps group.name equal to pcode',
     ]);
 
     $small = Item::where('code', 'AJD-CX00122-04-S')->firstOrFail();
+    $medium = Item::where('code', 'AJD-CX00122-04-M')->firstOrFail();
+    $group = $small->group;
 
-    $this->itemService->update($small->id, (object) [
+    $this->itemService->updateColorway($group, (object) [
         'pcode' => 'CX00122-05',
-        'type' => ItemType::ITEM->value,
-        'product_name' => 'CX00122/04',
-        'price' => 100000,
+        'product_name' => '',
     ], [
-        'types' => [$this->typeTag->id],
-        'sizes' => [$this->sizeTag->id],
-        'warna' => [$this->warnaTag->id],
-        'jahit' => [$this->jahitTag->id],
+        ['id' => $small->id],
+        ['id' => $medium->id],
     ]);
 
     $this->assertDatabaseHas('item_group', [
@@ -1211,6 +1211,7 @@ test('it keeps a custom group title when product name is not the pcode', functio
     $this->itemService->update($small->id, (object) [
         'pcode' => 'CX90233-23',
         'type' => ItemType::ITEM->value,
+        'catalog_tab' => 'colorway',
         'product_name' => 'Slash Running Shirt',
         'price' => 120000,
     ], [
@@ -1421,6 +1422,7 @@ test('it updates group name from pcode placeholder when product_name is set on e
     $this->itemService->update($item->id, (object) [
         'pcode' => 'CX93249-03',
         'type' => ItemType::ITEM->value,
+        'catalog_tab' => 'colorway',
         'product_name' => 'Essential Shorts',
         'price' => 100000,
     ], [
@@ -1504,7 +1506,7 @@ test('it skips sibling identity rewrite when the target sku already exists elsew
         'group_id' => $legacyGroup->id,
         'name' => 'FABRIC BAND - 09 - LIGHT',
     ]);
-    $light->tags()->sync([$assetType->id, $lightTag->id]);
+    $light->tags()->sync([$assetType->id, $mintTag->id, $lightTag->id]);
 
     $legacyMedium = Item::factory()->create([
         'type' => ItemType::ASSET_LANCAR,
@@ -1530,16 +1532,11 @@ test('it skips sibling identity rewrite when the target sku already exists elsew
     ]);
     $canonicalMedium->tags()->sync([$assetType->id, $mintTag->id, $mediumTag->id]);
 
-    $this->itemService->update($light->id, (object) [
+    $this->itemService->updateColorway($legacyGroup, (object) [
         'pcode' => 'FABRICBAND-03',
-        'type' => ItemType::ASSET_LANCAR->value,
         'product_name' => 'Fabric Band',
-        'price' => 49000,
-        'cost' => 8189,
     ], [
-        'types' => [$assetType->id],
-        'sizes' => [$lightTag->id],
-        'warna' => $mintTag->id,
+        ['id' => $light->id, 'price' => 49000, 'cost' => 8189],
     ]);
 
     $light->refresh();

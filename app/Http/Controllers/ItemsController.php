@@ -578,6 +578,9 @@ class ItemsController extends Controller
 
         abort_if($detail === null, 404);
 
+        $sampleGroup = ItemGroup::query()->find($detail['anchor_group_id']);
+        $itemType = $detail['item_type'];
+
         return view('items.group-parent-detail', [
             'detail' => $detail,
             'canEditGroup' => auth()->user()->can(ItemGroup::getPermissions()['edit']),
@@ -585,6 +588,10 @@ class ItemsController extends Controller
                 $detail['parent_key'],
                 Item::query()->whereIn('group_id', $detail['group_ids'])->with('group')->first(),
             ),
+            'brands' => $this->brandOptions(),
+            'typeTags' => Tag::typeTagsForItem($itemType),
+            'parentBrand' => $sampleGroup?->brand,
+            'parentGenre' => (int) ($sampleGroup?->genre ?? 0),
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
@@ -614,16 +621,23 @@ class ItemsController extends Controller
     {
         Gate::authorize(ItemGroup::getPermissions()['edit']);
 
-        $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'reset_colorway_titles' => ['nullable', 'boolean'],
-        ], [
-            'name.required' => 'Product name is required.',
-        ]);
-
         $detail = $this->groupHierarchy->parentDetailForAnchorGroup($group, fetchJubelio: false);
 
         abort_if($detail === null, 404);
+
+        $rules = [
+            'name' => ['required', 'string', 'max:255'],
+            'reset_colorway_titles' => ['nullable', 'boolean'],
+        ];
+
+        if (! $detail['is_asset']) {
+            $rules['brand'] = ['nullable', 'integer'];
+            $rules['genre'] = ['nullable', 'integer'];
+        }
+
+        $request->validate($rules, [
+            'name.required' => 'Product name is required.',
+        ]);
 
         try {
             $this->itemService->applyParentGroupProductName(
@@ -633,9 +647,22 @@ class ItemsController extends Controller
                 $request->boolean('reset_colorway_titles'),
             );
 
+            if (! $detail['is_asset']) {
+                $brand = $request->filled('brand')
+                    ? (\App\Enums\ItemBrand::tryFrom((int) $request->input('brand')) ?? null)
+                    : null;
+                $genre = $request->filled('genre') ? (int) $request->input('genre') : null;
+
+                $this->itemService->applyParentGroupBrandGenre(
+                    $detail['group_ids'],
+                    $brand,
+                    $genre !== null && $genre > 0 ? $genre : null,
+                );
+            }
+
             return redirect()
                 ->route('items.group-parent-detail', $group->id)
-                ->with('success', 'Parent product name updated.');
+                ->with('success', 'Parent catalog defaults updated.');
         } catch (\Exception $e) {
             return back()->withErrors(['message' => $e->getMessage()])->withInput();
         }
@@ -735,6 +762,10 @@ class ItemsController extends Controller
             'size_code' => $row['size_code'],
         ])->values()->all();
 
+        $parentKey = $this->identityBuilder->itemParentKey($sample);
+        $parentRecord = \App\Models\ItemParentPrice::query()->where('parent_key', $parentKey)->first();
+        $parentProductName = trim((string) ($parentRecord?->product_name ?? ''));
+
         return view('items.colorway-edit', [
             'group' => $group,
             'sample' => $sample,
@@ -743,12 +774,11 @@ class ItemsController extends Controller
             'pricingState' => ItemPricing::formState($sample),
             'productTitle' => $titleForm['stored_title'],
             'titleForm' => $titleForm,
+            'parentProductName' => $parentProductName,
             'usesPlaceholder' => $usesPlaceholder,
             'color' => $color,
             'parentGroupId' => $parentGroupId,
             'isAsset' => $itemType === ItemType::ASSET_LANCAR,
-            'brands' => $this->brandOptions(),
-            'typeTags' => Tag::typeTagsForItem($itemType),
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
@@ -765,12 +795,11 @@ class ItemsController extends Controller
         $isAsset = $sample->type === ItemType::ASSET_LANCAR;
 
         $rules = array_merge([
+            'pcode' => ['required', 'string', 'max:255'],
             'product_name' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'description2' => ['nullable', 'string'],
             'url' => ['nullable', 'string', 'max:255'],
-            'brand' => ['nullable', 'integer'],
-            'genre' => ['nullable', 'integer'],
             'image' => ['nullable', 'image', 'max:5120'],
             'items' => ['required', 'array'],
         ], $this->pricingValidationRules($isAsset));
@@ -802,12 +831,11 @@ class ItemsController extends Controller
 
         try {
             $payload = $request->only([
+                'pcode',
                 'product_name',
                 'description',
                 'description2',
                 'url',
-                'brand',
-                'genre',
             ]);
             $payload['pricing'] = $request->input('pricing', []);
 

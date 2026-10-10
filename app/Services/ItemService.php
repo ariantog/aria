@@ -108,7 +108,7 @@ class ItemService
                 $sizeTag,
                 $input,
                 isUpdate: true,
-                productName: $groupName,
+                productName: $catalogTab === 'colorway' ? $groupName : null,
             );
 
             $item->group_id = $group->id;
@@ -139,6 +139,7 @@ class ItemService
                     $typeId,
                     $warnaId ?: null,
                     $groupName,
+                    $catalogTab,
                 );
             }
 
@@ -155,7 +156,7 @@ class ItemService
     /**
      * Update shared catalog fields on one colorway and per-SKU price / cost / restock threshold.
      *
-     * Identity fields (pcode, tags, SKU code) are read-only on this path.
+     * Pcode changes are applied to every SKU in the colorway; tags stay on each item row.
      *
      * @param  list<array{id: int, price?: mixed, cost?: mixed, restock_urgent_threshold?: mixed}>  $itemRows
      *
@@ -179,6 +180,21 @@ class ItemService
             $pcode = strtoupper(trim((string) $sample->pcode));
             $typeTag = $sample->tags->firstWhere('type', Tag::TYPE_TYPE);
 
+            if (property_exists($input, 'pcode') && trim((string) ($input->pcode ?? '')) !== '') {
+                $submittedPcode = $itemType === ItemType::ITEM
+                    ? $this->identityBuilder->normalizeManufacturedPcode((string) $input->pcode)
+                    : strtoupper(trim((string) $input->pcode));
+                $this->identityBuilder->validatePcode($itemType, $submittedPcode);
+
+                if ($submittedPcode !== $pcode) {
+                    $group = $this->reidentityColorwayPcode($group, $items, $submittedPcode);
+                    $items = Item::with('tags')->where('group_id', $group->id)->get();
+                    $sample = $items->first() ?? $sample;
+                    $pcode = $submittedPcode;
+                    $typeTag = $sample->tags->firstWhere('type', Tag::TYPE_TYPE);
+                }
+            }
+
             $groupName = $this->groupNameFromInput($input, $itemType, $pcode, $group, $sample);
             $storedName = $this->identityBuilder->uniqueStoredGroupName(
                 $this->identityBuilder->storedGroupName(
@@ -198,12 +214,8 @@ class ItemService
             }
 
             $catalogAttributes = [
-                'brand' => isset($input->brand)
-                    ? ItemBrand::tryFrom((int) $input->brand) ?? ItemBrand::fromPcode($pcode)
-                    : ($group->brand ?? ItemBrand::fromPcode($pcode)),
-                'genre' => isset($input->genre)
-                    ? (int) $input->genre
-                    : (int) ($group->genre ?? ($typeTag?->id ?? 0)),
+                'brand' => $group->brand ?? ItemBrand::fromPcode($pcode),
+                'genre' => (int) ($group->genre ?? ($typeTag?->id ?? 0)),
             ];
 
             if (isset($input->description)) {
@@ -421,6 +433,127 @@ class ItemService
     }
 
     /**
+     * Apply shared brand / genre (type tag) to every colorway group under a parent.
+     *
+     * @param  list<int>  $groupIds
+     */
+    public function applyParentGroupBrandGenre(array $groupIds, ?ItemBrand $brand, ?int $genreTagId): void
+    {
+        if ($groupIds === []) {
+            return;
+        }
+
+        DB::transaction(function () use ($groupIds, $brand, $genreTagId): void {
+            foreach ($groupIds as $groupId) {
+                $group = ItemGroup::query()->with('items')->find($groupId);
+
+                if ($group === null) {
+                    continue;
+                }
+
+                $sample = $group->items->first();
+
+                if ($sample === null) {
+                    continue;
+                }
+
+                $pcode = strtoupper(trim((string) $sample->pcode));
+                $attributes = [];
+
+                if ($brand !== null) {
+                    $attributes['brand'] = $brand;
+                }
+
+                if ($genreTagId !== null && $genreTagId > 0) {
+                    $attributes['genre'] = $genreTagId;
+                }
+
+                if ($attributes === []) {
+                    continue;
+                }
+
+                ItemCatalog::applyToGroup($group, $attributes);
+
+                $mirror = [
+                    'brand' => $attributes['brand'] ?? $group->brand,
+                    'genre' => $attributes['genre'] ?? (int) ($group->genre ?? 0),
+                ];
+
+                foreach ($group->items as $item) {
+                    ItemCatalog::mirrorToItem($item, $mirror);
+                    $item->save();
+                }
+            }
+        });
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, Item>  $items
+     */
+    protected function reidentityColorwayPcode(ItemGroup $group, $items, string $newPcode): ItemGroup
+    {
+        $sample = $items->first();
+
+        if ($sample === null) {
+            throw new Exception('Colorway has no items.');
+        }
+
+        $itemType = $this->resolveItemType($sample->type);
+        $scopedInput = (object) [];
+        $groupName = $this->groupNameFromInput($scopedInput, $itemType, $newPcode, $group, $sample);
+        $resolvedGroup = $group;
+
+        foreach ($items as $item) {
+            $typeTag = $item->tags->firstWhere('type', Tag::TYPE_TYPE);
+            $sizeTag = $item->tags->firstWhere('type', Tag::TYPE_SIZE);
+            $warnaTag = $item->tags->firstWhere('type', Tag::TYPE_WARNA);
+
+            if ($itemType === ItemType::ASSET_LANCAR && ! $warnaTag) {
+                continue;
+            }
+
+            try {
+                $targetCode = $this->identityBuilder->buildCode($itemType, $newPcode, $typeTag, $warnaTag, $sizeTag);
+            } catch (InvalidArgumentException) {
+                continue;
+            }
+
+            if (Item::query()->whereSku($targetCode)->where('id', '!=', $item->id)->exists()) {
+                continue;
+            }
+
+            $resolvedGroup = $this->resolveGroup(
+                $itemType,
+                $newPcode,
+                $groupName,
+                $warnaTag,
+                $scopedInput,
+                $item,
+            );
+
+            $this->applyItemIdentity(
+                $item,
+                $itemType,
+                $newPcode,
+                $resolvedGroup,
+                $typeTag,
+                $warnaTag,
+                $sizeTag,
+                $scopedInput,
+                isUpdate: true,
+                productName: null,
+            );
+
+            $item->group_id = $resolvedGroup->id;
+            $item->save();
+        }
+
+        $this->syncItemNamesForGroup($resolvedGroup->fresh());
+
+        return $resolvedGroup->fresh();
+    }
+
+    /**
      * @throws Exception
      */
     public function create(object $input, array $tags, ?UploadedFile $file = null): bool
@@ -606,12 +739,17 @@ class ItemService
             $this->preserveLegacyCode($item, $code);
         }
 
-        $displayName = $this->identityBuilder->productDisplayName(
-            $itemType,
-            $productName ?? (string) $group->name,
-            (string) ($group->variant ?? ''),
-            (string) ($group->master ?? ''),
-        );
+        if ($isUpdate && $productName === null) {
+            $item->setRelation('group', $group);
+            $displayName = ItemProductTitle::resolveBareTitle($item);
+        } else {
+            $displayName = $this->identityBuilder->productDisplayName(
+                $itemType,
+                $productName ?? (string) $group->name,
+                (string) ($group->variant ?? ''),
+                (string) ($group->master ?? ''),
+            );
+        }
 
         $item->pcode = $pcode;
         $item->code = $code;
@@ -1234,6 +1372,22 @@ class ItemService
      */
     protected function resolvePcodeForUpdate(Item $item, ItemType $type, object $input): string
     {
+        $stored = strtoupper(trim((string) $item->pcode));
+
+        if ($stored !== '') {
+            if ($type === ItemType::ITEM) {
+                return $this->identityBuilder->normalizeManufacturedPcode($stored);
+            }
+
+            try {
+                $this->identityBuilder->validatePcode($type, $stored);
+
+                return $stored;
+            } catch (InvalidArgumentException) {
+                // Fall through for legacy asset lancar rows.
+            }
+        }
+
         $pcode = strtoupper(trim((string) ($input->pcode ?? '')));
 
         if ($type === ItemType::ITEM && $pcode !== '') {
@@ -1328,7 +1482,7 @@ class ItemService
     {
         $tab = is_string($tab) ? strtolower(trim($tab)) : '';
 
-        return in_array($tab, ['size', 'colorway', 'group'], true) ? $tab : 'colorway';
+        return in_array($tab, ['size', 'colorway', 'group'], true) ? $tab : 'size';
     }
 
     /**
@@ -1376,6 +1530,7 @@ class ItemService
         int $typeId,
         ?int $warnaId,
         string $groupName,
+        string $catalogTab = 'size',
     ): void {
         $sizeTag = $sibling->tags->firstWhere('type', Tag::TYPE_SIZE);
         if (! $sizeTag && (int) $sibling->size > 0) {
@@ -1405,7 +1560,7 @@ class ItemService
             $sizeTag,
             $siblingInput,
             isUpdate: true,
-            productName: $groupName,
+            productName: $catalogTab === 'colorway' ? $groupName : null,
         );
 
         $sizeId = (int) ($sizeTag?->id ?? 0);

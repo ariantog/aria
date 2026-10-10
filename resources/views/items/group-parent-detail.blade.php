@@ -66,7 +66,18 @@ $fmt = fn ($v) => format_amount($v, 0);
                     @endif
 
                     @if($canEditGroup)
-                    <div class="border-t border-gray-100 pt-4 md:col-span-2 space-y-8">
+                    <div class="border-t border-gray-100 pt-4 md:col-span-2" x-data="{ parentEditOpen: {{ (old('name') || old('brand') || old('pricing')) ? 'true' : 'false' }} }">
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <p class="text-sm text-gray-600">Edit parent product name, @unless($detail['is_asset'])brand/type, @endunless and group pricing.</p>
+                            <button type="button"
+                                    @click="parentEditOpen = !parentEditOpen"
+                                    data-testid="group-parent-edit-toggle"
+                                    class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50"
+                                    x-text="parentEditOpen ? 'Hide edit forms' : 'Edit parent defaults'">
+                            </button>
+                        </div>
+
+                        <div x-show="parentEditOpen" x-cloak class="mt-6 space-y-8">
                         <div>
                             <p class="mb-2 text-sm font-semibold uppercase tracking-wider text-gray-500">Parent product name</p>
                             <p class="mb-3 text-sm text-gray-600">Sets the default bare title for every colorway that does not have its own product name. SKU display names are rebuilt from catalog + tags.</p>
@@ -96,6 +107,29 @@ $fmt = fn ($v) => format_amount($v, 0);
                                            @checked(old('reset_colorway_titles'))>
                                     <span>Reset all colorway titles to inherit this parent name (clears custom colorway product names and SKU aliases)</span>
                                 </label>
+                                @unless($detail['is_asset'])
+                                <div class="grid grid-cols-1 gap-4 border-t border-gray-100 pt-4 sm:grid-cols-2">
+                                    <div>
+                                        <label for="group-parent-brand" class="mb-1 block text-sm font-medium text-gray-700">Brand (all colorways)</label>
+                                        <select id="group-parent-brand" name="brand" data-testid="group-parent-brand"
+                                                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                                            @foreach($brands ?? [] as $brand)
+                                            <option value="{{ $brand['value'] }}" @selected((int) old('brand', $parentBrand?->value ?? 0) === (int) $brand['value'])>{{ $brand['label'] }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label for="group-parent-genre" class="mb-1 block text-sm font-medium text-gray-700">Type tag (all colorways)</label>
+                                        <select id="group-parent-genre" name="genre" data-testid="group-parent-genre"
+                                                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                                            <option value="0">—</option>
+                                            @foreach($typeTags ?? [] as $tag)
+                                            <option value="{{ $tag->id }}" @selected((int) old('genre', $parentGenre ?? 0) === (int) $tag->id)>{{ $tag->code }} — {{ $tag->name }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                </div>
+                                @endunless
                             </form>
                         </div>
 
@@ -128,6 +162,7 @@ $fmt = fn ($v) => format_amount($v, 0);
                                     </button>
                                 </div>
                             </form>
+                        </div>
                         </div>
                     </div>
                     @endif

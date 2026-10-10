@@ -43,13 +43,6 @@ $formItem = [
     <div class="mb-2">
         <h2 class="mb-1 text-3xl font-bold tracking-tight text-gray-900">{{ $isAsset ? 'Edit Asset' : 'Edit Item' }}</h2>
         <p class="text-gray-500">Update <span class="font-mono text-sm">{{ $item->code }}</span></p>
-        @if(!empty($colorwayEditUrl))
-        <p class="mt-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm text-indigo-900">
-            Catalog fields, product name, and the per-size price matrix live on the
-            <a href="{{ $colorwayEditUrl }}" class="font-medium underline hover:text-indigo-700">colorway editor</a>.
-            Use this page for SKU-specific tags, pcode moves, or Jubelio identity.
-        </p>
-        @endif
     </div>
 
     @include('items.partials.form-errors')
@@ -61,11 +54,17 @@ $formItem = [
 
         <div class="grid grid-cols-1 gap-8 lg:grid-cols-3">
             <div class="space-y-6 lg:col-span-2">
-                @include('items.partials.form-basic', ['formItem' => $formItem])
+                @include('items.partials.form-basic', [
+                    'formItem' => $formItem,
+                    'colorwayEditUrl' => $colorwayEditUrl ?? null,
+                ])
                 @include('items.partials.form-details', [
                     'formItem' => $formItem,
                     'titleForm' => $titleForm ?? [],
                     'colorwayEditUrl' => $colorwayEditUrl ?? null,
+                    'parentProductName' => $parentProductName ?? '',
+                    'parentGroupUrl' => $parentGroupUrl ?? null,
+                    'catalogMode' => 'sku-only',
                 ])
                 @include('items.partials.form-inventory-options', [
                     'formItem' => $formItem,
@@ -97,6 +96,7 @@ $formItem = [
     'multiSize' => false,
     'isAsset' => $isAsset,
     'formItem' => $formItem,
+    'titleForm' => $titleForm ?? [],
     'defaultCatalogTab' => 'size',
     'editingItem' => true,
 ])

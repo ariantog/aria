@@ -5,7 +5,7 @@
     <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
             <p class="text-sm font-medium text-gray-900">Quick scope for amounts</p>
-            <p class="mt-0.5 text-xs text-gray-600">Sets every pricing row below to the same save level. Colorway catalog fields save only on the <strong>Colorway</strong> tab.</p>
+            <p class="mt-0.5 text-xs text-gray-600">Sets every pricing row below to the same save level.</p>
             <p x-show="scopeFlash !== ''" x-cloak class="mt-2 text-xs font-medium text-green-700" x-text="scopeFlash"></p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
@@ -33,15 +33,4 @@
             </button>
         </div>
     </div>
-    <label class="mt-3 flex cursor-pointer items-start gap-3 rounded-md border border-indigo-100 bg-white px-3 py-2">
-        <input type="checkbox"
-               x-model="colorwayScopeSwitch"
-               x-on:change="onColorwayScopeSwitch()"
-               data-testid="item-scope-colorway-switch"
-               class="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-        <span class="text-sm text-gray-800">
-            <span class="font-medium">Use colorway for all amounts</span>
-            <span class="mt-0.5 block text-xs font-normal text-gray-600">When on, every pricing scope radio moves to “This colorway” (typical default for new batches).</span>
-        </span>
-    </label>
 </div>
