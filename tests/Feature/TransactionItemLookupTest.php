@@ -219,6 +219,44 @@ it('items autocomplete json uses effective price and cost from colorway when sku
         ->and((float) $match['cost'])->toBe(92_000.0);
 });
 
+it('transaction item lookup uses parent group price when type tag differs from sku prefix', function () {
+    Permission::firstOrCreate(['name' => 'transactions-type-move']);
+    $this->user->givePermissionTo('transactions-type-move');
+
+    $typeTag = \App\Models\Tag::factory()->create([
+        'type' => \App\Models\Tag::TYPE_TYPE,
+        'code' => 'TSH',
+        'name' => 'T-Shirt',
+    ]);
+    $group = \App\Models\ItemGroup::factory()->create([
+        'master' => 'CX90032-01',
+        'variant' => '01',
+        'price' => 0,
+    ]);
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'type' => \App\Enums\ItemType::ITEM,
+        'pcode' => 'CX90032-01',
+        'code' => 'AJD-CX90032-01-S',
+        'price' => 0,
+    ]);
+    $item->tags()->attach($typeTag->id);
+
+    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey(
+        $item->fresh(['group', 'tags']),
+    );
+    \App\Models\ItemParentPrice::query()->create([
+        'parent_key' => $parentKey,
+        'price' => 312_000,
+    ]);
+
+    $response = $this->actingAs($this->user)
+        ->getJson(route('transactions.item-by-code', ['type' => 'move', 'code' => 'AJD-CX90032-01-S']));
+
+    $response->assertSuccessful();
+    expect((float) $response->json('item.price'))->toBe(312_000.0);
+});
+
 it('transaction item lookup uses effective sell price and cost from colorway', function () {
     Permission::firstOrCreate(['name' => 'transactions-type-buy']);
     $this->user->givePermissionTo('transactions-type-buy');

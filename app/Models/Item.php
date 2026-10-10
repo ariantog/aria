@@ -373,7 +373,8 @@ class Item extends Model
      */
     public function toItemSearchJson(): array
     {
-        $this->loadMissing(['warehouseItems', 'group']);
+        // Tags affect parent-key pricing (TYPE tag vs SKU prefix); match warehouse stock list.
+        $this->loadMissing(['warehouseItems', 'group', 'tags']);
 
         $payload = $this->toArray();
         $payload['price'] = $this->effectivePrice();
