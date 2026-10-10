@@ -17,6 +17,8 @@ $breadcrumbs = [
     'pcode' => $sample->pcode,
     'isAsset' => $isAsset,
     'usesPlaceholder' => $usesPlaceholder,
+    'parentTitle' => $titleForm['parent_title'] ?? '',
+    'effectiveTitle' => $titleForm['effective_title'] ?? '',
     'rows' => $previewRows,
     'warnaCode' => $isAsset ? ($color['code'] ?? '') : '',
     'warnaName' => $isAsset ? ($color['name'] ?? '') : '',
@@ -84,16 +86,17 @@ $breadcrumbs = [
                         <p class="text-sm text-gray-500">Shared by every size in this colorway (stored on item_group).</p>
                     </div>
                     <div class="space-y-4 p-5">
+                        @include('items.partials.form-colorway-title-hints', ['titleForm' => $titleForm ?? []])
                         <div>
                             <label for="colorway-product-name" class="mb-1 block text-sm font-medium text-gray-700">
-                                Product name
+                                Stored product name (this colorway)
                                 @if($isAsset)<span class="text-red-500">*</span>@endif
                             </label>
                             <input type="text" id="colorway-product-name" name="product_name" x-model="form.product_name"
                                    data-testid="colorway-product-name"
-                                   @unless($isAsset) placeholder="{{ $sample->pcode }}" @endunless
+                                   @unless($isAsset) placeholder="Leave blank to inherit parent group name" @endunless
                                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                            <p class="mt-1 text-xs text-gray-500">Maps to <span class="font-mono">item_group.name</span>. SKU display names update on save.</p>
+                            <p class="mt-1 text-xs text-gray-500">Maps to <span class="font-mono">item_group.name</span> for this color only. Empty field = inherit parent; preview below uses the effective title.</p>
                         </div>
                         <div>
                             <label for="colorway-description" class="mb-1 block text-sm font-medium text-gray-700">Description</label>
@@ -262,6 +265,8 @@ function colorwayForm(config) {
         pcode: config.pcode || '',
         isAsset: config.isAsset,
         usesPlaceholder: config.usesPlaceholder,
+        parentTitle: (config.parentTitle || '').toUpperCase().trim(),
+        effectiveTitle: (config.effectiveTitle || '').toUpperCase().trim(),
         warnaCode: (config.warnaCode || '').toUpperCase(),
         warnaName: (config.warnaName || config.warnaCode || '').toUpperCase(),
         allSizeCode: 'AS',
@@ -270,6 +275,10 @@ function colorwayForm(config) {
             const name = (this.form.product_name || '').toUpperCase().trim();
             if (name) {
                 return name;
+            }
+
+            if (this.parentTitle) {
+                return this.parentTitle;
             }
 
             return (this.pcode || '').toUpperCase().trim();

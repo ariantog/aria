@@ -349,27 +349,7 @@ class ItemsController extends Controller
         Gate::authorize($item->type === ItemType::ASSET_LANCAR ? $p['asset-lancar-edit'] : $p['edit']);
 
         $item->load(['group', 'tags']);
-        $groupName = (string) ($item->group?->name ?: $item->name);
-        $productTitle = $this->identityBuilder->productDisplayName(
-            $item->type,
-            $groupName,
-            (string) ($item->group?->variant ?? ''),
-            (string) ($item->group?->master ?? ''),
-        );
-
-        $catalogPcode = $item->type === ItemType::ITEM
-            ? $this->identityBuilder->normalizeManufacturedPcode((string) $item->pcode)
-            : (string) $item->pcode;
-
-        if ($this->itemService->productNameIsPcodePlaceholder($item->type, $productTitle, $catalogPcode, $item)) {
-            $parentHints = $this->itemService->catalogHintsForPcode(
-                $item->type,
-                $catalogPcode,
-                $item->type === ItemType::ITEM ? $this->identityBuilder->manufacturedTypeCode($item) : null,
-            );
-
-            $productTitle = (string) ($parentHints['product_name'] ?? '');
-        }
+        $titleForm = \App\Support\ItemCatalogTitleForm::forItem($item, $this->identityBuilder);
 
         $parentKey = $this->identityBuilder->itemParentKey($item);
         $parentRecord = \App\Models\ItemParentPrice::query()->where('parent_key', $parentKey)->first();
@@ -380,9 +360,12 @@ class ItemsController extends Controller
         return view('items.edit', array_merge($this->formProps($item->type), [
             'item' => $item,
             'types' => $this->typeOptions(),
-            'productTitle' => $productTitle,
+            'productTitle' => $titleForm['stored_title'],
+            'titleForm' => $titleForm,
             'pricingState' => ItemPricing::formState($item),
-            'parentProductName' => trim((string) ($parentRecord?->product_name ?? '')),
+            'parentProductName' => $titleForm['parent_title'] !== ''
+                ? $titleForm['parent_title']
+                : trim((string) ($parentRecord?->product_name ?? '')),
             'parentGroupUrl' => $anchorGroupId ? route('items.group-parent-detail', $anchorGroupId) : null,
             'colorwayEditUrl' => $item->group_id > 0
                 ? route('items.colorway-edit', $item->group_id)
@@ -708,17 +691,8 @@ class ItemsController extends Controller
         abort_if($sample === null, 404);
 
         $itemType = $sample->type;
-        $productTitle = $this->identityBuilder->productDisplayName(
-            $itemType,
-            (string) $group->name,
-            (string) ($group->variant ?? ''),
-            (string) ($group->master ?? ''),
-        );
-        $usesPlaceholder = $this->itemService->isPlaceholderProductName(
-            $itemType,
-            (string) $group->name,
-            (string) $sample->pcode,
-        );
+        $titleForm = \App\Support\ItemCatalogTitleForm::forItem($sample, $this->identityBuilder);
+        $usesPlaceholder = $titleForm['uses_placeholder'];
         $color = $this->identityBuilder->itemColorInfo($sample);
         $typeTag = $sample->tags->firstWhere('type', Tag::TYPE_TYPE);
         $parentGroupId = $this->groupHierarchy->anchorGroupIdForParentKey(
@@ -767,7 +741,8 @@ class ItemsController extends Controller
             'sizeRows' => $sizeRows,
             'previewRows' => $previewRows,
             'pricingState' => ItemPricing::formState($sample),
-            'productTitle' => $usesPlaceholder ? '' : $productTitle,
+            'productTitle' => $titleForm['stored_title'],
+            'titleForm' => $titleForm,
             'usesPlaceholder' => $usesPlaceholder,
             'color' => $color,
             'parentGroupId' => $parentGroupId,
@@ -877,7 +852,7 @@ class ItemsController extends Controller
 
             return redirect()
                 ->to($redirect)
-                ->with('success', 'Product name updated for all items in this group.');
+                ->with('success', 'Colorway product name updated for this color only.');
         } catch (\Exception $e) {
             return back()->withErrors(['message' => $e->getMessage()])->withInput();
         }

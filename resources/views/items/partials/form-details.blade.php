@@ -20,6 +20,8 @@
     $showAssetCatalogFields = ($isAsset ?? false);
     $parentProductName = $parentProductName ?? '';
     $parentGroupUrl = $parentGroupUrl ?? null;
+    $titleForm = $titleForm ?? [];
+    $colorwayEditUrl = $colorwayEditUrl ?? null;
 @endphp
 <div class="rounded-xl border border-gray-200 bg-white shadow-sm" data-testid="item-catalog-panel" x-ref="catalogPanel">
     <div class="flex flex-col gap-2 border-b border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -115,41 +117,52 @@
             @include('items.partials.form-shared-banner', [
                 'sharedTestId' => 'item-form-shared-details-banner',
                 'sharedHint' => $editingItem
-                    ? 'Saved on item_group for every size in this color. Saving clears stale per-SKU description copies unless you set a SKU override.'
+                    ? 'Writes item_group for this color only (every size in the colorway). Prefer the dedicated colorway editor for the price matrix.'
                     : 'Applies to every size created in this batch.',
             ])
+            @if($editingItem && $colorwayEditUrl)
+            <p class="text-sm text-indigo-900">
+                <a href="{{ $colorwayEditUrl }}" class="font-medium underline hover:text-indigo-700">Open colorway editor</a>
+                for catalog + per-size pricing in one place.
+            </p>
+            @endif
+            @include('items.partials.form-colorway-title-hints', ['titleForm' => $titleForm])
             <div>
                 <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-product-name">
-                    Product name (colorway)
+                    Stored product name (this colorway only)
                     @if($isAsset ?? false)<span class="text-red-500">*</span>@endif
                 </label>
                 <input type="text" id="item-form-product-name" name="product_name" x-model="form.product_name"
                        value="{{ $fi['product_name'] }}"
                        data-testid="item-form-product-name"
-                       @unless($isAsset ?? false) :placeholder="(form.pcode || '').toUpperCase() || 'CX90233-23'" @endunless
-                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('product_name') border-red-500 @enderror">
+                       :disabled="catalogTab !== 'colorway'"
+                       @unless($isAsset ?? false) placeholder="Leave blank to inherit parent group name" @endunless
+                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100 @error('product_name') border-red-500 @enderror">
                 @error('product_name')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
-                <p class="mt-1 text-xs text-gray-500">Maps to <span class="font-mono">item_group.name</span>. Leave blank to keep pcode as the title.</p>
+                <p class="mt-1 text-xs text-gray-500">Stored on <span class="font-mono">item_group.name</span> when the <strong>Colorway</strong> tab is active. Blank = inherit parent (not the effective title shown above).</p>
             </div>
             <div>
                 <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-description">Description</label>
                 <textarea id="item-form-description" name="description" rows="4"
                           data-testid="item-form-description"
-                          class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">{{ $fi['description'] }}</textarea>
+                          :disabled="catalogTab !== 'colorway'"
+                          class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100">{{ $fi['description'] }}</textarea>
                 @error('description')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
             </div>
             <div>
                 <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-description2">Notes (NB)</label>
                 <textarea id="item-form-description2" name="description2" rows="3"
                           data-testid="item-form-description2"
-                          class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">{{ $fi['description2'] }}</textarea>
+                          :disabled="catalogTab !== 'colorway'"
+                          class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100">{{ $fi['description2'] }}</textarea>
                 @error('description2')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
             </div>
             <div>
                 <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-url">Product URL</label>
                 <input type="url" id="item-form-url" name="url" value="{{ $fi['url'] }}"
                        data-testid="item-form-url"
-                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('url') border-red-500 @enderror">
+                       :disabled="catalogTab !== 'colorway'"
+                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100 @error('url') border-red-500 @enderror">
                 @error('url')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
             </div>
         </div>

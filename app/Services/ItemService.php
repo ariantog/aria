@@ -9,6 +9,7 @@ use App\Models\ItemGroup;
 use App\Models\Tag;
 use App\Services\Items\ItemIdentityBuilder;
 use App\Support\ItemCatalog;
+use App\Support\ItemCatalogTitleForm;
 use App\Support\ItemInventorySettings;
 use App\Support\ItemPricing;
 use App\Support\ItemProductTitle;
@@ -87,8 +88,10 @@ class ItemService
             $warnaTag = $warnaId ? Tag::find($warnaId) : null;
 
             $pcode = strtoupper(trim((string) $input->pcode));
-            $groupName = $this->groupNameFromInput($input, $inputType, $pcode, $item->group, $item);
-            $group = $this->resolveGroup($inputType, $pcode, $groupName, $warnaTag, $input, $item);
+            $catalogTab = $this->normalizeCatalogTab($input->catalog_tab ?? null);
+            $catalogInput = $this->inputForCatalogScope($input, $catalogTab);
+            $groupName = $this->groupNameFromInput($catalogInput, $inputType, $pcode, $item->group, $item);
+            $group = $this->resolveGroup($inputType, $pcode, $groupName, $warnaTag, $catalogInput, $item);
 
             $this->applyItemIdentity(
                 $item,
@@ -109,7 +112,10 @@ class ItemService
             $item->save();
             $item->tags()->sync($tagIds);
 
-            $this->persistGroupCatalogAttributes($group, $item, $input, $typeTag);
+            if ($catalogTab === 'colorway') {
+                $this->persistGroupCatalogAttributes($group, $item, $catalogInput, $typeTag);
+            }
+
             $this->persistItemLocalAttributes($item, $input);
             $this->applyInventorySettings($item, $input);
             $this->persistItemPricing($item, $input, defaultColorwayScope: false);
@@ -118,7 +124,7 @@ class ItemService
             foreach ($siblings as $sibling) {
                 $this->applySharedUpdateToSibling(
                     $sibling,
-                    $input,
+                    $catalogInput,
                     $inputType,
                     $pcode,
                     $group,
@@ -322,13 +328,6 @@ class ItemService
             );
             $group->name = $storedName;
             $group->save();
-
-            if ($sampleItem) {
-                ItemProductTitle::syncParentProductName(
-                    $this->identityBuilder->itemParentKey($sampleItem),
-                    $storedName,
-                );
-            }
 
             $this->syncItemNamesForGroup($group);
 
@@ -733,7 +732,10 @@ class ItemService
         ?ItemGroup $existing = null,
         ?Item $item = null,
     ): string {
-        $name = trim((string) ($input->product_name ?? $input->alias ?? $input->name ?? ''));
+        $productNameSubmitted = property_exists($input, 'product_name') || isset($input->product_name);
+        $name = $productNameSubmitted
+            ? trim((string) ($input->product_name ?? ''))
+            : trim((string) ($input->alias ?? $input->name ?? ''));
 
         if ($name !== '' && ! $this->isPcodeLikeProductName($name, $pcode, $item)) {
             return $this->identityBuilder->productDisplayName(
@@ -742,6 +744,19 @@ class ItemService
                 (string) ($existing?->variant ?? ''),
                 (string) ($existing?->master ?? ''),
             );
+        }
+
+        if ($item !== null && $existing !== null && ! $productNameSubmitted) {
+            $existingStored = trim((string) ($existing->name ?? ''));
+            if ($existingStored !== ''
+                && ! ItemCatalogTitleForm::groupNameIsPlaceholder($type, $existingStored, $pcode, $existing, $this->identityBuilder)) {
+                return $this->identityBuilder->productDisplayName(
+                    $type,
+                    $existingStored,
+                    (string) ($existing->variant ?? ''),
+                    (string) ($existing->master ?? ''),
+                );
+            }
         }
 
         // Create: inherit a custom title already stored for this pcode.
@@ -1222,6 +1237,28 @@ class ItemService
         }
 
         return strtoupper(trim($groupName)) === strtoupper(trim($pcode));
+    }
+
+    protected function normalizeCatalogTab(mixed $tab): string
+    {
+        $tab = is_string($tab) ? strtolower(trim($tab)) : '';
+
+        return in_array($tab, ['size', 'colorway', 'group'], true) ? $tab : 'colorway';
+    }
+
+    /**
+     * Strip colorway-level catalog fields when the user saved from another catalog tab.
+     */
+    protected function inputForCatalogScope(object $input, string $catalogTab): object
+    {
+        if ($catalogTab === 'colorway') {
+            return $input;
+        }
+
+        $scoped = clone $input;
+        unset($scoped->product_name, $scoped->description, $scoped->description2, $scoped->url);
+
+        return $scoped;
     }
 
     protected function collectTagIds(array $tags, int $typeId, int $sizeId, ?int $warnaId): array
