@@ -74,7 +74,9 @@ it('embeds db-backed jubelio sync config and warning hooks on the sell create fo
         ->assertSee('data-testid="jubelio-stock-row-hint"', false)
         ->assertSee('"synced_warehouse_ids":['.$warehouse->id.']', false)
         ->assertSee('jubelioWarehouseMapped()', false)
-        ->assertSee('jubelioMixedCartSyncActive()', false)
+        ->assertSee('jubelioStockContextActive()', false)
+        ->assertSee('jubelioStockInfoLine(item)', false)
+        ->assertSee('data-testid="jubelio-stock-info"', false)
         ->assertSee('refreshJubelioStockPreview()', false)
         ->assertSee("_TxType === 'sell'", false);
 });
