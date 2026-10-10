@@ -42,7 +42,7 @@ test('resolveBareTitle falls back sku alias then colorway name then parent produ
     expect(ItemProductTitle::resolveBareTitle($item->fresh(['group'])))->toBe('SKU TITLE');
 });
 
-test('buildDisplayName appends size for manufactured items without warna segment', function () {
+test('buildDisplayName appends warna and size for manufactured items', function () {
     $group = ItemGroup::factory()->create(['name' => 'RUNNING SHIRT']);
     $warna = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLUE', 'name' => 'Blue']);
     $size = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'M']);
@@ -55,7 +55,7 @@ test('buildDisplayName appends size for manufactured items without warna segment
     $item->tags()->sync([$warna->id, $size->id]);
 
     expect(ItemProductTitle::buildDisplayName($item->fresh(['group', 'tags'])))
-        ->toBe('RUNNING SHIRT - M');
+        ->toBe('RUNNING SHIRT - BLUE - M');
 });
 
 test('syncParentProductName refreshes in-request parent cache for rebuilds', function () {
@@ -97,5 +97,5 @@ test('buildDisplayNameWithBareTitle matches colorway save naming for manufacture
     $item->tags()->sync([$warna->id, $size->id]);
 
     expect(ItemProductTitle::buildDisplayNameWithBareTitle($item->fresh(['group', 'tags']), 'Renamed Shirt'))
-        ->toBe('RENAMED SHIRT - M');
+        ->toBe('RENAMED SHIRT - BLACK - M');
 });
