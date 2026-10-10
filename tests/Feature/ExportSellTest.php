@@ -362,7 +362,7 @@ it('omits optional transaction header columns from excel by default', function (
         ->and($sheet->getCell('J1')->getValue())->toBe('Receiver');
 });
 
-it('orders export sell lines by date and transaction id ascending', function () {
+it('orders export sell lines by date invoice and sku ascending', function () {
     $olderTx = Transaction::factory()->create([
         'type' => Transaction::TYPE_SELL,
         'invoice' => 'SELL-SORT-OLDER',
@@ -401,6 +401,38 @@ it('orders export sell lines by date and transaction id ascending', function () 
 
     expect($sheet->getCell('C2')->getValue())->toBe('SELL-SORT-OLDER')
         ->and($sheet->getCell('C3')->getValue())->toBe('SELL-SORT-NEWER');
+});
+
+it('orders lines on the same invoice by item code not entry order', function () {
+    $itemZ = Item::factory()->create(['code' => 'ZZZ-SORT-LAST']);
+    $itemA = Item::factory()->create(['code' => 'AAA-SORT-FIRST']);
+
+    $transaction = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'SELL-SKU-SORT',
+        'date' => '2026-04-01',
+    ]);
+
+    TransactionDetail::factory()->create([
+        'transaction_id' => $transaction->id,
+        'transaction_type' => Transaction::TYPE_SELL,
+        'item_id' => $itemZ->id,
+        'date' => '2026-04-01',
+    ]);
+    TransactionDetail::factory()->create([
+        'transaction_id' => $transaction->id,
+        'transaction_type' => Transaction::TYPE_SELL,
+        'item_id' => $itemA->id,
+        'date' => '2026-04-01',
+    ]);
+
+    $rows = app(ExportSellQueryService::class)
+        ->buildQuery(request()->merge(['invoice' => 'SELL-SKU-SORT']), User::find($this->user->id))
+        ->get();
+
+    expect($rows)->toHaveCount(2)
+        ->and($rows[0]->item_id)->toBe($itemA->id)
+        ->and($rows[1]->item_id)->toBe($itemZ->id);
 });
 
 it('blanks repeated transaction header columns on subsequent detail lines in excel', function () {
