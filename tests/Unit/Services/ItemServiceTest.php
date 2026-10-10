@@ -1230,6 +1230,80 @@ test('it keeps a custom group title when product name is not the pcode', functio
         ->and((float) $medium->price)->toBe(0.0);
 });
 
+test('item update from sku catalog tab preserves colorway title and ignores stale product_name', function () {
+    $this->itemService->create((object) [
+        'pcode' => 'CX93249-03',
+        'type' => ItemType::ITEM->value,
+        'product_name' => 'Essential Shorts',
+        'price' => 100000,
+    ], [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ]);
+
+    $item = Item::where('code', 'AJD-CX93249-03-S')->firstOrFail();
+    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey($item);
+    \App\Support\ItemProductTitle::syncParentProductName($parentKey, 'PARENT SHIRT');
+
+    $this->itemService->update($item->id, (object) [
+        'pcode' => 'CX93249-03',
+        'type' => ItemType::ITEM->value,
+        'catalog_tab' => 'size',
+        'product_name' => 'PARENT SHIRT',
+        'restock_urgent_threshold' => 5,
+    ], [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ]);
+
+    $this->assertDatabaseHas('item_group', [
+        'master' => 'CX93249-03',
+        'variant' => '03',
+        'name' => 'ESSENTIAL SHORTS',
+    ]);
+});
+
+test('rename group product name does not overwrite parent group product name', function () {
+    $redTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'RED', 'name' => 'RED']);
+
+    $this->itemService->create((object) [
+        'pcode' => 'CX90233-23',
+        'type' => ItemType::ITEM->value,
+        'product_name' => 'Colorway Red',
+        'price' => 100000,
+    ], [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ]);
+
+    $this->itemService->create((object) [
+        'pcode' => 'CX90233-24',
+        'type' => ItemType::ITEM->value,
+        'product_name' => 'Colorway Blue',
+        'price' => 100000,
+    ], [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => [$redTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ]);
+
+    $groupRed = ItemGroup::where('master', 'CX90233-23')->firstOrFail();
+    $sample = $groupRed->items()->firstOrFail();
+    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey($sample);
+    \App\Support\ItemProductTitle::syncParentProductName($parentKey, 'SHARED PARENT');
+
+    $this->itemService->renameGroupProductName($groupRed, 'Only Red Title');
+
+    expect(\App\Support\ItemProductTitle::parentProductNameForKey($parentKey))->toBe('SHARED PARENT');
+});
+
 test('it updates group name from pcode placeholder when product_name is set on edit', function () {
     $this->itemService->create((object) [
         'pcode' => 'CX93249-03',

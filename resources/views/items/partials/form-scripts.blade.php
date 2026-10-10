@@ -9,7 +9,7 @@
         'cost_cnh' => old('cost_cnh', ''),
         'reseller_price' => old('reseller_price', ''),
     ];
-    $catalogTabDefault = old('catalog_tab', 'colorway');
+    $catalogTabDefault = old('catalog_tab', $defaultCatalogTab ?? 'colorway');
 @endphp
 @push('scripts')
 <script>

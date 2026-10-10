@@ -62,7 +62,11 @@ $formItem = [
         <div class="grid grid-cols-1 gap-8 lg:grid-cols-3">
             <div class="space-y-6 lg:col-span-2">
                 @include('items.partials.form-basic', ['formItem' => $formItem])
-                @include('items.partials.form-details', ['formItem' => $formItem])
+                @include('items.partials.form-details', [
+                    'formItem' => $formItem,
+                    'titleForm' => $titleForm ?? [],
+                    'colorwayEditUrl' => $colorwayEditUrl ?? null,
+                ])
                 @include('items.partials.form-inventory-options', [
                     'formItem' => $formItem,
                     'showDecimalQuantityOption' => $showDecimalQuantityOption ?? false,
@@ -89,5 +93,10 @@ $formItem = [
     </form>
 </div>
 
-@include('items.partials.form-scripts', ['multiSize' => false, 'isAsset' => $isAsset, 'formItem' => $formItem])
+@include('items.partials.form-scripts', [
+    'multiSize' => false,
+    'isAsset' => $isAsset,
+    'formItem' => $formItem,
+    'defaultCatalogTab' => 'size',
+])
 @endsection
