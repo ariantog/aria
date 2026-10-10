@@ -1104,7 +1104,7 @@ function createTransaction() {
         },
 
         // Barcode scans use the numeric item id; typed values resolve through item-by-code
-        // (canonical code, legacy_code, then name — exact match, single result).
+        // (legacy_code, then code, then name — exact match, single result).
         async resolveItemByCode(code) {
             const trimmed = String(code || '').trim();
             if (!trimmed) return null;
