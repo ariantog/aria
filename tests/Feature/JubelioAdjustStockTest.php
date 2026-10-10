@@ -265,14 +265,19 @@ it('shows the jubelio error flash on the transaction page', function () {
         ->and($html)->toContain('Stok di lokasi Jubelio tidak cukup');
 });
 
-it('rejects push when a non-zero line is missing jubelio_item_id', function () {
+it('pushes linked lines only and appends skipped skus to transaction description', function () {
     fakeJubelioAdjustToken();
-    Http::fake();
+    Http::fake([
+        'https://api2.jubelio.com/inventory/adjustments/warehouse' => Http::response([
+            'item_adj_id' => 99001,
+        ], 200),
+    ]);
 
     $user = seedAdjustStockUser();
     $linked = Item::factory()->create(['jubelio_item_id' => 907, 'code' => 'SKU-LINKED']);
     $unlinked = Item::factory()->create(['jubelio_item_id' => null, 'code' => 'SKU-NO-JUB']);
     $transaction = seedMoveForAdjust($linked);
+    $transaction->update(['description' => 'Catatan penjualan toko.']);
     $transaction->details()->create([
         'date' => $transaction->date,
         'transaction_type' => Transaction::TYPE_MOVE,
@@ -292,9 +297,17 @@ it('rejects push when a non-zero line is missing jubelio_item_id', function () {
             'adjustType' => 2,
         ])
         ->assertRedirect()
-        ->assertSessionHas('errorMessage', fn (string $message) => str_contains($message, 'SKU-NO-JUB'));
+        ->assertSessionHas('success', fn (string $message) => str_contains($message, 'dilewati'));
 
-    Http::assertNothingSent();
+    Http::assertSent(fn (\Illuminate\Http\Client\Request $request) => $request->url() === 'https://api2.jubelio.com/inventory/adjustments/warehouse');
+
+    $transaction->refresh();
+
+    expect($transaction->a_submit_by)->not->toBeNull()
+        ->and($transaction->description)->toContain('Catatan penjualan toko.')
+        ->and($transaction->description)->toContain('SKU-NO-JUB')
+        ->and($transaction->description)->toContain('SKU-NO-JUB × 2')
+        ->and($transaction->description)->toContain('Disinkronkan: 1 baris terhubung.');
 });
 
 it('does not leave a warning when jubelio auth fails before the push', function () {

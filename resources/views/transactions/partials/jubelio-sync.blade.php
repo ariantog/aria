@@ -18,7 +18,7 @@
     <span class="text-sm font-semibold text-gray-900">Sinkron Jubelio</span>
 
     @if(($jubelioSync['mapping_missing'] ?? 0) > 0)
-    <span class="text-xs text-red-600">{{ $jubelioSync['mapping_missing'] }} item belum terhubung</span>
+    <span class="text-xs text-amber-700">{{ $jubelioSync['mapping_missing'] }} baris belum terhubung — push hanya baris terhubung; yang dilewati dicatat di deskripsi.</span>
     @endif
 
     <form method="POST" x-ref="adjustForm" class="hidden">
@@ -48,7 +48,7 @@
                 $needsSync = $jubelioSync['adjust_type_a'] > 0;
                 $isSynced = (bool) $transaction->a_submit_by;
                 $hasWarning = $jubelioSync['warning_a'] ?? false;
-                $disabled = ($jubelioSync['mapping_missing'] ?? 0) > 0 || ! $jubelioSync['jubelio_a'];
+                $disabled = ! $jubelioSync['jubelio_a'];
             @endphp
             @if($isSynced)
                 <span class="inline-flex items-center gap-1 rounded-md border border-green-500/30 bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700">
@@ -76,7 +76,7 @@
                 $needsSync = $jubelioSync['adjust_type_b'] > 0;
                 $isSynced = (bool) $transaction->b_submit_by;
                 $hasWarning = $jubelioSync['warning_b'] ?? false;
-                $disabled = ($jubelioSync['mapping_missing'] ?? 0) > 0 || ! $jubelioSync['jubelio_b'];
+                $disabled = ! $jubelioSync['jubelio_b'];
             @endphp
             @if($isSynced)
                 <span class="inline-flex items-center gap-1 rounded-md border border-green-500/30 bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700">
