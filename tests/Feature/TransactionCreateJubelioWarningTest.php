@@ -70,8 +70,12 @@ it('embeds db-backed jubelio sync config and warning hooks on the sell create fo
         ->get(route('transactions.create', ['type' => 'sell']))
         ->assertOk()
         ->assertSee('data-testid="jubelio-unlinked-warning"', false)
+        ->assertSee('data-testid="jubelio-stock-warning"', false)
+        ->assertSee('data-testid="jubelio-stock-row-hint"', false)
         ->assertSee('"synced_warehouse_ids":['.$warehouse->id.']', false)
         ->assertSee('jubelioWarehouseMapped()', false)
+        ->assertSee('jubelioMixedCartSyncActive()', false)
+        ->assertSee('refreshJubelioStockPreview()', false)
         ->assertSee("_TxType === 'sell'", false);
 });
 

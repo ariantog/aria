@@ -15,6 +15,7 @@ use App\Http\Requests\StoreTransferRequest;
 use App\Models\DeletedTransaction;
 use App\Models\DeletedTransactionDetail;
 use App\Models\Addrbook;
+use App\Models\Item;
 use App\Models\Transaction;
 use App\Services\BookClosingService;
 use App\Services\Jubelio\JubelioTransactionSyncPresenter;
@@ -27,6 +28,7 @@ use App\Services\TransactionReturnDraftService;
 use App\Services\TransactionService;
 use App\Services\UserPreferenceService;
 use App\Services\WarehouseItemStatsRecorder;
+use App\Services\WarehouseJubelioStockService;
 use App\Support\PpnAmounts;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -115,6 +117,7 @@ class TransactionsController extends Controller
             'min_date' => $bookClosingService->getMinAllowedDate()->toDateString(),
             'prefill' => $this->resolveCreatePrefill($type, $request, $draftService, $userPreferences),
             'jubelio_sync' => $jubelioSyncPresenter->createFormSyncConfig(),
+            'jubelio_active' => (bool) config('services.jubelio.active'),
             'sellCashIn' => $type === 'sell' ? app(SellCashInPresenter::class)->formData(Auth::user()) : null,
             'ppn_included_system_default' => Addrbook::defaultPpnIncluded(),
         ]);
@@ -160,6 +163,47 @@ class TransactionsController extends Controller
 
         return response()->json([
             'item' => $item ? $this->itemLookupPayload($item) : null,
+        ]);
+    }
+
+    /**
+     * Live Jubelio on-hand / available / on-order for transaction create (sell + mapped warehouse).
+     */
+    public function jubelioStockPreview(string $type, Request $request, WarehouseJubelioStockService $jubelioStockService)
+    {
+        Transaction::authorizeTypeAccess($type);
+
+        if (! config('services.jubelio.active')) {
+            return response()->json([
+                'stocks' => [],
+                'fetch_failed' => false,
+                'inactive' => true,
+            ]);
+        }
+
+        $validated = $request->validate([
+            'warehouse_id' => ['required', 'integer', 'min:1'],
+            'item_ids' => ['required', 'array', 'max:100'],
+            'item_ids.*' => ['integer', 'min:1'],
+        ]);
+
+        $sync = $jubelioStockService->syncForWarehouse((int) $validated['warehouse_id']);
+        if (! $sync) {
+            return response()->json([
+                'stocks' => [],
+                'fetch_failed' => false,
+                'warehouse_unmapped' => true,
+            ]);
+        }
+
+        $itemIds = array_values(array_unique(array_map('intval', $validated['item_ids'])));
+        $items = Item::query()->whereIn('id', $itemIds)->get(['id', 'jubelio_item_id']);
+
+        $data = $jubelioStockService->jubelioQuantitiesForItems($sync, $items);
+
+        return response()->json([
+            'stocks' => $data['stocks'],
+            'fetch_failed' => $data['fetch_failed'],
         ]);
     }
 
