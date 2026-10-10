@@ -199,8 +199,12 @@ class ExportSellQueryService
 
                 return $this->applyPartyNameFilter($q, 'receiver', $term);
             })
+            ->leftJoin('transactions as export_sell_txn_sort', 'export_sell_txn_sort.id', '=', 'transaction_details.transaction_id')
+            ->leftJoin('items as export_sell_item_sort', 'export_sell_item_sort.id', '=', 'transaction_details.item_id')
+            ->select('transaction_details.*')
             ->orderBy('transaction_details.date')
-            ->orderBy('transaction_details.transaction_id')
+            ->orderBy('export_sell_txn_sort.invoice')
+            ->orderBy('export_sell_item_sort.code')
             ->orderBy('transaction_details.id');
     }
 
