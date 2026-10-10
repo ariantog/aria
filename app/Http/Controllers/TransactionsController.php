@@ -508,7 +508,9 @@ class TransactionsController extends Controller
             rewind($handle);
             $delimiter = substr_count($firstLine, ';') > substr_count($firstLine, ',') ? ';' : ',';
             $first = true;
+            $lineNumber = 0;
             while (($data = fgetcsv($handle, 1000, $delimiter)) !== false) {
+                $lineNumber++;
                 if (count($data) >= 3) {
                     if ($first && ! is_numeric(trim($data[1]))) {
                         $first = false;
@@ -516,7 +518,12 @@ class TransactionsController extends Controller
                         continue;
                     }
                     $first = false;
-                    $array[] = ['code' => trim($data[0]), 'qty' => trim($data[1]), 'price' => trim($data[2])];
+                    $array[] = [
+                        'line' => $lineNumber,
+                        'code' => trim($data[0]),
+                        'qty' => trim($data[1]),
+                        'price' => trim($data[2]),
+                    ];
                 }
             }
             fclose($handle);
@@ -538,8 +545,22 @@ class TransactionsController extends Controller
             ? config('transaction_rules.'.$type.'.price_source', 'price')
             : 'price';
         $dataList = [];
+        $unmatched = [];
         foreach ($array as $row) {
-            $resolved = $itemsBySku->get(strtoupper($row['code']));
+            $sku = trim($row['code']);
+            if ($sku === '') {
+                $unmatched[] = [
+                    'line' => (int) $row['line'],
+                    'code' => '',
+                    'qty' => (float) $row['qty'],
+                    'price' => (float) $row['price'],
+                    'reason' => 'empty_sku',
+                ];
+
+                continue;
+            }
+
+            $resolved = $itemsBySku->get(strtoupper($sku));
             $item = $resolved ? ($items[$resolved->id] ?? $resolved) : null;
             if ($item) {
                 $warehouseItem = [];
@@ -574,10 +595,30 @@ class TransactionsController extends Controller
                     'subtotal' => (float) $row['qty'] * $unitPrice,
                     'note' => '',
                 ];
+
+                continue;
             }
+
+            $unmatched[] = [
+                'line' => (int) $row['line'],
+                'code' => $sku,
+                'qty' => (float) $row['qty'],
+                'price' => (float) $row['price'],
+                'reason' => 'sku_not_found',
+            ];
         }
 
-        return response()->json(['data' => $dataList, 'totalQty' => collect($dataList)->sum('quantity'), 'totalPrice' => collect($dataList)->sum('subtotal')]);
+        return response()->json([
+            'data' => $dataList,
+            'unmatched' => $unmatched,
+            'summary' => [
+                'parsed_lines' => count($array),
+                'matched_lines' => count($dataList),
+                'unmatched_lines' => count($unmatched),
+            ],
+            'totalQty' => collect($dataList)->sum('quantity'),
+            'totalPrice' => collect($dataList)->sum('subtotal'),
+        ]);
     }
 
     public function updateNote(Request $request, Transaction $transaction)

@@ -250,6 +250,27 @@
                     <button type="button" @click="dismissJubelioWarning = true" class="shrink-0 text-amber-600 hover:text-amber-800">✕</button>
                 </div>
 
+                {{-- Batch CSV rows that could not be matched (legacy_code then code) --}}
+                <div x-show="hasBatchCsvUnmatched()" x-cloak data-testid="batch-csv-unmatched"
+                     class="mx-5 mt-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-950">
+                    <div class="flex items-start justify-between gap-2">
+                        <div class="min-w-0 flex-1">
+                            <p class="font-medium" x-text="batchCsvUnmatchedTitle()"></p>
+                            <p class="mt-1 text-xs text-amber-800">SKU dicari di legacy_code lalu code. Baris yang tidak cocok tidak ditambahkan ke tabel.</p>
+                            <ul class="mt-2 max-h-40 space-y-1 overflow-y-auto font-mono text-xs">
+                                <template x-for="row in batchCsvUnmatchedRows()" :key="row.line + '-' + row.code">
+                                    <li>
+                                        <span class="text-amber-700" x-text="'Baris ' + row.line + ':'"></span>
+                                        <span x-text="row.code || '(kosong)'"></span>
+                                        <span class="text-amber-800" x-text="' × ' + row.qty"></span>
+                                    </li>
+                                </template>
+                            </ul>
+                        </div>
+                        <button type="button" @click="dismissBatchCsvReport = true" class="shrink-0 text-amber-700 hover:text-amber-900" title="Sembunyikan">✕</button>
+                    </div>
+                </div>
+
                 {{-- Table header --}}
                 <div class="hidden grid-cols-12 gap-2 border-b bg-gray-50 px-5 py-2.5 text-[10px] font-medium uppercase tracking-wide text-gray-500 sm:grid">
                     <div class="col-span-2">Code / Barcode</div>
@@ -654,6 +675,8 @@ function createTransaction() {
         serverErrors: [],
         barcodeError: '',
         dismissJubelioWarning: false,
+        batchCsvReport: null,
+        dismissBatchCsvReport: false,
         copyFeedback: false,
         copyFeedbackTimer: null,
         scannerOpen: false,
@@ -1080,6 +1103,27 @@ function createTransaction() {
 
         hasJubelioUnlinkedWarning() {
             return !this.dismissJubelioWarning && this.jubelioUnlinkedCount() > 0;
+        },
+
+        hasBatchCsvUnmatched() {
+            return !this.dismissBatchCsvReport && this.batchCsvUnmatchedRows().length > 0;
+        },
+
+        batchCsvUnmatchedRows() {
+            return this.batchCsvReport?.unmatched ?? [];
+        },
+
+        batchCsvUnmatchedTitle() {
+            const summary = this.batchCsvReport?.summary;
+            if (!summary) {
+                return 'Beberapa baris CSV tidak dapat dimuat.';
+            }
+
+            const parsed = summary.parsed_lines ?? 0;
+            const matched = summary.matched_lines ?? 0;
+            const missed = summary.unmatched_lines ?? 0;
+
+            return `${matched} dari ${parsed} baris dimuat — ${missed} SKU tidak ditemukan`;
         },
 
         jubelioUnlinkedMessage() {
@@ -1619,6 +1663,20 @@ function createTransaction() {
                 body: fd,
             });
             const data = await res.json();
+            if (!res.ok) {
+                alert(data.error || 'Gagal membaca CSV.');
+                event.target.value = '';
+
+                return;
+            }
+
+            this.batchCsvReport = {
+                unmatched: Array.isArray(data.unmatched) ? data.unmatched : [],
+                summary: data.summary ?? null,
+                fileName: file.name || '',
+            };
+            this.dismissBatchCsvReport = false;
+
             if (data.data && data.data.length > 0) {
                 this.form.items = this.form.items.filter(r => r.item_id);
                 data.data.forEach(ci => {
@@ -1643,9 +1701,9 @@ function createTransaction() {
                 if (_TxType === 'move') {
                     this.consolidateMoveDuplicateRows();
                 }
-                if (this.form.items.length === 0) this.addItemRow(false);
-                this.recalcTotals();
             }
+            if (this.form.items.length === 0) this.addItemRow(false);
+            this.recalcTotals();
             event.target.value = '';
         },
 

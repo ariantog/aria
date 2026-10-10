@@ -170,6 +170,40 @@ it('resolves csv codes via legacy sku and skips a header row', function () {
         ->assertJsonPath('data.0.warehouse_stock', 5);
 });
 
+it('returns unmatched csv lines when sku is not in aria', function () {
+    $warehouse = Addrbook::factory()->create(['type' => Addrbook::TYPE_WAREHOUSE]);
+    $item = Item::factory()->create(['code' => 'FOUND-SKU', 'legacy_code' => '']);
+    WarehouseItem::create([
+        'item_id' => $item->id,
+        'warehouse_id' => $warehouse->id,
+        'warehouse_type' => Addrbook::class,
+        'quantity' => 1,
+    ]);
+
+    $csv = UploadedFile::fake()->createWithContent(
+        'batch.csv',
+        "FOUND-SKU,1,1000\nMISSING-A,2,2000\nMISSING-B,1,3000\n",
+    );
+
+    $response = $this->actingAs($this->user)
+        ->postJson(route('transactions.batch-parse'), [
+            'csv_file' => $csv,
+            'warehouse_id' => $warehouse->id,
+            'type' => 'sell',
+        ]);
+
+    $response->assertSuccessful()
+        ->assertJsonPath('summary.parsed_lines', 3)
+        ->assertJsonPath('summary.matched_lines', 1)
+        ->assertJsonPath('summary.unmatched_lines', 2)
+        ->assertJsonCount(1, 'data')
+        ->assertJsonCount(2, 'unmatched')
+        ->assertJsonPath('unmatched.0.code', 'MISSING-A')
+        ->assertJsonPath('unmatched.0.line', 2)
+        ->assertJsonPath('unmatched.0.reason', 'sku_not_found')
+        ->assertJsonPath('unmatched.1.code', 'MISSING-B');
+});
+
 it('rejects an empty csv', function () {
     $csv = UploadedFile::fake()->createWithContent('batch.csv', "code,qty,price\n");
 
