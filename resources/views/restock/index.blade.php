@@ -19,10 +19,15 @@ $stageLabels = [
 ];
 @endphp
 
-<div class="flex flex-col gap-4 p-4" x-data="restockIndexExport(@js([
+<div class="flex flex-col gap-4 p-4" x-data="restockIndexPage(@js([
     'sheetIds' => $sheets->pluck('id')->values()->all(),
     'stages' => $exportStages ?? ['restock', 'production', 'shipped', 'stock'],
     'canExport' => $canExport ?? false,
+    'canEdit' => $canEdit ?? false,
+    'flatExportRestockUrl' => route('restock.export-flat', ['source' => 'restock']),
+    'flatExportProductionUrl' => route('restock.export-flat', ['source' => 'production']),
+    'flatPreviewUrl' => route('restock.import-flat.preview'),
+    'flatApplyUrl' => route('restock.import-flat.apply'),
 ]))">
     <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -120,6 +125,104 @@ $stageLabels = [
             </div>
             @endif
 
+            @if(($canExport ?? false) || ($canEdit ?? false))
+            <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm" data-testid="restock-flat-pipeline-panel">
+                <h2 class="text-sm font-semibold text-gray-900">Flat pipeline (SKU list)</h2>
+                <p class="mt-1 text-xs text-gray-500">
+                    Export one file with every sheet: columns <strong>sku</strong> and <strong>quantity</strong>.
+                    After supplier confirmation, remove rejected SKUs and re-import to move quantities.
+                </p>
+
+                @if($canExport ?? false)
+                <div class="mt-4 flex flex-wrap gap-2">
+                    <a href="{{ route('restock.export-flat', ['source' => 'restock']) }}"
+                       data-testid="restock-flat-export-restock"
+                       class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                        Download flat (restock qty)
+                    </a>
+                    <a href="{{ route('restock.export-flat', ['source' => 'production']) }}"
+                       data-testid="restock-flat-export-production"
+                       class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                        Download flat (production qty)
+                    </a>
+                </div>
+                @endif
+
+                @if($canEdit ?? false)
+                <div class="mt-4 space-y-3 border-t border-gray-100 pt-4">
+                    <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700" for="restock-flat-direction">Move</label>
+                            <select id="restock-flat-direction" x-model="flatDirection"
+                                    data-testid="restock-flat-direction"
+                                    class="rounded-lg border-gray-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                <option value="to_production">Restock → Production</option>
+                                <option value="to_shipped">Production → Shipping</option>
+                            </select>
+                        </div>
+                        <div class="min-w-[12rem] flex-1">
+                            <label class="mb-1 block text-xs font-medium text-gray-700" for="restock-flat-file">File (CSV or Excel)</label>
+                            <input type="file" id="restock-flat-file" accept=".csv,.txt,.xlsx,.xls"
+                                   @change="flatFile = $event.target.files[0] || null"
+                                   data-testid="restock-flat-file"
+                                   class="block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-blue-800 hover:file:bg-blue-100">
+                        </div>
+                        <button type="button" @click="flatPreview()" :disabled="flatBusy || !flatFile"
+                                data-testid="restock-flat-preview"
+                                class="inline-flex items-center justify-center rounded-lg bg-gray-800 px-4 py-2 text-sm font-medium text-white hover:bg-gray-900 disabled:cursor-not-allowed disabled:opacity-50">
+                            Preview
+                        </button>
+                        <button type="button" @click="flatApply()" :disabled="flatBusy || !flatCanApply || !flatFile"
+                                data-testid="restock-flat-apply"
+                                class="inline-flex items-center justify-center rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50">
+                            Apply move
+                        </button>
+                    </div>
+
+                    <template x-if="flatError">
+                        <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" x-text="flatError"></div>
+                    </template>
+                    <template x-if="flatFlash">
+                        <div class="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800" x-text="flatFlash"></div>
+                    </template>
+
+                    <template x-if="flatPreviewData">
+                        <div class="overflow-x-auto rounded-lg border border-gray-200">
+                            <p class="border-b border-gray-100 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                                <span x-text="flatPreviewData.direction_label"></span>
+                                — moving <span class="font-semibold" x-text="flatPreviewData.summary.moving"></span> unit(s),
+                                <span x-text="flatPreviewData.summary.skipped"></span> skipped,
+                                <span x-text="flatPreviewData.summary.errors"></span> error(s).
+                            </p>
+                            <table class="min-w-full divide-y divide-gray-200 text-sm">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-3 py-2 text-left font-medium text-gray-600">Line</th>
+                                        <th class="px-3 py-2 text-left font-medium text-gray-600">SKU</th>
+                                        <th class="px-3 py-2 text-right font-medium text-gray-600">Qty</th>
+                                        <th class="px-3 py-2 text-left font-medium text-gray-600">Status</th>
+                                        <th class="px-3 py-2 text-left font-medium text-gray-600">Detail</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100">
+                                    <template x-for="line in flatPreviewData.lines" :key="'flat-'+line.line+'-'+line.sku">
+                                        <tr :class="line.status === 'error' ? 'bg-red-50' : (line.status === 'ok' ? '' : 'bg-gray-50')">
+                                            <td class="px-3 py-2 tabular-nums text-gray-500" x-text="line.line"></td>
+                                            <td class="px-3 py-2 font-mono text-xs" x-text="line.sku"></td>
+                                            <td class="px-3 py-2 text-right tabular-nums" x-text="line.qty"></td>
+                                            <td class="px-3 py-2 capitalize" x-text="line.status"></td>
+                                            <td class="px-3 py-2 text-gray-600" x-text="line.message"></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </template>
+                </div>
+                @endif
+            </div>
+            @endif
+
             <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
                 <table class="min-w-full divide-y divide-gray-200 text-sm" data-testid="restock-sheets-table">
                     <thead class="bg-gray-50">
@@ -194,12 +297,21 @@ $stageLabels = [
 
 @push('scripts')
 <script>
-function restockIndexExport(config) {
+function restockIndexPage(config) {
     return {
         allSheetIds: config.sheetIds || [],
         selectedSheetIds: (config.sheetIds || []).slice(),
         selectedStages: (config.stages || []).slice(),
         canExport: config.canExport === true,
+        flatDirection: 'to_production',
+        flatFile: null,
+        flatBusy: false,
+        flatError: '',
+        flatFlash: '',
+        flatPreviewData: null,
+        flatCanApply: false,
+        flatPreviewUrl: config.flatPreviewUrl,
+        flatApplyUrl: config.flatApplyUrl,
         allSheetsSelected() {
             return this.allSheetIds.length > 0
                 && this.selectedSheetIds.length === this.allSheetIds.length;
@@ -215,6 +327,65 @@ function restockIndexExport(config) {
             return this.canExport
                 && this.selectedSheetIds.length > 0
                 && this.selectedStages.length > 0;
+        },
+        flatFormData() {
+            const fd = new FormData();
+            fd.append('direction', this.flatDirection);
+            fd.append('file', this.flatFile);
+            return fd;
+        },
+        async flatPreview() {
+            if (!this.flatFile) return;
+            this.flatBusy = true;
+            this.flatError = '';
+            this.flatFlash = '';
+            this.flatPreviewData = null;
+            this.flatCanApply = false;
+            try {
+                const res = await fetch(this.flatPreviewUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: this.flatFormData(),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || 'Preview failed');
+                this.flatPreviewData = data;
+                this.flatCanApply = data.can_apply === true;
+            } catch (e) {
+                this.flatError = e.message || 'Preview failed';
+            } finally {
+                this.flatBusy = false;
+            }
+        },
+        async flatApply() {
+            if (!this.flatFile || !this.flatCanApply) return;
+            this.flatBusy = true;
+            this.flatError = '';
+            this.flatFlash = '';
+            try {
+                const res = await fetch(this.flatApplyUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: this.flatFormData(),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || 'Apply failed');
+                this.flatFlash = data.message || 'Applied.';
+                this.flatPreviewData = null;
+                this.flatCanApply = false;
+            } catch (e) {
+                this.flatError = e.message || 'Apply failed';
+            } finally {
+                this.flatBusy = false;
+            }
         },
     };
 }

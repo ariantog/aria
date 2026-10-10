@@ -536,6 +536,9 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::post('/recommendations/apply-to-sheets', [App\Http\Controllers\Restock\RestockRecommendationController::class, 'applyToSheets'])->name('recommendations.apply');
         Route::post('/recommendations/save-restock', [App\Http\Controllers\Restock\RestockRecommendationController::class, 'saveRestockQuantities'])->name('recommendations.save-restock');
         Route::post('/export', [App\Http\Controllers\Restock\RestockTypeController::class, 'exportBulk'])->name('export');
+        Route::get('/export-flat', [App\Http\Controllers\Restock\RestockFlatController::class, 'export'])->name('export-flat');
+        Route::post('/import-flat/preview', [App\Http\Controllers\Restock\RestockFlatController::class, 'preview'])->name('import-flat.preview');
+        Route::post('/import-flat/apply', [App\Http\Controllers\Restock\RestockFlatController::class, 'apply'])->name('import-flat.apply');
         Route::get('/missing', [App\Http\Controllers\Restock\RestockMissingController::class, 'index'])->name('missing.index');
         Route::get('/type/{typeTag:code}/missing', [App\Http\Controllers\Restock\RestockMissingController::class, 'forType'])->name('type.missing');
         Route::post('/missing/{cell}/found', [App\Http\Controllers\Restock\RestockMissingController::class, 'markFound'])->name('missing.found');
