@@ -318,8 +318,9 @@ class DataRetentionService
         int $maxId,
         ?int $itemType = null,
         int $perPage = 100,
+        bool $zeroQtyOnly = false,
     ): \Illuminate\Contracts\Pagination\LengthAwarePaginator {
-        return $this->selectableOrphanItemIdsQuery($maxId, $itemType)
+        return $this->selectableOrphanItemIdsQuery($maxId, $itemType, $zeroQtyOnly)
             ->select([
                 'items.id',
                 'items.code',
@@ -422,8 +423,9 @@ class DataRetentionService
         int $maxId,
         ?int $itemType = null,
         array $excludeItemIds = [],
+        bool $zeroQtyOnly = false,
     ): int {
-        $query = $this->selectableOrphanItemIdsQuery($maxId, $itemType);
+        $query = $this->selectableOrphanItemIdsQuery($maxId, $itemType, $zeroQtyOnly);
 
         if ($excludeItemIds !== []) {
             $query->whereNotIn('items.id', $this->normalizeItemIds($excludeItemIds));
@@ -570,6 +572,7 @@ class DataRetentionService
         ?int $itemType,
         array $itemIds,
         bool $dryRun = false,
+        bool $zeroQtyOnly = false,
     ): array {
         $itemIds = $this->normalizeItemIds($itemIds);
 
@@ -577,7 +580,7 @@ class DataRetentionService
             return ['items' => 0, 'groups' => 0];
         }
 
-        $eligibleIds = $this->selectableOrphanItemIdsQuery($maxId, $itemType)
+        $eligibleIds = $this->selectableOrphanItemIdsQuery($maxId, $itemType, $zeroQtyOnly)
             ->whereIn('items.id', $itemIds)
             ->orderBy('items.id')
             ->pluck('items.id');
@@ -612,13 +615,14 @@ class DataRetentionService
         ?int $itemType = null,
         array $excludeItemIds = [],
         bool $dryRun = false,
+        bool $zeroQtyOnly = false,
     ): array {
         $batch = config('data_retention.item_purge_batch_size', 500);
         $purged = 0;
         $excludeItemIds = $this->normalizeItemIds($excludeItemIds);
 
         while (true) {
-            $query = $this->selectableOrphanItemIdsQuery($maxId, $itemType)
+            $query = $this->selectableOrphanItemIdsQuery($maxId, $itemType, $zeroQtyOnly)
                 ->orderBy('items.id')
                 ->limit($batch);
 
@@ -1268,8 +1272,11 @@ class DataRetentionService
         return $query;
     }
 
-    protected function selectableOrphanItemIdsQuery(int $maxId, ?int $itemType = null): \Illuminate\Database\Query\Builder
-    {
+    protected function selectableOrphanItemIdsQuery(
+        int $maxId,
+        ?int $itemType = null,
+        bool $zeroQtyOnly = false,
+    ): \Illuminate\Database\Query\Builder {
         $query = $this->live()->table('items')
             ->where('items.id', '<=', $maxId)
             ->whereNotExists(function ($subquery) {
@@ -1280,6 +1287,15 @@ class DataRetentionService
 
         if ($itemType !== null) {
             $query->where('items.type', $itemType);
+        }
+
+        if ($zeroQtyOnly) {
+            $query->whereNotExists(function ($subquery) {
+                $subquery->select(DB::raw(1))
+                    ->from('warehouse_item')
+                    ->whereColumn('warehouse_item.item_id', 'items.id')
+                    ->where('warehouse_item.quantity', '>', 0);
+            });
         }
 
         return $query;

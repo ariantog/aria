@@ -26,16 +26,20 @@ class ItemPurgeController extends Controller
         $itemType = request()->query('item_type');
         $itemType = $itemType !== null && $itemType !== '' ? (int) $itemType : null;
 
+        $zeroQtyOnly = request()->query('zero_qty_only') === '1';
+
         $preview = $retention->previewSelectableItemPurge(
             $maxId,
             $itemType,
             perPage: 100,
+            zeroQtyOnly: $zeroQtyOnly,
         )->appends(array_filter([
             'max_id' => $maxId > 0 ? $maxId : null,
             'item_type' => $itemType,
+            'zero_qty_only' => $zeroQtyOnly ? '1' : null,
         ], fn ($value) => $value !== null && $value !== ''));
 
-        $totalCandidates = $retention->countSelectableOrphanItems($maxId, $itemType);
+        $totalCandidates = $retention->countSelectableOrphanItems($maxId, $itemType, zeroQtyOnly: $zeroQtyOnly);
 
         $itemId = request()->query('item_id');
         $selectedItemId = ($itemId !== null && $itemId !== '' && ctype_digit((string) $itemId))
@@ -54,6 +58,7 @@ class ItemPurgeController extends Controller
         return view('system-settings.item-purge', [
             'maxId' => $maxId,
             'itemType' => $itemType,
+            'zeroQtyOnly' => $zeroQtyOnly,
             'totalCandidates' => $totalCandidates,
             'selectedItemId' => $selectedItemId,
             'itemPreview' => $itemPreview,
@@ -74,6 +79,7 @@ class ItemPurgeController extends Controller
         $validated = $request->validate([
             'max_id' => ['required', 'integer', 'min:1'],
             'item_type' => ['nullable', 'integer'],
+            'zero_qty_only' => ['nullable', 'in:0,1'],
             'page' => ['nullable', 'integer', 'min:1'],
             'page_item_ids' => ['required', 'array', 'min:1'],
             'page_item_ids.*' => ['integer', 'min:1'],
@@ -84,6 +90,7 @@ class ItemPurgeController extends Controller
 
         $maxId = (int) $validated['max_id'];
         $itemType = isset($validated['item_type']) ? (int) $validated['item_type'] : null;
+        $zeroQtyOnly = ($validated['zero_qty_only'] ?? '0') === '1';
         $page = isset($validated['page']) ? (int) $validated['page'] : 1;
         $pageItemIds = $this->normalizeKeepIds($validated['page_item_ids']);
         $keepIds = $this->normalizeKeepIds($validated['keep_ids'] ?? []);
@@ -98,6 +105,7 @@ class ItemPurgeController extends Controller
                 maxId: $maxId,
                 itemType: $itemType,
                 itemIds: $purgeIds,
+                zeroQtyOnly: $zeroQtyOnly,
             );
         } catch (Throwable $e) {
             return back()->with('error', $e->getMessage());
@@ -107,6 +115,7 @@ class ItemPurgeController extends Controller
             ->route('data-retention.item-purge.index', array_filter([
                 'max_id' => $maxId,
                 'item_type' => $itemType,
+                'zero_qty_only' => $zeroQtyOnly ? '1' : null,
                 'page' => $page > 1 ? $page : null,
             ], fn ($value) => $value !== null && $value !== ''))
             ->with('success', sprintf(
