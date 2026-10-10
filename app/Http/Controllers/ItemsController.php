@@ -783,10 +783,6 @@ class ItemsController extends Controller
             }
         }
 
-        if ($isAsset) {
-            $rules['product_name'] = ['required', 'string', 'max:255'];
-        }
-
         $request->validate($rules, [
             'product_name.required' => 'Product name is required.',
         ]);

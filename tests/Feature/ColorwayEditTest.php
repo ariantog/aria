@@ -29,6 +29,37 @@ beforeEach(function () {
     $this->jahitTag = Tag::factory()->create(['type' => Tag::TYPE_JAHIT, 'code' => 'J1', 'name' => 'Jahit1']);
 });
 
+test('updateColorway with empty product name clears stored title to inherit parent', function () {
+    $this->itemService->create((object) [
+        'pcode' => 'CX90233-23',
+        'type' => ItemType::ITEM->value,
+        'product_name' => 'Colorway Only Title',
+        'price' => 100000,
+    ], [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ]);
+
+    $small = Item::where('code', 'AJD-CX90233-23-S')->firstOrFail();
+    $group = $small->group()->firstOrFail();
+    $parentKey = app(ItemIdentityBuilder::class)->itemParentKey($small);
+    ItemProductTitle::syncParentProductName($parentKey, 'PARENT RUNNING SHIRT');
+
+    $this->itemService->updateColorway(
+        $group,
+        (object) ['product_name' => ''],
+        [['id' => $small->id, 'price' => 100000]],
+    );
+
+    $group->refresh();
+    $small->refresh();
+
+    expect($group->name)->toBe('CX90233-23')
+        ->and(ItemProductTitle::resolveBareTitle($small->fresh(['group', 'tags'])))->toBe('PARENT RUNNING SHIRT');
+});
+
 test('updateColorway renames group and regenerates item display names', function () {
     $this->itemService->create((object) [
         'pcode' => 'CX90233-23',

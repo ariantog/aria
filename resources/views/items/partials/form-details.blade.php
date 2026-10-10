@@ -128,7 +128,6 @@
             <div>
                 <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-product-name">
                     Stored product name (this colorway only)
-                    @if($isAsset ?? false)<span class="text-red-500">*</span>@endif
                 </label>
                 <input type="text" id="item-form-product-name" name="product_name" x-model="form.product_name"
                        value="{{ $fi['product_name'] }}"

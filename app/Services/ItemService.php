@@ -93,6 +93,11 @@ class ItemService
             $groupName = $this->groupNameFromInput($catalogInput, $inputType, $pcode, $item->group, $item);
             $group = $this->resolveGroup($inputType, $pcode, $groupName, $warnaTag, $catalogInput, $item);
 
+            if ($catalogTab === 'colorway' && $this->userClearedColorwayProductName($catalogInput)) {
+                $this->clearColorwayTitleOverrides($group);
+                $group->save();
+            }
+
             $this->applyItemIdentity(
                 $item,
                 $inputType,
@@ -187,6 +192,10 @@ class ItemService
             );
 
             $group->name = $storedName;
+
+            if ($this->userClearedColorwayProductName($input)) {
+                $this->clearColorwayTitleOverrides($group);
+            }
 
             $catalogAttributes = [
                 'brand' => isset($input->brand)
@@ -746,6 +755,12 @@ class ItemService
             );
         }
 
+        if ($item !== null && $productNameSubmitted && $name === '') {
+            return $type === ItemType::ITEM
+                ? $this->identityBuilder->normalizeManufacturedPcode($pcode)
+                : strtoupper(trim($pcode));
+        }
+
         if ($item !== null && $existing !== null && ! $productNameSubmitted) {
             $existingStored = trim((string) ($existing->name ?? ''));
             if ($existingStored !== ''
@@ -1287,6 +1302,26 @@ class ItemService
         }
 
         return strtoupper(trim($groupName)) === strtoupper(trim($pcode));
+    }
+
+    protected function userClearedColorwayProductName(object $input): bool
+    {
+        if (! property_exists($input, 'product_name') && ! isset($input->product_name)) {
+            return false;
+        }
+
+        return trim((string) ($input->product_name ?? '')) === '';
+    }
+
+    protected function clearColorwayTitleOverrides(ItemGroup $group): void
+    {
+        if (Schema::hasColumn($group->getTable(), 'alias')) {
+            $group->alias = '';
+        }
+
+        if (ItemCatalog::itemColumnExists('alias')) {
+            Item::query()->where('group_id', $group->id)->update(['alias' => '']);
+        }
     }
 
     protected function normalizeCatalogTab(mixed $tab): string
