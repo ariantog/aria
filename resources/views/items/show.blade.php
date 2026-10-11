@@ -75,6 +75,20 @@ $showDualChannelStockMismatch = $showShopeeStock && ! empty($jubelioByWarehouse)
                 Duplicate SKU
             </a>
             @endif
+            @if(!empty($parentGroupUrl))
+            <a href="{{ $parentGroupUrl }}"
+               data-testid="item-detail-parent-group-link"
+               class="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-800 hover:bg-blue-100">
+                Parent group
+            </a>
+            @endif
+            @if(!empty($colorwayEditUrl))
+            <a href="{{ $colorwayEditUrl }}"
+               data-testid="item-detail-colorway-edit-link"
+               class="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-800 hover:bg-indigo-100">
+                Edit colorway
+            </a>
+            @endif
             <a href="{{ $base }}/{{ $item->id }}/edit" class="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                 Edit Details
@@ -105,6 +119,27 @@ $showDualChannelStockMismatch = $showShopeeStock && ! empty($jubelioByWarehouse)
     @endif
 
     @include('items.partials.identity-convert', ['identityConvert' => $identityConvert ?? null])
+
+    @if(!empty($parentGroupUrl) || !empty($colorwayEditUrl))
+    <div class="mb-4 rounded-lg border border-indigo-100 bg-indigo-50/40 p-4 text-sm text-indigo-950" data-testid="item-detail-catalog-links">
+        <p class="font-medium">Shared catalog</p>
+        <p class="mt-1 text-xs text-indigo-900/80">Product name, descriptions, URL, and colorway pricing are edited on the group pages — not on this SKU form.</p>
+        <ul class="mt-2 list-inside list-disc space-y-1 text-indigo-900">
+            @if(!empty($parentGroupUrl))
+            <li>
+                <a href="{{ $parentGroupUrl }}" class="font-medium underline hover:text-indigo-700" data-testid="item-detail-catalog-parent-link">Parent group</a>
+                — defaults for all colorways @if(!$isAsset)(brand, type) @endif
+            </li>
+            @endif
+            @if(!empty($colorwayEditUrl))
+            <li>
+                <a href="{{ $colorwayEditUrl }}" class="font-medium underline hover:text-indigo-700" data-testid="item-detail-catalog-colorway-link">Colorway editor</a>
+                — pcode, colorway title, descriptions, image, size matrix pricing
+            </li>
+            @endif
+        </ul>
+    </div>
+    @endif
 
     @if($canEditLegacyCode)
     <div x-show="legacyModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
@@ -237,10 +272,11 @@ $showDualChannelStockMismatch = $showShopeeStock && ! empty($jubelioByWarehouse)
                         <div>
                             <p class="mb-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">Group &amp; Tags</p>
                             <div class="flex flex-wrap items-center gap-2">
-                                @if($item->group && $groupUrl)
-                                <a href="{{ $groupUrl }}" class="rounded border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-100 hover:underline">{{ $item->group->name }}</a>
-                                @elseif($item->group)
+                                @if($item->group)
                                 <span class="text-xs font-medium text-gray-700">{{ $item->group->name }}</span>
+                                @endif
+                                @if(!empty($parentGroupUrl))
+                                <a href="{{ $parentGroupUrl }}" class="rounded border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-100 hover:underline">Parent group</a>
                                 @endif
                                 @if(!empty($colorwayEditUrl))
                                 <a href="{{ $colorwayEditUrl }}" class="rounded border border-indigo-200 bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100 hover:underline">Edit colorway</a>
