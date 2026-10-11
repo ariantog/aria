@@ -333,11 +333,39 @@ class ItemIdentityBuilder
         ?Tag $warnaTag,
         ?Tag $sizeTag,
     ): string {
+        $bareTitle = $this->bareTitleForDisplayName($bareTitle, $warnaTag);
+
         if ($type === ItemType::ITEM) {
             return $this->buildManufacturedDisplayName($bareTitle, $sizeTag, $warnaTag);
         }
 
         return $this->buildName($bareTitle, $warnaTag, $sizeTag);
+    }
+
+    /**
+     * Prevent duplicate warna segments when legacy group.name already embeds the color label.
+     */
+    public function bareTitleForDisplayName(string $bareTitle, ?Tag $warnaTag): string
+    {
+        $bare = strtoupper(trim($bareTitle));
+
+        if ($bare === '' || $warnaTag === null) {
+            return $bare;
+        }
+
+        $warnaDisplay = strtoupper(trim((string) ($warnaTag->name ?: $warnaTag->code)));
+
+        if ($warnaDisplay === '') {
+            return $bare;
+        }
+
+        $suffix = ' - '.$warnaDisplay;
+
+        while (str_ends_with($bare, $suffix)) {
+            $bare = trim(substr($bare, 0, -strlen($suffix)));
+        }
+
+        return $bare;
     }
 
     /**

@@ -14,7 +14,7 @@ $breadcrumbs = [
 
 <div class="p-4 sm:p-6" x-data="colorwayForm(@js([
     'product_name' => old('product_name', $productTitle),
-    'pcode' => $sample->pcode,
+    'pcode' => old('pcode', $sample->pcode),
     'isAsset' => $isAsset,
     'usesPlaceholder' => $usesPlaceholder,
     'parentTitle' => $titleForm['parent_title'] ?? '',
@@ -50,31 +50,40 @@ $breadcrumbs = [
 
         <div class="grid grid-cols-1 gap-8 lg:grid-cols-3">
             <div class="space-y-6 lg:col-span-2">
-                {{-- Read-only identity --}}
-                <div class="rounded-xl border border-gray-200 bg-white shadow-sm" data-testid="colorway-identity-readonly">
+                {{-- Identity --}}
+                <div class="rounded-xl border border-gray-200 bg-white shadow-sm" data-testid="colorway-identity">
                     <div class="border-b border-gray-100 px-5 py-4">
-                        <h3 class="text-lg font-semibold text-gray-900">Identity (read-only)</h3>
-                        <p class="text-sm text-gray-500">Master, variant, pcode, and SKU codes are generated from tags and pcode.</p>
+                        <h3 class="text-lg font-semibold text-gray-900">Identity</h3>
+                        <p class="text-sm text-gray-500">Pcode drives master, variant, and SKU codes for every size here.</p>
                     </div>
                     <div class="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
-                        <div>
-                            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Master</p>
-                            <p class="font-mono text-sm text-gray-900">{{ $group->master ?: '—' }}</p>
+                        <div class="sm:col-span-2">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Parent product name</p>
+                            <p class="text-sm font-medium text-gray-900" data-testid="colorway-parent-product-name">{{ $parentProductName !== '' ? $parentProductName : '— (not set on parent group)' }}</p>
+                            <p class="mt-0.5 text-xs text-gray-500">Edit on the <a href="{{ route('items.group-parent-detail', $parentGroupId) }}" class="font-medium text-blue-600 underline hover:text-blue-800">parent group</a> page.</p>
                         </div>
                         <div>
-                            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Variant</p>
-                            <p class="font-mono text-sm text-gray-900">{{ $group->variant ?: '—' }}</p>
+                            <label for="colorway-pcode" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">PCode</label>
+                            <input type="text" id="colorway-pcode" name="pcode" x-model="form.pcode"
+                                   data-testid="colorway-pcode"
+                                   required
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                            <p class="mt-1 text-xs text-gray-500">Use hyphens (e.g. CI00122-08). Saving rebuilds SKU codes for all sizes.</p>
                         </div>
                         <div>
-                            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">PCode</p>
-                            <p class="font-mono text-sm text-gray-900">{{ $sample->pcode }}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Color</p>
+                            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Color (warna tag)</p>
                             <p class="text-sm text-gray-900">{{ $color['code'] }} — {{ $color['name'] }}</p>
                             @unless($isAsset)
-                            <p class="mt-0.5 text-xs text-gray-500">Pcode color number; warna tag label is for display names only (not in SKU code).</p>
+                            <p class="mt-0.5 text-xs text-gray-500">Display names append this label; SKU codes use the pcode color segment only.</p>
                             @endunless
+                        </div>
+                        <div>
+                            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Master (after save)</p>
+                            <p class="font-mono text-sm text-gray-700">{{ $group->master ?: '—' }}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Variant (after save)</p>
+                            <p class="font-mono text-sm text-gray-700">{{ $group->variant ?: '—' }}</p>
                         </div>
                     </div>
                 </div>
@@ -114,25 +123,6 @@ $breadcrumbs = [
                             <input type="url" id="colorway-url" name="url"
                                    value="{{ old('url', $group->url) }}"
                                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                        </div>
-                        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                            <div>
-                                <label for="colorway-brand" class="mb-1 block text-sm font-medium text-gray-700">Brand</label>
-                                <select id="colorway-brand" name="brand" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                                    @foreach($brands as $brand)
-                                    <option value="{{ $brand['value'] }}" @selected((int) old('brand', $group->brand?->value ?? 0) === (int) $brand['value'])>{{ $brand['label'] }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div>
-                                <label for="colorway-genre" class="mb-1 block text-sm font-medium text-gray-700">Genre (type tag)</label>
-                                <select id="colorway-genre" name="genre" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                                    <option value="0">—</option>
-                                    @foreach($typeTags as $tag)
-                                    <option value="{{ $tag->id }}" @selected((int) old('genre', $group->genre ?? 0) === (int) $tag->id)>{{ $tag->code }} — {{ $tag->name }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -259,6 +249,7 @@ function colorwayForm(config) {
     return {
         form: {
             product_name: config.product_name || '',
+            pcode: config.pcode || '',
         },
         rows: config.rows || [],
         pcode: config.pcode || '',
@@ -280,7 +271,7 @@ function colorwayForm(config) {
                 return this.parentTitle;
             }
 
-            return (this.pcode || '').toUpperCase().trim();
+            return (this.form.pcode || this.pcode || '').toUpperCase().trim();
         },
 
         buildName(title, sizeCode) {

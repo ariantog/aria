@@ -159,6 +159,17 @@ describe('buildCode', function () {
 });
 
 describe('buildManufacturedDisplayName', function () {
+    it('does not duplicate warna when legacy title already embeds the color label', function () {
+        $brown = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BROWN', 'name' => 'BROWN']);
+
+        expect($this->builder->buildItemDisplayName(
+            \App\Enums\ItemType::ITEM,
+            'JENNIE FITTED JACKET - BROWN',
+            $brown,
+            $this->sizeTag,
+        ))->toBe('JENNIE FITTED JACKET - BROWN - S');
+    });
+
     it('includes warna tag label between title and size', function () {
         expect($this->builder->buildManufacturedDisplayName('SLASH RUNNING SHIRT', $this->sizeTag, $this->warnaTag))
             ->toBe('SLASH RUNNING SHIRT - BLUE - S');

@@ -49,7 +49,7 @@ test('updateColorway with empty product name clears stored title to inherit pare
 
     $this->itemService->updateColorway(
         $group,
-        (object) ['product_name' => ''],
+        (object) ['pcode' => 'CX90233-23', 'product_name' => ''],
         [['id' => $small->id, 'price' => 100000]],
     );
 
@@ -79,6 +79,7 @@ test('updateColorway renames group and regenerates item display names', function
     $this->itemService->updateColorway(
         $group,
         (object) [
+            'pcode' => 'CX90233-23',
             'product_name' => 'Slash Running Shirt',
             'description' => 'New desc',
         ],
@@ -116,7 +117,7 @@ test('updateColorway changes price on one size without affecting siblings', func
 
     $this->itemService->updateColorway(
         $group,
-        (object) ['product_name' => 'CX90233-23'],
+        (object) ['pcode' => 'CX90233-23', 'product_name' => 'CX90233-23'],
         [
             ['id' => $small->id, 'price' => 175000],
             ['id' => $medium->id, 'price' => 100000],
@@ -163,7 +164,7 @@ test('single item update does not broadcast price to sibling sizes', function ()
 
     expect((float) $small->price)->toBe(175000.0)
         ->and(ItemPricing::resolve($medium, 'price'))->toBe(100000.0)
-        ->and($medium->catalogDescription())->toBe('UPDATED DESC');
+        ->and($medium->catalogDescription())->toBe('OLD DESC');
 });
 
 test('colorway edit page renders with size matrix and preview', function () {
@@ -257,6 +258,7 @@ test('colorway update via HTTP persists per-size price', function () {
 
     $this->actingAs($this->user)
         ->put(route('items.colorway-update', $group), [
+            'pcode' => 'CX90233-23',
             'product_name' => 'Renamed Shirt',
             'description' => 'Via form',
             'items' => [

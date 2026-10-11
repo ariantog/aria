@@ -5,6 +5,7 @@ use App\Models\Item;
 use App\Models\ItemGroup;
 use App\Models\Tag;
 use App\Models\User;
+use App\Services\ItemService;
 
 beforeEach(function () {
     $this->user = User::factory()->create();
@@ -20,20 +21,42 @@ it('shows url and restock threshold fields on item create page', function () {
         ->assertSee('name="restock_urgent_threshold"', false);
 });
 
-it('shows url and restock threshold fields on item edit page', function () {
-    $group = ItemGroup::factory()->create(['url' => 'https://example.com/product']);
+it('shows restock threshold on item edit and url on colorway edit', function () {
+    $typeTag = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ITEM->value,
+        'code' => 'AJD',
+        'name' => 'Jacket',
+    ]);
+    $sizeTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'S', 'name' => 'S']);
+    $warnaTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLUE', 'name' => 'BLUE']);
+    $jahitTag = Tag::factory()->create(['type' => Tag::TYPE_JAHIT, 'code' => 'J1', 'name' => 'J1']);
+
+    $group = ItemGroup::factory()->create([
+        'master' => 'CX93249-03',
+        'variant' => '03',
+        'url' => 'https://example.com/product',
+    ]);
     $item = Item::factory()->create([
         'group_id' => $group->id,
+        'pcode' => 'CX93249-03',
+        'code' => 'AJD-CX93249-03-S',
         'restock_urgent_threshold' => 12,
     ]);
+    $item->tags()->attach([$typeTag->id, $sizeTag->id, $warnaTag->id, $jahitTag->id]);
 
     $this->actingAs($this->user)
         ->get(route('items.edit', $item))
         ->assertOk()
-        ->assertSee('Product URL', false)
         ->assertSee('Restock urgent threshold', false)
-        ->assertSee('https://example.com/product', false)
-        ->assertSee('value="12"', false);
+        ->assertSee('value="12"', false)
+        ->assertDontSee('name="url"', false);
+
+    $this->actingAs($this->user)
+        ->get(route('items.colorway-edit', $group))
+        ->assertOk()
+        ->assertSee('name="url"', false)
+        ->assertSee('https://example.com/product', false);
 });
 
 it('stores group url and item restock urgent threshold when creating manufactured item', function () {
@@ -71,7 +94,7 @@ it('stores group url and item restock urgent threshold when creating manufacture
         ->and($item->restock_urgent_threshold)->toBe(15);
 });
 
-it('updates group url and item restock urgent threshold on item edit', function () {
+it('updates group url on colorway edit and restock threshold on item edit', function () {
     $typeTag = Tag::factory()->create([
         'type' => Tag::TYPE_TYPE,
         'item_type' => ItemType::ITEM->value,
@@ -96,10 +119,20 @@ it('updates group url and item restock urgent threshold on item edit', function 
     $item->tags()->attach([$typeTag->id, $sizeTag->id, $warnaTag->id, $jahitTag->id]);
 
     $this->actingAs($this->user)
+        ->put(route('items.colorway-update', $group), [
+            'pcode' => 'CX93249-03',
+            'product_name' => 'CX93249-03',
+            'url' => 'https://updated.example.com/item',
+            'items' => [
+                $item->id => ['price' => $item->price],
+            ],
+        ])
+        ->assertRedirect(route('items.colorway-edit', $group));
+
+    $this->actingAs($this->user)
         ->put(route('items.update', $item), [
             'type' => ItemType::ITEM->value,
             'pcode' => 'CX93249-03',
-            'url' => 'https://updated.example.com/item',
             'restock_urgent_threshold' => 8,
             'tags' => [
                 'types' => $typeTag->id,
@@ -117,7 +150,7 @@ it('updates group url and item restock urgent threshold on item edit', function 
         ->and($item->restock_urgent_threshold)->toBe(8);
 });
 
-it('stores per-sku description overrides and reseller price on asset lancar edit', function () {
+it('stores colorway descriptions on colorway edit and per-sku overrides on asset lancar edit', function () {
     $size5 = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => '5KG', 'name' => '5KG']);
     $size6 = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => '6KG', 'name' => '6KG']);
     $warnaTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLACK', 'name' => 'BLACK']);
@@ -151,15 +184,25 @@ it('stores per-sku description overrides and reseller price on asset lancar edit
     $item5->tags()->attach([$size5->id, $warnaTag->id]);
     $item6->tags()->attach([$size6->id, $warnaTag->id]);
 
+    app(ItemService::class)->updateColorway(
+        $group,
+        (object) [
+            'pcode' => 'DUMBBELL-04',
+            'product_name' => 'Dumbbell',
+            'description' => 'UPDATED SHARED DESC',
+            'description2' => 'UPDATED SHARED NB',
+        ],
+        [
+            ['id' => $item5->id, 'cost' => 50000, 'pricing' => ['reseller_price' => ['scope' => 'colorway', 'value' => 110000]]],
+            ['id' => $item6->id, 'cost' => 55000],
+        ],
+    );
+
     $this->actingAs($this->user)
         ->put(route('assetlancar.update', $item5), [
             'type' => ItemType::ASSET_LANCAR->value,
             'pcode' => 'DUMBBELL-04',
-            'product_name' => 'Dumbbell',
             'cost' => 50000,
-            'description' => 'UPDATED SHARED DESC',
-            'description2' => 'UPDATED SHARED NB',
-            'reseller_price' => 110000,
             'item_description' => '5KG SPECIAL',
             'item_description2' => '5KG NOTES',
             'item_reseller_price' => 95000,
@@ -182,9 +225,9 @@ it('stores per-sku description overrides and reseller price on asset lancar edit
         ->and((float) $item5->reseller_price)->toBe(95000.0)
         ->and($item5->catalogDescription())->toBe('5KG SPECIAL')
         ->and((float) $item5->catalogResellerPrice())->toBe(95000.0)
-        ->and($item6->description)->toBe('6KG ONLY DESC')
-        ->and($item6->catalogDescription())->toBe('6KG ONLY DESC')
-        ->and((float) $item6->catalogResellerPrice())->toBe(120000.0);
+        ->and(trim((string) ($item6->description ?? '')))->toBe('')
+        ->and($item6->catalogDescription())->toBe('UPDATED SHARED DESC')
+        ->and((float) $item6->catalogResellerPrice())->toBe(110000.0);
 });
 
 it('shows separate global and per-sku description fields on asset lancar edit page', function () {
@@ -214,8 +257,8 @@ it('shows separate global and per-sku description fields on asset lancar edit pa
         ->assertSee('data-testid="item-form-pricing-reseller_price-scope-size"', false)
         ->assertSee('data-testid="item-form-sku-details"', false)
         ->assertSee('Optional description overrides', false)
-        ->assertSee('GROUP DESC', false)
-        ->assertSee('SKU DESC', false);
+        ->assertSee('SKU DESC', false)
+        ->assertDontSee('name="description"', false);
 });
 
 it('redirects to asset lancar detail page after update', function () {
