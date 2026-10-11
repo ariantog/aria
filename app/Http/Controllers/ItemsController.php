@@ -226,6 +226,19 @@ class ItemsController extends Controller
             $shopeeFetchFailed = $shopeeData['fetch_failed'];
         }
 
+        $parentKey = $this->identityBuilder->itemParentKey($item);
+        $anchorGroupId = (int) $item->group_id > 0
+            ? ($this->groupHierarchy->anchorGroupIdForParentKey($parentKey) ?? (int) $item->group_id)
+            : null;
+        $canViewGroup = Gate::check(ItemGroup::getPermissions()['view']);
+        $canEditColorway = Gate::check(ItemGroup::getPermissions()['edit']);
+        $parentGroupUrl = $anchorGroupId && $canViewGroup
+            ? route('items.group-parent-detail', $anchorGroupId)
+            : null;
+        $colorwayEditUrl = (int) $item->group_id > 0 && $canEditColorway
+            ? route('items.colorway-edit', $item->group_id)
+            : null;
+
         return view('items.show', [
             'item' => $item,
             'activeWarehouseItems' => $stock['physical'],
@@ -238,12 +251,9 @@ class ItemsController extends Controller
             'jubelioByWarehouse' => $jubelioByWarehouse,
             'canRecalculateQty' => $this->canRecalculateQty($item),
             'isAsset' => $item->type === ItemType::ASSET_LANCAR,
-            'groupUrl' => $this->legacyConverter->hasProductGroup($item) && (int) $item->group_id > 0
-                ? route('items.group-parent-detail', $item->group_id)
-                : null,
-            'colorwayEditUrl' => $item->group_id > 0 && Gate::check(ItemGroup::getPermissions()['edit'])
-                ? route('items.colorway-edit', $item->group_id)
-                : null,
+            'parentGroupUrl' => $parentGroupUrl,
+            'groupUrl' => $parentGroupUrl,
+            'colorwayEditUrl' => $colorwayEditUrl,
             'identityConvert' => $this->detailIdentityConvertContext($item),
             'canEditLegacyCode' => $this->canEditLegacyCode($item),
             'canDelete' => Gate::check(
