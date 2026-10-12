@@ -1,4 +1,8 @@
 @php
+    $attributesScope = $attributesScope ?? 'full';
+    $showSharedTags = in_array($attributesScope, ['full', 'colorway-shared'], true);
+    $showSizeTags = in_array($attributesScope, ['full', 'size-only'], true);
+    $colorwayEditUrl = $colorwayEditUrl ?? null;
     $multiSize = $multiSize ?? true;
     $curType  = $curType ?? null;
     $curJahit = $curJahit ?? null;
@@ -34,6 +38,7 @@
         <h3 class="text-lg font-semibold text-gray-900">Attributes</h3>
     </div>
     <div class="space-y-5 p-5">
+        @if($showSharedTags)
         <fieldset class="space-y-4 rounded-lg border border-indigo-200 bg-indigo-50/40 p-4" data-testid="item-form-shared-tags">
             <legend class="px-1 text-xs font-semibold uppercase tracking-wide text-indigo-800">Shared across this colorway</legend>
             @include('items.partials.form-shared-banner', [
@@ -102,7 +107,15 @@
             @endif
         </div>
         </fieldset>
+        @endif
 
+        @if($showSizeTags)
+        @if($attributesScope === 'size-only' && $colorwayEditUrl)
+        <p class="text-sm text-gray-600">
+            Type, warna, and jahit are edited on the
+            <a href="{{ $colorwayEditUrl }}" class="font-medium text-indigo-700 underline hover:text-indigo-900">colorway editor</a>.
+        </p>
+        @endif
         {{-- Size --}}
         <fieldset class="space-y-4 rounded-lg border border-gray-200 bg-gray-50/60 p-4" data-testid="item-form-sku-size">
             <legend class="px-1 text-xs font-semibold uppercase tracking-wide text-gray-700">This size only</legend>
@@ -132,5 +145,6 @@
             @endif
         </div>
         </fieldset>
+        @endif
     </div>
 </div>

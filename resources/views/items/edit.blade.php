@@ -73,11 +73,10 @@ $formItem = [
             </div>
             <div class="space-y-6">
                 @include('items.partials.form-attributes', [
+                    'attributesScope' => 'size-only',
                     'multiSize' => false,
-                    'curType' => $curType,
-                    'curJahit' => $curJahit,
-                    'curWarna' => $curWarna,
                     'curSizes' => $curSizes,
+                    'colorwayEditUrl' => $colorwayEditUrl ?? null,
                 ])
                 @include('items.partials.form-image', ['imageUrl' => $item->image_url])
             </div>

@@ -22,7 +22,7 @@ $breadcrumbs = [
     'rows' => $previewRows,
     'warnaCode' => $color['code'] ?? '',
     'warnaName' => $color['name'] ?? '',
-]))">
+]))" x-init="initColorwayTags()">
     <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <a href="{{ route('items.group-parent-detail', $parentGroupId) }}" class="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-100">
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
@@ -70,12 +70,9 @@ $breadcrumbs = [
                                    class="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                             <p class="mt-1 text-xs text-gray-500">Use hyphens (e.g. CI00122-08). Saving rebuilds SKU codes for all sizes.</p>
                         </div>
-                        <div>
-                            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Color (warna tag)</p>
-                            <p class="text-sm text-gray-900">{{ $color['code'] }} — {{ $color['name'] }}</p>
-                            @unless($isAsset)
-                            <p class="mt-0.5 text-xs text-gray-500">Display names append this label; SKU codes use the pcode color segment only.</p>
-                            @endunless
+                        <div class="sm:col-span-2">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Attributes</p>
+                            <p class="text-sm text-gray-600">Type, warna, and jahit are in the column on the right. Size stays on each SKU edit page.</p>
                         </div>
                         <div>
                             <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Master (after save)</p>
@@ -217,6 +214,13 @@ $breadcrumbs = [
             </div>
 
             <div class="space-y-6">
+                @include('items.partials.form-attributes', [
+                    'attributesScope' => 'colorway-shared',
+                    'multiSize' => false,
+                    'curType' => $curType,
+                    'curJahit' => $curJahit,
+                    'curWarna' => $curWarna,
+                ])
                 @include('items.partials.form-image', ['imageUrl' => $group->image_url])
 
                 {{-- Live name preview --}}
@@ -261,6 +265,54 @@ function colorwayForm(config) {
         warnaCode: (config.warnaCode || '').toUpperCase(),
         warnaName: (config.warnaName || config.warnaCode || '').toUpperCase(),
         allSizeCode: 'AS',
+        tagFilters: {
+            warna: '',
+            type: '',
+            size: '',
+            jahit: '',
+        },
+
+        tagOptionMatches(name, code, query) {
+            const q = String(query || '').trim().toLowerCase();
+            if (!q) {
+                return true;
+            }
+            const label = String(name || '').toLowerCase();
+            const tagCode = String(code || '').toLowerCase();
+
+            return label.includes(q) || tagCode.includes(q);
+        },
+
+        tagOptionVisible(field, name, code) {
+            return this.tagOptionMatches(name, code, this.tagFilters[field]);
+        },
+
+        tagHasVisibleOptions(field) {
+            const list = this.$root.querySelector(`[data-testid="tag-picker-${field}"]`);
+            if (!list) {
+                return true;
+            }
+
+            return [...list.querySelectorAll('label')].some((el) => el.offsetParent !== null);
+        },
+
+        syncWarnaFromDom() {
+            const warnaInput = this.$root.querySelector('input[name="tags[warna]"]:checked');
+            if (warnaInput) {
+                this.warnaCode = warnaInput.dataset.code || this.warnaCode;
+                this.warnaName = warnaInput.dataset.name || this.warnaCode;
+            }
+        },
+
+        onWarna() {
+            this.syncWarnaFromDom();
+        },
+
+        initColorwayTags() {
+            this.$nextTick(() => {
+                this.syncWarnaFromDom();
+            });
+        },
 
         get displayTitle() {
             const name = (this.form.product_name || '').toUpperCase().trim();
