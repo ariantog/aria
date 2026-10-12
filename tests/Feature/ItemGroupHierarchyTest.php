@@ -284,7 +284,9 @@ it('renders group list and parent detail pages', function () {
         ->assertSee('Total only', false)
         ->assertSee('Export Excel', false)
         ->assertSee('all channels', false)
-        ->assertSee('How to read quantities', false);
+        ->assertSee('How to read quantities', false)
+        ->assertDontSee('data-testid="group-parent-brand"', false)
+        ->assertDontSee('data-testid="group-parent-genre"', false);
 });
 
 it('exports parent group stock to excel', function () {
