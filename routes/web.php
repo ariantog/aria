@@ -73,6 +73,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::post('items/display-name-sync/apply', [App\Http\Controllers\ItemLegacyDisplayNameController::class, 'apply'])->name('items.display-name-sync.apply');
     Route::get('items/party-lookup', [App\Http\Controllers\ItemsController::class, 'partyLookup'])->name('items.party-lookup');
     Route::get('items/pcode-name', [App\Http\Controllers\ItemsController::class, 'pcodeName'])->name('items.pcode-name');
+    Route::get('items/catalog-ui-mock', [App\Http\Controllers\ItemCatalogMockController::class, 'index'])->name('items.catalog-mock.index');
     Route::get('items/{item}/transactions', [App\Http\Controllers\ItemsController::class, 'itemTransactions'])->name('items.transactions');
     Route::get('items/{item}/stats', [App\Http\Controllers\ItemsController::class, 'itemStats'])->name('items.stats');
     Route::get('items/{item}/jubelio', [App\Http\Controllers\ItemsController::class, 'jubelio'])->name('items.jubelio');
@@ -307,11 +308,13 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     // Item Group Routes
     Route::get('items-group', [App\Http\Controllers\ItemsController::class, 'group'])->name('items.group');
     Route::get('items-group/parent/{group}', [App\Http\Controllers\ItemsController::class, 'groupParentDetail'])->whereNumber('group')->name('items.group-parent-detail');
+    Route::get('items-group/parent/{group}/mock-hub', [App\Http\Controllers\ItemCatalogMockController::class, 'parentHub'])->whereNumber('group')->name('items.catalog-mock.parent-hub');
     Route::get('items-group/parent/{group}/export', [App\Http\Controllers\ItemsController::class, 'exportGroupParent'])->whereNumber('group')->name('items.group-parent-export');
     Route::put('items-group/parent/{group}/name', [App\Http\Controllers\ItemsController::class, 'updateGroupParentName'])->whereNumber('group')->name('items.group-parent-update-name');
     Route::put('items-group/parent/{group}/pricing', [App\Http\Controllers\ItemsController::class, 'updateGroupParentPricing'])->whereNumber('group')->name('items.group-parent-update-pricing');
     Route::get('items-group/parent/{parentSlug}', [App\Http\Controllers\ItemsController::class, 'redirectLegacyGroupParent'])->name('items.group-parent-legacy');
     Route::get('items-group/colorway/{group}/edit', [App\Http\Controllers\ItemsController::class, 'colorwayEdit'])->name('items.colorway-edit');
+    Route::get('items-group/colorway/{group}/mock-edit', [App\Http\Controllers\ItemCatalogMockController::class, 'colorwayEdit'])->whereNumber('group')->name('items.catalog-mock.colorway');
     Route::put('items-group/colorway/{group}', [App\Http\Controllers\ItemsController::class, 'colorwayUpdate'])->name('items.colorway-update');
     Route::get('items-group/{group}', [App\Http\Controllers\ItemsController::class, 'groupDetail'])->name('items.group-detail');
     Route::put('items-group/{group}', [App\Http\Controllers\ItemsController::class, 'updateGroup'])->name('items.group-update');
