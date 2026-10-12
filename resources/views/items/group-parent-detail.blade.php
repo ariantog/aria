@@ -24,6 +24,14 @@ $fmt = fn ($v) => format_amount($v, 0);
     <div class="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ session('success') }}</div>
     @endif
 
+    <div class="mb-4 rounded-lg border border-indigo-200 bg-indigo-50/60 px-4 py-3 text-sm text-indigo-950" data-testid="catalog-mock-preview-link">
+        <span class="font-medium">Catalog UX preview:</span>
+        <a href="{{ route('items.catalog-mock.parent-hub', $detail['anchor_group_id']) }}" class="ml-1 font-medium text-indigo-700 underline hover:text-indigo-900">Open product hub mock</a>
+        <span class="text-indigo-800">(read-only — nothing saved)</span>
+        ·
+        <a href="{{ route('items.catalog-mock.index') }}" class="text-indigo-700 underline hover:text-indigo-900">All mock scenarios</a>
+    </div>
+
     <div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div class="overflow-hidden rounded-xl border border-gray-200 bg-white lg:col-span-1">
             <div class="flex min-h-[280px] items-center justify-center p-4">
