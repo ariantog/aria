@@ -86,7 +86,7 @@
                                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"></textarea>
                                     </div>
                                     <div class="md:col-span-2">
-                                        <label class="mb-1 block text-xs font-medium text-gray-700">Notes (NB) (this SKU)</label>
+                                        <label class="mb-1 block text-xs font-medium text-gray-700">Notes (NB) (this SKU) <span class="font-normal text-gray-400">(optional)</span></label>
                                         <textarea rows="2"
                                                   :name="`sku_overrides[${row.sku}][description2]`"
                                                   x-init="$el.value = skuOverrideValue(row.sku, 'description2') || ''"

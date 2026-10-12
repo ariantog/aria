@@ -113,9 +113,10 @@ $breadcrumbs = [
                                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                         </div>
                         <div>
-                            <label for="colorway-description2" class="mb-1 block text-sm font-medium text-gray-700">Description 2</label>
+                            <label for="colorway-description2" class="mb-1 block text-sm font-medium text-gray-700">Notes (NB) <span class="font-normal text-gray-400">(optional)</span></label>
                             <input type="text" id="colorway-description2" name="description2"
                                    value="{{ old('description2', $group->description2) }}"
+                                   placeholder="Additional notes for this colorway"
                                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                         </div>
                         <div>

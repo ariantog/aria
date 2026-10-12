@@ -87,7 +87,7 @@
                 @error('item_description')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
             </div>
             <div>
-                <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-item-description2">Notes (NB) (this size)</label>
+                <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-item-description2">Notes (NB) (this size) <span class="font-normal text-gray-400">(optional)</span></label>
                 <textarea id="item-form-item-description2" name="item_description2" rows="3"
                           data-testid="item-form-item-description2"
                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">{{ $fi['item_description2'] }}</textarea>
@@ -157,7 +157,7 @@
                 @error('item_description')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
             </div>
             <div>
-                <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-item-description2">Notes (NB) (this size)</label>
+                <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-item-description2">Notes (NB) (this size) <span class="font-normal text-gray-400">(optional)</span></label>
                 <textarea id="item-form-item-description2" name="item_description2" rows="3"
                           data-testid="item-form-item-description2"
                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">{{ $fi['item_description2'] }}</textarea>
@@ -212,9 +212,10 @@
                 @error('description')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
             </div>
             <div>
-                <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-description2">Notes (NB)</label>
+                <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-description2">Notes (NB) <span class="font-normal text-gray-400">(optional)</span></label>
                 <textarea id="item-form-description2" name="description2" rows="3"
                           data-testid="item-form-description2"
+                          placeholder="Additional notes for this colorway"
                           :disabled="catalogTab !== 'colorway'"
                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100">{{ $fi['description2'] }}</textarea>
                 @error('description2')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
