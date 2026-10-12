@@ -218,11 +218,11 @@ class ItemService
                 'genre' => (int) ($group->genre ?? ($typeTag?->id ?? 0)),
             ];
 
-            if (isset($input->description)) {
+            if ($this->inputIncludes($input, 'description')) {
                 $catalogAttributes['description'] = $input->description;
             }
 
-            if (isset($input->description2)) {
+            if ($this->inputIncludes($input, 'description2')) {
                 $catalogAttributes['description2'] = $input->description2;
             }
 
@@ -232,7 +232,7 @@ class ItemService
 
             ItemCatalog::applyToGroup($group, $catalogAttributes);
 
-            if (isset($input->description) || isset($input->description2)) {
+            if ($this->inputIncludes($input, 'description') || $this->inputIncludes($input, 'description2')) {
                 ItemCatalog::resetDescriptionMirrorsForColorway($group);
             }
 
@@ -583,7 +583,11 @@ class ItemService
             }
         }
 
-        $groupName = $this->groupNameFromInput($input, $inputType, $pcode);
+        $catalogTab = trim((string) ($input->catalog_tab ?? '')) === ''
+            ? 'colorway'
+            : $this->normalizeCatalogTab($input->catalog_tab);
+        $catalogInput = $this->inputForCatalogScope($input, $catalogTab);
+        $groupName = $this->groupNameFromInput($catalogInput, $inputType, $pcode);
 
         if ($inputType === ItemType::ITEM && count($tags['warna']) !== 1) {
             throw new Exception('Manufactured items require exactly one WARNA tag.');
@@ -597,7 +601,7 @@ class ItemService
             throw new Exception('Asset lancar requires a TYPE tag.');
         }
 
-        return DB::transaction(function () use ($input, $tags, $file, $inputType, $groupName, $pcode) {
+        return DB::transaction(function () use ($input, $catalogInput, $catalogTab, $tags, $file, $inputType, $groupName, $pcode) {
             $totalCreated = 0;
             $pricedGroupIds = [];
             $firstItemWithImage = null;
@@ -616,7 +620,7 @@ class ItemService
                             $pcode,
                             $groupName,
                             $warnaTag,
-                            $input,
+                            $catalogInput,
                         );
 
                         $item = $this->createSingleItem(
@@ -638,7 +642,9 @@ class ItemService
                             $pricedGroupIds[] = $group->id;
                         }
 
-                        $this->persistGroupCatalogAttributes($group, $item, $input, $typeTag);
+                        if ($catalogTab === 'colorway') {
+                            $this->persistGroupCatalogAttributes($group, $item, $catalogInput, $typeTag);
+                        }
 
                         $this->applySkuOverrides($item, $input);
 
@@ -803,8 +809,8 @@ class ItemService
                 ],
                 [
                     'name' => $storedName,
-                    'description' => isset($input->description) ? strtoupper($input->description) : null,
-                    'description2' => isset($input->description2) ? strtoupper($input->description2) : null,
+                    'description' => $this->inputIncludes($input, 'description') ? strtoupper((string) $input->description) : null,
+                    'description2' => $this->inputIncludes($input, 'description2') ? strtoupper((string) $input->description2) : null,
                     'url' => $this->normalizeUrl($input->url ?? null),
                 ],
             );
@@ -814,12 +820,12 @@ class ItemService
             $group->name = $storedName;
         }
 
-        if (isset($input->description)) {
-            $group->description = strtoupper($input->description);
+        if ($this->inputIncludes($input, 'description')) {
+            $group->description = strtoupper((string) $input->description);
         }
 
-        if (isset($input->description2)) {
-            $group->description2 = strtoupper($input->description2);
+        if ($this->inputIncludes($input, 'description2')) {
+            $group->description2 = strtoupper((string) $input->description2);
         }
 
         if (isset($input->url)) {
@@ -1486,6 +1492,14 @@ class ItemService
     }
 
     /**
+     * Whether the request object includes a catalog field (empty string is allowed).
+     */
+    protected function inputIncludes(object $input, string $field): bool
+    {
+        return property_exists($input, $field);
+    }
+
+    /**
      * Strip colorway-level catalog fields when the user saved from another catalog tab.
      */
     protected function inputForCatalogScope(object $input, string $catalogTab): object
@@ -1579,11 +1593,11 @@ class ItemService
             'genre' => (int) ($typeTag?->id ?? $item->catalogGenre()),
         ];
 
-        if (isset($input->description)) {
+        if ($this->inputIncludes($input, 'description')) {
             $attributes['description'] = $input->description;
         }
 
-        if (isset($input->description2)) {
+        if ($this->inputIncludes($input, 'description2')) {
             $attributes['description2'] = $input->description2;
         }
 

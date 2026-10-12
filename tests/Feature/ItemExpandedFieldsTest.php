@@ -409,3 +409,59 @@ it('stores per-sku overrides when creating multiple asset lancar sizes', functio
         ->and($medium->effectivePrice())->toBe(100000.0)
         ->and(trim((string) ($medium->description ?? '')))->toBe('');
 });
+
+it('allows item create and colorway update without description2', function () {
+    $typeTag = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ITEM->value,
+        'code' => 'AJD',
+        'name' => 'Jacket',
+    ]);
+    $sizeTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'S', 'name' => 'S']);
+    $warnaTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLUE', 'name' => 'BLUE']);
+    $jahitTag = Tag::factory()->create(['type' => Tag::TYPE_JAHIT, 'code' => 'J1', 'name' => 'J1']);
+
+    $this->actingAs($this->user)
+        ->post(route('items.store'), [
+            'type' => ItemType::ITEM->value,
+            'pcode' => 'CX94001-01',
+            'catalog_tab' => 'colorway',
+            'description' => 'Catalog text only',
+            'description2' => '',
+            'price' => 120000,
+            'tags' => [
+                'types' => [$typeTag->id],
+                'sizes' => [$sizeTag->id],
+                'warna' => $warnaTag->id,
+                'jahit' => $jahitTag->id,
+            ],
+        ])
+        ->assertRedirect(route('items.index'))
+        ->assertSessionHas('success')
+        ->assertSessionHasNoErrors();
+
+    $item = Item::query()->where('pcode', 'CX94001-01')->firstOrFail();
+    $group = $item->group;
+
+    expect($group)->not->toBeNull()
+        ->and($group->description)->toBe('CATALOG TEXT ONLY')
+        ->and((string) $group->description2)->toBe('')
+        ->and($item->catalogDescription2())->toBe('');
+
+    $group->update(['description2' => 'OLD NB']);
+
+    $this->actingAs($this->user)
+        ->put(route('items.colorway-update', $group), [
+            'pcode' => 'CX94001-01',
+            'product_name' => 'Test shirt',
+            'description' => 'Still no NB',
+            'description2' => '',
+            'items' => [
+                $item->id => ['price' => $item->price],
+            ],
+        ])
+        ->assertRedirect(route('items.colorway-edit', $group))
+        ->assertSessionHas('success');
+
+    expect($group->fresh()->description2)->toBe('');
+});

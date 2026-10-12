@@ -226,12 +226,12 @@ final class ItemCatalog
      */
     public static function applyToGroup(ItemGroup $group, array $attributes): void
     {
-        if (array_key_exists('description', $attributes) && $attributes['description'] !== null) {
-            $group->description = strtoupper((string) $attributes['description']);
+        if (array_key_exists('description', $attributes)) {
+            $group->description = strtoupper((string) ($attributes['description'] ?? ''));
         }
 
-        if (array_key_exists('description2', $attributes) && $attributes['description2'] !== null) {
-            $group->description2 = strtoupper((string) $attributes['description2']);
+        if (array_key_exists('description2', $attributes)) {
+            $group->description2 = strtoupper((string) ($attributes['description2'] ?? ''));
         }
 
         if (array_key_exists('reseller_price', $attributes) && self::groupColumnExists('reseller_price')) {
