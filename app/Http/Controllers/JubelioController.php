@@ -306,7 +306,7 @@ class JubelioController extends Controller
         [$payloadStoreId, $payloadLocationId] = app(JubelioOrderWarehouseResolver::class)
             ->storeLocationIdsFromPayload($dataApi);
 
-        $order = Jubelioorder::create([
+        Jubelioorder::create([
             'jubelio_order_id' => $dataApi['return_id'],
             'source' => 1,
             'invoice' => $dataApi['return_no'],

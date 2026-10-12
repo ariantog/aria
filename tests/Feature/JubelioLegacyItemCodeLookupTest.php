@@ -145,6 +145,32 @@ it('manual order processing resolves jubelio item_id from api fetch', function (
     Queue::assertPushed(UpdateTransactionSummaries::class, fn ($job) => $job->transactionId === $transaction->id);
 });
 
+it('does not resolve inbound lines by item_code when jubelio item_id is unlinked', function () {
+    ['warehouse' => $warehouse, 'sync' => $sync] = seedJubelioOrderParties(13, 23);
+    $item = seedLinkedJubelioItem($warehouse, 'MATCHING-CODE-ONLY');
+
+    $order = queueJubelioSellOrder(
+        'code-only-mismatch',
+        'INV-CODE-ONLY-MISMATCH',
+        $sync->jubelio_store_id,
+        $sync->jubelio_location_id,
+        [
+            [
+                'item_id' => 888777666,
+                'item_code' => $item->code,
+                'qty' => 1,
+                'price' => 1000,
+            ],
+        ],
+    );
+
+    $result = app(\App\Actions\Jubelio\ProcessJubelioOrder::class)->execute($order);
+
+    expect($result['success'])->toBeFalse()
+        ->and($result['message'])->toContain('888777666')
+        ->and(Transaction::where('invoice', 'INV-CODE-ONLY-MISMATCH')->exists())->toBeFalse();
+});
+
 it('jubelio order processing fails when jubelio item_id is not linked in aria', function () {
     ['warehouse' => $warehouse, 'sync' => $sync] = seedJubelioOrderParties(14, 24);
     seedLinkedJubelioItem($warehouse, 'AJJ-PL25129-06-XL');

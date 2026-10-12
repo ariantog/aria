@@ -97,7 +97,7 @@ class JubelioOrderShowPresenter
         }
 
         $jubelioIds = collect($payloadItems)
-            ->map(fn (array $row) => (int) ($row['jubelio_item_id'] ?? 0))
+            ->map(fn (array $row) => self::jubelioItemIdFromLine($row))
             ->filter(fn (int $id) => $id > 0)
             ->unique()
             ->all();
@@ -116,7 +116,7 @@ class JubelioOrderShowPresenter
         }
 
         return collect($payloadItems)->map(function (array $row) use ($itemsByJubelioId, $warehouseStock): array {
-            $jubelioItemId = (int) ($row['jubelio_item_id'] ?? 0);
+            $jubelioItemId = self::jubelioItemIdFromLine($row);
             $item = $jubelioItemId > 0 ? $itemsByJubelioId->get($jubelioItemId) : null;
 
             $enriched = $row;
@@ -155,5 +155,15 @@ class JubelioOrderShowPresenter
         return $item->type === ItemType::ASSET_LANCAR
             ? route('assetlancar.show', $item)
             : route('items.show', $item);
+    }
+
+    /**
+     * Jubelio API lines use `item_id`; presenter rows expose `jubelio_item_id`.
+     *
+     * @param  array<string, mixed>  $row
+     */
+    public static function jubelioItemIdFromLine(array $row): int
+    {
+        return (int) ($row['jubelio_item_id'] ?? $row['item_id'] ?? 0);
     }
 }
