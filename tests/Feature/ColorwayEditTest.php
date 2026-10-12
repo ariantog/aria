@@ -194,6 +194,8 @@ test('colorway edit page renders with size matrix and preview', function () {
         ->assertSee('data-testid="colorway-save"', false)
         ->assertSee('data-testid="colorway-apply-pricing"', false)
         ->assertSee('data-testid="colorway-pricing-apply-form"', false)
+        ->assertSee('data-testid="item-form-shared-tags"', false)
+        ->assertDontSee('data-testid="item-form-sku-size"', false)
         ->assertDontSee('data-testid="colorway-pricing-price-scope-colorway"', false)
         ->assertDontSee('Whole group', false)
         ->assertDontSee('This SKU', false)
@@ -232,6 +234,70 @@ test('manufactured colorway edit preview includes warna label in saved display n
         ->assertDontSee('AJD-CX90032-06-BLACK-M', false);
 });
 
+test('manufactured item edit shows size attributes only with colorway link', function () {
+    $this->itemService->create((object) [
+        'pcode' => 'CX90233-23',
+        'type' => ItemType::ITEM->value,
+        'price' => 100000,
+    ], [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ]);
+
+    $small = Item::where('code', 'AJD-CX90233-23-S')->firstOrFail();
+
+    $this->actingAs($this->user)
+        ->get(route('items.edit', $small))
+        ->assertOk()
+        ->assertSee('data-testid="item-form-sku-size"', false)
+        ->assertDontSee('data-testid="item-form-shared-tags"', false)
+        ->assertSee(route('items.colorway-edit', $small->group_id), false);
+});
+
+test('updateColorway applies shared type tag to every sku code', function () {
+    $otherType = Tag::factory()->create(['type' => Tag::TYPE_TYPE, 'code' => 'PNT', 'name' => 'Pants']);
+
+    $this->itemService->create((object) [
+        'pcode' => 'CX90233-23',
+        'type' => ItemType::ITEM->value,
+        'price' => 100000,
+    ], [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id, $this->mediumTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ]);
+
+    $small = Item::where('code', 'AJD-CX90233-23-S')->firstOrFail();
+    $medium = Item::where('code', 'AJD-CX90233-23-M')->firstOrFail();
+    $group = $small->group()->firstOrFail();
+
+    $this->itemService->updateColorway(
+        $group,
+        (object) [
+            'pcode' => 'CX90233-23',
+            'product_name' => 'CX90233-23',
+            'tags' => [
+                'types' => [$otherType->id],
+                'warna' => [$this->warnaTag->id],
+                'jahit' => [$this->jahitTag->id],
+            ],
+        ],
+        [
+            ['id' => $small->id, 'price' => 100000],
+            ['id' => $medium->id, 'price' => 100000],
+        ],
+    );
+
+    $small->refresh();
+    $medium->refresh();
+
+    expect($small->code)->toBe('PNT-CX90233-23-S')
+        ->and($medium->code)->toBe('PNT-CX90233-23-M');
+});
+
 test('colorway catalog save does not apply colorway pricing or clear size overrides', function () {
     $this->itemService->create((object) [
         'pcode' => 'CX90233-23',
@@ -255,6 +321,11 @@ test('colorway catalog save does not apply colorway pricing or clear size overri
         (object) [
             'pcode' => 'CX90233-23',
             'product_name' => 'Title Only Change',
+            'tags' => [
+                'types' => [$this->typeTag->id],
+                'warna' => [$this->warnaTag->id],
+                'jahit' => [$this->jahitTag->id],
+            ],
         ],
         [
             ['id' => $small->id],
@@ -362,6 +433,11 @@ test('colorway update via HTTP persists per-size price', function () {
             'pcode' => 'CX90233-23',
             'product_name' => 'Renamed Shirt',
             'description' => 'Via form',
+            'tags' => [
+                'types' => $this->typeTag->id,
+                'warna' => $this->warnaTag->id,
+                'jahit' => $this->jahitTag->id,
+            ],
             'items' => [
                 $small->id => [
                     'pricing' => [

@@ -157,7 +157,8 @@ class ItemService
     /**
      * Update shared catalog fields on one colorway and per-SKU price / cost / restock threshold.
      *
-     * Pcode changes are applied to every SKU in the colorway; tags stay on each item row.
+     * Pcode changes are applied to every SKU in the colorway. Shared tags (type, warna, jahit)
+     * apply to every item; each SKU keeps its own size tag.
      *
      * @param  list<array{id: int, price?: mixed, cost?: mixed, restock_urgent_threshold?: mixed}>  $itemRows
      *
@@ -194,6 +195,13 @@ class ItemService
                     $pcode = $submittedPcode;
                     $typeTag = $sample->tags->firstWhere('type', Tag::TYPE_TYPE);
                 }
+            }
+
+            if (isset($input->tags) && is_array($input->tags)) {
+                $group = $this->applyColorwaySharedTags($input, $itemType, $pcode, $group, $items);
+                $items = Item::with('tags')->where('group_id', $group->id)->get();
+                $sample = $items->first() ?? $sample;
+                $typeTag = $sample->tags->firstWhere('type', Tag::TYPE_TYPE);
             }
 
             if ($this->userClearedColorwayProductName($input)) {
@@ -526,6 +534,114 @@ class ItemService
     /**
      * @param  \Illuminate\Support\Collection<int, Item>  $items
      */
+    /**
+     * @param  \Illuminate\Support\Collection<int, Item>  $items
+     *
+     * @throws Exception
+     */
+    protected function applyColorwaySharedTags(
+        object $input,
+        ItemType $itemType,
+        string $pcode,
+        ItemGroup $group,
+        $items,
+    ): ItemGroup {
+        $tags = $this->sortTags($input->tags, $itemType);
+
+        if ($itemType === ItemType::ITEM && count($tags['warna']) !== 1) {
+            throw new Exception('Select exactly one warna for this colorway.');
+        }
+
+        if ($itemType === ItemType::ASSET_LANCAR && empty($tags['warna'])) {
+            throw new Exception('Please select a color (warna).');
+        }
+
+        if ($itemType === ItemType::ASSET_LANCAR && empty($tags['types'])) {
+            throw new Exception('Please select a type tag.');
+        }
+
+        if ($itemType === ItemType::ITEM && empty($tags['types'])) {
+            throw new Exception('Please select a type (SKU prefix).');
+        }
+
+        if ($itemType === ItemType::ITEM && empty($tags['jahit'])) {
+            throw new Exception('Please select a jahit tag.');
+        }
+
+        $typeId = (int) ($tags['types'][0] ?? 0);
+        $warnaId = (int) ($tags['warna'][0] ?? 0);
+        $typeTag = Tag::find($typeId);
+        $warnaTag = $warnaId ? Tag::find($warnaId) : null;
+
+        if (! $typeTag) {
+            throw new Exception('Invalid type tag.');
+        }
+
+        if ($itemType === ItemType::ITEM && ! $warnaTag) {
+            throw new Exception('Invalid warna tag.');
+        }
+
+        $sample = $items->first();
+        $groupName = $this->groupNameFromInput($input, $itemType, $pcode, $group, $sample);
+        $resolvedGroup = $group;
+        $scopedInput = $input;
+
+        foreach ($items as $item) {
+            $sizeTag = $item->tags->firstWhere('type', Tag::TYPE_SIZE);
+            if (! $sizeTag && (int) $item->size > 0) {
+                $sizeTag = Tag::find((int) $item->size);
+            }
+
+            if ($itemType === ItemType::ASSET_LANCAR && ! $warnaTag) {
+                continue;
+            }
+
+            try {
+                $targetCode = $this->identityBuilder->buildCode($itemType, $pcode, $typeTag, $warnaTag, $sizeTag);
+            } catch (InvalidArgumentException $e) {
+                throw new Exception($e->getMessage());
+            }
+
+            if (Item::query()->whereSku($targetCode)->where('id', '!=', $item->id)->exists()) {
+                throw new Exception("SKU {$targetCode} already exists.");
+            }
+
+            $resolvedGroup = $this->resolveGroup(
+                $itemType,
+                $pcode,
+                $groupName,
+                $warnaTag,
+                $scopedInput,
+                $item,
+            );
+
+            $itemInput = (object) [];
+            $this->applyItemIdentity(
+                $item,
+                $itemType,
+                $pcode,
+                $resolvedGroup,
+                $typeTag,
+                $warnaTag,
+                $sizeTag,
+                $itemInput,
+                isUpdate: true,
+                productName: null,
+            );
+
+            $sizeId = (int) ($sizeTag?->id ?? 0);
+            $tagIds = $this->collectTagIds($tags, $typeId, $sizeId, $warnaId ?: null);
+            $item->group_id = $resolvedGroup->id;
+            $item->tag_ids = implode(',', $tagIds);
+            $item->save();
+            $item->tags()->sync($tagIds);
+        }
+
+        $this->syncItemNamesForGroup($resolvedGroup->fresh());
+
+        return $resolvedGroup->fresh();
+    }
+
     protected function reidentityColorwayPcode(ItemGroup $group, $items, string $newPcode): ItemGroup
     {
         $sample = $items->first();

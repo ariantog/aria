@@ -123,6 +123,11 @@ it('updates group url on colorway edit and restock threshold on item edit', func
             'pcode' => 'CX93249-03',
             'product_name' => 'CX93249-03',
             'url' => 'https://updated.example.com/item',
+            'tags' => [
+                'types' => $typeTag->id,
+                'warna' => $warnaTag->id,
+                'jahit' => $jahitTag->id,
+            ],
             'items' => [
                 $item->id => ['price' => $item->price],
             ],
@@ -135,10 +140,7 @@ it('updates group url on colorway edit and restock threshold on item edit', func
             'pcode' => 'CX93249-03',
             'restock_urgent_threshold' => 8,
             'tags' => [
-                'types' => $typeTag->id,
                 'sizes' => [$sizeTag->id],
-                'warna' => $warnaTag->id,
-                'jahit' => $jahitTag->id,
             ],
         ])
         ->assertRedirect(route('items.show', $item));
@@ -450,12 +452,21 @@ it('allows item create and colorway update without description2', function () {
 
     $group->update(['description2' => 'OLD NB']);
 
+    $typeTag = Tag::query()->where('type', Tag::TYPE_TYPE)->where('code', 'AJD')->first();
+    $warnaTag = $item->tags->firstWhere('type', Tag::TYPE_WARNA);
+    $jahitTag = $item->tags->firstWhere('type', Tag::TYPE_JAHIT);
+
     $this->actingAs($this->user)
         ->put(route('items.colorway-update', $group), [
             'pcode' => 'CX94001-01',
             'product_name' => 'Test shirt',
             'description' => 'Still no NB',
             'description2' => '',
+            'tags' => [
+                'types' => $typeTag->id,
+                'warna' => $warnaTag->id,
+                'jahit' => $jahitTag->id,
+            ],
             'items' => [
                 $item->id => ['price' => $item->price],
             ],
