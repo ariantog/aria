@@ -581,6 +581,27 @@ below — do not reuse sell-transaction `sender_id` logic for outbound `AdjustSt
 Canonical code: `App\Services\Jubelio\JubelioOrderWarehouseResolver`,
 `App\Actions\Jubelio\ProcessJubelioOrder`, `JubelioOrderShowPresenter`.
 
+#### Order payload & line items (do not regress)
+
+**Payload is not stored in the database.** L12 does not persist Jubelio sales/return JSON on
+`jubelioorders.payload` when webhooks queue a row, get-orders/poll inserts a row, cron/manual
+**Process** runs, or **Refresh payload** is clicked. An empty `payload` column on new rows is
+**normal**.
+
+- **Load path:** `JubelioOrderPayloadService` → `fetchSalesOrder` / `fetchSalesReturn` by
+  `jubelio_order_id`, plus a **request/job in-memory cache** (`Jubelioorder::payloadArray()`).
+  Do **not** reintroduce “read stored JSON first” or write payload on ingest/backfill.
+- **Model guard:** `Jubelioorder` **`saving`** clears any non-null `payload` attribute so Eloquent
+  saves never keep JSON (legacy L10 rows may still have old JSON until maintainer runs
+  `app:clear-jubelio-order-payloads`).
+- **Return webhook** may call the Jubelio API to validate the return before insert; that body is
+  **not** copied into `jubelioorders.payload` — only queue metadata columns are stored.
+
+**Line items when posting:** resolve Aria SKUs from each payload line’s Jubelio **`item_id`** via
+`items.jubelio_item_id` (`Item::findManyByJubelioItemIds`, `ProcessJubelioOrder::matchItems`).
+Do **not** match inbound order lines by `item_code` / `items.code` / `items.legacy_code`. Missing
+`item_id` or an unlinked `jubelio_item_id` fails at post time (Item Links / Jubelio tab on the item).
+
 #### Inbound order catch-up (webhook → queue → cron post)
 
 **Flow:** Jubelio webhooks (and poll/get-orders backfill) insert **`jubelioorders`** rows;
