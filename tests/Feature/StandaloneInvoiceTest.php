@@ -14,6 +14,7 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     $this->user = User::factory()->create();
+    $this->warehouse = Addrbook::factory()->warehouse()->create();
     config([
         'core-nation.invoice_path' => storage_path('app/testing-standalone-invoices/'),
         'core-nation.invoice_url' => 'https://invoice.test/',
@@ -42,15 +43,13 @@ it('converts terms of payment lines into bullets', function () {
 });
 
 it('creates a standalone invoice with free-text lines', function () {
-    $warehouse = Addrbook::factory()->warehouse()->create([
-        'description' => "Core Store\nJl. Test 1",
-    ]);
+    $this->warehouse->update(['description' => "Core Store\nJl. Test 1"]);
 
     $response = $this->actingAs($this->user)->post(route('invoice-maker.store'), [
         'number' => 'INV/CA/2026/0001',
         'date' => '2026-08-14',
         'recipient' => "PRASETIA QUBE WELLNESS\nSurabaya",
-        'sender_addrbook_id' => $warehouse->id,
+        'sender_addrbook_id' => $this->warehouse->id,
         'preset_id' => 'default',
         'lines' => [
             ['description' => 'TECHNO GYM', 'quantity' => 81, 'price' => 100_000],
@@ -70,11 +69,46 @@ it('creates a standalone invoice with free-text lines', function () {
     expect($invoice->balanceDue())->toBe(8_100_000.0);
 });
 
+it('requires a warehouse addrbook on create and update', function () {
+    $payload = [
+        'number' => 'INV/CA/2026/0199',
+        'date' => '2026-08-14',
+        'recipient' => 'CLIENT',
+        'preset_id' => 'default',
+        'lines' => [
+            ['description' => 'Item', 'quantity' => 1, 'price' => 10_000],
+        ],
+    ];
+
+    $this->actingAs($this->user)->post(route('invoice-maker.store'), $payload)
+        ->assertSessionHasErrors('sender_addrbook_id');
+
+    $customer = Addrbook::factory()->customer()->create();
+    $this->actingAs($this->user)->post(route('invoice-maker.store'), [
+        ...$payload,
+        'number' => 'INV/CA/2026/0198',
+        'sender_addrbook_id' => $customer->id,
+    ])->assertSessionHasErrors('sender_addrbook_id');
+
+    $invoice = StandaloneInvoice::factory()->create([
+        'sender_addrbook_id' => $this->warehouse->id,
+    ]);
+    StandaloneInvoiceLine::factory()->create(['standalone_invoice_id' => $invoice->id]);
+
+    $this->actingAs($this->user)->put(route('invoice-maker.update', $invoice), [
+        ...$payload,
+        'number' => $invoice->number,
+        'date' => $invoice->date->format('Y-m-d'),
+        'sender_addrbook_id' => '',
+    ])->assertSessionHasErrors('sender_addrbook_id');
+});
+
 it('creates a standalone invoice with decimal line quantity', function () {
     $response = $this->actingAs($this->user)->post(route('invoice-maker.store'), [
         'number' => 'INV/CA/2026/0200',
         'date' => '2026-08-14',
         'recipient' => 'PRINT CLIENT',
+        'sender_addrbook_id' => $this->warehouse->id,
         'preset_id' => 'default',
         'lines' => [
             ['description' => 'VINYL PRINT M2', 'quantity' => 25.9, 'price' => 50_000],
@@ -93,6 +127,7 @@ it('rejects invoice line quantity below 1 or with more than 2 decimals', functio
         'number' => 'INV/CA/2026/0201',
         'date' => '2026-08-14',
         'recipient' => 'CLIENT',
+        'sender_addrbook_id' => $this->warehouse->id,
         'preset_id' => 'default',
         'lines' => [
             ['description' => 'Item', 'quantity' => 0.5, 'price' => 10_000],
@@ -103,6 +138,7 @@ it('rejects invoice line quantity below 1 or with more than 2 decimals', functio
         'number' => 'INV/CA/2026/0202',
         'date' => '2026-08-14',
         'recipient' => 'CLIENT',
+        'sender_addrbook_id' => $this->warehouse->id,
         'preset_id' => 'default',
         'lines' => [
             ['description' => 'Item', 'quantity' => 25.999, 'price' => 10_000],
@@ -115,6 +151,7 @@ it('creates a standalone invoice with down payment', function () {
         'number' => 'INV/CA/2026/0100',
         'date' => '2026-07-30',
         'recipient' => 'EL PATRON',
+        'sender_addrbook_id' => $this->warehouse->id,
         'preset_id' => 'default',
         'dp_enabled' => true,
         'dp_amount' => 7_520_000,
@@ -137,6 +174,7 @@ it('rejects down payment greater than subtotal', function () {
         'number' => 'INV/CA/2026/0101',
         'date' => '2026-07-30',
         'recipient' => 'EL PATRON',
+        'sender_addrbook_id' => $this->warehouse->id,
         'preset_id' => 'default',
         'dp_enabled' => true,
         'dp_amount' => 20_000_000,
@@ -260,6 +298,7 @@ it('cache busts pdf urls and clears pdf after invoice update', function () {
         'number' => $invoice->number,
         'date' => $invoice->date->format('Y-m-d'),
         'recipient' => 'After edit',
+        'sender_addrbook_id' => $this->warehouse->id,
         'preset_id' => 'default',
         'lines' => [
             ['description' => 'Updated item', 'quantity' => 1, 'price' => 10_000],
@@ -329,13 +368,11 @@ it('stores a logo on an invoice preset and snapshots it to invoices', function (
     expect($preset['logo_path'])->toEndWith('.png');
     expect($preset['logo_url'])->not->toBeNull();
 
-    $warehouse = Addrbook::factory()->warehouse()->create();
-
     $this->actingAs($this->user)->post(route('invoice-maker.store'), [
         'number' => 'INV/CA/2026/0099',
         'date' => '2026-08-14',
         'recipient' => 'Test Client',
-        'sender_addrbook_id' => $warehouse->id,
+        'sender_addrbook_id' => $this->warehouse->id,
         'preset_id' => $preset['id'],
         'lines' => [
             ['description' => 'Item', 'quantity' => 1, 'price' => 10_000],
