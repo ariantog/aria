@@ -77,6 +77,42 @@ final class ItemCatalogHubMockPresenter
      *
      * @return list<array<string, mixed>>
      */
+    /**
+     * @return list<array{key: string, label: string, summary: string}>
+     */
+    public static function parentVariantCatalog(): array
+    {
+        return [
+            ['key' => 'a', 'label' => 'A · Tabbed hub', 'summary' => 'Separate tabs for colorways, style defaults, overview.'],
+            ['key' => 'b', 'label' => 'B · Colorway-first', 'summary' => 'Thin style header; focus on color list + title column (near live page).'],
+            ['key' => 'c', 'label' => 'C · Single scroll', 'summary' => 'One page with scope chips (style vs colorway).'],
+            ['key' => 'd', 'label' => 'D · Live + labels', 'summary' => 'Current parent layout; renamed fields only.'],
+        ];
+    }
+
+    /**
+     * @return list<array{key: string, label: string, summary: string}>
+     */
+    public static function colorwayVariantCatalog(): array
+    {
+        return [
+            ['key' => 'a', 'label' => 'A · Split panels', 'summary' => 'Identity vs catalog + live name preview.'],
+            ['key' => 'b', 'label' => 'B · Matrix first', 'summary' => 'Size price grid on top.'],
+            ['key' => 'c', 'label' => 'C · Scope chips', 'summary' => 'Single form; each field tagged size vs colorway.'],
+        ];
+    }
+
+    /**
+     * @return list<array{key: string, label: string, summary: string}>
+     */
+    public static function skuVariantCatalog(): array
+    {
+        return [
+            ['key' => 'a', 'label' => 'A · SKU-only (current)', 'summary' => 'Links to parent/colorway; price/restock here.'],
+            ['key' => 'b', 'label' => 'B · Inherit readout', 'summary' => 'Shows style → colorway → effective title before SKU fields.'],
+        ];
+    }
+
     public static function staticScenarios(): array
     {
         return [

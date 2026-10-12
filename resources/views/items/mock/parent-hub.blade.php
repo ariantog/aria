@@ -22,13 +22,18 @@ $titleBadgeClass = fn (string $source) => match ($source) {
 
 <div class="p-4 sm:p-6" x-data="{ tab: 'colorways' }">
     @include('items.mock.partials.mock-banner', ['liveUrl' => $liveParentUrl])
+    @include('items.mock.partials.mock-variant-nav', [
+        'mockSurface' => 'parent',
+        'groupId' => $detail['anchor_group_id'],
+        'activeVariant' => 'a',
+    ])
 
     <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <a href="{{ $liveParentUrl }}" class="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-100">
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
             Current parent page
         </a>
-        <span class="rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-800">Product hub (mock)</span>
+        <span class="rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-800">Variant A · tabbed hub</span>
     </div>
 
     <div class="mb-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -74,51 +79,11 @@ $titleBadgeClass = fn (string $source) => match ($source) {
                 One row per color. <strong>Effective title</strong> is what SKU display names use (bare title + warna + size).
                 Edit catalog on the colorway; rename all colors from Style defaults.
             </p>
-            <div class="overflow-x-auto rounded-lg border border-gray-200">
-                <table class="min-w-full text-sm">
-                    <thead class="bg-gray-50 text-xs uppercase text-gray-500">
-                        <tr>
-                            <th class="px-4 py-3 text-left">Color</th>
-                            <th class="px-4 py-3 text-left">Style code (pcode)</th>
-                            <th class="px-4 py-3 text-left">Effective bare title</th>
-                            <th class="px-4 py-3 text-left">Source</th>
-                            <th class="px-4 py-3 text-left">Example list name</th>
-                            <th class="px-4 py-3 text-right"></th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-100">
-                        @forelse($colorwayCatalogRows as $row)
-                        <tr class="hover:bg-gray-50/80">
-                            <td class="px-4 py-3">
-                                <span class="font-semibold text-gray-900">{{ $row['warna_code'] }}</span>
-                                <span class="text-gray-500">{{ $row['warna_name'] }}</span>
-                            </td>
-                            <td class="px-4 py-3 font-mono text-gray-800">{{ $row['pcode'] }}</td>
-                            <td class="px-4 py-3 font-medium text-gray-900">{{ $row['effective_title'] ?: '—' }}</td>
-                            <td class="px-4 py-3">
-                                <span class="rounded-full px-2 py-0.5 text-xs font-medium {{ $titleBadgeClass($row['title_source']) }}">
-                                    {{ $row['title_source_label'] }}
-                                </span>
-                            </td>
-                            <td class="px-4 py-3 text-xs text-gray-600">{{ $row['sample_display_name'] }}</td>
-                            <td class="px-4 py-3 text-right whitespace-nowrap">
-                                @if($canEditGroup)
-                                <a href="{{ route('items.catalog-mock.colorway', $row['group_id']) }}"
-                                   class="text-indigo-600 hover:underline"
-                                   data-testid="mock-colorway-link-{{ $row['group_id'] }}">Mock editor</a>
-                                <span class="mx-1 text-gray-300">|</span>
-                                @endif
-                                <a href="{{ route('items.colorway-edit', $row['group_id']) }}" class="text-gray-500 hover:underline">Live</a>
-                            </td>
-                        </tr>
-                        @empty
-                        <tr>
-                            <td colspan="6" class="px-4 py-8 text-center text-gray-500">No colorways in this group.</td>
-                        </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
+            @include('items.mock.partials.colorway-catalog-table', [
+                'colorwayCatalogRows' => $colorwayCatalogRows,
+                'canEditGroup' => $canEditGroup,
+                'showLiveLinks' => true,
+            ])
         </div>
 
         <div x-show="tab === 'defaults'" x-cloak class="p-4 sm:p-6" data-testid="mock-panel-defaults">
