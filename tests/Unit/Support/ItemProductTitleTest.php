@@ -84,6 +84,45 @@ test('syncParentProductName refreshes in-request parent cache for rebuilds', fun
     expect(ItemProductTitle::resolveBareTitle($item->fresh(['group'])))->toBe('NEW PARENT');
 });
 
+test('resolveBareTitle uses type-parent master for manufactured pcode fallback not colorway pcode', function () {
+    $group = ItemGroup::factory()->create([
+        'master' => 'CX93023-01',
+        'variant' => '01',
+        'name' => 'CX93023-01',
+    ]);
+    $type = Tag::factory()->create(['type' => Tag::TYPE_TYPE, 'code' => 'AJD', 'name' => 'Jacket']);
+    $warna = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => '01', 'name' => 'Mint']);
+
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CX93023-01',
+        'code' => 'AJD-CX93023-01-M',
+    ]);
+    $item->tags()->sync([$type->id, $warna->id]);
+
+    expect(ItemProductTitle::resolveBareTitle($item->fresh(['group', 'tags'])))->toBe('AJD-CX93023');
+});
+
+test('resolveBareTitle uses item pcode for asset lancar fallback', function () {
+    $group = ItemGroup::factory()->create([
+        'master' => 'GLOVE-01',
+        'variant' => 'BLUE',
+        'name' => 'GLOVE-01',
+    ]);
+    $warna = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLUE', 'name' => 'Blue']);
+
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'type' => ItemType::ASSET_LANCAR,
+        'pcode' => 'GLOVE-01',
+        'code' => 'GLOVE-01-BLUE-S',
+    ]);
+    $item->tags()->sync([$warna->id]);
+
+    expect(ItemProductTitle::resolveBareTitle($item->fresh(['group', 'tags'])))->toBe('GLOVE-01');
+});
+
 test('buildDisplayNameWithBareTitle matches colorway save naming for manufactured items', function () {
     $group = ItemGroup::factory()->create(['name' => 'RUNNING SHIRT']);
     $warna = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLACK', 'name' => 'Black']);
