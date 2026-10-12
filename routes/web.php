@@ -313,6 +313,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('items-group/parent/{parentSlug}', [App\Http\Controllers\ItemsController::class, 'redirectLegacyGroupParent'])->name('items.group-parent-legacy');
     Route::get('items-group/colorway/{group}/edit', [App\Http\Controllers\ItemsController::class, 'colorwayEdit'])->name('items.colorway-edit');
     Route::put('items-group/colorway/{group}', [App\Http\Controllers\ItemsController::class, 'colorwayUpdate'])->name('items.colorway-update');
+    Route::put('items-group/colorway/{group}/pricing', [App\Http\Controllers\ItemsController::class, 'colorwayApplyPricing'])->name('items.colorway-apply-pricing');
     Route::get('items-group/{group}', [App\Http\Controllers\ItemsController::class, 'groupDetail'])->name('items.group-detail');
     Route::put('items-group/{group}', [App\Http\Controllers\ItemsController::class, 'updateGroup'])->name('items.group-update');
     Route::get('items-group/{group}/stats', [App\Http\Controllers\ItemsController::class, 'groupStats'])->name('items.group-stats');

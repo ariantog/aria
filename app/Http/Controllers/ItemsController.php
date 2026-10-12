@@ -781,7 +781,12 @@ class ItemsController extends Controller
             'sample' => $sample,
             'sizeRows' => $sizeRows,
             'previewRows' => $previewRows,
-            'pricingState' => ItemPricing::formState($sample),
+            'colorwayDefaults' => [
+                'price' => (float) ($group->price ?? 0),
+                'reseller_price' => (float) ($group->reseller_price ?? 0),
+                'cost' => (float) ($group->cost ?? 0),
+                'cost_cnh' => (float) ($group->cost_cnh ?? 0),
+            ],
             'productTitle' => $titleForm['stored_title'],
             'titleForm' => $titleForm,
             'parentProductName' => $parentProductName,
@@ -804,7 +809,7 @@ class ItemsController extends Controller
 
         $isAsset = $sample->type === ItemType::ASSET_LANCAR;
 
-        $rules = array_merge([
+        $rules = [
             'pcode' => ['required', 'string', 'max:255'],
             'product_name' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
@@ -812,7 +817,7 @@ class ItemsController extends Controller
             'url' => ['nullable', 'string', 'max:255'],
             'image' => ['nullable', 'image', 'max:5120'],
             'items' => ['required', 'array'],
-        ], $this->pricingValidationRules($isAsset));
+        ];
 
         foreach ($itemIds as $itemId) {
             $rules["items.{$itemId}.restock_urgent_threshold"] = ['nullable', 'integer', 'min:1'];
@@ -847,7 +852,6 @@ class ItemsController extends Controller
                 'description2',
                 'url',
             ]);
-            $payload['pricing'] = $request->input('pricing', []);
 
             $this->itemService->updateColorway(
                 $group,
@@ -859,6 +863,55 @@ class ItemsController extends Controller
             return redirect()
                 ->route('items.colorway-edit', $group)
                 ->with('success', 'Colorway updated.');
+        } catch (\Exception $e) {
+            return back()->withErrors(['message' => $e->getMessage()])->withInput();
+        }
+    }
+
+    public function colorwayApplyPricing(Request $request, ItemGroup $group)
+    {
+        Gate::authorize(ItemGroup::getPermissions()['edit']);
+
+        $group->load(['items']);
+        abort_if($group->items->first() === null, 404);
+
+        $isAsset = $group->items->first()->type === ItemType::ASSET_LANCAR;
+
+        $rules = [
+            'apply' => ['required', 'array', 'min:1'],
+            'apply.*' => ['in:price,reseller_price,cost,cost_cnh'],
+        ];
+
+        foreach (ItemPricing::FIELDS as $field) {
+            $rules["pricing.{$field}"] = ['nullable', 'numeric', 'min:0'];
+        }
+
+        $request->validate($rules, [
+            'apply.required' => 'Select at least one pricing field to apply.',
+        ]);
+
+        $applyFields = $request->input('apply', []);
+        $pricingInput = $request->input('pricing', []);
+        $payload = [];
+
+        foreach ($applyFields as $field) {
+            if (! in_array($field, ItemPricing::FIELDS, true)) {
+                continue;
+            }
+
+            if (! $isAsset && in_array($field, ['cost', 'cost_cnh'], true)) {
+                continue;
+            }
+
+            $payload[$field] = $pricingInput[$field] ?? 0;
+        }
+
+        try {
+            $this->itemService->applyColorwayDefaultPricing($group, $payload);
+
+            return redirect()
+                ->route('items.colorway-edit', $group)
+                ->with('success', 'Colorway pricing applied to all sizes.');
         } catch (\Exception $e) {
             return back()->withErrors(['message' => $e->getMessage()])->withInput();
         }

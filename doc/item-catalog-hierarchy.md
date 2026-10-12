@@ -54,10 +54,10 @@ Set the value on the **`item_group`** row for that colorway, then **clear the sa
 
 Examples:
 
-- Colorway editor save → `ItemCatalog::applyToGroup()` + `ItemCatalog::resetDescriptionMirrorsForColorway()` for descriptions.
-- Colorway pricing → `ItemPricing::apply(..., SCOPE_COLORWAY)` zeros `items.price` (etc.) in the group.
+- Colorway editor save → `ItemCatalog::applyToGroup()` + `ItemCatalog::resetDescriptionMirrorsForColorway()` for descriptions (no pricing on this save).
+- Colorway default pricing → **Apply to all sizes** (`ItemService::applyColorwayDefaultPricing`) runs `ItemPricing::apply(..., SCOPE_COLORWAY)` and zeros stored SKU amounts for each applied field.
 
-**UI:** colorway edit submit shows a confirmation — bulk clears per-size overrides for catalog/pricing saved at colorway scope.
+**UI:** **Save colorway** confirms catalog/attributes/matrix size overrides only. **Apply to all sizes** confirms clearing size overrides for the checked pricing fields.
 
 ### Parent group scope
 
@@ -78,7 +78,7 @@ Examples:
 | Page | Route | Default write scope |
 |------|-------|---------------------|
 | Single SKU edit | `items/{id}/edit`, asset edit | SKU (shared fields can target colorway via pricing scope radios) |
-| Colorway edit | `items-group/colorway/{group}/edit` | Colorway (+ per-size matrix overrides) |
+| Colorway edit | `items-group/colorway/{group}/edit` | Catalog/attributes on **Save colorway**; colorway pricing via **Apply to all sizes** above the matrix; per-size overrides in the matrix |
 | Parent detail | `items-group/parent/{group}` | Separate **Save product name** / **Save group pricing** |
 
 Single-item **create/edit** uses a tabbed **Catalog & pricing** panel (`form-details`): tabs choose which catalog level you are editing (SKU / colorway / whole group); pricing scopes stay per-field with quick buttons and a “all colorway” switch.
