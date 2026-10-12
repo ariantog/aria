@@ -192,9 +192,11 @@ test('colorway edit page renders with size matrix and preview', function () {
         ->assertSee('data-testid="colorway-size-matrix"', false)
         ->assertSee('data-testid="colorway-name-preview"', false)
         ->assertSee('data-testid="colorway-save"', false)
+        ->assertSee('data-testid="colorway-apply-pricing"', false)
+        ->assertSee('data-testid="colorway-pricing-apply-form"', false)
         ->assertSee('data-testid="item-form-shared-tags"', false)
         ->assertDontSee('data-testid="item-form-sku-size"', false)
-        ->assertSee('data-testid="colorway-pricing-price-scope-colorway"', false)
+        ->assertDontSee('data-testid="colorway-pricing-price-scope-colorway"', false)
         ->assertDontSee('Whole group', false)
         ->assertDontSee('This SKU', false)
         ->assertSee('AJD-CX90233-23-S', false);
@@ -296,6 +298,110 @@ test('updateColorway applies shared type tag to every sku code', function () {
         ->and($medium->code)->toBe('PNT-CX90233-23-M');
 });
 
+test('colorway catalog save does not apply colorway pricing or clear size overrides', function () {
+    $this->itemService->create((object) [
+        'pcode' => 'CX90233-23',
+        'type' => ItemType::ITEM->value,
+        'price' => 100000,
+    ], [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id, $this->mediumTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ]);
+
+    $small = Item::where('code', 'AJD-CX90233-23-S')->firstOrFail();
+    $medium = Item::where('code', 'AJD-CX90233-23-M')->firstOrFail();
+    $group = $small->group()->firstOrFail();
+
+    ItemPricing::apply($small, 'price', ItemPricing::SCOPE_SIZE, 175000);
+
+    $this->itemService->updateColorway(
+        $group,
+        (object) [
+            'pcode' => 'CX90233-23',
+            'product_name' => 'Title Only Change',
+            'tags' => [
+                'types' => [$this->typeTag->id],
+                'warna' => [$this->warnaTag->id],
+                'jahit' => [$this->jahitTag->id],
+            ],
+        ],
+        [
+            ['id' => $small->id],
+            ['id' => $medium->id],
+        ],
+    );
+
+    $group->refresh();
+    $small->refresh();
+    $medium->refresh();
+
+    expect($group->name)->toBe('TITLE ONLY CHANGE')
+        ->and((float) $small->price)->toBe(175000.0)
+        ->and(ItemPricing::resolve($medium, 'price'))->toBe(100000.0);
+});
+
+test('colorway apply pricing sets group default and clears size overrides', function () {
+    $this->itemService->create((object) [
+        'pcode' => 'CX90233-23',
+        'type' => ItemType::ITEM->value,
+        'price' => 100000,
+    ], [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id, $this->mediumTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ]);
+
+    $small = Item::where('code', 'AJD-CX90233-23-S')->firstOrFail();
+    $group = $small->group()->firstOrFail();
+
+    ItemPricing::apply($small, 'price', ItemPricing::SCOPE_SIZE, 175000);
+
+    $this->itemService->applyColorwayDefaultPricing($group, ['price' => 120000]);
+
+    $small->refresh();
+    $group->refresh();
+
+    expect((float) $group->price)->toBe(120000.0)
+        ->and((float) $small->price)->toBe(0.0)
+        ->and(ItemPricing::resolve($small, 'price'))->toBe(120000.0);
+});
+
+test('colorway apply pricing via HTTP updates group and clears overrides', function () {
+    $group = ItemGroup::factory()->create([
+        'master' => 'CX90233-23',
+        'variant' => '23',
+        'name' => 'CX90233-23',
+        'price' => 100000,
+    ]);
+
+    $small = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => $group->id,
+        'pcode' => 'CX90233-23',
+        'code' => 'AJD-CX90233-23-S',
+        'price' => 175000,
+    ]);
+    $small->tags()->sync([$this->typeTag->id, $this->warnaTag->id, $this->sizeTag->id, $this->jahitTag->id]);
+
+    $this->actingAs($this->user)
+        ->put(route('items.colorway-apply-pricing', $group), [
+            'apply' => ['price'],
+            'pricing' => ['price' => 120000],
+        ])
+        ->assertRedirect(route('items.colorway-edit', $group))
+        ->assertSessionHas('success');
+
+    $group->refresh();
+    $small->refresh();
+
+    expect((float) $group->price)->toBe(120000.0)
+        ->and((float) $small->price)->toBe(0.0)
+        ->and(ItemPricing::resolve($small, 'price'))->toBe(120000.0);
+});
+
 test('colorway update via HTTP persists per-size price', function () {
     $group = ItemGroup::factory()->create([
         'master' => 'CX90233-23',
@@ -333,8 +439,16 @@ test('colorway update via HTTP persists per-size price', function () {
                 'jahit' => $this->jahitTag->id,
             ],
             'items' => [
-                $small->id => ['price' => 150000],
-                $medium->id => ['price' => 120000],
+                $small->id => [
+                    'pricing' => [
+                        'price' => ['scope' => 'size', 'value' => 150000],
+                    ],
+                ],
+                $medium->id => [
+                    'pricing' => [
+                        'price' => ['scope' => 'size', 'value' => 120000],
+                    ],
+                ],
             ],
         ])
         ->assertRedirect(route('items.colorway-edit', $group));

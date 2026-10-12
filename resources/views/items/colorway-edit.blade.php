@@ -44,7 +44,7 @@ $breadcrumbs = [
     @endif
 
     <form method="POST" action="{{ route('items.colorway-update', $group) }}" enctype="multipart/form-data" class="space-y-8"
-          onsubmit="return confirm('Save this colorway? Catalog and colorway-level pricing apply to every size here; per-SKU description mirrors and size price overrides for fields saved at colorway scope will be cleared.');">
+          onsubmit="return confirm('Save this colorway? Catalog and attributes are updated. Size price overrides in the matrix are saved only when filled in. Colorway-wide defaults use Apply above the matrix.');">
         @csrf
         @method('PUT')
 
@@ -125,30 +125,18 @@ $breadcrumbs = [
                     </div>
                 </div>
 
-                <div class="rounded-xl border border-gray-200 bg-white shadow-sm" data-testid="colorway-pricing">
-                    <div class="border-b border-gray-100 px-5 py-4">
-                        <h3 class="text-lg font-semibold text-gray-900">Pricing (this colorway)</h3>
-                        <p class="text-sm text-gray-500">Default sell, reseller, and cost for every size here. Per-size overrides go in the matrix below.</p>
-                    </div>
-                    <div class="p-5">
-                        @include('items.partials.form-pricing-scopes', [
-                            'pricingState' => $pricingState ?? [],
-                            'pricingPrefix' => 'pricing',
-                            'pricingIdPrefix' => 'colorway-pricing',
-                            'pricingFixedScope' => \App\Support\ItemPricing::SCOPE_COLORWAY,
-                            'pricingIntro' => '',
-                            'embeddedInCatalog' => true,
-                        ])
-                    </div>
-                </div>
-
                 {{-- Per-size matrix --}}
                 <div class="rounded-xl border border-gray-200 bg-white shadow-sm" data-testid="colorway-size-matrix">
                     <div class="border-b border-gray-100 px-5 py-4">
-                        <h3 class="text-lg font-semibold text-gray-900">Sizes &amp; per-SKU overrides</h3>
-                        <p class="text-sm text-gray-500">Optional size-only price overrides. Leave blank to use the colorway or group price above.</p>
+                        <h3 class="text-lg font-semibold text-gray-900">Sizes &amp; pricing</h3>
+                        <p class="text-sm text-gray-500">Apply a colorway default above, or set optional per-size overrides in the matrix.</p>
                     </div>
                     <div class="overflow-x-auto p-4">
+                        @include('items.partials.colorway-pricing-apply', [
+                            'group' => $group,
+                            'colorwayDefaults' => $colorwayDefaults ?? [],
+                            'isAsset' => $isAsset,
+                        ])
                         <table class="min-w-full text-sm">
                             <thead class="border-b border-gray-200 text-xs uppercase text-gray-500">
                                 <tr>
