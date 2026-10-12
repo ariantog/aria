@@ -29,7 +29,7 @@ $fmt = fn ($v) => format_amount($v, 0);
         <a href="{{ route('items.catalog-mock.parent-hub', $detail['anchor_group_id']) }}" class="ml-1 font-medium text-indigo-700 underline hover:text-indigo-900">Open product hub mock</a>
         <span class="text-indigo-800">(read-only — nothing saved)</span>
         ·
-        <a href="{{ route('items.catalog-mock.index') }}" class="text-indigo-700 underline hover:text-indigo-900">All mock scenarios</a>
+        <a href="{{ route('items.catalog-mock.index') }}" class="text-indigo-700 underline hover:text-indigo-900">Compare mock layouts (A–D)</a>
     </div>
 
     <div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-3">

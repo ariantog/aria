@@ -38,6 +38,11 @@ $mockHubUrl = route('items.catalog-mock.parent-hub', $parentGroupId);
     }
 }">
     @include('items.mock.partials.mock-banner', ['liveUrl' => $liveColorwayUrl])
+    @include('items.mock.partials.mock-variant-nav', [
+        'mockSurface' => 'colorway',
+        'colorwayGroupId' => $group->id,
+        'activeVariant' => 'a',
+    ])
 
     <div class="mb-4 flex flex-wrap items-center gap-3">
         <a href="{{ $mockHubUrl }}" class="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-100">
