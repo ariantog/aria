@@ -741,23 +741,25 @@ test('asset edit form shows the bare product title not the unique group name', f
     ]);
     $item->tags()->attach([$typeTag->id, $warnaTag->id, $sizeTag->id]);
 
+    $colorwayEditUrl = route('items.colorway-edit', $group->id);
+
     $this->actingAs($this->user)
         ->get(route('assetlancar.edit', $item))
         ->assertOk()
-        ->assertSee('data-testid="tag-filter-warna"', false)
-        ->assertSee('data-testid="tag-picker-warna"', false)
-        ->assertSee('data-testid="tag-filter-type"', false)
-        ->assertSee('data-testid="tag-picker-type"', false)
         ->assertSee('data-testid="tag-filter-size"', false)
         ->assertSee('data-testid="tag-picker-size"', false)
         ->assertSee('data-tag-selected="1"', false)
         ->assertSee('checked', false)
+        ->assertDontSee('data-testid="tag-filter-warna"', false)
+        ->assertDontSee('data-testid="tag-filter-type"', false)
+        ->assertDontSee('data-testid="item-form-shared-tags"', false)
         ->assertSee('data-testid="item-form-catalog-links"', false)
         ->assertSee('Colorway editor', false)
+        ->assertSee($colorwayEditUrl, false)
         ->assertDontSee('data-testid="item-form-product-name"', false);
 });
 
-test('manufactured item edit form pins selected tag pickers', function () {
+test('manufactured item edit form pins size tag and links shared tags to colorway editor', function () {
     $typeTag = \App\Models\Tag::factory()->create([
         'type' => \App\Models\Tag::TYPE_TYPE,
         'item_type' => \App\Enums\ItemType::ITEM->value,
@@ -779,8 +781,14 @@ test('manufactured item edit form pins selected tag pickers', function () {
         'code' => 'S',
         'name' => 'Small',
     ]);
+    $group = \App\Models\ItemGroup::factory()->create([
+        'master' => 'CX93024-23',
+        'variant' => '23',
+        'name' => 'CX93024-23',
+    ]);
     $item = Item::factory()->create([
         'type' => \App\Enums\ItemType::ITEM,
+        'group_id' => $group->id,
         'pcode' => 'CX93024-23',
         'code' => 'AJD-CX93024-23-S',
     ]);
@@ -789,11 +797,14 @@ test('manufactured item edit form pins selected tag pickers', function () {
     $this->actingAs($this->user)
         ->get(route('items.edit', $item))
         ->assertOk()
-        ->assertSee('data-testid="tag-filter-jahit"', false)
-        ->assertSee('data-testid="tag-picker-jahit"', false)
+        ->assertSee('data-testid="tag-filter-size"', false)
+        ->assertSee('data-testid="tag-picker-size"', false)
         ->assertSee('data-tag-selected="1"', false)
-        ->assertSee('name="tags[jahit]"', false)
-        ->assertSee('name="tags[types]"', false);
+        ->assertSee('name="tags[sizes][]"', false)
+        ->assertDontSee('data-testid="tag-filter-jahit"', false)
+        ->assertDontSee('data-testid="item-form-shared-tags"', false)
+        ->assertSee('Colorway editor', false)
+        ->assertSee(route('items.colorway-edit', $group->id), false);
 });
 
 test('items json lookup resolves barcode by numeric item id', function () {
