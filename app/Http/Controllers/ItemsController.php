@@ -399,15 +399,9 @@ class ItemsController extends Controller
             'item_description2' => $isAsset ? ['nullable', 'string'] : ['nullable'],
             'url' => ['nullable', 'string', 'max:255'],
             'restock_urgent_threshold' => ['nullable', 'integer', 'min:1'],
-            'tags.types' => $isAsset ? ['nullable'] : ['required'],
             'tags.sizes' => ['required'],
-            'tags.warna' => ['required'],
-            'tags.jahit' => $isAsset ? ['nullable'] : ['required'],
         ], $this->pricingValidationRules($isAsset)), [
             'product_name.required' => 'Product name is required.',
-            'tags.warna.required' => 'Please select a color (warna).',
-            'tags.types.required' => 'Please select a type (SKU prefix).',
-            'tags.jahit.required' => 'Please select a jahit tag.',
             'pricing.cost.value.required_without' => 'Cost price is required for asset lancar.',
             'pricing.cost.value.min' => 'Cost price is required for asset lancar.',
             'cost.required_without' => 'Cost price is required for asset lancar.',
@@ -776,9 +770,14 @@ class ItemsController extends Controller
         $parentRecord = \App\Models\ItemParentPrice::query()->where('parent_key', $parentKey)->first();
         $parentProductName = trim((string) ($parentRecord?->product_name ?? ''));
 
-        return view('items.colorway-edit', [
+        $itemTypeEnum = $sample->type;
+
+        return view('items.colorway-edit', array_merge($this->formProps($itemTypeEnum), [
             'group' => $group,
             'sample' => $sample,
+            'curType' => optional($typeTag)->id,
+            'curJahit' => optional($sample->tags->firstWhere('type', Tag::TYPE_JAHIT))->id,
+            'curWarna' => optional($sample->tags->firstWhere('type', Tag::TYPE_WARNA))->id,
             'sizeRows' => $sizeRows,
             'previewRows' => $previewRows,
             'pricingState' => ItemPricing::formState($sample),
@@ -790,7 +789,7 @@ class ItemsController extends Controller
             'parentGroupId' => $parentGroupId,
             'isAsset' => $itemType === ItemType::ASSET_LANCAR,
             'flash' => ['success' => session('success'), 'error' => session('error')],
-        ]);
+        ]));
     }
 
     public function colorwayUpdate(Request $request, ItemGroup $group)
@@ -822,8 +821,17 @@ class ItemsController extends Controller
             }
         }
 
+        $rules = array_merge($rules, [
+            'tags.types' => $isAsset ? ['required'] : ['required'],
+            'tags.warna' => ['required'],
+            'tags.jahit' => $isAsset ? ['nullable'] : ['required'],
+        ]);
+
         $request->validate($rules, [
             'product_name.required' => 'Product name is required.',
+            'tags.warna.required' => 'Please select a color (warna).',
+            'tags.types.required' => 'Please select a type (SKU prefix).',
+            'tags.jahit.required' => 'Please select a jahit tag.',
         ]);
 
         $itemRows = [];
@@ -848,6 +856,7 @@ class ItemsController extends Controller
                 'url',
             ]);
             $payload['pricing'] = $request->input('pricing', []);
+            $payload['tags'] = $request->input('tags', []);
 
             $this->itemService->updateColorway(
                 $group,
