@@ -588,9 +588,6 @@ class ItemsController extends Controller
 
         abort_if($detail === null, 404);
 
-        $sampleGroup = ItemGroup::query()->find($detail['anchor_group_id']);
-        $itemType = $detail['item_type'];
-
         return view('items.group-parent-detail', [
             'detail' => $detail,
             'canEditGroup' => auth()->user()->can(ItemGroup::getPermissions()['edit']),
@@ -598,10 +595,6 @@ class ItemsController extends Controller
                 $detail['parent_key'],
                 Item::query()->whereIn('group_id', $detail['group_ids'])->with('group')->first(),
             ),
-            'brands' => $this->brandOptions(),
-            'typeTags' => Tag::typeTagsForItem($itemType),
-            'parentBrand' => $sampleGroup?->brand,
-            'parentGenre' => (int) ($sampleGroup?->genre ?? 0),
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
@@ -635,17 +628,10 @@ class ItemsController extends Controller
 
         abort_if($detail === null, 404);
 
-        $rules = [
+        $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'reset_colorway_titles' => ['nullable', 'boolean'],
-        ];
-
-        if (! $detail['is_asset']) {
-            $rules['brand'] = ['nullable', 'integer'];
-            $rules['genre'] = ['nullable', 'integer'];
-        }
-
-        $request->validate($rules, [
+        ], [
             'name.required' => 'Product name is required.',
         ]);
 
@@ -657,22 +643,9 @@ class ItemsController extends Controller
                 $request->boolean('reset_colorway_titles'),
             );
 
-            if (! $detail['is_asset']) {
-                $brand = $request->filled('brand')
-                    ? (\App\Enums\ItemBrand::tryFrom((int) $request->input('brand')) ?? null)
-                    : null;
-                $genre = $request->filled('genre') ? (int) $request->input('genre') : null;
-
-                $this->itemService->applyParentGroupBrandGenre(
-                    $detail['group_ids'],
-                    $brand,
-                    $genre !== null && $genre > 0 ? $genre : null,
-                );
-            }
-
             return redirect()
                 ->route('items.group-parent-detail', $group->id)
-                ->with('success', 'Parent catalog defaults updated.');
+                ->with('success', 'Parent product name updated.');
         } catch (\Exception $e) {
             return back()->withErrors(['message' => $e->getMessage()])->withInput();
         }
