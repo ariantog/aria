@@ -54,24 +54,21 @@ function seedLinkedJubelioItem(
     return $item;
 }
 
-function queueJubelioSellOrderWithPayload(
+function queueJubelioSellOrder(
     string $jubelioOrderId,
     string $invoice,
     int $storeId,
     int $locationId,
     array $lineItems,
-    array $payloadOverrides = [],
 ): Jubelioorder {
-    $payload = array_merge([
+    mockJubelioSalesOrder($jubelioOrderId, [
         'salesorder_no' => $invoice,
         'store_id' => $storeId,
         'location_id' => $locationId,
         'sub_total' => collect($lineItems)->sum(fn (array $row) => (float) ($row['price'] ?? 0)),
         'real_total' => collect($lineItems)->sum(fn (array $row) => (float) ($row['price'] ?? 0)),
-        'internal_status' => 'SHIPPED',
-        'transaction_date' => jubelioRecentTransactionDate(),
         'items' => $lineItems,
-    ], $payloadOverrides);
+    ]);
 
     return Jubelioorder::create([
         'jubelio_order_id' => $jubelioOrderId,
@@ -81,17 +78,16 @@ function queueJubelioSellOrderWithPayload(
         'order_status' => 'SHIPPED',
         'run_count' => 0,
         'status' => 0,
-        'payload' => json_encode($payload, JSON_THROW_ON_ERROR),
     ]);
 }
 
-it('cron order processing resolves aria item from jubelio item_id in stored payload', function () {
+it('cron order processing resolves aria item from jubelio item_id via api payload', function () {
     Queue::fake([UpdateTransactionSummaries::class]);
 
     ['warehouse' => $warehouse, 'sync' => $sync] = seedJubelioOrderParties();
     $item = seedLinkedJubelioItem($warehouse, 'FABRICBAND-03-BABYBLUE-LIGHT');
 
-    $order = queueJubelioSellOrderWithPayload(
+    $order = queueJubelioSellOrder(
         'jubelio-id-cron',
         'INV-JUBELIO-ID-CRON',
         $sync->jubelio_store_id,
@@ -108,20 +104,21 @@ it('cron order processing resolves aria item from jubelio item_id in stored payl
 
     expect($order->status)->toBe(2)
         ->and($order->error_type)->toBe(10)
+        ->and($order->payload)->toBeNull()
         ->and($transaction)->not->toBeNull()
         ->and($transaction->details->first()->item_id)->toBe($item->id);
 
     Queue::assertPushed(UpdateTransactionSummaries::class, fn ($job) => $job->transactionId === $transaction->id);
 });
 
-it('manual order processing resolves jubelio item_id without calling jubelio api when payload stored', function () {
+it('manual order processing resolves jubelio item_id from api fetch', function () {
     Queue::fake([UpdateTransactionSummaries::class]);
 
     $user = User::factory()->create();
     ['warehouse' => $warehouse, 'sync' => $sync] = seedJubelioOrderParties(12, 22);
     $item = seedLinkedJubelioItem($warehouse, 'AJJ-PL25129-06-XL');
 
-    $order = queueJubelioSellOrderWithPayload(
+    $order = queueJubelioSellOrder(
         'jubelio-id-manual',
         'INV-JUBELIO-ID-MANUAL',
         $sync->jubelio_store_id,
@@ -130,11 +127,6 @@ it('manual order processing resolves jubelio item_id without calling jubelio api
             jubelioPayloadLine($item, 2, 150000),
         ],
     );
-
-    $this->mock(\App\Services\JubelioService::class, function ($mock) {
-        $mock->shouldNotReceive('fetchSalesOrder');
-        $mock->shouldNotReceive('fetchSalesReturn');
-    });
 
     $this->actingAs($user)
         ->post(route('jubelio.process', $order))
@@ -146,6 +138,7 @@ it('manual order processing resolves jubelio item_id without calling jubelio api
 
     expect($order->status)->toBe(2)
         ->and($order->execute_by)->toBe($user->id)
+        ->and($order->payload)->toBeNull()
         ->and($transaction->details->first()->item_id)->toBe($item->id)
         ->and((float) $transaction->details->first()->quantity)->toBe(2.0);
 
@@ -156,7 +149,7 @@ it('jubelio order processing fails when jubelio item_id is not linked in aria', 
     ['warehouse' => $warehouse, 'sync' => $sync] = seedJubelioOrderParties(14, 24);
     seedLinkedJubelioItem($warehouse, 'AJJ-PL25129-06-XL');
 
-    $order = queueJubelioSellOrderWithPayload(
+    $order = queueJubelioSellOrder(
         'unknown-jubelio-id',
         'INV-UNKNOWN-JUBELIO-ID',
         $sync->jubelio_store_id,
@@ -178,7 +171,7 @@ it('jubelio order processing fails when jubelio item_id is not linked in aria', 
         ->and(Transaction::where('invoice', 'INV-UNKNOWN-JUBELIO-ID')->exists())->toBeFalse();
 });
 
-it('jubelio return processing resolves item from jubelio item_id in stored payload', function () {
+it('jubelio return processing resolves item from jubelio item_id in api payload', function () {
     ['warehouse' => $warehouse, 'customer' => $customer, 'sync' => $sync] = seedJubelioOrderParties(15, 25);
     $item = seedLinkedJubelioItem($warehouse, 'FABRICBAND-03-BABYBLUE-LIGHT');
 
@@ -191,7 +184,7 @@ it('jubelio return processing resolves item from jubelio item_id in stored paylo
         'receiver_type' => $customer->type,
     ]);
 
-    $payload = [
+    mockJubelioSalesReturn('return-jubelio-id-1', [
         'return_no' => 'RET-JUBELIO-ID-1',
         'return_id' => 'return-jubelio-id-1',
         'salesorder_no' => 'INV-SELL-RETURN-JUBELIO-ID',
@@ -199,11 +192,10 @@ it('jubelio return processing resolves item from jubelio item_id in stored paylo
         'location_id' => $sync->jubelio_location_id,
         'sub_total' => 75000,
         'real_total' => 75000,
-        'transaction_date' => jubelioRecentTransactionDate(),
         'items' => [
             jubelioPayloadLine($item, 1, 75000, ['qty_in_base' => 1]),
         ],
-    ];
+    ]);
 
     $order = Jubelioorder::create([
         'jubelio_order_id' => 'return-jubelio-id-1',
@@ -213,7 +205,6 @@ it('jubelio return processing resolves item from jubelio item_id in stored paylo
         'order_status' => 'RETURN',
         'run_count' => 0,
         'status' => 0,
-        'payload' => json_encode($payload, JSON_THROW_ON_ERROR),
     ]);
 
     app(\App\Actions\Jubelio\ProcessJubelioOrder::class)->execute($order);

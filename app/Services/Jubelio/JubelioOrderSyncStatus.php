@@ -18,7 +18,7 @@ class JubelioOrderSyncStatus
 
     public const SUCCESS = 10;
 
-    public const MESSAGE_SELL_API_EMPTY = 'Tidak dapat memuat payload order (kosong di database dan fetch API Jubelio gagal). Periksa token/koneksi Jubelio, klik Refresh payload, atau antri ulang dari webhook/get-orders.';
+    public const MESSAGE_SELL_API_EMPTY = 'Tidak dapat memuat order dari API Jubelio (fetch gagal atau respons kosong). Kolom payload kosong di database adalah normal — Aria selalu mengambil data lewat API. Periksa token/koneksi Jubelio, klik Refresh payload, lalu Buat Transaksi Manual.';
 
     public const MESSAGE_RETURN_SELL_MISSING = 'Transaksi jual (asal) tidak ditemukan untuk retur ini';
 

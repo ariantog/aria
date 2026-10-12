@@ -321,10 +321,7 @@ class JubelioController extends Controller
                 ? $payloadLocationId
                 : $sellJubelioKeys['location_id'],
             'status' => 0,
-            'payload' => json_encode($dataApi, JSON_THROW_ON_ERROR),
         ]);
-
-        Jubelioorder::clearPayloadCacheFor($order->id);
 
         return response()->json(['status' => 'ok', 'message' => 'Data saved successfully']);
     }
@@ -396,10 +393,7 @@ class JubelioController extends Controller
                 'jubelio_location_id' => $warehouseColumns['jubelio_location_id'],
                 'warehouse_id' => $warehouseColumns['warehouse_id'],
                 'status' => 0,
-                'payload' => json_encode($payload, JSON_THROW_ON_ERROR),
             ]);
-
-            Jubelioorder::clearPayloadCacheFor($order->id);
 
             return response()->json(['status' => 'ok', 'message' => 'Saved']);
         }

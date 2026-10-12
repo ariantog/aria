@@ -3,9 +3,7 @@
 use App\Models\Jubelioorder;
 use Illuminate\Support\Facades\DB;
 
-it('persists payload column when saving a jubelio order', function () {
-    $payload = ['return_no' => 'RET-GUARD-1', 'items' => []];
-
+it('does not persist payload column when saving a return jubelio order', function () {
     $order = Jubelioorder::create([
         'jubelio_order_id' => 'ret-guard-1',
         'source' => 1,
@@ -14,15 +12,14 @@ it('persists payload column when saving a jubelio order', function () {
         'order_status' => 'RETURN',
         'run_count' => 0,
         'status' => 0,
-        'payload' => json_encode($payload),
+        'payload' => json_encode(['return_no' => 'RET-GUARD-1', 'items' => []]),
     ]);
 
-    expect(json_decode((string) $order->fresh()->payload, true))->toBe($payload);
+    expect($order->fresh()->payload)->toBeNull();
 
-    $updated = ['return_no' => 'RET-GUARD-1', 'items' => [['item_id' => 1]]];
-    $order->update(['run_count' => 1, 'payload' => json_encode($updated)]);
+    $order->update(['run_count' => 1, 'payload' => json_encode(['return_no' => 'RET-GUARD-1'])]);
 
-    expect(json_decode((string) $order->fresh()->payload, true))->toBe($updated);
+    expect($order->fresh()->payload)->toBeNull();
 });
 
 it('clears stored return payloads via app:clear-jubelio-order-payloads', function () {
