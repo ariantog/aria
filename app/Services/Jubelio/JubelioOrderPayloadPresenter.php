@@ -34,6 +34,7 @@ class JubelioOrderPayloadPresenter
             ->map(function (array $item): array {
                 return [
                     'item_code' => (string) ($item['item_code'] ?? $item['sku'] ?? '—'),
+                    'jubelio_item_id' => isset($item['item_id']) ? (int) $item['item_id'] : null,
                     'quantity' => JubelioOrderLineQuantity::resolve($item, 'qty'),
                     'price' => $item['price'] ?? null,
                 ];

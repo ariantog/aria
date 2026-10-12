@@ -58,7 +58,7 @@ it('accepts jubelio return webhook and stores return order', function () {
     expect(Jubelioorder::where('invoice', 'RET-100')->where('type', 'RETURN')->exists())->toBeTrue();
 
     $stored = Jubelioorder::where('invoice', 'RET-100')->first();
-    expect($stored->payload)->toBeNull();
+    expect(json_decode((string) $stored->payload, true)['return_no'] ?? null)->toBe('RET-100');
 });
 
 it('rejects duplicate jubelio return webhook payloads', function () {
@@ -423,7 +423,7 @@ it('refetches jubelio order payload from API when processing polled order', func
 
     $order->refresh();
     expect($order->status)->toBe(2)
-        ->and($order->payload)->toBeNull()
+        ->and(json_decode((string) $order->payload, true)['salesorder_no'] ?? null)->toBe('INV-REFETCH-1')
         ->and(Transaction::where('invoice', 'INV-REFETCH-1')->exists())->toBeTrue();
 });
 

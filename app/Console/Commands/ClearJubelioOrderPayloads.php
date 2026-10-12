@@ -12,7 +12,7 @@ class ClearJubelioOrderPayloads extends Command
                             {--chunk=500 : Rows per UPDATE batch}
                             {--dry-run : Count rows only, do not update}';
 
-    protected $description = 'Set jubelioorders.payload to NULL (legacy JSON bloat). New rows already omit payload; Aria loads from Jubelio API.';
+    protected $description = 'Set jubelioorders.payload to NULL (maintenance). Normal ingest stores webhook/API payload; clearing forces re-fetch from Jubelio on next process/refresh.';
 
     public function handle(): int
     {

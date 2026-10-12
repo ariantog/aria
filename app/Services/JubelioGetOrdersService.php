@@ -286,6 +286,8 @@ class JubelioGetOrdersService
 
             $existing[$invoice] = true;
 
+            $payloadJson = $this->encodedSalesOrderPayload($row);
+
             $batch[] = [
                 'jubelio_order_id' => $row['salesorder_id'] ?? null,
                 'source' => 2,
@@ -301,6 +303,7 @@ class JubelioGetOrdersService
                 'jubelio_store_id' => (int) ($row['store_id'] ?? 0),
                 'jubelio_location_id' => (int) ($row['location_id'] ?? 0),
                 'status' => 0,
+                'payload' => $payloadJson,
                 'created_at' => $now,
                 'updated_at' => $now,
             ];
@@ -456,6 +459,7 @@ class JubelioGetOrdersService
             'jubelio_store_id' => (int) ($apiData['store_id'] ?? 0),
             'jubelio_location_id' => (int) ($apiData['location_id'] ?? 0),
             'status' => 0,
+            'payload' => json_encode($apiData, JSON_THROW_ON_ERROR),
         ]);
 
         return [
@@ -479,5 +483,33 @@ class JubelioGetOrdersService
     public function isEligibleListRow(array $row): bool
     {
         return $this->queueEligibility->isEligibleListRow($row);
+    }
+
+    /**
+     * @param  array<string, mixed>  $listRow
+     */
+    protected function encodedSalesOrderPayload(array $listRow): ?string
+    {
+        $orderId = $listRow['salesorder_id'] ?? null;
+        if ($orderId === null || $orderId === '') {
+            return null;
+        }
+
+        $full = $this->jubelioService->fetchSalesOrder((string) $orderId);
+
+        if (! is_array($full) || $full === []) {
+            $invoice = $listRow['salesorder_no'] ?? null;
+            if ($invoice === null || $invoice === '') {
+                return null;
+            }
+
+            $full = array_merge($listRow, [
+                'salesorder_id' => $orderId,
+                'salesorder_no' => $invoice,
+                'internal_status' => $listRow['internal_status'] ?? 'SHIPPED',
+            ]);
+        }
+
+        return json_encode($full, JSON_THROW_ON_ERROR);
     }
 }

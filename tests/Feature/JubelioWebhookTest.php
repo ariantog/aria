@@ -59,7 +59,9 @@ it('accepts jubelio webhook with valid signature and stores shipped order', func
     expect(Jubelioorder::where('invoice', 'INV-WEBHOOK-TEST')->exists())->toBeTrue();
 
     $order = Jubelioorder::where('invoice', 'INV-WEBHOOK-TEST')->first();
-    expect($order->payload)->toBeNull();
+    $stored = json_decode((string) $order->payload, true);
+    expect($stored['salesorder_no'] ?? null)->toBe('INV-WEBHOOK-TEST')
+        ->and($stored['status'] ?? null)->toBe('SHIPPED');
 });
 
 it('skips shipped webhook when a jubelioorders row already exists for the invoice', function () {

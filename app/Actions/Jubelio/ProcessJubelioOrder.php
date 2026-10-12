@@ -313,37 +313,61 @@ class ProcessJubelioOrder
      */
     protected function matchItems(array $arrayItems, string $qtyKey): array
     {
-        $itemCodes = collect($arrayItems)->pluck('item_code')->unique()->all();
-        $existingProducts = Item::findManyBySkus($itemCodes);
+        $jubelioIds = collect($arrayItems)
+            ->map(fn (array $line) => (int) ($line['item_id'] ?? 0))
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->all();
 
-        $groupedData = collect($arrayItems)->partition(
-            fn ($item) => isset($existingProducts[strtoupper($item['item_code'])])
-        );
+        $existingProducts = Item::findManyByJubelioItemIds($jubelioIds);
 
-        $notMatched = $groupedData[1];
+        $missingLabels = [];
+        $items = [];
 
-        if ($notMatched->count() > 0) {
-            return [
-                'error' => 'SKU tidak ditemukan: '.implode(', ', $notMatched->pluck('item_code')->toArray()),
-                'items' => [],
-            ];
-        }
+        foreach ($arrayItems as $line) {
+            $jubelioItemId = (int) ($line['item_id'] ?? 0);
+            if ($jubelioItemId <= 0) {
+                $code = (string) ($line['item_code'] ?? $line['sku'] ?? '?');
+                $missingLabels[] = $code.' (item_id kosong)';
 
-        $items = $groupedData[0]->map(function ($item) use ($existingProducts, $qtyKey) {
-            $product = $existingProducts[strtoupper($item['item_code'])];
-            $qty = JubelioOrderLineQuantity::resolve($item, $qtyKey);
-            $lineTotal = $this->resolveItemLineTotal($item, $qty);
+                continue;
+            }
 
-            return [
+            $product = $existingProducts->get($jubelioItemId);
+            if (! $product) {
+                $code = (string) ($line['item_code'] ?? $line['sku'] ?? (string) $jubelioItemId);
+                $missingLabels[] = $code.' (Jubelio item_id '.$jubelioItemId.' belum terhubung di Aria)';
+
+                continue;
+            }
+
+            $qty = JubelioOrderLineQuantity::resolve($line, $qtyKey);
+            $lineTotal = $this->resolveItemLineTotal($line, $qty);
+
+            $items[] = [
                 'itemId' => $product->id,
                 'code' => $product->code,
                 'name' => $product->name,
                 'quantity' => $qty,
-                'price' => $qty > 0 ? $lineTotal / $qty : (float) ($item['price'] ?? 0),
+                'price' => $qty > 0 ? $lineTotal / $qty : (float) ($line['price'] ?? 0),
                 'discount' => 0,
                 'subtotal' => $lineTotal,
             ];
-        })->values()->all();
+        }
+
+        if ($missingLabels !== []) {
+            return [
+                'error' => 'Item Jubelio tidak ditemukan di Aria: '.implode(', ', $missingLabels),
+                'items' => [],
+            ];
+        }
+
+        if ($items === []) {
+            return [
+                'error' => 'Payload order tidak memiliki baris item.',
+                'items' => [],
+            ];
+        }
 
         return ['error' => null, 'items' => $items];
     }

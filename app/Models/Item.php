@@ -638,6 +638,31 @@ class Item extends Model
         return $keyed;
     }
 
+    /**
+     * Batch-resolve items keyed by Jubelio inventory item_id (items.jubelio_item_id).
+     *
+     * @param  array<int, int|string>  $jubelioItemIds
+     * @return Collection<int, self>
+     */
+    public static function findManyByJubelioItemIds(array $jubelioItemIds): Collection
+    {
+        $ids = collect($jubelioItemIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($ids === []) {
+            return collect();
+        }
+
+        return static::query()
+            ->whereIn('jubelio_item_id', $ids)
+            ->get(['id', 'code', 'name', 'jubelio_item_id'])
+            ->keyBy(fn (self $item) => (int) $item->jubelio_item_id);
+    }
+
     public function scopeWhereSku(Builder $query, string $sku): Builder
     {
         $normalized = strtoupper(trim($sku));

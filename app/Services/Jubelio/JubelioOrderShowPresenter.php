@@ -96,12 +96,16 @@ class JubelioOrderShowPresenter
             return [];
         }
 
-        $codes = collect($payloadItems)->pluck('item_code')->unique()->all();
-        $itemsByCode = Item::findManyBySkus($codes);
+        $jubelioIds = collect($payloadItems)
+            ->map(fn (array $row) => (int) ($row['jubelio_item_id'] ?? 0))
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->all();
+        $itemsByJubelioId = Item::findManyByJubelioItemIds($jubelioIds);
 
         $warehouseStock = [];
         if ($warehouseId) {
-            $itemIds = $itemsByCode->pluck('id')->all();
+            $itemIds = $itemsByJubelioId->pluck('id')->all();
             if ($itemIds !== []) {
                 $warehouseStock = WarehouseItem::query()
                     ->where('warehouse_id', $warehouseId)
@@ -111,9 +115,9 @@ class JubelioOrderShowPresenter
             }
         }
 
-        return collect($payloadItems)->map(function (array $row) use ($itemsByCode, $warehouseStock): array {
-            $code = strtoupper((string) $row['item_code']);
-            $item = $itemsByCode[$code] ?? null;
+        return collect($payloadItems)->map(function (array $row) use ($itemsByJubelioId, $warehouseStock): array {
+            $jubelioItemId = (int) ($row['jubelio_item_id'] ?? 0);
+            $item = $jubelioItemId > 0 ? $itemsByJubelioId->get($jubelioItemId) : null;
 
             $enriched = $row;
             $enriched['item_id'] = $item?->id;

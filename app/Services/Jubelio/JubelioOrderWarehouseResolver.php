@@ -687,11 +687,8 @@ class JubelioOrderWarehouseResolver
      */
     public function refreshFromApi(Jubelioorder $order): array
     {
-        Jubelioorder::clearPayloadCacheFor($order->id);
-        app(JubelioOrderPayloadService::class)->forget($order->id);
-
         $payloadService = app(JubelioOrderPayloadService::class);
-        $payload = $payloadService->fetchOrEmpty($order);
+        $payload = $payloadService->refreshFromApi($order) ?? [];
         if ($payload === []) {
             return [
                 'success' => false,
