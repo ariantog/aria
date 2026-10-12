@@ -22,6 +22,13 @@ For any attribute that supports overrides, resolve **SKU → colorway → parent
 | Brand / genre | `items.*` (legacy mirror) | `item_group.*` | — |
 | Full display `items.name` | Built from bare title + warna + size (`ItemProductTitle::buildDisplayName()`) | | |
 
+**Bare title when nothing custom is stored:** resolve order is unchanged (SKU alias → colorway name if not a pcode placeholder → parent `product_name` → pcode fallback). Fallback differs by type:
+
+- **Manufactured:** `{TYPE}-{parent master pcode}` — color segment omitted (e.g. `AJD-CX93023`, not `CX93023-01` or `AJD-CX93023-01`). See `ItemIdentityBuilder::manufacturedCatalogTitleFallback()`.
+- **Asset lancar:** item `pcode` (parent-style code, e.g. `GLOVE-01`).
+
+**Colorway product name cleared on save:** an empty colorway title field clears `item_group.name` (and SKU/group aliases) so inheritance falls through to parent; it does not re-store the colorway pcode on `name`.
+
 **Pricing:** numeric `0` means inherit (`ItemPricing::resolve()`).
 
 **Descriptions:** shared text is authoritative on `item_group`; leftover `items.description` is a per-SKU override only when it differs from the group (`ItemCatalog::description()`).

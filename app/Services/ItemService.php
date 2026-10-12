@@ -95,6 +95,7 @@ class ItemService
 
             if ($catalogTab === 'colorway' && $this->userClearedColorwayProductName($catalogInput)) {
                 $this->clearColorwayTitleOverrides($group);
+                $group->name = '';
                 $group->save();
             }
 
@@ -195,22 +196,23 @@ class ItemService
                 }
             }
 
-            $groupName = $this->groupNameFromInput($input, $itemType, $pcode, $group, $sample);
-            $storedName = $this->identityBuilder->uniqueStoredGroupName(
-                $this->identityBuilder->storedGroupName(
-                    $itemType,
-                    $groupName,
-                    $pcode,
-                    (string) ($group->variant ?? ''),
-                ),
-                (string) ($group->master ?? ''),
-                (string) ($group->variant ?? ''),
-            );
-
-            $group->name = $storedName;
-
             if ($this->userClearedColorwayProductName($input)) {
                 $this->clearColorwayTitleOverrides($group);
+                $group->name = '';
+            } else {
+                $groupName = $this->groupNameFromInput($input, $itemType, $pcode, $group, $sample);
+                $storedName = $this->identityBuilder->uniqueStoredGroupName(
+                    $this->identityBuilder->storedGroupName(
+                        $itemType,
+                        $groupName,
+                        $pcode,
+                        (string) ($group->variant ?? ''),
+                    ),
+                    (string) ($group->master ?? ''),
+                    (string) ($group->variant ?? ''),
+                );
+
+                $group->name = $storedName;
             }
 
             $catalogAttributes = [

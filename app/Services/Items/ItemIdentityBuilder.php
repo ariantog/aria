@@ -800,6 +800,15 @@ class ItemIdentityBuilder
         return $pcode !== '' ? $pcode : 'UNKNOWN';
     }
 
+    /**
+     * List/display bare title when no marketing title is stored (manufactured only).
+     * Uses TYPE + parent master pcode — color segment omitted (e.g. AJD-CX93023, not CX93023-01).
+     */
+    public function manufacturedCatalogTitleFallback(Item $item): string
+    {
+        return $this->manufacturedTypeCode($item).'-'.$this->manufacturedParentMaster($item);
+    }
+
     private function resolveItemType(Item $item): ItemType
     {
         $raw = $item->getAttributes()['type'] ?? null;

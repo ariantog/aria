@@ -56,7 +56,7 @@ test('updateColorway with empty product name clears stored title to inherit pare
     $group->refresh();
     $small->refresh();
 
-    expect($group->name)->toBe('CX90233-23')
+    expect($group->name)->toBe('')
         ->and(ItemProductTitle::resolveBareTitle($small->fresh(['group', 'tags'])))->toBe('PARENT RUNNING SHIRT');
 });
 

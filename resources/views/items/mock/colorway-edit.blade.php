@@ -24,7 +24,9 @@ $mockHubUrl = route('items.catalog-mock.parent-hub', $parentGroupId);
         const t = (this.colorwayTitle || '').trim();
         if (t !== '') return t.toUpperCase();
         if ((this.parentTitle || '').trim() !== '') return this.parentTitle.toUpperCase();
-        return @js(strtoupper(trim((string) $sample->pcode)));
+        return @js($isAsset
+            ? strtoupper(trim((string) $sample->pcode))
+            : app(\App\Services\Items\ItemIdentityBuilder::class)->manufacturedCatalogTitleFallback($sample));
     },
     previewName(sizeCode) {
         const bare = this.effectiveBare();

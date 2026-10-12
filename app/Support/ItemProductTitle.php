@@ -7,7 +7,6 @@ use App\Models\Item;
 use App\Models\ItemGroup;
 use App\Models\ItemParentPrice;
 use App\Models\Tag;
-use App\Services\Items\ItemGroupHierarchyService;
 use App\Services\Items\ItemIdentityBuilder;
 use Illuminate\Support\Facades\Schema;
 
@@ -75,7 +74,7 @@ final class ItemProductTitle
 
         if ($pcode !== '') {
             return $itemType === ItemType::ITEM
-                ? $builder->normalizeManufacturedPcode($pcode)
+                ? $builder->manufacturedCatalogTitleFallback($item)
                 : $pcode;
         }
 
@@ -105,7 +104,7 @@ final class ItemProductTitle
             );
         } elseif ($bare === '' && trim((string) $item->pcode) !== '') {
             $bare = $itemType === ItemType::ITEM
-                ? app(ItemIdentityBuilder::class)->normalizeManufacturedPcode((string) $item->pcode)
+                ? app(ItemIdentityBuilder::class)->manufacturedCatalogTitleFallback($item)
                 : strtoupper(trim((string) $item->pcode));
         }
 
