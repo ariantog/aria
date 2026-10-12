@@ -67,7 +67,7 @@ test('it creates manufactured item without product name using pcode placeholder'
     $this->assertDatabaseHas('items', [
         'pcode' => 'CX93249-03',
         'code' => 'AJD-CX93249-03-S',
-        'name' => 'CX93249-03 - BLUE - S',
+        'name' => 'AJD-CX93249 - BLUE - S',
     ]);
 });
 
@@ -1073,11 +1073,11 @@ test('it syncs shared colorway attributes to every size when one item is edited'
         ->and($small->restock_urgent_threshold)->toBe(12)
         ->and($medium->restock_urgent_threshold)->toBe(9)
         ->and((float) $medium->cost)->toBe(25000.0)
-        ->and($small->name)->toBe('CX90233-23 - BLUE - S')
-        ->and($medium->name)->toBe('CX90233-23 - BLUE - M');
+        ->and($small->name)->toBe('AJD-CX90233 - BLUE - S')
+        ->and($medium->name)->toBe('AJD-CX90233 - BLUE - M');
 });
 
-test('it moves every size to the new pcode and keeps group.name equal to pcode', function () {
+test('it moves every size to the new pcode and clears group.name when product name is empty', function () {
     $mediumTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'Medium']);
 
     $this->itemService->create((object) [
@@ -1106,17 +1106,17 @@ test('it moves every size to the new pcode and keeps group.name equal to pcode',
     $this->assertDatabaseHas('item_group', [
         'master' => 'CX00122-05',
         'variant' => '05',
-        'name' => 'CX00122-05',
+        'name' => '',
     ]);
     $this->assertDatabaseHas('items', [
         'code' => 'AJD-CX00122-05-S',
         'pcode' => 'CX00122-05',
-        'name' => 'CX00122-05 - BLUE - S',
+        'name' => 'AJD-CX00122 - BLUE - S',
     ]);
     $this->assertDatabaseHas('items', [
         'code' => 'AJD-CX00122-05-M',
         'pcode' => 'CX00122-05',
-        'name' => 'CX00122-05 - BLUE - M',
+        'name' => 'AJD-CX00122 - BLUE - M',
     ]);
 });
 
@@ -1327,7 +1327,7 @@ test('item update on colorway tab with empty product name clears title to inheri
     $item->refresh();
     $item->load('group');
 
-    expect($item->group->name)->toBe('CX93249-03')
+    expect($item->group->name)->toBe('')
         ->and(\App\Support\ItemProductTitle::resolveBareTitle($item->fresh(['group', 'tags'])))->toBe('PARENT RUNNING SHIRT');
 });
 
