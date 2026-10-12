@@ -15,6 +15,7 @@ use App\Services\StandaloneInvoiceService;
 use App\Services\StandaloneInvoiceSettlement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class StandaloneInvoicesController extends Controller
@@ -235,7 +236,11 @@ class StandaloneInvoicesController extends Controller
             'number' => ['required', 'string', 'max:100'],
             'date' => ['required', 'date'],
             'recipient' => ['required', 'string', 'max:5000'],
-            'sender_addrbook_id' => ['nullable', 'integer', 'exists:customers,id'],
+            'sender_addrbook_id' => [
+                'required',
+                'integer',
+                Rule::exists('customers', 'id')->where(fn ($query) => $query->where('type', Addrbook::TYPE_WAREHOUSE)),
+            ],
             'preset_id' => ['required', 'string', 'max:64'],
             'notes' => ['nullable', 'string', 'max:5000'],
             'dp_enabled' => ['nullable', 'boolean'],

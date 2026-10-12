@@ -61,7 +61,7 @@ $initialDiscountAmount = old('discount_amount', $invoice?->discount_amount ?? 0)
                                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500">
                         </div>
                         <div>
-                            <label class="mb-1 block text-sm font-medium text-gray-700">From (Warehouse)</label>
+                            <label class="mb-1 block text-sm font-medium text-gray-700">From (Warehouse) <span class="text-red-500">*</span></label>
                             <div x-data="asyncCombobox({
                                 endpoint: @js($warehouseLookupUrl),
                                 placeholder: 'Select warehouse for header...',
@@ -319,6 +319,7 @@ function invoiceMakerForm(initial) {
         },
         canSubmit() {
             if (!this.form.recipient?.trim()) return false;
+            if (!String(this.form.sender_addrbook_id || '').trim()) return false;
             if (!this.form.preset_id) return false;
             if (!this.form.lines.length) return false;
             if (this.discountAmount() > this.grandTotal()) return false;

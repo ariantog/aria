@@ -24,6 +24,7 @@ beforeEach(function () {
         'dp_amount' => null,
         'discount_amount' => 0,
         'user_id' => $this->user->id,
+        'sender_addrbook_id' => $this->warehouse->id,
     ]);
     StandaloneInvoiceLine::factory()->create([
         'standalone_invoice_id' => $this->invoice->id,
@@ -203,6 +204,7 @@ it('auto-pays when the invoice maker form is saved after sell and cash-in', func
         'number' => $this->invoice->number,
         'date' => $this->invoice->date->format('Y-m-d'),
         'recipient' => $this->invoice->recipient,
+        'sender_addrbook_id' => $this->warehouse->id,
         'preset_id' => 'default',
         'discount_amount' => 600_000,
         'lines' => [
@@ -224,6 +226,7 @@ it('clears paid status when a later invoice edit breaks the match', function () 
         'number' => $this->invoice->number,
         'date' => $this->invoice->date->format('Y-m-d'),
         'recipient' => $this->invoice->recipient,
+        'sender_addrbook_id' => $this->warehouse->id,
         'preset_id' => 'default',
         'discount_amount' => 0,
         'lines' => [
