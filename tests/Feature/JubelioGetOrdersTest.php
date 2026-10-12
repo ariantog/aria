@@ -69,6 +69,7 @@ it('fetches api pages and queues only eligible missing orders', function () {
                     ]),
                 ],
             ]);
+        stubJubelioFetchSalesOrderOptional($mock);
     });
 
     $this->artisan('jubelio:get-orders', ['--sync' => true])->assertSuccessful();
@@ -107,6 +108,7 @@ it('skips orders already present in aria when syncing', function () {
                     ]),
                 ],
             ]);
+        stubJubelioFetchSalesOrderOptional($mock);
     });
 
     $warehouse = Addrbook::factory()->warehouse()->create();
@@ -155,6 +157,7 @@ it('can fetch multiple pages in one cron run', function () {
                     ])],
                 ],
             );
+        stubJubelioFetchSalesOrderOptional($mock);
     });
 
     $this->artisan('jubelio:get-orders', ['--pages' => 2])->assertSuccessful();
@@ -214,6 +217,7 @@ it('resumes a full sync from the next unread page', function () {
                     'salesorder_no' => 'INV-RESUME',
                 ])],
             ]);
+        stubJubelioFetchSalesOrderOptional($mock);
     });
 
     $this->artisan('jubelio:get-orders', ['--sync' => true])->assertSuccessful();
@@ -366,6 +370,7 @@ it('polls recent days via dedicated command', function () {
                     'salesorder_no' => 'INV-POLL',
                 ])],
             ]);
+        stubJubelioFetchSalesOrderOptional($mock);
     });
 
     $this->artisan('jubelio:poll-missing-orders')->assertSuccessful();

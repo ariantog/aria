@@ -38,21 +38,30 @@ class JubelioOrderErrorItemBackfill
 
         $qtyKey = 'qty';
         $lines = $payload['items'] ?? [];
-        $codes = collect($lines)->pluck('item_code')->unique()->all();
-        $existingProducts = Item::findManyBySkus($codes);
+        $jubelioIds = collect($lines)
+            ->map(fn (array $line) => (int) ($line['item_id'] ?? 0))
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->all();
+        $existingProducts = Item::findManyByJubelioItemIds($jubelioIds);
 
         foreach ($lines as $line) {
-            $code = strtoupper((string) ($line['item_code'] ?? ''));
-            if ($code === '') {
-                continue;
-            }
-
-            if (! isset($existingProducts[$code])) {
+            $jubelioItemId = (int) ($line['item_id'] ?? 0);
+            if ($jubelioItemId <= 0) {
                 return [
                     'item_id' => 0,
                     'code' => (string) ($line['item_code'] ?? ''),
                     'available' => 0.0,
-                    'needed' => (float) ($line[$qtyKey] ?? 0),
+                    'needed' => JubelioOrderLineQuantity::resolve($line, $qtyKey),
+                ];
+            }
+
+            if (! $existingProducts->has($jubelioItemId)) {
+                return [
+                    'item_id' => 0,
+                    'code' => (string) ($line['item_code'] ?? (string) $jubelioItemId),
+                    'available' => 0.0,
+                    'needed' => JubelioOrderLineQuantity::resolve($line, $qtyKey),
                 ];
             }
         }
@@ -60,13 +69,13 @@ class JubelioOrderErrorItemBackfill
         $warehouseId = (int) $sync->warehouse_id;
 
         foreach ($lines as $line) {
-            $code = strtoupper((string) ($line['item_code'] ?? ''));
-            $product = $existingProducts[$code] ?? null;
+            $jubelioItemId = (int) ($line['item_id'] ?? 0);
+            $product = $jubelioItemId > 0 ? $existingProducts->get($jubelioItemId) : null;
             if (! $product) {
                 continue;
             }
 
-            $needed = (float) ($line[$qtyKey] ?? 0);
+            $needed = JubelioOrderLineQuantity::resolve($line, $qtyKey);
             $available = (float) (WarehouseItem::query()
                 ->where('warehouse_id', $warehouseId)
                 ->where('item_id', $product->id)

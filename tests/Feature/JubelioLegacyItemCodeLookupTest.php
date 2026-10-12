@@ -32,17 +32,16 @@ function seedJubelioOrderParties(int $storeId = 10, int $locationId = 20): array
     return compact('warehouse', 'customer', 'sync');
 }
 
-function seedConvertedLegacyItem(
+function seedLinkedJubelioItem(
     Addrbook $warehouse,
-    string $canonicalCode,
-    string $legacyCode,
+    string $code,
+    ?int $jubelioItemId = null,
     float $stock = 10,
 ): Item {
     $item = Item::factory()->create([
         'type' => ItemType::ITEM->value,
-        'code' => $canonicalCode,
-        'legacy_code' => $legacyCode,
-        'jubelio_item_id' => random_int(10000, 99999),
+        'code' => $code,
+        'jubelio_item_id' => $jubelioItemId ?? random_int(10000, 99999),
     ]);
 
     WarehouseItem::create([
@@ -82,88 +81,50 @@ function queueJubelioSellOrder(
     ]);
 }
 
-it('cron order processing resolves converted legacy fabricband sku from jubelio payload', function () {
+it('cron order processing resolves aria item from jubelio item_id via api payload', function () {
     Queue::fake([UpdateTransactionSummaries::class]);
 
     ['warehouse' => $warehouse, 'sync' => $sync] = seedJubelioOrderParties();
-    $item = seedConvertedLegacyItem(
-        $warehouse,
-        'FABRICBAND-03-BABYBLUE-LIGHT',
-        'FABRICBAND-03-LIGHT-BABYBLUE',
-    );
+    $item = seedLinkedJubelioItem($warehouse, 'FABRICBAND-03-BABYBLUE-LIGHT');
 
     $order = queueJubelioSellOrder(
-        'legacy-fabricband-cron',
-        'INV-LEGACY-FABRICBAND',
+        'jubelio-id-cron',
+        'INV-JUBELIO-ID-CRON',
         $sync->jubelio_store_id,
         $sync->jubelio_location_id,
         [
-            ['item_code' => 'FABRICBAND-03-LIGHT-BABYBLUE', 'qty' => 1, 'price' => 75000],
+            jubelioPayloadLine($item, 1, 75000),
         ],
     );
 
     $this->artisan('jubelio:order-jubelio-to-aria')->assertSuccessful();
 
     $order->refresh();
-    $transaction = Transaction::where('invoice', 'INV-LEGACY-FABRICBAND')->first();
+    $transaction = Transaction::where('invoice', 'INV-JUBELIO-ID-CRON')->first();
 
     expect($order->status)->toBe(2)
         ->and($order->error_type)->toBe(10)
+        ->and($order->payload)->toBeNull()
         ->and($transaction)->not->toBeNull()
         ->and($transaction->details->first()->item_id)->toBe($item->id);
 
     Queue::assertPushed(UpdateTransactionSummaries::class, fn ($job) => $job->transactionId === $transaction->id);
 });
 
-it('cron order processing resolves converted legacy jacket sku from jubelio payload', function () {
-    Queue::fake([UpdateTransactionSummaries::class]);
-
-    ['warehouse' => $warehouse, 'sync' => $sync] = seedJubelioOrderParties(11, 21);
-    $item = seedConvertedLegacyItem(
-        $warehouse,
-        'AJJ-PL25129-06-XL',
-        'AJJPL2512906XL',
-    );
-
-    $order = queueJubelioSellOrder(
-        'legacy-jacket-cron',
-        'INV-LEGACY-JACKET',
-        $sync->jubelio_store_id,
-        $sync->jubelio_location_id,
-        [
-            ['item_code' => 'AJJPL2512906XL', 'qty' => 1, 'price' => 350000],
-        ],
-    );
-
-    $this->artisan('jubelio:order-jubelio-to-aria')->assertSuccessful();
-
-    $order->refresh();
-    $transaction = Transaction::where('invoice', 'INV-LEGACY-JACKET')->first();
-
-    expect($order->status)->toBe(2)
-        ->and($transaction->details->first()->item_id)->toBe($item->id);
-
-    Queue::assertPushed(UpdateTransactionSummaries::class);
-});
-
-it('manual order processing resolves legacy sku and dispatches summary job', function () {
+it('manual order processing resolves jubelio item_id from api fetch', function () {
     Queue::fake([UpdateTransactionSummaries::class]);
 
     $user = User::factory()->create();
     ['warehouse' => $warehouse, 'sync' => $sync] = seedJubelioOrderParties(12, 22);
-    $item = seedConvertedLegacyItem(
-        $warehouse,
-        'FABRICBAND-03-BABYBLUE-LIGHT',
-        'FABRICBAND-03-LIGHT-BABYBLUE',
-    );
+    $item = seedLinkedJubelioItem($warehouse, 'AJJ-PL25129-06-XL');
 
     $order = queueJubelioSellOrder(
-        'legacy-fabricband-manual',
-        'INV-LEGACY-MANUAL',
+        'jubelio-id-manual',
+        'INV-JUBELIO-ID-MANUAL',
         $sync->jubelio_store_id,
         $sync->jubelio_location_id,
         [
-            ['item_code' => 'FABRICBAND-03-LIGHT-BABYBLUE', 'qty' => 2, 'price' => 150000],
+            jubelioPayloadLine($item, 2, 150000),
         ],
     );
 
@@ -173,101 +134,99 @@ it('manual order processing resolves legacy sku and dispatches summary job', fun
         ->assertSessionHas('success');
 
     $order->refresh();
-    $transaction = Transaction::where('invoice', 'INV-LEGACY-MANUAL')->first();
+    $transaction = Transaction::where('invoice', 'INV-JUBELIO-ID-MANUAL')->first();
 
     expect($order->status)->toBe(2)
         ->and($order->execute_by)->toBe($user->id)
+        ->and($order->payload)->toBeNull()
         ->and($transaction->details->first()->item_id)->toBe($item->id)
         ->and((float) $transaction->details->first()->quantity)->toBe(2.0);
 
     Queue::assertPushed(UpdateTransactionSummaries::class, fn ($job) => $job->transactionId === $transaction->id);
 });
 
-it('jubelio order processing also accepts canonical sku after legacy conversion', function () {
+it('does not resolve inbound lines by item_code when jubelio item_id is unlinked', function () {
     ['warehouse' => $warehouse, 'sync' => $sync] = seedJubelioOrderParties(13, 23);
-    $item = seedConvertedLegacyItem(
-        $warehouse,
-        'AJJ-PL25129-06-XL',
-        'AJJPL2512906XL',
-    );
+    $item = seedLinkedJubelioItem($warehouse, 'MATCHING-CODE-ONLY');
 
     $order = queueJubelioSellOrder(
-        'canonical-jacket',
-        'INV-CANONICAL-JACKET',
+        'code-only-mismatch',
+        'INV-CODE-ONLY-MISMATCH',
         $sync->jubelio_store_id,
         $sync->jubelio_location_id,
         [
-            ['item_code' => 'AJJ-PL25129-06-XL', 'qty' => 1, 'price' => 350000],
-        ],
-    );
-
-    $this->artisan('jubelio:order-jubelio-to-aria')->assertSuccessful();
-
-    $order->refresh();
-    $transaction = Transaction::where('invoice', 'INV-CANONICAL-JACKET')->first();
-
-    expect($order->status)->toBe(2)
-        ->and($transaction->details->first()->item_id)->toBe($item->id);
-});
-
-it('jubelio order processing fails when sku matches neither code nor legacy_code', function () {
-    ['warehouse' => $warehouse, 'sync' => $sync] = seedJubelioOrderParties(14, 24);
-    seedConvertedLegacyItem(
-        $warehouse,
-        'AJJ-PL25129-06-XL',
-        'AJJPL2512906XL',
-    );
-
-    $order = queueJubelioSellOrder(
-        'unknown-sku',
-        'INV-UNKNOWN-SKU',
-        $sync->jubelio_store_id,
-        $sync->jubelio_location_id,
-        [
-            ['item_code' => 'TOTALLY-UNKNOWN-SKU', 'qty' => 1, 'price' => 1000],
+            [
+                'item_id' => 888777666,
+                'item_code' => $item->code,
+                'qty' => 1,
+                'price' => 1000,
+            ],
         ],
     );
 
     $result = app(\App\Actions\Jubelio\ProcessJubelioOrder::class)->execute($order);
 
     expect($result['success'])->toBeFalse()
-        ->and($result['message'])->toContain('TOTALLY-UNKNOWN-SKU')
-        ->and(Transaction::where('invoice', 'INV-UNKNOWN-SKU')->exists())->toBeFalse();
+        ->and($result['message'])->toContain('888777666')
+        ->and(Transaction::where('invoice', 'INV-CODE-ONLY-MISMATCH')->exists())->toBeFalse();
 });
 
-it('jubelio return processing resolves legacy sku from payload', function () {
-    ['warehouse' => $warehouse, 'customer' => $customer, 'sync' => $sync] = seedJubelioOrderParties(15, 25);
-    $item = seedConvertedLegacyItem(
-        $warehouse,
-        'FABRICBAND-03-BABYBLUE-LIGHT',
-        'FABRICBAND-03-LIGHT-BABYBLUE',
+it('jubelio order processing fails when jubelio item_id is not linked in aria', function () {
+    ['warehouse' => $warehouse, 'sync' => $sync] = seedJubelioOrderParties(14, 24);
+    seedLinkedJubelioItem($warehouse, 'AJJ-PL25129-06-XL');
+
+    $order = queueJubelioSellOrder(
+        'unknown-jubelio-id',
+        'INV-UNKNOWN-JUBELIO-ID',
+        $sync->jubelio_store_id,
+        $sync->jubelio_location_id,
+        [
+            [
+                'item_id' => 999888777,
+                'item_code' => 'TOTALLY-UNKNOWN-SKU',
+                'qty' => 1,
+                'price' => 1000,
+            ],
+        ],
     );
+
+    $result = app(\App\Actions\Jubelio\ProcessJubelioOrder::class)->execute($order);
+
+    expect($result['success'])->toBeFalse()
+        ->and($result['message'])->toContain('999888777')
+        ->and(Transaction::where('invoice', 'INV-UNKNOWN-JUBELIO-ID')->exists())->toBeFalse();
+});
+
+it('jubelio return processing resolves item from jubelio item_id in api payload', function () {
+    ['warehouse' => $warehouse, 'customer' => $customer, 'sync' => $sync] = seedJubelioOrderParties(15, 25);
+    $item = seedLinkedJubelioItem($warehouse, 'FABRICBAND-03-BABYBLUE-LIGHT');
 
     Transaction::factory()->create([
         'type' => Transaction::TYPE_SELL,
-        'invoice' => 'INV-SELL-RETURN-LEGACY',
+        'invoice' => 'INV-SELL-RETURN-JUBELIO-ID',
         'sender_id' => $warehouse->id,
         'sender_type' => $warehouse->type,
         'receiver_id' => $customer->id,
         'receiver_type' => $customer->type,
     ]);
 
-    mockJubelioSalesReturn('return-legacy-1', [
-        'return_no' => 'RET-LEGACY-1',
-        'salesorder_no' => 'INV-SELL-RETURN-LEGACY',
+    mockJubelioSalesReturn('return-jubelio-id-1', [
+        'return_no' => 'RET-JUBELIO-ID-1',
+        'return_id' => 'return-jubelio-id-1',
+        'salesorder_no' => 'INV-SELL-RETURN-JUBELIO-ID',
         'store_id' => $sync->jubelio_store_id,
         'location_id' => $sync->jubelio_location_id,
         'sub_total' => 75000,
         'real_total' => 75000,
         'items' => [
-            ['item_code' => 'FABRICBAND-03-LIGHT-BABYBLUE', 'qty_in_base' => 1, 'price' => 75000],
+            jubelioPayloadLine($item, 1, 75000, ['qty_in_base' => 1]),
         ],
     ]);
 
     $order = Jubelioorder::create([
-        'jubelio_order_id' => 'return-legacy-1',
+        'jubelio_order_id' => 'return-jubelio-id-1',
         'source' => 1,
-        'invoice' => 'RET-LEGACY-1',
+        'invoice' => 'RET-JUBELIO-ID-1',
         'type' => 'RETURN',
         'order_status' => 'RETURN',
         'run_count' => 0,
@@ -276,7 +235,7 @@ it('jubelio return processing resolves legacy sku from payload', function () {
 
     app(\App\Actions\Jubelio\ProcessJubelioOrder::class)->execute($order);
 
-    $returnTrx = Transaction::where('type', Transaction::TYPE_RETURN)->where('invoice', 'RET-LEGACY-1')->first();
+    $returnTrx = Transaction::where('type', Transaction::TYPE_RETURN)->where('invoice', 'RET-JUBELIO-ID-1')->first();
 
     expect($returnTrx)->not->toBeNull()
         ->and($returnTrx->details->first()->item_id)->toBe($item->id);

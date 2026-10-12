@@ -25,7 +25,7 @@ class Jubelioorder extends Model
     protected static function booted(): void
     {
         static::saving(function (Jubelioorder $order): void {
-            // Payload is always fetched from Jubelio API (JubelioOrderPayloadService).
+            // Payload is fetched from Jubelio API (JubelioOrderPayloadService).
             // Legacy L10 rows may still have JSON here; never persist it on save.
             if ($order->payload !== null && $order->payload !== '') {
                 $order->payload = null;

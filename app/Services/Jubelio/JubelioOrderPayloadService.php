@@ -45,6 +45,19 @@ class JubelioOrderPayloadService
         return $this->fetch($order) ?? [];
     }
 
+    /**
+     * Re-fetch from Jubelio API (Refresh payload); does not write jubelioorders.payload.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function refreshFromApi(Jubelioorder $order): ?array
+    {
+        $this->forget($order->id);
+        Jubelioorder::clearPayloadCacheFor($order->id);
+
+        return $this->fetch($order);
+    }
+
     public function forget(?int $orderId): void
     {
         if ($orderId !== null) {

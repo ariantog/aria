@@ -75,12 +75,81 @@ function jubelioEligibleListRow(array $overrides = []): array
 /**
  * @param  array<string, mixed>  $payload
  */
+/**
+ * @param  array<string, mixed>  $extra
+ * @return array<string, mixed>
+ */
+/**
+ * @param  array<string, mixed>  $payload
+ * @return array<string, mixed>
+ */
+function enrichJubelioPayloadItems(array $payload): array
+{
+    if (! isset($payload['items']) || ! is_array($payload['items'])) {
+        return $payload;
+    }
+
+    $payload['items'] = collect($payload['items'])->map(function (array $line) {
+        if ((int) ($line['item_id'] ?? 0) > 0) {
+            return $line;
+        }
+
+        $code = trim((string) ($line['item_code'] ?? $line['sku'] ?? ''));
+        if ($code === '') {
+            return $line;
+        }
+
+        $item = \App\Models\Item::query()
+            ->whereRaw('UPPER(code) = ?', [strtoupper($code)])
+            ->first();
+
+        if (! $item) {
+            return $line;
+        }
+
+        $jubelioItemId = (int) ($item->jubelio_item_id ?? 0);
+        if ($jubelioItemId <= 0) {
+            $jubelioItemId = random_int(100000, 999999);
+            $item->forceFill(['jubelio_item_id' => $jubelioItemId])->save();
+        }
+
+        $line['item_id'] = $jubelioItemId;
+
+        return $line;
+    })->all();
+
+    return $payload;
+}
+
+function jubelioPayloadLine(\App\Models\Item $item, float $qty, float $price, array $extra = []): array
+{
+    $jubelioItemId = (int) ($item->jubelio_item_id ?? 0);
+    if ($jubelioItemId <= 0) {
+        $jubelioItemId = random_int(100000, 999999);
+        $item->forceFill(['jubelio_item_id' => $jubelioItemId])->save();
+    }
+
+    return array_merge([
+        'item_id' => $jubelioItemId,
+        'item_code' => $item->code,
+        'qty' => $qty,
+        'price' => $price,
+    ], $extra);
+}
+
+function stubJubelioFetchSalesOrderOptional(MockInterface $mock): void
+{
+    $mock->shouldReceive('fetchSalesOrder')
+        ->zeroOrMoreTimes()
+        ->andReturn(null);
+}
+
 function mockJubelioSalesOrder(string $jubelioOrderId, array $payload): void
 {
-    $payload = array_merge([
+    $payload = enrichJubelioPayloadItems(array_merge([
         'internal_status' => 'SHIPPED',
         'transaction_date' => jubelioRecentTransactionDate(),
-    ], $payload);
+    ], $payload));
 
     test()->mock(JubelioService::class, function (MockInterface $mock) use ($jubelioOrderId, $payload) {
         $mock->shouldReceive('fetchSalesOrder')
@@ -94,9 +163,9 @@ function mockJubelioSalesOrder(string $jubelioOrderId, array $payload): void
  */
 function mockJubelioSalesReturn(string $jubelioOrderId, array $payload): void
 {
-    $payload = array_merge([
+    $payload = enrichJubelioPayloadItems(array_merge([
         'transaction_date' => jubelioRecentTransactionDate(),
-    ], $payload);
+    ], $payload));
 
     test()->mock(JubelioService::class, function (MockInterface $mock) use ($jubelioOrderId, $payload) {
         $mock->shouldReceive('fetchSalesReturn')
