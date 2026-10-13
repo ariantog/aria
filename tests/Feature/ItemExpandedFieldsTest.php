@@ -195,8 +195,8 @@ it('stores colorway descriptions on colorway edit and per-sku overrides on asset
             'description2' => 'UPDATED SHARED NB',
         ],
         [
-            ['id' => $item5->id, 'cost' => 50000, 'pricing' => ['reseller_price' => ['scope' => 'colorway', 'value' => 110000]]],
-            ['id' => $item6->id, 'cost' => 55000],
+            ['id' => $item5->id, 'cost' => 50000],
+            ['id' => $item6->id, 'cost' => 55000, 'pricing' => ['reseller_price' => ['scope' => 'size', 'value' => 110000]]],
         ],
     );
 
@@ -221,7 +221,7 @@ it('stores colorway descriptions on colorway edit and per-sku overrides on asset
 
     expect($group->description)->toBe('UPDATED SHARED DESC')
         ->and($group->description2)->toBe('UPDATED SHARED NB')
-        ->and((float) $group->reseller_price)->toBe(110000.0)
+        ->and((float) $group->reseller_price)->toBe(100000.0)
         ->and($item5->description)->toBe('5KG SPECIAL')
         ->and($item5->description2)->toBe('5KG NOTES')
         ->and((float) $item5->reseller_price)->toBe(95000.0)

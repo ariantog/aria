@@ -185,46 +185,74 @@ test('dedupeItemDescriptionsFromGroup clears mirrored text but keeps local overr
         ->and($item->description2)->toBe('LOCAL NB');
 });
 
-test('sellPriceForReseller falls back sku, group, then normal price', function () {
-    $group = ItemGroup::factory()->make([
+test('sellPriceForReseller falls back sku, parent group, then normal price', function () {
+    $typeTag = \App\Models\Tag::factory()->create([
+        'type' => \App\Models\Tag::TYPE_TYPE,
+        'code' => 'AJD',
+        'name' => 'Jacket',
+    ]);
+    $group = ItemGroup::factory()->create([
+        'master' => 'CX90001-01',
+        'variant' => '01',
         'reseller_price' => 120000,
     ]);
-    $item = Item::factory()->make([
-        'group_id' => 11,
+    $item = Item::factory()->create([
+        'type' => \App\Enums\ItemType::ITEM,
+        'group_id' => $group->id,
+        'pcode' => 'CX90001-01',
         'price' => 150000,
         'reseller_price' => 95000,
     ]);
-    $item->setRelation('group', $group);
+    $item->tags()->attach($typeTag->id);
 
     expect(ItemCatalog::sellPriceForReseller($item))->toBe(95000.0);
 
-    $item->reseller_price = 0;
-    $item->setRelation('group', $group);
-
-    expect(ItemCatalog::sellPriceForReseller($item))->toBe(120000.0);
-
-    $group->reseller_price = 0;
-    $item->setRelation('group', $group);
-
-    expect(ItemCatalog::sellPriceForReseller($item))->toBe(150000.0);
-});
-
-test('resellerPrice prefers item override then group default', function () {
-    $group = ItemGroup::factory()->make([
+    $item->update(['reseller_price' => 0]);
+    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey($item->fresh(['group', 'tags']));
+    \App\Models\ItemParentPrice::query()->create([
+        'parent_key' => $parentKey,
         'reseller_price' => 120000,
     ]);
-    $item = Item::factory()->make([
-        'group_id' => 11,
+    \App\Support\ItemPricing::flushRequestCache();
+
+    expect(ItemCatalog::sellPriceForReseller($item->fresh(['group', 'tags'])))->toBe(120000.0);
+
+    \App\Models\ItemParentPrice::query()->where('parent_key', $parentKey)->update(['reseller_price' => 0]);
+    \App\Support\ItemPricing::flushRequestCache();
+
+    expect(ItemCatalog::sellPriceForReseller($item->fresh(['group', 'tags'])))->toBe(150000.0);
+});
+
+test('resellerPrice prefers item override then parent group default', function () {
+    $typeTag = \App\Models\Tag::factory()->create([
+        'type' => \App\Models\Tag::TYPE_TYPE,
+        'code' => 'AJD',
+        'name' => 'Jacket',
+    ]);
+    $group = ItemGroup::factory()->create([
+        'master' => 'CX90002-01',
+        'variant' => '01',
+        'reseller_price' => 120000,
+    ]);
+    $item = Item::factory()->create([
+        'type' => \App\Enums\ItemType::ITEM,
+        'group_id' => $group->id,
+        'pcode' => 'CX90002-01',
         'reseller_price' => 95000,
     ]);
-    $item->setRelation('group', $group);
+    $item->tags()->attach($typeTag->id);
 
     expect(ItemCatalog::resellerPrice($item))->toBe(95000.0);
 
-    $item->reseller_price = 0;
-    $item->setRelation('group', $group);
+    $item->update(['reseller_price' => 0]);
+    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey($item->fresh(['group', 'tags']));
+    \App\Models\ItemParentPrice::query()->create([
+        'parent_key' => $parentKey,
+        'reseller_price' => 120000,
+    ]);
+    \App\Support\ItemPricing::flushRequestCache();
 
-    expect(ItemCatalog::resellerPrice($item))->toBe(120000.0);
+    expect(ItemCatalog::resellerPrice($item->fresh(['group', 'tags'])))->toBe(120000.0);
 });
 
 test('brand constraint matches group brand when the item mirror is stale', function () {
