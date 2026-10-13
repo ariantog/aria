@@ -157,11 +157,11 @@ $breadcrumbs = [
                                                        x-model="mass.{{ $fieldKey }}"
                                                        data-testid="{{ $fieldMeta['testid'] }}"
                                                        placeholder="All sizes"
-                                                       class="w-24 rounded-lg border border-gray-300 px-2 py-1 text-right text-xs font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                                                       class="w-28 rounded-lg border border-gray-300 px-2 py-1.5 text-right text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                                                 <button type="button"
                                                         @click="applyMass('{{ $fieldKey }}')"
                                                         data-testid="{{ $fieldMeta['testid'] }}-apply"
-                                                        class="shrink-0 rounded-md border border-gray-300 bg-gray-50 px-2 py-1 text-[10px] font-semibold uppercase text-gray-700 hover:bg-gray-100">
+                                                        class="shrink-0 rounded-md border border-gray-300 bg-gray-50 px-2 py-1.5 text-xs font-semibold uppercase text-gray-700 hover:bg-gray-100">
                                                     Apply
                                                 </button>
                                             </div>

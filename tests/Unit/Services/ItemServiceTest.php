@@ -1014,9 +1014,16 @@ test('it stores brand and genre on the item group and mirrors them on each size'
     $small = Item::where('code', 'AJD-CX90233-23-S')->firstOrFail();
     $medium = Item::where('code', 'AJD-CX90233-23-M')->firstOrFail();
 
+    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey($small);
+
     expect($small->effectivePrice())->toBe(100000.0)
         ->and($medium->effectivePrice())->toBe(100000.0)
-        ->and((float) $group->price)->toBe(100000.0);
+        ->and((float) $group->price)->toBe(0.0);
+
+    $this->assertDatabaseHas('item_parent_prices', [
+        'parent_key' => $parentKey,
+        'price' => 100000,
+    ]);
 });
 
 test('it syncs shared colorway attributes to every size when one item is edited', function () {
