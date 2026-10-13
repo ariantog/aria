@@ -183,12 +183,15 @@ $breadcrumbs = [
                                     @php
                                         $storedScope = $row['pricing'][$fieldKey]['scope'] ?? '';
                                         $storedValue = (float) ($row['pricing'][$fieldKey]['value'] ?? 0);
+                                        $effectiveValue = (float) ($row[$fieldMeta['effective_key']] ?? 0);
+                                        $defaultValue = $storedScope === 'size' && $storedValue > 0
+                                            ? $storedValue
+                                            : ($effectiveValue > 0 ? $effectiveValue : '');
                                         $inputValue = old(
                                             'items.'.$row['id'].'.pricing.'.$fieldKey.'.value',
-                                            $storedScope === 'size' && $storedValue > 0 ? $storedValue : ''
+                                            $defaultValue
                                         );
-                                        $effectiveValue = (float) ($row[$fieldMeta['effective_key']] ?? 0);
-                                        $showEffectiveHint = $inputValue === '' && $effectiveValue > 0;
+                                        $showEffectiveHint = false;
                                     @endphp
                                     <td class="px-3 py-3 text-right">
                                         <input type="hidden" name="items[{{ $row['id'] }}][pricing][{{ $fieldKey }}][scope]" value="size">
