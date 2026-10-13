@@ -21,6 +21,10 @@
     $pricingFixedScope = $pricingFixedScope ?? null;
     $showScopeRadios = $pricingFixedScope === null;
     $embeddedInCatalog = $embeddedInCatalog ?? false;
+    $pricingFieldKeys = $pricingFieldKeys ?? null;
+    if ($pricingFieldKeys !== null) {
+        $fields = array_intersect_key($fields, array_flip($pricingFieldKeys));
+    }
 @endphp
 
 <fieldset class="space-y-5 rounded-lg border {{ $embeddedInCatalog ? 'border-gray-200 bg-white' : 'border-indigo-200 bg-indigo-50/40' }} p-4" data-testid="item-pricing-scopes">

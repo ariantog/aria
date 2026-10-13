@@ -372,7 +372,7 @@ class ItemsController extends Controller
             'types' => $this->typeOptions(),
             'productTitle' => $titleForm['stored_title'],
             'titleForm' => $titleForm,
-            'pricingState' => ItemPricing::formState($item),
+            'pricingState' => ItemPricing::formStateForSkuEdit($item),
             'parentProductName' => $titleForm['parent_title'] !== ''
                 ? $titleForm['parent_title']
                 : trim((string) ($parentRecord?->product_name ?? '')),

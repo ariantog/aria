@@ -88,6 +88,43 @@ test('apply colorway scope clears size overrides in the colorway', function () {
         ->and(ItemPricing::resolve($first->fresh(['group']), 'price'))->toBe(80000.0);
 });
 
+test('formStateForSkuEdit prefills inherited parent amounts as sku scope values', function () {
+    $group = ItemGroup::query()->create([
+        'master' => 'CX90233-23',
+        'variant' => '23',
+        'name' => 'TEST',
+        'description' => '',
+        'description2' => '',
+    ]);
+
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'type' => ItemType::ITEM,
+        'price' => 0,
+        'reseller_price' => 0,
+    ]);
+
+    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey($item);
+    ItemParentPrice::query()->create([
+        'parent_key' => $parentKey,
+        'price' => 275000,
+        'reseller_price' => 250000,
+    ]);
+    ItemPricing::flushRequestCache();
+
+    $state = ItemPricing::formStateForSkuEdit($item->fresh(['group']));
+
+    expect($state['price']['scope'])->toBe(ItemPricing::SCOPE_SIZE)
+        ->and($state['price']['value'])->toBe(275000.0)
+        ->and($state['reseller_price']['value'])->toBe(250000.0);
+
+    $item->update(['price' => 280000]);
+    $state = ItemPricing::formStateForSkuEdit($item->fresh(['group']));
+
+    expect($state['price']['value'])->toBe(280000.0)
+        ->and($state['reseller_price']['value'])->toBe(250000.0);
+});
+
 test('parentGroupHasStoredPricing detects parent row amounts', function () {
     $parentKey = '1:AJD:CX80023';
 

@@ -251,14 +251,22 @@
         </div>
         @endif
 
-        @include('items.partials.form-scope-toolbar')
+        @if(! $skuOnlyCatalog)
+            @include('items.partials.form-scope-toolbar')
+        @endif
 
         @include('items.partials.form-pricing-scopes', [
             'pricingState' => $pricingState ?? [],
             'pricingPrefix' => 'pricing',
             'pricingIdPrefix' => 'item-form-pricing',
-            'showEffective' => $editingItem,
-            'pricingIntro' => 'Each amount has its own scope radio. Use the quick scope controls above to align them all at once.',
+            'showEffective' => $editingItem && ! $skuOnlyCatalog,
+            'pricingFixedScope' => $skuOnlyCatalog ? \App\Support\ItemPricing::SCOPE_SIZE : null,
+            'pricingFieldKeys' => $skuOnlyCatalog && ! ($isAsset ?? false)
+                ? ['price', 'reseller_price']
+                : null,
+            'pricingIntro' => $skuOnlyCatalog
+                ? 'Amounts are stored on this SKU only. Fields show the effective value (parent default when this SKU has no override).'
+                : 'Each amount has its own scope radio. Use the quick scope controls above to align them all at once.',
             'embeddedInCatalog' => true,
         ])
     </div>
