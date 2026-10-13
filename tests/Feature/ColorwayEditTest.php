@@ -212,6 +212,38 @@ test('colorway edit page renders with size matrix and preview', function () {
         ->and($html)->not->toContain('id="colorwayApplyPricingForm"');
 });
 
+test('colorway edit matrix prefills price from parent when sku amount is unset', function () {
+    $group = ItemGroup::factory()->create([
+        'master' => 'CX90233-23',
+        'variant' => '23',
+        'name' => 'CX90233-23',
+    ]);
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => $group->id,
+        'pcode' => 'CX90233-23',
+        'code' => 'AJD-CX90233-23-S',
+        'price' => 0,
+        'reseller_price' => 0,
+    ]);
+    $item->tags()->sync([$this->typeTag->id, $this->warnaTag->id, $this->sizeTag->id, $this->jahitTag->id]);
+
+    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey($item);
+    \App\Models\ItemParentPrice::query()->create([
+        'parent_key' => $parentKey,
+        'price' => 275000,
+        'reseller_price' => 250000,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('items.colorway-edit', $group))
+        ->assertOk()
+        ->assertSee('name="items['.$item->id.'][pricing][price][value]"', false)
+        ->assertSee('value="275000"', false)
+        ->assertSee('value="250000"', false);
+});
+
 test('manufactured colorway edit preview includes warna label in saved display names', function () {
     $group = ItemGroup::factory()->create([
         'master' => 'CX90032-06',
