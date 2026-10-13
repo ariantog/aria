@@ -258,7 +258,7 @@ it('renders asset lancar create page', function () {
         ->get(route('assetlancar.create'))
         ->assertOk()
         ->assertSee('Create New Asset', false)
-        ->assertSee('Stored product name (this colorway only)', false)
+        ->assertSee('Stored product name (this colorway)', false)
         ->assertSee('data-testid="item-form-pcode"', false)
         ->assertSee('data-testid="item-form-product-name"', false)
         ->assertSee('data-testid="item-catalog-panel"', false);

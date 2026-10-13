@@ -657,12 +657,12 @@ test('item create and edit forms mark shared colorway attributes', function () {
         ->get(route('items.create'))
         ->assertOk()
         ->assertSee('data-testid="item-catalog-panel"', false)
-        ->assertSee('data-testid="item-catalog-tabs"', false)
         ->assertSee('data-testid="item-form-shared-details"', false)
-        ->assertSee('data-testid="item-catalog-scope-toolbar"', false)
-        ->assertSee('Colorway', false)
-        ->assertSee('This SKU', false)
+        ->assertSee('data-testid="item-pricing-create"', false)
+        ->assertSee('data-testid="item-form-pricing-price-value"', false)
         ->assertSee('item_group.name', false)
+        ->assertDontSee('data-testid="item-catalog-tabs"', false)
+        ->assertDontSee('data-testid="item-catalog-scope-toolbar"', false)
         ->assertDontSee('each row keeps its own price', false);
 
     $this->actingAs($this->user)
@@ -670,8 +670,10 @@ test('item create and edit forms mark shared colorway attributes', function () {
         ->assertOk()
         ->assertSee('data-testid="item-catalog-panel"', false)
         ->assertSee('data-testid="item-form-catalog-links"', false)
+        ->assertSee('data-testid="item-pricing-scopes"', false)
         ->assertSee('Colorway editor', false)
-        ->assertDontSee('data-testid="item-catalog-tab-colorway"', false);
+        ->assertDontSee('data-testid="item-catalog-tab-colorway"', false)
+        ->assertDontSee('data-testid="item-pricing-create"', false);
 });
 
 test('item edit leaves stored colorway product name empty when inheriting parent title', function () {
