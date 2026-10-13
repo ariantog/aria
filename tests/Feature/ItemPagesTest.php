@@ -19,20 +19,29 @@ test('items index page can be rendered', function () {
     $response->assertStatus(200);
 });
 
-test('items index shows effective price from colorway when sku price is zero', function () {
+test('items index shows effective price from parent group when sku price is zero', function () {
     $group = \App\Models\ItemGroup::factory()->create([
+        'master' => 'CX-EFFECTIVE-01',
+        'variant' => '01',
         'price' => 275_000,
     ]);
     $item = Item::factory()->create([
         'group_id' => $group->id,
+        'pcode' => 'CX-EFFECTIVE-01',
         'price' => 0,
-        'code' => 'AJD-EFFECTIVE-PRICE-S',
+        'code' => 'AJD-CX-EFFECTIVE-01-S',
+    ]);
+
+    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey($item);
+    \App\Models\ItemParentPrice::query()->create([
+        'parent_key' => $parentKey,
+        'price' => 275_000,
     ]);
 
     $this->actingAs($this->user)
         ->get(route('items.index'))
         ->assertOk()
-        ->assertSee('Rp '.format_amount($item->effectivePrice(), 0), false);
+        ->assertSee('Rp '.format_amount($item->fresh()->effectivePrice(), 0), false);
 });
 
 test('items index shows database columns and collapsible filters', function () {

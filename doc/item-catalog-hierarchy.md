@@ -12,11 +12,13 @@ Three levels describe how **catalog attributes** (names, descriptions, prices, b
 
 ## Read order (always)
 
-For any attribute that supports overrides, resolve **SKU → colorway → parent**. Empty or “inherit” values at a level fall through to the next.
+For catalog attributes that support overrides, resolve **SKU → colorway → parent**. Empty or “inherit” values at a level fall through to the next.
+
+**Pricing (sell / reseller / cost / cost CNY)** resolves **SKU → parent group only** — legacy amounts on `item_group` are not used for reads.
 
 | Attribute | SKU | Colorway | Parent |
 |-----------|-----|----------|--------|
-| Sell / reseller / cost / cost CNY | `items.*` | `item_group.*` | `item_parent_prices.*` |
+| Sell / reseller / cost / cost CNY | `items.*` | *(legacy column — ignored)* | `item_parent_prices.*` |
 | Description / description2 | `items.*` (only if different from colorway) | `item_group.*` | *(no column yet — UI aggregates colorways on parent detail)* |
 | Bare product title | `items.alias` | `item_group.name` | `item_parent_prices.product_name` |
 | Brand / genre | `items.*` (legacy mirror) | `item_group.*` | — |
@@ -46,18 +48,17 @@ Implementation entry points:
 
 Set the value on the **`items`** row only. Other SKUs and the colorway/parent rows are untouched.
 
-Single-item edit and colorway matrix “size override” columns use this scope.
+Single-item edit and the colorway pricing matrix use this scope.
 
-### Colorway scope
+### Colorway scope (pricing)
 
-Set the value on the **`item_group`** row for that colorway, then **clear the same field at SKU level** for every item in that group so reads fall back to the colorway value.
+Colorway-level pricing is **not** used for resolution. The colorway editor stores per-SKU amounts only; column-header **Apply** fills every size input client-side before **Save colorway**.
+
+Catalog-only writes still use colorway scope for non-price fields on **`item_group`** (descriptions, brand, etc.) via `ItemCatalog::applyToGroup()`.
 
 Examples:
 
-- Colorway editor save → `ItemCatalog::applyToGroup()` + `ItemCatalog::resetDescriptionMirrorsForColorway()` for descriptions (no pricing on this save).
-- Colorway default pricing → **Apply to all sizes** (`ItemService::applyColorwayDefaultPricing`) runs `ItemPricing::apply(..., SCOPE_COLORWAY)` and zeros stored SKU amounts for each applied field.
-
-**UI:** **Save colorway** confirms catalog/attributes/matrix size overrides only. **Apply to all sizes** confirms clearing size overrides for the checked pricing fields.
+- Colorway editor **Save colorway** → catalog/attributes + per-SKU pricing matrix (`ItemPricing::SCOPE_SIZE`).
 
 ### Parent group scope
 

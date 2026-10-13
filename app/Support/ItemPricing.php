@@ -10,9 +10,10 @@ use App\Services\Items\ItemIdentityBuilder;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Item prices resolve in order: this SKU → colorway (item_group) → parent group.
+ * Item prices resolve in order: this SKU → parent group (item_parent_prices).
  *
- * A stored value of 0 at a level means "inherit from the next level".
+ * Legacy colorway amounts on item_group are ignored for reads. A stored value of 0 on the SKU
+ * or parent row means "inherit from the next level" (SKU 0 → parent; parent 0 → unset).
  */
 final class ItemPricing
 {
@@ -52,13 +53,6 @@ final class ItemPricing
             return $sizeValue;
         }
 
-        if ($item->hasCatalogGroup()) {
-            $colorwayValue = self::readGroupColumn($item->group, $field);
-            if (self::isSet($colorwayValue)) {
-                return $colorwayValue;
-            }
-        }
-
         $parent = self::parentRecord($item);
 
         return $parent !== null ? self::readParentColumn($parent, $field) : 0.0;
@@ -73,16 +67,12 @@ final class ItemPricing
             return self::SCOPE_SIZE;
         }
 
-        if ($item->hasCatalogGroup() && self::isSet(self::readGroupColumn($item->group, $field))) {
-            return self::SCOPE_COLORWAY;
-        }
-
         $parent = self::parentRecord($item);
         if ($parent !== null && self::isSet(self::readParentColumn($parent, $field))) {
             return self::SCOPE_GROUP;
         }
 
-        return self::SCOPE_COLORWAY;
+        return self::SCOPE_SIZE;
     }
 
     /**
@@ -119,7 +109,7 @@ final class ItemPricing
                 continue;
             }
 
-            $scope = (string) ($row['scope'] ?? self::SCOPE_COLORWAY);
+            $scope = (string) ($row['scope'] ?? self::SCOPE_SIZE);
             $value = max(0, (float) ($row['value'] ?? 0));
 
             self::apply($item, $field, $scope, $value);

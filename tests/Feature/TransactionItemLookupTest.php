@@ -3,6 +3,7 @@
 use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\User;
+use App\Support\ItemPricing;
 use App\Models\WarehouseItem;
 use Spatie\Permission\Models\Permission;
 
@@ -39,14 +40,23 @@ it('includes reseller sell price with sku then group then price fallback', funct
     $this->user->givePermissionTo('transactions-type-sell');
 
     $group = \App\Models\ItemGroup::factory()->create([
+        'master' => 'CX-RESELL-01',
+        'variant' => '01',
         'reseller_price' => 120000,
     ]);
     $item = Item::factory()->create([
         'group_id' => $group->id,
+        'pcode' => 'CX-RESELL-01',
         'name' => 'Reseller Priced Product',
         'code' => 'AJD-RESELL-01-S',
         'price' => 150000,
         'reseller_price' => 95000,
+    ]);
+
+    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey($item);
+    \App\Models\ItemParentPrice::query()->create([
+        'parent_key' => $parentKey,
+        'reseller_price' => 120000,
     ]);
 
     $response = $this->actingAs($this->user)
@@ -64,7 +74,8 @@ it('includes reseller sell price with sku then group then price fallback', funct
     $response->assertSuccessful();
     expect((float) $response->json('item.reseller_sell_price'))->toBe(120000.0);
 
-    $group->update(['reseller_price' => 0]);
+    \App\Models\ItemParentPrice::query()->where('parent_key', $parentKey)->update(['reseller_price' => 0]);
+    ItemPricing::flushRequestCache();
 
     $response = $this->actingAs($this->user)
         ->getJson(route('transactions.item-by-id', ['type' => 'sell', 'id' => $item->id]));
@@ -194,19 +205,29 @@ it('items autocomplete json exposes warehouse_item for transaction stock display
         ->and((float) $match['warehouse_item'][0]['quantity'])->toBe(11.0);
 });
 
-it('items autocomplete json uses effective price and cost from colorway when sku columns are zero', function () {
+it('items autocomplete json uses effective price and cost from parent group when sku columns are zero', function () {
     $this->user->givePermissionTo('items-list');
 
     $group = \App\Models\ItemGroup::factory()->create([
+        'master' => 'CX-CASCADE-01',
+        'variant' => '01',
         'price' => 185_000,
         'cost' => 92_000,
     ]);
     $item = Item::factory()->create([
         'group_id' => $group->id,
+        'pcode' => 'CX-CASCADE-01',
         'name' => 'Cascade Priced Tee',
         'code' => 'AJD-CASCADE-01-S',
         'price' => 0,
         'cost' => 0,
+    ]);
+
+    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey($item);
+    \App\Models\ItemParentPrice::query()->create([
+        'parent_key' => $parentKey,
+        'price' => 185_000,
+        'cost' => 92_000,
     ]);
 
     $match = collect($this->actingAs($this->user)
@@ -257,19 +278,29 @@ it('transaction item lookup uses parent group price when type tag differs from s
     expect((float) $response->json('item.price'))->toBe(312_000.0);
 });
 
-it('transaction item lookup uses effective sell price and cost from colorway', function () {
+it('transaction item lookup uses effective sell price and cost from parent group', function () {
     Permission::firstOrCreate(['name' => 'transactions-type-buy']);
     $this->user->givePermissionTo('transactions-type-buy');
 
     $group = \App\Models\ItemGroup::factory()->create([
+        'master' => 'CX-TX-LOOKUP-01',
+        'variant' => '01',
         'price' => 210_000,
         'cost' => 105_000,
     ]);
     $item = Item::factory()->create([
         'group_id' => $group->id,
+        'pcode' => 'CX-TX-LOOKUP-01',
         'code' => 'AJD-TX-LOOKUP-S',
         'price' => 0,
         'cost' => 0,
+    ]);
+
+    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey($item);
+    \App\Models\ItemParentPrice::query()->create([
+        'parent_key' => $parentKey,
+        'price' => 210_000,
+        'cost' => 105_000,
     ]);
 
     $response = $this->actingAs($this->user)

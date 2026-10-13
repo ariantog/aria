@@ -163,7 +163,7 @@ test('single item update does not broadcast price to sibling sizes', function ()
     $medium->refresh();
 
     expect((float) $small->price)->toBe(175000.0)
-        ->and(ItemPricing::resolve($medium, 'price'))->toBe(100000.0)
+        ->and((float) $medium->price)->toBe(0.0)
         ->and($medium->catalogDescription())->toBe('OLD DESC');
 });
 
@@ -193,31 +193,23 @@ test('colorway edit page renders with size matrix and preview', function () {
         ->assertSee('data-testid="colorway-size-matrix"', false)
         ->assertSee('data-testid="colorway-name-preview"', false)
         ->assertSee('data-testid="colorway-save"', false)
-        ->assertSee('data-testid="colorway-apply-pricing"', false)
-        ->assertSee('data-testid="colorway-pricing-apply-form"', false)
-        ->assertSee('id="colorwayApplyPricingForm"', false)
+        ->assertSee('data-testid="colorway-mass-price"', false)
+        ->assertSee('data-testid="colorway-mass-reseller"', false)
+        ->assertSee('data-mass-pricing="price"', false)
+        ->assertSee('data-mass-pricing="reseller_price"', false)
         ->assertSee('id="colorway-save-form"', false)
         ->assertSee('data-testid="item-form-shared-tags"', false)
         ->assertDontSee('data-testid="item-form-sku-size"', false)
-        ->assertDontSee('data-testid="colorway-pricing-price-scope-colorway"', false)
-        ->assertDontSee('Whole group', false)
-        ->assertDontSee('This SKU', false)
+        ->assertDontSee('Size override', false)
+        ->assertDontSee('Sell (eff.)', false)
         ->assertSee('AJD-CX90233-23-S', false);
 
     $html = $response->getContent();
-    $applyForm = strpos($html, 'id="colorwayApplyPricingForm"');
-    $saveForm = strpos($html, 'id="colorway-save-form"');
-    $saveButton = strpos($html, 'data-testid="colorway-save"');
 
-    expect($applyForm)->toBeInt()
-        ->and($saveForm)->toBeGreaterThan($applyForm)
-        ->and($saveButton)->toBeGreaterThan($saveForm)
-        ->and(substr($html, $saveForm, $saveButton - $saveForm))->not->toContain('<form')
-        ->and($html)->toContain('id="colorway-pcode"')
+    expect($html)->toContain('id="colorway-pcode"')
         ->and($html)->toContain('value="CX90233-23"')
         ->and($html)->not->toContain("return confirm('Save this colorway")
-        ->and($html)->toMatch('/name="pricing\[price\]"\s+value=""/')
-        ->and($html)->not->toMatch('/name="pricing\[price\]"\s+value="0"/');
+        ->and($html)->not->toContain('id="colorwayApplyPricingForm"');
 });
 
 test('manufactured colorway edit preview includes warna label in saved display names', function () {
@@ -357,70 +349,10 @@ test('colorway catalog save does not apply colorway pricing or clear size overri
 
     expect($group->name)->toBe('TITLE ONLY CHANGE')
         ->and((float) $small->price)->toBe(175000.0)
-        ->and(ItemPricing::resolve($medium, 'price'))->toBe(100000.0);
+        ->and((float) $medium->price)->toBe(0.0);
 });
 
-test('colorway apply pricing sets group default and clears size overrides', function () {
-    $this->itemService->create((object) [
-        'pcode' => 'CX90233-23',
-        'type' => ItemType::ITEM->value,
-        'price' => 100000,
-    ], [
-        'types' => [$this->typeTag->id],
-        'sizes' => [$this->sizeTag->id, $this->mediumTag->id],
-        'warna' => [$this->warnaTag->id],
-        'jahit' => [$this->jahitTag->id],
-    ]);
-
-    $small = Item::where('code', 'AJD-CX90233-23-S')->firstOrFail();
-    $group = $small->group()->firstOrFail();
-
-    ItemPricing::apply($small, 'price', ItemPricing::SCOPE_SIZE, 175000);
-
-    $this->itemService->applyColorwayDefaultPricing($group, ['price' => 120000]);
-
-    $small->refresh();
-    $group->refresh();
-
-    expect((float) $group->price)->toBe(120000.0)
-        ->and((float) $small->price)->toBe(0.0)
-        ->and(ItemPricing::resolve($small, 'price'))->toBe(120000.0);
-});
-
-test('colorway apply pricing via HTTP updates group and clears overrides', function () {
-    $group = ItemGroup::factory()->create([
-        'master' => 'CX90233-23',
-        'variant' => '23',
-        'name' => 'CX90233-23',
-        'price' => 100000,
-    ]);
-
-    $small = Item::factory()->create([
-        'type' => ItemType::ITEM,
-        'group_id' => $group->id,
-        'pcode' => 'CX90233-23',
-        'code' => 'AJD-CX90233-23-S',
-        'price' => 175000,
-    ]);
-    $small->tags()->sync([$this->typeTag->id, $this->warnaTag->id, $this->sizeTag->id, $this->jahitTag->id]);
-
-    $this->actingAs($this->user)
-        ->put(route('items.colorway-apply-pricing', $group), [
-            'apply' => ['price'],
-            'pricing' => ['price' => 120000],
-        ])
-        ->assertRedirect(route('items.colorway-edit', $group))
-        ->assertSessionHas('success');
-
-    $group->refresh();
-    $small->refresh();
-
-    expect((float) $group->price)->toBe(120000.0)
-        ->and((float) $small->price)->toBe(0.0)
-        ->and(ItemPricing::resolve($small, 'price'))->toBe(120000.0);
-});
-
-test('colorway update via HTTP persists per-size price', function () {
+test('colorway update via HTTP persists per-size price and reseller', function () {
     $group = ItemGroup::factory()->create([
         'master' => 'CX90233-23',
         'variant' => '23',
@@ -460,11 +392,13 @@ test('colorway update via HTTP persists per-size price', function () {
                 $small->id => [
                     'pricing' => [
                         'price' => ['scope' => 'size', 'value' => 150000],
+                        'reseller_price' => ['scope' => 'size', 'value' => 140000],
                     ],
                 ],
                 $medium->id => [
                     'pricing' => [
                         'price' => ['scope' => 'size', 'value' => 120000],
+                        'reseller_price' => ['scope' => 'size', 'value' => 110000],
                     ],
                 ],
             ],
@@ -479,5 +413,7 @@ test('colorway update via HTTP persists per-size price', function () {
         ->and($group->description)->toBe('VIA FORM')
         ->and((float) $small->price)->toBe(150000.0)
         ->and((float) $medium->price)->toBe(120000.0)
+        ->and((float) $small->reseller_price)->toBe(140000.0)
+        ->and((float) $medium->reseller_price)->toBe(110000.0)
         ->and($small->name)->toBe('RENAMED SHIRT - BLUE - S');
 });

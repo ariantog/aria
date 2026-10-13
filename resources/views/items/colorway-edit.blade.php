@@ -43,15 +43,6 @@ $breadcrumbs = [
     </div>
     @endif
 
-    {{-- Must stay outside the save form. A nested <form> makes the browser close the save form early, so Save colorway does nothing. --}}
-    <form id="colorwayApplyPricingForm"
-          method="POST"
-          action="{{ route('items.colorway-apply-pricing', $group) }}"
-          class="hidden">
-        @csrf
-        @method('PUT')
-    </form>
-
     <form id="colorway-save-form" method="POST" action="{{ route('items.colorway-update', $group) }}" enctype="multipart/form-data" class="space-y-8">
         @csrf
         @method('PUT')
@@ -136,29 +127,48 @@ $breadcrumbs = [
                 </div>
 
                 {{-- Per-size matrix --}}
+                @php
+                    $matrixPricingFields = [
+                        'price' => ['label' => 'Price', 'decimals' => 0, 'effective_key' => 'effective_price', 'testid' => 'colorway-mass-price'],
+                        'reseller_price' => ['label' => 'Reseller', 'decimals' => 0, 'effective_key' => 'effective_reseller_price', 'testid' => 'colorway-mass-reseller'],
+                    ];
+                    if ($isAsset) {
+                        $matrixPricingFields['cost'] = ['label' => 'Cost', 'decimals' => 0, 'effective_key' => 'effective_cost', 'testid' => 'colorway-mass-cost'];
+                        $matrixPricingFields['cost_cnh'] = ['label' => 'Cost CNY', 'decimals' => 2, 'effective_key' => 'effective_cost_cnh', 'testid' => 'colorway-mass-cost-cnh'];
+                    }
+                @endphp
                 <div class="rounded-xl border border-gray-200 bg-white shadow-sm" data-testid="colorway-size-matrix">
                     <div class="border-b border-gray-100 px-5 py-4">
                         <h3 class="text-lg font-semibold text-gray-900">Sizes &amp; pricing</h3>
-                        <p class="text-sm text-gray-500">Apply a colorway default above, or set optional per-size overrides in the matrix.</p>
+                        <p class="text-sm text-gray-500">Per-SKU amounts save on this colorway. Leave blank to inherit parent group defaults.</p>
                     </div>
                     <div class="overflow-x-auto p-4">
-                        @include('items.partials.colorway-pricing-apply', [
-                            'group' => $group,
-                            'colorwayDefaults' => $colorwayDefaults ?? [],
-                            'isAsset' => $isAsset,
-                        ])
                         <table class="min-w-full text-sm">
-                            <thead class="border-b border-gray-200 text-xs uppercase text-gray-500">
-                                <tr>
-                                    <th class="px-3 py-2 text-left font-semibold">Size</th>
-                                    <th class="px-3 py-2 text-left font-semibold">SKU</th>
-                                    <th class="px-3 py-2 text-right font-semibold">Sell (eff.)</th>
-                                    @if($isAsset)
-                                    <th class="px-3 py-2 text-right font-semibold">Cost IDR (eff.)</th>
-                                    <th class="px-3 py-2 text-right font-semibold">Cost CNY (eff.)</th>
-                                    @endif
-                                    <th class="px-3 py-2 text-right font-semibold">Size override</th>
-                                    <th class="px-3 py-2 text-right font-semibold">Restock urgent</th>
+                            <thead class="border-b border-gray-200 text-xs text-gray-500">
+                                <tr class="align-bottom">
+                                    <th class="px-3 py-2 text-left font-semibold uppercase">Size</th>
+                                    <th class="px-3 py-2 text-left font-semibold uppercase">SKU</th>
+                                    @foreach($matrixPricingFields as $fieldKey => $fieldMeta)
+                                    <th class="px-3 py-2 text-right font-semibold">
+                                        <div class="flex flex-col items-end gap-1.5 normal-case">
+                                            <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $fieldMeta['label'] }}</span>
+                                            <div class="flex items-center gap-1">
+                                                <input type="number" step="any" min="0"
+                                                       x-model="mass.{{ $fieldKey }}"
+                                                       data-testid="{{ $fieldMeta['testid'] }}"
+                                                       placeholder="All sizes"
+                                                       class="w-24 rounded-lg border border-gray-300 px-2 py-1 text-right text-xs font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                                                <button type="button"
+                                                        @click="applyMass('{{ $fieldKey }}')"
+                                                        data-testid="{{ $fieldMeta['testid'] }}-apply"
+                                                        class="shrink-0 rounded-md border border-gray-300 bg-gray-50 px-2 py-1 text-[10px] font-semibold uppercase text-gray-700 hover:bg-gray-100">
+                                                    Apply
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </th>
+                                    @endforeach
+                                    <th class="px-3 py-2 text-right font-semibold uppercase">Restock urgent</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-100">
@@ -169,34 +179,31 @@ $breadcrumbs = [
                                         <span class="font-mono text-blue-600">{{ $row['code'] }}</span>
                                         <input type="hidden" name="items[{{ $row['id'] }}][_key]" value="1">
                                     </td>
-                                    <td class="px-3 py-3 text-right font-mono text-gray-700">{{ format_amount($row['effective_price'], 0) }}</td>
-                                    @if($isAsset)
-                                    <td class="px-3 py-3 text-right font-mono text-gray-700">{{ format_amount($row['effective_cost'], 0) }}</td>
-                                    <td class="px-3 py-3 text-right font-mono text-gray-700">{{ format_amount($row['effective_cost_cnh'], 2) }}</td>
-                                    @endif
+                                    @foreach($matrixPricingFields as $fieldKey => $fieldMeta)
+                                    @php
+                                        $storedScope = $row['pricing'][$fieldKey]['scope'] ?? '';
+                                        $storedValue = (float) ($row['pricing'][$fieldKey]['value'] ?? 0);
+                                        $inputValue = old(
+                                            'items.'.$row['id'].'.pricing.'.$fieldKey.'.value',
+                                            $storedScope === 'size' && $storedValue > 0 ? $storedValue : ''
+                                        );
+                                        $effectiveValue = (float) ($row[$fieldMeta['effective_key']] ?? 0);
+                                        $showEffectiveHint = $inputValue === '' && $effectiveValue > 0;
+                                    @endphp
                                     <td class="px-3 py-3 text-right">
-                                        <input type="hidden" name="items[{{ $row['id'] }}][pricing][price][scope]" value="size">
+                                        <input type="hidden" name="items[{{ $row['id'] }}][pricing][{{ $fieldKey }}][scope]" value="size">
                                         <input type="number" step="any" min="0"
-                                               name="items[{{ $row['id'] }}][pricing][price][value]"
-                                               value="{{ old('items.'.$row['id'].'.pricing.price.value', ($row['pricing']['price']['scope'] ?? '') === 'size' ? ($row['pricing']['price']['value'] ?? '') : '') }}"
-                                               placeholder="Sell"
-                                               @unless($isAsset) data-testid="colorway-price-{{ $row['id'] }}" @endunless
-                                               class="mb-1 w-28 rounded-lg border border-gray-300 px-2 py-1.5 text-right text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                                        @if($isAsset)
-                                        <input type="hidden" name="items[{{ $row['id'] }}][pricing][cost][scope]" value="size">
-                                        <input type="number" step="any" min="0"
-                                               name="items[{{ $row['id'] }}][pricing][cost][value]"
-                                               value="{{ old('items.'.$row['id'].'.pricing.cost.value', ($row['pricing']['cost']['scope'] ?? '') === 'size' ? ($row['pricing']['cost']['value'] ?? '') : '') }}"
-                                               placeholder="Cost IDR"
-                                               class="mb-1 w-28 rounded-lg border border-gray-300 px-2 py-1.5 text-right text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                                        <input type="hidden" name="items[{{ $row['id'] }}][pricing][cost_cnh][scope]" value="size">
-                                        <input type="number" step="any" min="0"
-                                               name="items[{{ $row['id'] }}][pricing][cost_cnh][value]"
-                                               value="{{ old('items.'.$row['id'].'.pricing.cost_cnh.value', ($row['pricing']['cost_cnh']['scope'] ?? '') === 'size' ? ($row['pricing']['cost_cnh']['value'] ?? '') : '') }}"
-                                               placeholder="Cost CNY"
+                                               name="items[{{ $row['id'] }}][pricing][{{ $fieldKey }}][value]"
+                                               value="{{ $inputValue }}"
+                                               data-mass-pricing="{{ $fieldKey }}"
+                                               @if($fieldKey === 'price' && ! $isAsset) data-testid="colorway-price-{{ $row['id'] }}" @endif
+                                               placeholder="—"
                                                class="w-28 rounded-lg border border-gray-300 px-2 py-1.5 text-right text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                                        @if($showEffectiveHint)
+                                        <p class="mt-0.5 text-[10px] text-gray-400">eff. {{ format_amount($effectiveValue, $fieldMeta['decimals']) }}</p>
                                         @endif
                                     </td>
+                                    @endforeach
                                     <td class="px-3 py-3 text-right">
                                         <input type="number" min="1" step="1" name="items[{{ $row['id'] }}][restock_urgent_threshold]"
                                                value="{{ (int) ($row['restock_urgent_threshold'] ?? 0) > 0 ? $row['restock_urgent_threshold'] : '' }}"
@@ -263,6 +270,12 @@ function colorwayForm(config) {
         warnaCode: (config.warnaCode || '').toUpperCase(),
         warnaName: (config.warnaName || config.warnaCode || '').toUpperCase(),
         allSizeCode: 'AS',
+        mass: {
+            price: '',
+            reseller_price: '',
+            cost: '',
+            cost_cnh: '',
+        },
         tagFilters: {
             warna: '',
             type: '',
@@ -312,6 +325,17 @@ function colorwayForm(config) {
         initColorwayTags() {
             this.$nextTick(() => {
                 this.syncWarnaFromDom();
+            });
+        },
+
+        applyMass(field) {
+            const raw = this.mass[field];
+            if (raw === '' || raw === null || raw === undefined) {
+                return;
+            }
+
+            this.$root.querySelectorAll('[data-mass-pricing="' + field + '"]').forEach((el) => {
+                el.value = raw;
             });
         },
 

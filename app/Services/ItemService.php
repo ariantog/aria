@@ -287,6 +287,10 @@ class ItemService
                     ItemPricing::apply($item, 'cost_cnh', ItemPricing::SCOPE_SIZE, max(0, (float) ($row['cost_cnh'] ?? 0)));
                 }
 
+                if (array_key_exists('reseller_price', $row)) {
+                    ItemPricing::apply($item, 'reseller_price', ItemPricing::SCOPE_SIZE, max(0, (float) ($row['reseller_price'] ?? 0)));
+                }
+
                 if (isset($row['pricing']) && is_array($row['pricing'])) {
                     $pricingRows = [];
                     foreach ($row['pricing'] as $field => $pricingRow) {
@@ -316,44 +320,6 @@ class ItemService
             if ($file) {
                 $this->imageService->saveImage($group, $file);
             }
-
-            return $group->fresh();
-        });
-    }
-
-    /**
-     * Set colorway-level pricing defaults (clears stored per-SKU amounts for each applied field).
-     *
-     * @param  array<string, mixed>  $fields  Keys: price, reseller_price, cost, cost_cnh
-     *
-     * @throws Exception
-     */
-    public function applyColorwayDefaultPricing(ItemGroup $group, array $fields): ItemGroup
-    {
-        return DB::transaction(function () use ($group, $fields) {
-            $sample = Item::with('group')->where('group_id', $group->id)->first();
-
-            if ($sample === null) {
-                throw new Exception('Colorway has no items.');
-            }
-
-            $rows = [];
-            foreach (ItemPricing::FIELDS as $field) {
-                if (! array_key_exists($field, $fields)) {
-                    continue;
-                }
-
-                $rows[$field] = [
-                    'scope' => ItemPricing::SCOPE_COLORWAY,
-                    'value' => max(0, (float) $fields[$field]),
-                ];
-            }
-
-            if ($rows === []) {
-                throw new Exception('No pricing fields to apply.');
-            }
-
-            ItemPricing::applyFormRows($sample, $rows);
 
             return $group->fresh();
         });
