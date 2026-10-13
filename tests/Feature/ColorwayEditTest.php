@@ -204,8 +204,7 @@ test('colorway edit page renders with size matrix and preview', function () {
         ->assertDontSee('Sell (eff.)', false)
         ->assertSee('AJD-CX90233-23-S', false)
         ->assertSee('data-testid="colorway-description"', false)
-        ->assertSee('type="text" id="colorway-description"', false)
-        ->assertDontSee('<textarea id="colorway-description"', false);
+        ->assertSee('<textarea id="colorway-description"', false);
 
     $html = $response->getContent();
 

@@ -106,18 +106,16 @@ $breadcrumbs = [
                         </div>
                         <div>
                             <label for="colorway-description" class="mb-1 block text-sm font-medium text-gray-700">Description</label>
-                            <input type="text" id="colorway-description" name="description"
-                                   value="{{ old('description', $group->description) }}"
-                                   data-testid="colorway-description"
-                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                            <textarea id="colorway-description" name="description" rows="4"
+                                      data-testid="colorway-description"
+                                      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">{{ old('description', $group->description) }}</textarea>
                         </div>
                         <div>
                             <label for="colorway-description2" class="mb-1 block text-sm font-medium text-gray-700">Notes (NB) <span class="font-normal text-gray-400">(optional)</span></label>
-                            <input type="text" id="colorway-description2" name="description2"
-                                   value="{{ old('description2', $group->description2) }}"
-                                   placeholder="Additional notes for this colorway"
-                                   data-testid="colorway-description2"
-                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                            <textarea id="colorway-description2" name="description2" rows="3"
+                                      data-testid="colorway-description2"
+                                      placeholder="Additional notes for this colorway"
+                                      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">{{ old('description2', $group->description2) }}</textarea>
                         </div>
                         <div>
                             <label for="colorway-url" class="mb-1 block text-sm font-medium text-gray-700">URL</label>
