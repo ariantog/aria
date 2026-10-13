@@ -23,6 +23,13 @@
     </p>
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-{{ count($fields) > 2 ? '4' : '2' }}">
         @foreach($fields as $fieldKey => $meta)
+        @php
+            $storedAmount = (float) ($defaults[$fieldKey] ?? 0);
+            $oldAmount = old('pricing.'.$fieldKey);
+            $amountValue = $oldAmount !== null
+                ? $oldAmount
+                : ($storedAmount > 0 ? $storedAmount : '');
+        @endphp
         <div class="rounded-lg border border-white/80 bg-white p-3">
             <label class="mb-2 flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-800">
                 <input type="checkbox"
@@ -39,7 +46,7 @@
                    step="{{ $meta['step'] }}"
                    min="0"
                    name="pricing[{{ $fieldKey }}]"
-                   value="{{ old('pricing.'.$fieldKey, $defaults[$fieldKey] ?? 0) }}"
+                   value="{{ $amountValue }}"
                    data-testid="colorway-apply-value-{{ $fieldKey }}"
                    class="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-right font-mono text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
         </div>
