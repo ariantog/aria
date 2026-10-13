@@ -212,7 +212,10 @@ test('colorway edit page renders with size matrix and preview', function () {
     expect($applyForm)->toBeInt()
         ->and($saveForm)->toBeGreaterThan($applyForm)
         ->and($saveButton)->toBeGreaterThan($saveForm)
-        ->and(substr($html, $saveForm, $saveButton - $saveForm))->not->toContain('<form');
+        ->and(substr($html, $saveForm, $saveButton - $saveForm))->not->toContain('<form')
+        ->and($html)->toContain('id="colorway-pcode"')
+        ->and($html)->toContain('value="CX90233-23"')
+        ->and($html)->not->toContain("return confirm('Save this colorway");
 });
 
 test('manufactured colorway edit preview includes warna label in saved display names', function () {

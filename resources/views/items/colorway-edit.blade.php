@@ -47,14 +47,12 @@ $breadcrumbs = [
     <form id="colorwayApplyPricingForm"
           method="POST"
           action="{{ route('items.colorway-apply-pricing', $group) }}"
-          class="hidden"
-          onsubmit="return confirm('Apply selected amounts to this colorway? Stored size overrides for those fields are cleared so every size inherits the colorway default. Use 0 to clear the colorway default and inherit from the parent group.');">
+          class="hidden">
         @csrf
         @method('PUT')
     </form>
 
-    <form id="colorway-save-form" method="POST" action="{{ route('items.colorway-update', $group) }}" enctype="multipart/form-data" class="space-y-8"
-          onsubmit="return confirm('Save this colorway? Catalog and attributes are updated. Size price overrides in the matrix are saved only when filled in. Colorway-wide defaults use Apply above the matrix.');">
+    <form id="colorway-save-form" method="POST" action="{{ route('items.colorway-update', $group) }}" enctype="multipart/form-data" class="space-y-8">
         @csrf
         @method('PUT')
 
@@ -75,6 +73,7 @@ $breadcrumbs = [
                         <div>
                             <label for="colorway-pcode" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">PCode</label>
                             <input type="text" id="colorway-pcode" name="pcode" x-model="form.pcode"
+                                   value="{{ old('pcode', $sample->pcode) }}"
                                    data-testid="colorway-pcode"
                                    required
                                    class="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
@@ -108,6 +107,7 @@ $breadcrumbs = [
                                 Stored product name (this colorway)
                             </label>
                             <input type="text" id="colorway-product-name" name="product_name" x-model="form.product_name"
+                                   value="{{ old('product_name', $productTitle) }}"
                                    data-testid="colorway-product-name"
                                    @unless($isAsset) placeholder="Leave blank to inherit parent group name" @endunless
                                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
@@ -128,7 +128,7 @@ $breadcrumbs = [
                         </div>
                         <div>
                             <label for="colorway-url" class="mb-1 block text-sm font-medium text-gray-700">URL</label>
-                            <input type="url" id="colorway-url" name="url"
+                            <input type="text" id="colorway-url" name="url" inputmode="url"
                                    value="{{ old('url', $group->url) }}"
                                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                         </div>
@@ -199,7 +199,7 @@ $breadcrumbs = [
                                     </td>
                                     <td class="px-3 py-3 text-right">
                                         <input type="number" min="1" step="1" name="items[{{ $row['id'] }}][restock_urgent_threshold]"
-                                               value="{{ $row['restock_urgent_threshold'] }}"
+                                               value="{{ (int) ($row['restock_urgent_threshold'] ?? 0) > 0 ? $row['restock_urgent_threshold'] : '' }}"
                                                placeholder="—"
                                                class="w-24 rounded-lg border border-gray-300 px-2 py-1.5 text-right text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                                     </td>
@@ -241,7 +241,7 @@ $breadcrumbs = [
 
         <div class="sticky bottom-0 z-10 -mx-4 mt-8 flex justify-end gap-4 border-t border-gray-200 bg-white/95 px-4 py-4 shadow-[0_-4px_12px_rgba(0,0,0,0.06)] backdrop-blur-sm sm:-mx-6 sm:px-6">
             <a href="{{ route('items.group-parent-detail', $parentGroupId) }}" class="rounded-lg px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100">Cancel</a>
-            <button type="submit" data-testid="colorway-save" class="min-w-[150px] rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Save colorway</button>
+            <button type="submit" form="colorway-save-form" data-testid="colorway-save" class="min-w-[150px] rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Save colorway</button>
         </div>
     </form>
 </div>
@@ -304,6 +304,9 @@ function colorwayForm(config) {
 
         onWarna() {
             this.syncWarnaFromDom();
+        },
+
+        onTypeChange() {
         },
 
         initColorwayTags() {
