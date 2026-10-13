@@ -43,7 +43,17 @@ $breadcrumbs = [
     </div>
     @endif
 
-    <form method="POST" action="{{ route('items.colorway-update', $group) }}" enctype="multipart/form-data" class="space-y-8"
+    {{-- Must stay outside the save form. A nested <form> makes the browser close the save form early, so Save colorway does nothing. --}}
+    <form id="colorwayApplyPricingForm"
+          method="POST"
+          action="{{ route('items.colorway-apply-pricing', $group) }}"
+          class="hidden"
+          onsubmit="return confirm('Apply selected amounts to this colorway? Stored size overrides for those fields are cleared so every size inherits the colorway default. Use 0 to clear the colorway default and inherit from the parent group.');">
+        @csrf
+        @method('PUT')
+    </form>
+
+    <form id="colorway-save-form" method="POST" action="{{ route('items.colorway-update', $group) }}" enctype="multipart/form-data" class="space-y-8"
           onsubmit="return confirm('Save this colorway? Catalog and attributes are updated. Size price overrides in the matrix are saved only when filled in. Colorway-wide defaults use Apply above the matrix.');">
         @csrf
         @method('PUT')

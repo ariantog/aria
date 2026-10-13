@@ -10,17 +10,6 @@
         $fields['cost_cnh'] = ['label' => 'Cost (CNY)', 'step' => 'any', 'decimals' => 2];
     }
 @endphp
-{{-- Detached form: must not nest inside the main colorway save form (invalid HTML breaks Save). --}}
-<form id="{{ $applyFormId }}"
-      method="POST"
-      action="{{ route('items.colorway-apply-pricing', $group) }}"
-      class="hidden"
-      aria-hidden="true"
-      onsubmit="return confirm('Apply selected amounts to this colorway? Stored size overrides for those fields are cleared so every size inherits the colorway default. Use 0 to clear the colorway default and inherit from the parent group.');">
-    @csrf
-    @method('PUT')
-</form>
-
 <div class="mb-4 rounded-lg border border-indigo-200 bg-indigo-50/50 p-4"
      data-testid="colorway-pricing-apply-form">
     <p class="mb-3 text-sm font-medium text-indigo-950">Colorway default pricing (all sizes)</p>
