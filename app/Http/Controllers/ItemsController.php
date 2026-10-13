@@ -724,6 +724,7 @@ class ItemsController extends Controller
                 'warna_code' => $warnaTag?->code ?? '',
                 'pricing' => $pricing,
                 'effective_price' => $pricing['price']['effective'] ?? 0,
+                'effective_reseller_price' => $pricing['reseller_price']['effective'] ?? 0,
                 'effective_cost' => $pricing['cost']['effective'] ?? 0,
                 'effective_cost_cnh' => $pricing['cost_cnh']['effective'] ?? 0,
                 'restock_urgent_threshold' => old(
@@ -753,12 +754,6 @@ class ItemsController extends Controller
             'curWarna' => optional($sample->tags->firstWhere('type', Tag::TYPE_WARNA))->id,
             'sizeRows' => $sizeRows,
             'previewRows' => $previewRows,
-            'colorwayDefaults' => [
-                'price' => (float) ($group->price ?? 0),
-                'reseller_price' => (float) ($group->reseller_price ?? 0),
-                'cost' => (float) ($group->cost ?? 0),
-                'cost_cnh' => (float) ($group->cost_cnh ?? 0),
-            ],
             'productTitle' => $titleForm['stored_title'],
             'titleForm' => $titleForm,
             'parentProductName' => $parentProductName,
@@ -818,6 +813,7 @@ class ItemsController extends Controller
             $itemRows[] = [
                 'id' => (int) $itemId,
                 'price' => $row['price'] ?? null,
+                'reseller_price' => $row['reseller_price'] ?? null,
                 'cost' => $row['cost'] ?? null,
                 'cost_cnh' => $row['cost_cnh'] ?? null,
                 'restock_urgent_threshold' => $row['restock_urgent_threshold'] ?? null,
@@ -845,55 +841,6 @@ class ItemsController extends Controller
             return redirect()
                 ->route('items.colorway-edit', $group)
                 ->with('success', 'Colorway updated.');
-        } catch (\Exception $e) {
-            return back()->withErrors(['message' => $e->getMessage()])->withInput();
-        }
-    }
-
-    public function colorwayApplyPricing(Request $request, ItemGroup $group)
-    {
-        Gate::authorize(ItemGroup::getPermissions()['edit']);
-
-        $group->load(['items']);
-        abort_if($group->items->first() === null, 404);
-
-        $isAsset = $group->items->first()->type === ItemType::ASSET_LANCAR;
-
-        $rules = [
-            'apply' => ['required', 'array', 'min:1'],
-            'apply.*' => ['in:price,reseller_price,cost,cost_cnh'],
-        ];
-
-        foreach (ItemPricing::FIELDS as $field) {
-            $rules["pricing.{$field}"] = ['nullable', 'numeric', 'min:0'];
-        }
-
-        $request->validate($rules, [
-            'apply.required' => 'Select at least one pricing field to apply.',
-        ]);
-
-        $applyFields = $request->input('apply', []);
-        $pricingInput = $request->input('pricing', []);
-        $payload = [];
-
-        foreach ($applyFields as $field) {
-            if (! in_array($field, ItemPricing::FIELDS, true)) {
-                continue;
-            }
-
-            if (! $isAsset && in_array($field, ['cost', 'cost_cnh'], true)) {
-                continue;
-            }
-
-            $payload[$field] = $pricingInput[$field] ?? 0;
-        }
-
-        try {
-            $this->itemService->applyColorwayDefaultPricing($group, $payload);
-
-            return redirect()
-                ->route('items.colorway-edit', $group)
-                ->with('success', 'Colorway pricing applied to all sizes.');
         } catch (\Exception $e) {
             return back()->withErrors(['message' => $e->getMessage()])->withInput();
         }
@@ -1021,6 +968,9 @@ class ItemsController extends Controller
             'description' => $catalog['description'] ?? '',
             'description2' => $catalog['description2'] ?? '',
             'url' => $catalog['url'] ?? '',
+            'price' => $catalog['price'] ?? 0,
+            'cost' => $catalog['cost'] ?? 0,
+            'cost_cnh' => $catalog['cost_cnh'] ?? 0,
             'reseller_price' => $catalog['reseller_price'] ?? 0,
             'found' => $catalog !== null,
         ]);

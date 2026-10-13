@@ -10,9 +10,10 @@ use App\Services\Items\ItemIdentityBuilder;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Item prices resolve in order: this SKU → colorway (item_group) → parent group.
+ * Item prices resolve in order: this SKU → parent group (item_parent_prices).
  *
- * A stored value of 0 at a level means "inherit from the next level".
+ * Legacy colorway amounts on item_group are ignored for reads. A stored value of 0 on the SKU
+ * or parent row means "inherit from the next level" (SKU 0 → parent; parent 0 → unset).
  */
 final class ItemPricing
 {
@@ -42,6 +43,27 @@ final class ItemPricing
         self::$columnExists = [];
     }
 
+    public static function parentGroupHasStoredPricing(string $parentKey): bool
+    {
+        $parentKey = trim($parentKey);
+        if ($parentKey === '') {
+            return false;
+        }
+
+        $record = self::parentRecordByKey($parentKey);
+        if ($record === null) {
+            return false;
+        }
+
+        foreach (self::FIELDS as $field) {
+            if (self::isSet(self::readParentColumn($record, $field))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public static function resolve(Item $item, string $field): float
     {
         self::assertField($field);
@@ -50,13 +72,6 @@ final class ItemPricing
         $sizeValue = self::readItemColumn($item, $field);
         if (self::isSet($sizeValue)) {
             return $sizeValue;
-        }
-
-        if ($item->hasCatalogGroup()) {
-            $colorwayValue = self::readGroupColumn($item->group, $field);
-            if (self::isSet($colorwayValue)) {
-                return $colorwayValue;
-            }
         }
 
         $parent = self::parentRecord($item);
@@ -73,16 +88,12 @@ final class ItemPricing
             return self::SCOPE_SIZE;
         }
 
-        if ($item->hasCatalogGroup() && self::isSet(self::readGroupColumn($item->group, $field))) {
-            return self::SCOPE_COLORWAY;
-        }
-
         $parent = self::parentRecord($item);
         if ($parent !== null && self::isSet(self::readParentColumn($parent, $field))) {
             return self::SCOPE_GROUP;
         }
 
-        return self::SCOPE_COLORWAY;
+        return self::SCOPE_SIZE;
     }
 
     /**
@@ -119,7 +130,7 @@ final class ItemPricing
                 continue;
             }
 
-            $scope = (string) ($row['scope'] ?? self::SCOPE_COLORWAY);
+            $scope = (string) ($row['scope'] ?? self::SCOPE_SIZE);
             $value = max(0, (float) ($row['value'] ?? 0));
 
             self::apply($item, $field, $scope, $value);
@@ -191,6 +202,7 @@ final class ItemPricing
             $record = ItemParentPrice::query()->firstOrNew(['parent_key' => $parentKey]);
             self::writeParentColumn($record, $field, $value);
             $record->save();
+            self::$parentRecordCache[$parentKey] = $record;
 
             if ($value > 0 && $cascadeOverrides && $groupIds !== []) {
                 ItemGroup::query()->whereIn('id', $groupIds)->update([$field => 0]);
@@ -232,6 +244,7 @@ final class ItemPricing
         $record = ItemParentPrice::query()->firstOrNew(['parent_key' => $parentKey]);
         self::writeParentColumn($record, $field, $value);
         $record->save();
+        self::$parentRecordCache[$parentKey] = $record;
 
         $groupIds = app(ItemGroupHierarchyService::class)->groupIdsForParentKey($parentKey);
 
@@ -255,8 +268,11 @@ final class ItemPricing
 
     private static function parentRecord(Item $item): ?ItemParentPrice
     {
-        $parentKey = app(ItemIdentityBuilder::class)->itemParentKey($item);
+        return self::parentRecordByKey(app(ItemIdentityBuilder::class)->itemParentKey($item));
+    }
 
+    private static function parentRecordByKey(string $parentKey): ?ItemParentPrice
+    {
         if (! array_key_exists($parentKey, self::$parentRecordCache)) {
             self::$parentRecordCache[$parentKey] = ItemParentPrice::query()
                 ->where('parent_key', $parentKey)

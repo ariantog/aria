@@ -266,7 +266,7 @@ test('apply parent group pricing with zero does not clear colorway overrides', f
         ->and((float) $small->price)->toBe(88000.0);
 });
 
-test('apply parent group pricing without cascade keeps colorway price when parent is set', function () {
+test('apply parent group pricing without cascade keeps legacy colorway column but resolve uses parent', function () {
     $mediumTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'Medium']);
 
     $input = (object) [
@@ -299,7 +299,7 @@ test('apply parent group pricing without cascade keeps colorway price when paren
     $small = Item::where('code', 'AJD-CX90233-23-S')->firstOrFail();
 
     expect((float) $group->price)->toBe(99000.0)
-        ->and(\App\Support\ItemPricing::resolve($small, 'price'))->toBe(99000.0);
+        ->and(\App\Support\ItemPricing::resolve($small, 'price'))->toBe(75000.0);
 
     $this->assertDatabaseHas('item_parent_prices', [
         'parent_key' => $parentKey,

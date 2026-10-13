@@ -64,6 +64,107 @@ it('shows universal tags on both item and asset lancar forms', function () {
         ->assertDontSee('MFGONLY', false);
 });
 
+it('shows master and color fields on manufactured create form', function () {
+    $this->actingAs($this->user)
+        ->get(route('items.create'))
+        ->assertOk()
+        ->assertSee('data-testid="item-form-master-pcode"', false)
+        ->assertSee('data-testid="item-form-color-suffix"', false)
+        ->assertSee('data-testid="item-form-pcode-preview"', false)
+        ->assertSee('data-testid="item-form-pcode-hidden"', false);
+});
+
+it('first manufactured colorway create stores price on parent group', function () {
+    $typeTag = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ITEM->value,
+        'code' => 'AJD',
+        'name' => 'Jacket',
+    ]);
+    $sizeTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'S', 'name' => 'S']);
+    $warnaTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLUE', 'name' => 'BLUE']);
+    $jahitTag = Tag::factory()->create(['type' => Tag::TYPE_JAHIT, 'code' => 'J1', 'name' => 'J1']);
+
+    $this->actingAs($this->user)
+        ->post(route('items.store'), [
+            'type' => ItemType::ITEM->value,
+            'pcode' => 'CX80023-01',
+            'price' => 100000,
+            'tags' => [
+                'types' => [$typeTag->id],
+                'sizes' => [$sizeTag->id],
+                'warna' => $warnaTag->id,
+                'jahit' => $jahitTag->id,
+            ],
+        ])
+        ->assertRedirect(route('items.index'))
+        ->assertSessionHas('success');
+
+    $item = \App\Models\Item::where('code', 'AJD-CX80023-01-S')->firstOrFail();
+    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey($item);
+
+    expect((float) $item->price)->toBe(0.0)
+        ->and(\App\Support\ItemPricing::resolve($item, 'price'))->toBe(100000.0);
+
+    $this->assertDatabaseHas('item_parent_prices', [
+        'parent_key' => $parentKey,
+        'price' => 100000,
+    ]);
+});
+
+it('second manufactured colorway create keeps parent price and stores sku override', function () {
+    $typeTag = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ITEM->value,
+        'code' => 'AJD',
+        'name' => 'Jacket',
+    ]);
+    $sizeTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'S', 'name' => 'S']);
+    $warnaBlue = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLUE', 'name' => 'BLUE']);
+    $warnaRed = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'RED', 'name' => 'RED']);
+    $jahitTag = Tag::factory()->create(['type' => Tag::TYPE_JAHIT, 'code' => 'J1', 'name' => 'J1']);
+
+    $this->actingAs($this->user)->post(route('items.store'), [
+        'type' => ItemType::ITEM->value,
+        'pcode' => 'CX80023-01',
+        'price' => 100000,
+        'tags' => [
+            'types' => [$typeTag->id],
+            'sizes' => [$sizeTag->id],
+            'warna' => $warnaBlue->id,
+            'jahit' => $jahitTag->id,
+        ],
+    ])->assertRedirect();
+
+    $first = \App\Models\Item::where('code', 'AJD-CX80023-01-S')->firstOrFail();
+    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey($first);
+
+    $this->actingAs($this->user)->post(route('items.store'), [
+        'type' => ItemType::ITEM->value,
+        'pcode' => 'CX80023-02',
+        'price' => 120000,
+        'tags' => [
+            'types' => [$typeTag->id],
+            'sizes' => [$sizeTag->id],
+            'warna' => $warnaRed->id,
+            'jahit' => $jahitTag->id,
+        ],
+    ])->assertRedirect();
+
+    $first->refresh();
+    $second = \App\Models\Item::where('code', 'AJD-CX80023-02-S')->firstOrFail();
+
+    expect((float) $first->price)->toBe(0.0)
+        ->and(\App\Support\ItemPricing::resolve($first, 'price'))->toBe(100000.0)
+        ->and((float) $second->price)->toBe(120000.0)
+        ->and(\App\Support\ItemPricing::resolve($second, 'price'))->toBe(120000.0);
+
+    $this->assertDatabaseHas('item_parent_prices', [
+        'parent_key' => $parentKey,
+        'price' => 100000,
+    ]);
+});
+
 it('allows manufactured item create without product name', function () {
     $typeTag = Tag::factory()->create([
         'type' => Tag::TYPE_TYPE,
@@ -112,7 +213,7 @@ it('repopulates item create form after validation errors', function () {
         ->assertOk()
         ->assertSee('data-testid="form-errors"', false)
         ->assertSee('Slash Running Shirt', false)
-        ->assertSee('value="INVALID"', false)
+        ->assertSee('INVALID', false)
         ->assertSee('Test desc', false);
 });
 
@@ -148,7 +249,7 @@ it('repopulates item create form after service error', function () {
         ->get(route('items.create'))
         ->assertOk()
         ->assertSee('Keep My Product Name', false)
-        ->assertSee('value="BAD"', false)
+        ->assertSee('BAD', false)
         ->assertSee('data-testid="form-errors"', false);
 });
 
@@ -198,6 +299,9 @@ it('returns the product title for an existing pcode', function () {
         'pcode' => 'ELBOWSUPPORT-02',
         'code' => 'ELBOWSUPPORT-02-BLACKWHITE',
         'name' => 'ELBOW STRAP - BLACKWHITE',
+        'price' => 0,
+        'cost' => 0,
+        'reseller_price' => 15000,
     ]);
 
     $this->actingAs($this->user)

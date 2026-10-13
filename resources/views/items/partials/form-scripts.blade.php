@@ -64,6 +64,14 @@ function itemForm() {
         form: {
             pcode: @js($formItem['pcode'] ?? ''),
             product_name: @js($formItem['product_name'] ?? ''),
+            masterPcode: '',
+            colorSuffix: '',
+        },
+        autoFilledPricing: {
+            price: '',
+            reseller_price: '',
+            cost: '',
+            cost_cnh: '',
         },
         parentTitle: @js(strtoupper(trim((string) ($titleForm['parent_title'] ?? '')))),
         effectiveTitle: @js(strtoupper(trim((string) ($titleForm['effective_title'] ?? '')))),
@@ -157,11 +165,18 @@ function itemForm() {
         },
 
         init() {
+            if (!this.isAsset && !this.editingItem) {
+                const split = this.manufacturedSplitFromPcode(this.form.pcode || '');
+                this.form.masterPcode = split.master;
+                this.form.colorSuffix = split.suffix;
+            }
+
             this.autoFilledName = (this.form.product_name || '').toUpperCase().trim();
             this.autoFilledPcode = (this.form.pcode || '').toUpperCase().trim();
             this.captureAutoFilledSharedFromDom();
             this.$nextTick(() => {
                 this.syncFromDom();
+                this.onManufacturedIdentityChange();
                 this.schedulePcodeLookup();
                 this.syncColorwayScopeSwitchFromRadios();
             });
@@ -372,6 +387,62 @@ function itemForm() {
             return '';
         },
 
+        manufacturedSplitFromPcode(pcode) {
+            const normalized = this.normalizeManufacturedPcode(pcode);
+            const match = normalized.match(/^([A-Z]{2,3}\d{5})-(\d{2,3})$/);
+
+            if (match) {
+                return { master: match[1], suffix: match[2] };
+            }
+
+            if (/^[A-Z]{2,3}\d{5}$/.test(normalized)) {
+                return { master: normalized, suffix: '' };
+            }
+
+            return { master: normalized, suffix: '' };
+        },
+
+        manufacturedFullPcode() {
+            const master = this.normalizeManufacturedPcode(this.form.masterPcode || '');
+            const suffix = String(this.form.colorSuffix || '').replace(/\D/g, '');
+
+            if (master === '' || suffix === '') {
+                return master;
+            }
+
+            return `${master}-${suffix}`;
+        },
+
+        lookupPcodeForHints() {
+            const full = this.manufacturedFullPcode();
+            if (this.isAsset || this.editingItem) {
+                return (this.form.pcode || '').toUpperCase().trim();
+            }
+
+            if (/^[A-Z]{2,3}\d{5}-\d{2,3}$/.test(full)) {
+                return full;
+            }
+
+            const master = this.normalizeManufacturedPcode(this.form.masterPcode || '');
+            if (/^[A-Z]{2,3}\d{5}$/.test(master)) {
+                return master;
+            }
+
+            return full;
+        },
+
+        onManufacturedIdentityChange() {
+            if (this.isAsset || this.editingItem) {
+                return;
+            }
+
+            this.form.masterPcode = this.normalizeManufacturedPcode(this.form.masterPcode || '');
+            this.form.colorSuffix = String(this.form.colorSuffix || '').replace(/\D/g, '').slice(0, 3);
+            this.form.pcode = this.manufacturedFullPcode();
+            this.autoFilledPcode = this.form.pcode;
+            this.schedulePcodeLookup();
+        },
+
         productNameIsPcodePlaceholder(name, pcode) {
             const nameNorm = this.normalizeManufacturedPcode(name).replace(/\s/g, '');
             const pcodeNorm = this.normalizeManufacturedPcode(pcode).replace(/\s/g, '');
@@ -410,12 +481,12 @@ function itemForm() {
         },
 
         onPcodeInput() {
-            const previousPcode = (this.autoFilledPcode || '').toUpperCase().trim();
-            if (this.isAsset) {
-                this.form.pcode = (this.form.pcode || '').toUpperCase();
-            } else {
-                this.form.pcode = this.normalizeManufacturedPcode(this.form.pcode);
+            if (!this.isAsset) {
+                return;
             }
+
+            const previousPcode = (this.autoFilledPcode || '').toUpperCase().trim();
+            this.form.pcode = (this.form.pcode || '').toUpperCase();
             const pcode = (this.form.pcode || '').toUpperCase().trim();
 
             if (previousPcode !== '' && pcode !== previousPcode && this.canAutoFillProductName()) {
@@ -431,11 +502,13 @@ function itemForm() {
         },
 
         onPcodeBlur() {
-            if (this.isAsset) {
-                this.form.pcode = (this.form.pcode || '').toUpperCase().trim();
-            } else {
-                this.form.pcode = this.normalizeManufacturedPcode(this.form.pcode);
+            if (!this.isAsset) {
+                this.onManufacturedIdentityChange();
+
+                return;
             }
+
+            this.form.pcode = (this.form.pcode || '').toUpperCase().trim();
             this.lookupProductName();
         },
 
@@ -482,8 +555,43 @@ function itemForm() {
             this.pcodeLookupTimer = setTimeout(() => this.lookupProductName(), 300);
         },
 
+        canAutoFillPricingField(fieldId, key) {
+            const current = this.sharedFieldValue(fieldId);
+            const auto = String(this.autoFilledPricing[key] ?? '').trim();
+
+            return current === '' || current === auto || current === '0';
+        },
+
+        applyPricingHintsFromLookup(data) {
+            const map = {
+                price: 'item-form-pricing-price-value',
+                reseller_price: 'item-form-pricing-reseller_price-value',
+                cost: 'item-form-pricing-cost-value',
+                cost_cnh: 'item-form-pricing-cost_cnh-value',
+            };
+
+            Object.keys(map).forEach((key) => {
+                const fieldId = map[key];
+                const raw = data[key];
+                if (raw === null || raw === undefined || Number(raw) <= 0) {
+                    return;
+                }
+
+                if (!this.canAutoFillPricingField(fieldId, key)) {
+                    return;
+                }
+
+                this.setSharedFieldValue(fieldId, raw);
+                this.autoFilledPricing[key] = String(raw).trim();
+            });
+
+            if (!this.isAsset && !this.editingItem && Number(data.price || 0) > 0) {
+                this.setAllPricingScopes('group');
+            }
+        },
+
         async lookupProductName() {
-            const pcode = (this.form.pcode || '').toUpperCase().trim();
+            const pcode = this.lookupPcodeForHints();
             if (!pcode || pcode.length < 3) {
                 return;
             }
@@ -538,6 +646,8 @@ function itemForm() {
                         this.autoFilledShared.reseller_price = String(resellerPrice).trim();
                     }
                 }
+
+                this.applyPricingHintsFromLookup(data);
             } catch (e) {
                 // Keep the field as-is when lookup fails.
             }
@@ -556,6 +666,8 @@ function itemForm() {
             this.typeCode = input?.checked ? (input.dataset.code || '???') : this.typeCode;
             if (this.isAsset) {
                 this.rewritePcodeFromType(this.typeCode);
+            } else {
+                this.lookupProductName();
             }
         },
 

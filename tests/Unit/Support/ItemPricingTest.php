@@ -9,7 +9,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(Tests\TestCase::class, RefreshDatabase::class);
 
-test('resolve falls back size then colorway then group', function () {
+test('resolve falls back size then parent group and ignores colorway column', function () {
     $group = ItemGroup::query()->create([
         'master' => 'CX90233-23',
         'variant' => '23',
@@ -31,7 +31,19 @@ test('resolve falls back size then colorway then group', function () {
         'cost_cnh' => 0,
     ]);
 
-    expect(ItemPricing::resolve($item, 'price'))->toBe(90000.0)
+    expect(ItemPricing::resolve($item, 'price'))->toBe(0.0);
+
+    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey($item);
+    ItemParentPrice::query()->create([
+        'parent_key' => $parentKey,
+        'price' => 90000,
+        'cost' => 45000,
+        'reseller_price' => 80000,
+        'cost_cnh' => 12,
+    ]);
+    ItemPricing::flushRequestCache();
+
+    expect(ItemPricing::resolve($item->fresh(['group']), 'price'))->toBe(90000.0)
         ->and(ItemPricing::resolve($item, 'cost'))->toBe(45000.0)
         ->and(ItemPricing::resolve($item, 'reseller_price'))->toBe(80000.0)
         ->and(ItemPricing::resolve($item, 'cost_cnh'))->toBe(12.0);
@@ -40,16 +52,9 @@ test('resolve falls back size then colorway then group', function () {
 
     expect(ItemPricing::resolve($item->fresh(), 'price'))->toBe(95000.0);
 
-    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey($item);
-    ItemParentPrice::query()->create([
-        'parent_key' => $parentKey,
-        'price' => 70000,
-    ]);
-
     $item->update(['price' => 0]);
-    $group->update(['price' => 0]);
 
-    expect(ItemPricing::resolve($item->fresh(['group']), 'price'))->toBe(70000.0);
+    expect(ItemPricing::resolve($item->fresh(['group']), 'price'))->toBe(90000.0);
 });
 
 test('apply colorway scope clears size overrides in the colorway', function () {
@@ -70,10 +75,31 @@ test('apply colorway scope clears size overrides in the colorway', function () {
     $first->refresh();
     $second->refresh();
 
+    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey($first);
+    ItemParentPrice::query()->create([
+        'parent_key' => $parentKey,
+        'price' => 80000,
+    ]);
+    ItemPricing::flushRequestCache();
+
     expect((float) $group->price)->toBe(120000.0)
         ->and((float) $first->price)->toBe(0.0)
         ->and((float) $second->price)->toBe(0.0)
-        ->and(ItemPricing::resolve($first, 'price'))->toBe(120000.0);
+        ->and(ItemPricing::resolve($first->fresh(['group']), 'price'))->toBe(80000.0);
+});
+
+test('parentGroupHasStoredPricing detects parent row amounts', function () {
+    $parentKey = '1:AJD:CX80023';
+
+    expect(ItemPricing::parentGroupHasStoredPricing($parentKey))->toBeFalse();
+
+    ItemParentPrice::query()->create([
+        'parent_key' => $parentKey,
+        'price' => 100000,
+    ]);
+    ItemPricing::flushRequestCache();
+
+    expect(ItemPricing::parentGroupHasStoredPricing($parentKey))->toBeTrue();
 });
 
 test('apply group scope clears colorway and size pricing under parent', function () {
