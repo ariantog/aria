@@ -276,6 +276,41 @@ test('manufactured colorway edit preview includes warna label in saved display n
         ->assertDontSee('AJD-CX90032-06-BLACK-M', false);
 });
 
+test('manufactured sku edit prefills pricing from parent and hides scope radios', function () {
+    $group = ItemGroup::factory()->create([
+        'master' => 'CX90233-23',
+        'variant' => '23',
+        'name' => 'CX90233-23',
+    ]);
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => $group->id,
+        'pcode' => 'CX90233-23',
+        'code' => 'AJD-CX90233-23-S',
+        'price' => 0,
+        'reseller_price' => 0,
+    ]);
+    $item->tags()->sync([$this->typeTag->id, $this->warnaTag->id, $this->sizeTag->id, $this->jahitTag->id]);
+
+    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey($item);
+    \App\Models\ItemParentPrice::query()->create([
+        'parent_key' => $parentKey,
+        'price' => 275000,
+        'reseller_price' => 250000,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('items.edit', $item))
+        ->assertOk()
+        ->assertSee('data-testid="item-form-pricing-price-scope-size"', false)
+        ->assertSee('data-testid="item-form-pricing-price-value"', false)
+        ->assertSee('value="275000"', false)
+        ->assertSee('value="250000"', false)
+        ->assertDontSee('data-testid="item-scope-all-colorway"', false)
+        ->assertDontSee('data-testid="item-form-pricing-cost-value"', false);
+});
+
 test('manufactured item edit shows size attributes only with colorway link', function () {
     $this->itemService->create((object) [
         'pcode' => 'CX90233-23',

@@ -116,6 +116,29 @@ final class ItemPricing
     }
 
     /**
+     * SKU edit form: always save on this SKU; inputs show stored SKU amount or inherited effective amount.
+     *
+     * @return array<string, array{scope: string, value: float, effective: float}>
+     */
+    public static function formStateForSkuEdit(Item $item): array
+    {
+        $state = [];
+
+        foreach (self::FIELDS as $field) {
+            $stored = self::readItemColumn($item, $field);
+            $effective = self::resolve($item, $field);
+
+            $state[$field] = [
+                'scope' => self::SCOPE_SIZE,
+                'value' => self::isSet($stored) ? $stored : $effective,
+                'effective' => $effective,
+            ];
+        }
+
+        return $state;
+    }
+
+    /**
      * @param  array<string, array{scope?: mixed, value?: mixed}>  $rows
      */
     public static function applyFormRows(Item $item, array $rows): void
