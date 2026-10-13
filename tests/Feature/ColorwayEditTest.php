@@ -185,21 +185,37 @@ test('colorway edit page renders with size matrix and preview', function () {
     ]);
     $item->tags()->sync([$this->typeTag->id, $this->warnaTag->id, $this->sizeTag->id, $this->jahitTag->id]);
 
-    $this->actingAs($this->user)
-        ->get(route('items.colorway-edit', $group))
-        ->assertOk()
+    $response = $this->actingAs($this->user)
+        ->get(route('items.colorway-edit', $group));
+
+    $response->assertOk()
         ->assertSee('Edit colorway', false)
         ->assertSee('data-testid="colorway-size-matrix"', false)
         ->assertSee('data-testid="colorway-name-preview"', false)
         ->assertSee('data-testid="colorway-save"', false)
         ->assertSee('data-testid="colorway-apply-pricing"', false)
         ->assertSee('data-testid="colorway-pricing-apply-form"', false)
+        ->assertSee('id="colorwayApplyPricingForm"', false)
+        ->assertSee('id="colorway-save-form"', false)
         ->assertSee('data-testid="item-form-shared-tags"', false)
         ->assertDontSee('data-testid="item-form-sku-size"', false)
         ->assertDontSee('data-testid="colorway-pricing-price-scope-colorway"', false)
         ->assertDontSee('Whole group', false)
         ->assertDontSee('This SKU', false)
         ->assertSee('AJD-CX90233-23-S', false);
+
+    $html = $response->getContent();
+    $applyForm = strpos($html, 'id="colorwayApplyPricingForm"');
+    $saveForm = strpos($html, 'id="colorway-save-form"');
+    $saveButton = strpos($html, 'data-testid="colorway-save"');
+
+    expect($applyForm)->toBeInt()
+        ->and($saveForm)->toBeGreaterThan($applyForm)
+        ->and($saveButton)->toBeGreaterThan($saveForm)
+        ->and(substr($html, $saveForm, $saveButton - $saveForm))->not->toContain('<form')
+        ->and($html)->toContain('id="colorway-pcode"')
+        ->and($html)->toContain('value="CX90233-23"')
+        ->and($html)->not->toContain("return confirm('Save this colorway");
 });
 
 test('manufactured colorway edit preview includes warna label in saved display names', function () {
