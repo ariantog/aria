@@ -123,19 +123,17 @@
             </div>
             <div>
                 <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-description">Description</label>
-                <input type="text" id="item-form-description" name="description"
-                       value="{{ $fi['description'] }}"
-                       data-testid="item-form-description"
-                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                <textarea id="item-form-description" name="description" rows="4"
+                          data-testid="item-form-description"
+                          class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">{{ $fi['description'] }}</textarea>
                 @error('description')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
             </div>
             <div>
                 <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-description2">Notes (NB) <span class="font-normal text-gray-400">(optional)</span></label>
-                <input type="text" id="item-form-description2" name="description2"
-                       value="{{ $fi['description2'] }}"
-                       data-testid="item-form-description2"
-                       placeholder="Additional notes for this colorway"
-                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                <textarea id="item-form-description2" name="description2" rows="3"
+                          data-testid="item-form-description2"
+                          placeholder="Additional notes for this colorway"
+                          class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">{{ $fi['description2'] }}</textarea>
                 @error('description2')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
             </div>
             <div>
