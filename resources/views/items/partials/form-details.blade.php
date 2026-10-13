@@ -37,7 +37,7 @@
                     @if($skuOnlyCatalog)
                         SKU-level amounts and restock only — shared catalog is edited on the group / colorway pages.
                     @else
-                        Three levels: this SKU → colorway → whole product group
+                        Colorway catalog for every size in this batch; pricing saves on the parent group or each new SKU automatically.
                     @endif
                 </p>
             </div>
@@ -45,7 +45,7 @@
     </div>
 
     <div class="space-y-6 p-5">
-        <input type="hidden" name="catalog_tab" value="{{ $skuOnlyCatalog ? 'size' : '' }}" @unless($skuOnlyCatalog) :value="catalogTab" @endunless>
+        <input type="hidden" name="catalog_tab" value="{{ $skuOnlyCatalog ? 'size' : 'colorway' }}">
 
         @if($skuOnlyCatalog)
         <div class="rounded-lg border border-indigo-100 bg-indigo-50/40 p-4 text-sm text-indigo-950" data-testid="item-form-catalog-links">
@@ -104,66 +104,47 @@
             </div>
         </div>
         @else
-        <div class="border-b border-gray-200" data-testid="item-catalog-tabs">
-            <nav class="-mb-px flex flex-wrap gap-2" aria-label="Catalog level">
-                <button type="button"
-                        @click="catalogTab = 'size'"
-                        data-testid="item-catalog-tab-size"
-                        :class="catalogTab === 'size'
-                            ? 'border-blue-600 text-blue-700 bg-blue-50/50'
-                            : 'border-transparent text-gray-600 hover:border-gray-300 hover:text-gray-900'"
-                        class="rounded-t-lg border-b-2 px-4 py-2 text-sm font-medium transition-colors">
-                    This SKU
-                </button>
-                <button type="button"
-                        @click="catalogTab = 'colorway'"
-                        data-testid="item-catalog-tab-colorway"
-                        :class="catalogTab === 'colorway'
-                            ? 'border-indigo-600 text-indigo-800 bg-indigo-50/50'
-                            : 'border-transparent text-gray-600 hover:border-gray-300 hover:text-gray-900'"
-                        class="rounded-t-lg border-b-2 px-4 py-2 text-sm font-medium transition-colors">
-                    Colorway
-                </button>
-                <button type="button"
-                        @click="catalogTab = 'group'"
-                        data-testid="item-catalog-tab-group"
-                        :class="catalogTab === 'group'
-                            ? 'border-amber-600 text-amber-900 bg-amber-50/50'
-                            : 'border-transparent text-gray-600 hover:border-gray-300 hover:text-gray-900'"
-                        class="rounded-t-lg border-b-2 px-4 py-2 text-sm font-medium transition-colors">
-                    Whole group
-                </button>
-            </nav>
-        </div>
-
-        {{-- SKU level --}}
-        <div x-show="catalogTab === 'size'" x-cloak class="space-y-4 rounded-lg border border-blue-100 bg-blue-50/30 p-4" data-testid="item-form-sku-details">
+        <div class="space-y-4 rounded-lg border border-indigo-100 bg-indigo-50/30 p-4" data-testid="item-form-shared-details">
             @include('items.partials.form-shared-banner', [
-                'sharedTone' => 'sku',
-                'sharedTitle' => 'Stored on this SKU',
-                'sharedHint' => $editingItem
-                    ? ($showSkuDescriptions
-                        ? 'Optional description overrides and restock threshold for this size only.'
-                        : 'Restock urgency stays on this SKU; descriptions use the colorway tab.')
-                    : 'Per-SKU overrides apply after create. Restock threshold seeds each new size in the batch.',
-                'sharedTestId' => 'item-form-sku-details-banner',
+                'sharedTestId' => 'item-form-shared-details-banner',
+                'sharedHint' => 'Applies to every size created in this batch (stored on item_group). Per-SKU overrides are available after create.',
             ])
-            @if($showSkuDescriptions)
             <div>
-                <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-item-description">Description (this size)</label>
-                <textarea id="item-form-item-description" name="item_description" rows="4" placeholder="Override description for this SKU..."
-                          data-testid="item-form-item-description"
-                          class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">{{ $fi['item_description'] }}</textarea>
-                @error('item_description')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+                <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-product-name">
+                    Stored product name (this colorway)
+                </label>
+                <input type="text" id="item-form-product-name" name="product_name" x-model="form.product_name"
+                       value="{{ $fi['product_name'] }}"
+                       data-testid="item-form-product-name"
+                       @unless($isAsset ?? false) placeholder="Leave blank to inherit parent group name" @endunless
+                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('product_name') border-red-500 @enderror">
+                @error('product_name')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+                <p class="mt-1 text-xs text-gray-500">Stored on <span class="font-mono">item_group.name</span>. Blank = inherit parent product name when the parent row exists.</p>
             </div>
             <div>
-                <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-item-description2">Notes (NB) (this size) <span class="font-normal text-gray-400">(optional)</span></label>
-                <textarea id="item-form-item-description2" name="item_description2" rows="3"
-                          data-testid="item-form-item-description2"
-                          class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">{{ $fi['item_description2'] }}</textarea>
-                @error('item_description2')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+                <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-description">Description</label>
+                <input type="text" id="item-form-description" name="description"
+                       value="{{ $fi['description'] }}"
+                       data-testid="item-form-description"
+                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                @error('description')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
             </div>
-            @endif
+            <div>
+                <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-description2">Notes (NB) <span class="font-normal text-gray-400">(optional)</span></label>
+                <input type="text" id="item-form-description2" name="description2"
+                       value="{{ $fi['description2'] }}"
+                       data-testid="item-form-description2"
+                       placeholder="Additional notes for this colorway"
+                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                @error('description2')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+            </div>
+            <div>
+                <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-url">Product URL</label>
+                <input type="url" id="item-form-url" name="url" value="{{ $fi['url'] }}"
+                       data-testid="item-form-url"
+                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('url') border-red-500 @enderror">
+                @error('url')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+            </div>
             <div>
                 <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-restock-threshold">Restock urgent threshold</label>
                 <input type="number" id="item-form-restock-threshold" name="restock_urgent_threshold" min="1" step="1"
@@ -171,103 +152,26 @@
                        data-testid="item-form-restock-threshold"
                        class="w-full max-w-xs rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('restock_urgent_threshold') border-red-500 @enderror">
                 @error('restock_urgent_threshold')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
-            </div>
-            <p class="text-xs text-gray-600">Pricing scopes are in the amounts section below this tab.</p>
-        </div>
-
-        {{-- Colorway level --}}
-        <div x-show="catalogTab === 'colorway'" x-cloak class="space-y-4 rounded-lg border border-indigo-100 bg-indigo-50/30 p-4" data-testid="item-form-shared-details">
-            @include('items.partials.form-shared-banner', [
-                'sharedTestId' => 'item-form-shared-details-banner',
-                'sharedHint' => $editingItem
-                    ? 'Writes item_group for this color only (every size in the colorway). Prefer the dedicated colorway editor for the price matrix.'
-                    : 'Applies to every size created in this batch.',
-            ])
-            @if($editingItem && $colorwayEditUrl)
-            <p class="text-sm text-indigo-900">
-                <a href="{{ $colorwayEditUrl }}" class="font-medium underline hover:text-indigo-700">Open colorway editor</a>
-                for catalog + per-size pricing in one place.
-            </p>
-            @endif
-            @include('items.partials.form-colorway-title-hints', ['titleForm' => $titleForm])
-            <div>
-                <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-product-name">
-                    Stored product name (this colorway only)
-                </label>
-                <input type="text" id="item-form-product-name" name="product_name" x-model="form.product_name"
-                       value="{{ $fi['product_name'] }}"
-                       data-testid="item-form-product-name"
-                       :disabled="catalogTab !== 'colorway'"
-                       @unless($isAsset ?? false) placeholder="Leave blank to inherit parent group name" @endunless
-                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100 @error('product_name') border-red-500 @enderror">
-                @error('product_name')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
-                <p class="mt-1 text-xs text-gray-500">Stored on <span class="font-mono">item_group.name</span> when the <strong>Colorway</strong> tab is active. Blank = inherit parent (not the effective title shown above).</p>
-            </div>
-            <div>
-                <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-description">Description</label>
-                <textarea id="item-form-description" name="description" rows="4"
-                          data-testid="item-form-description"
-                          :disabled="catalogTab !== 'colorway'"
-                          class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100">{{ $fi['description'] }}</textarea>
-                @error('description')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
-            </div>
-            <div>
-                <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-description2">Notes (NB) <span class="font-normal text-gray-400">(optional)</span></label>
-                <textarea id="item-form-description2" name="description2" rows="3"
-                          data-testid="item-form-description2"
-                          placeholder="Additional notes for this colorway"
-                          :disabled="catalogTab !== 'colorway'"
-                          class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100">{{ $fi['description2'] }}</textarea>
-                @error('description2')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
-            </div>
-            <div>
-                <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-url">Product URL</label>
-                <input type="url" id="item-form-url" name="url" value="{{ $fi['url'] }}"
-                       data-testid="item-form-url"
-                       :disabled="catalogTab !== 'colorway'"
-                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100 @error('url') border-red-500 @enderror">
-                @error('url')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+                <p class="mt-1 text-xs text-gray-500">Default for each SKU created in this batch.</p>
             </div>
         </div>
 
-        {{-- Parent group level --}}
-        <div x-show="catalogTab === 'group'" x-cloak class="space-y-4 rounded-lg border border-amber-100 bg-amber-50/30 p-4" data-testid="item-form-group-details">
-            @include('items.partials.form-shared-banner', [
-                'sharedTone' => 'group',
-                'sharedTitle' => 'Whole product group',
-                'sharedHint' => 'Parent defaults apply when colorway and SKU values are empty (0 for amounts). Bulk parent edits clear lower overrides — use the group page for full control.',
-                'sharedTestId' => 'item-form-group-details-banner',
-            ])
-            @if($parentGroupUrl)
-            <div class="rounded-lg border border-amber-200 bg-white p-4 text-sm text-gray-800">
-                <p class="font-medium text-gray-900">Parent product name</p>
-                <p class="mt-1 font-mono text-gray-700">{{ $parentProductName !== '' ? $parentProductName : '— (inherits pcode / colorway titles)' }}</p>
-                <a href="{{ $parentGroupUrl }}" class="mt-3 inline-flex text-sm font-medium text-amber-900 underline hover:text-amber-700">Edit parent group catalog →</a>
-            </div>
-            @else
-            <p class="text-sm text-gray-700">Group-level defaults are available once this SKU belongs to a product group. On create, pick <strong>Whole group</strong> under pricing to seed parent amounts.</p>
-            @endif
-            <p class="text-xs text-gray-600">Parent-level description is not stored separately yet; group detail pages aggregate colorway text.</p>
-        </div>
+        @include('items.partials.form-pricing-create', ['formItem' => $fi])
         @endif
 
-        @if(! $skuOnlyCatalog)
-            @include('items.partials.form-scope-toolbar')
-        @endif
-
+        @if($skuOnlyCatalog)
         @include('items.partials.form-pricing-scopes', [
             'pricingState' => $pricingState ?? [],
             'pricingPrefix' => 'pricing',
             'pricingIdPrefix' => 'item-form-pricing',
-            'showEffective' => $editingItem && ! $skuOnlyCatalog,
-            'pricingFixedScope' => $skuOnlyCatalog ? \App\Support\ItemPricing::SCOPE_SIZE : null,
-            'pricingFieldKeys' => $skuOnlyCatalog && ! ($isAsset ?? false)
+            'showEffective' => false,
+            'pricingFixedScope' => \App\Support\ItemPricing::SCOPE_SIZE,
+            'pricingFieldKeys' => ! ($isAsset ?? false)
                 ? ['price', 'reseller_price']
                 : null,
-            'pricingIntro' => $skuOnlyCatalog
-                ? 'Amounts are stored on this SKU only. Fields show the effective value (parent default when this SKU has no override).'
-                : 'Each amount has its own scope radio. Use the quick scope controls above to align them all at once.',
+            'pricingIntro' => 'Amounts are stored on this SKU only. Fields show the effective value (parent default when this SKU has no override).',
             'embeddedInCatalog' => true,
         ])
+        @endif
     </div>
 </div>

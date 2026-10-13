@@ -584,10 +584,6 @@ function itemForm() {
                 this.setSharedFieldValue(fieldId, raw);
                 this.autoFilledPricing[key] = String(raw).trim();
             });
-
-            if (!this.isAsset && !this.editingItem && Number(data.price || 0) > 0) {
-                this.setAllPricingScopes('group');
-            }
         },
 
         async lookupProductName() {

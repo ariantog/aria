@@ -108,6 +108,7 @@ $breadcrumbs = [
                             <label for="colorway-description" class="mb-1 block text-sm font-medium text-gray-700">Description</label>
                             <input type="text" id="colorway-description" name="description"
                                    value="{{ old('description', $group->description) }}"
+                                   data-testid="colorway-description"
                                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                         </div>
                         <div>
@@ -115,6 +116,7 @@ $breadcrumbs = [
                             <input type="text" id="colorway-description2" name="description2"
                                    value="{{ old('description2', $group->description2) }}"
                                    placeholder="Additional notes for this colorway"
+                                   data-testid="colorway-description2"
                                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                         </div>
                         <div>
