@@ -43,7 +43,7 @@ $actionUrl = $isAsset ? route('assetlancar.store') : route('items.store');
             @elseif($isAsset)
                 Add asset lancar variants — select multiple colors and sizes; each combination becomes one SKU.
             @else
-                Add manufactured item sizes for one production code and color (pcode suffix).
+                Enter production master + color number, pick type for parent catalog hints, then choose sizes.
             @endif
         </p>
     </div>

@@ -6,6 +6,7 @@ use App\Enums\ItemBrand;
 use App\Enums\ItemType;
 use App\Models\Item;
 use App\Models\ItemGroup;
+use App\Models\ItemParentPrice;
 use App\Models\Tag;
 use App\Services\Items\ItemIdentityBuilder;
 use App\Support\ItemCatalog;
@@ -124,7 +125,7 @@ class ItemService
 
             $this->persistItemLocalAttributes($item, $input);
             $this->applyInventorySettings($item, $input);
-            $this->persistItemPricing($item, $input, defaultColorwayScope: false);
+            $this->persistItemPricing($item, $input, forCreate: false);
             $item->save();
 
             foreach ($siblings as $sibling) {
@@ -756,7 +757,7 @@ class ItemService
                         );
 
                         if (! in_array($group->id, $pricedGroupIds, true)) {
-                            $this->persistItemPricing($item, $input, defaultColorwayScope: true);
+                            $this->persistItemPricing($item, $input, forCreate: true);
                             $pricedGroupIds[] = $group->id;
                         }
 
@@ -1263,7 +1264,10 @@ class ItemService
             'url' => $group
                 ? trim((string) ($group->url ?? ''))
                 : '',
-            'reseller_price' => (float) ($group?->reseller_price ?? $item->reseller_price ?? 0),
+            'price' => ItemPricing::resolve($item, 'price'),
+            'reseller_price' => ItemPricing::resolve($item, 'reseller_price'),
+            'cost' => ItemPricing::resolve($item, 'cost'),
+            'cost_cnh' => ItemPricing::resolve($item, 'cost_cnh'),
         ];
     }
 
@@ -1302,11 +1306,59 @@ class ItemService
             }
         }
 
-        if ((float) ($primary['reseller_price'] ?? 0) === 0.0 && (float) ($fallback['reseller_price'] ?? 0) !== 0.0) {
-            $primary['reseller_price'] = $fallback['reseller_price'];
+        foreach (['price', 'reseller_price', 'cost', 'cost_cnh'] as $moneyField) {
+            if ((float) ($primary[$moneyField] ?? 0) === 0.0 && (float) ($fallback[$moneyField] ?? 0) !== 0.0) {
+                $primary[$moneyField] = $fallback[$moneyField];
+            }
         }
 
         return $primary;
+    }
+
+    /**
+     * @return array{
+     *     product_name: ?string,
+     *     description: string,
+     *     description2: string,
+     *     url: string,
+     *     price: float,
+     *     reseller_price: float,
+     *     cost: float,
+     *     cost_cnh: float,
+     * }|null
+     */
+    protected function catalogHintsFromParentPriceRecord(string $parentKey): ?array
+    {
+        $record = ItemParentPrice::query()->where('parent_key', $parentKey)->first();
+
+        if ($record === null) {
+            return null;
+        }
+
+        $productName = trim((string) ($record->product_name ?? ''));
+        $price = (float) ($record->price ?? 0);
+        $resellerPrice = (float) ($record->reseller_price ?? 0);
+        $cost = (float) ($record->cost ?? 0);
+        $costCnh = (float) ($record->cost_cnh ?? 0);
+
+        if ($productName === ''
+            && $price === 0.0
+            && $resellerPrice === 0.0
+            && $cost === 0.0
+            && $costCnh === 0.0) {
+            return null;
+        }
+
+        return [
+            'product_name' => $productName !== '' ? $productName : null,
+            'description' => '',
+            'description2' => '',
+            'url' => '',
+            'price' => $price,
+            'reseller_price' => $resellerPrice,
+            'cost' => $cost,
+            'cost_cnh' => $costCnh,
+        ];
     }
 
     protected function normalizeManufacturedTypeCodeHint(?string $typeCode): ?string
@@ -1339,6 +1391,12 @@ class ItemService
             return null;
         }
 
+        $recordHints = $typeCode !== null
+            ? $this->catalogHintsFromParentPriceRecord(
+                ItemType::ITEM->value.':'.$typeCode.':'.$master,
+            )
+            : null;
+
         $groups = collect();
         $productName = null;
         $typeScopes = $typeCode !== null ? [$typeCode, null] : [null];
@@ -1358,7 +1416,7 @@ class ItemService
         }
 
         if ($groups->isEmpty()) {
-            return null;
+            return $recordHints;
         }
 
         $description = $this->firstNonEmptyGroupField($groups, 'description');
@@ -1374,16 +1432,23 @@ class ItemService
             && $description2 === ''
             && $url === ''
             && $resellerPrice === 0.0) {
-            return null;
+            return $recordHints;
         }
 
-        return [
+        $groupHints = [
             'product_name' => $productName,
             'description' => $description,
             'description2' => $description2,
             'url' => $url,
+            'price' => 0.0,
             'reseller_price' => $resellerPrice,
+            'cost' => 0.0,
+            'cost_cnh' => 0.0,
         ];
+
+        return $recordHints !== null
+            ? $this->mergeCatalogHints($groupHints, $recordHints)
+            : $groupHints;
     }
 
     /**
@@ -1736,24 +1801,36 @@ class ItemService
         ItemCatalog::syncDescriptionMirrorsForGroup($group, $input, $item, $previousGroupText);
     }
 
-    protected function persistItemPricing(Item $item, object $input, bool $defaultColorwayScope = false): void
+    protected function persistItemPricing(Item $item, object $input, bool $forCreate = false): void
     {
         if (isset($input->pricing) && is_array($input->pricing)) {
-            ItemPricing::applyFormRows($item, $input->pricing);
+            $pricingRows = [];
+            foreach ($input->pricing as $field => $row) {
+                if (! is_array($row)) {
+                    continue;
+                }
 
-            return;
+                $value = max(0, (float) ($row['value'] ?? 0));
+                if ($value <= 0) {
+                    continue;
+                }
+
+                $pricingRows[$field] = $row;
+            }
+
+            if ($pricingRows !== []) {
+                ItemPricing::applyFormRows($item, $pricingRows);
+
+                return;
+            }
         }
 
         $legacyRows = [];
-        $legacyScope = $defaultColorwayScope
-            ? ItemPricing::SCOPE_COLORWAY
+        $legacyScope = $forCreate
+            ? $this->resolveCreatePricingScope($item)
             : ItemPricing::SCOPE_SIZE;
 
         foreach (ItemPricing::FIELDS as $field) {
-            if ($field === 'reseller_price' && ! $defaultColorwayScope) {
-                continue;
-            }
-
             if (! property_exists($input, $field) && ! isset($input->{$field})) {
                 continue;
             }
@@ -1773,7 +1850,7 @@ class ItemService
             ItemPricing::applyFormRows($item, $legacyRows);
         }
 
-        if (! $defaultColorwayScope && (property_exists($input, 'item_reseller_price') || isset($input->item_reseller_price))) {
+        if (! $forCreate && (property_exists($input, 'item_reseller_price') || isset($input->item_reseller_price))) {
             ItemPricing::apply(
                 $item,
                 'reseller_price',
@@ -1781,6 +1858,15 @@ class ItemService
                 max(0, (float) ($input->item_reseller_price ?? 0)),
             );
         }
+    }
+
+    protected function resolveCreatePricingScope(Item $item): string
+    {
+        $parentKey = app(ItemIdentityBuilder::class)->itemParentKey($item);
+
+        return ItemPricing::parentGroupHasStoredPricing($parentKey)
+            ? ItemPricing::SCOPE_SIZE
+            : ItemPricing::SCOPE_GROUP;
     }
 
     protected function persistItemLocalAttributes(Item $item, object $input): void

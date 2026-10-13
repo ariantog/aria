@@ -140,7 +140,7 @@ $breadcrumbs = [
                 <div class="rounded-xl border border-gray-200 bg-white shadow-sm" data-testid="colorway-size-matrix">
                     <div class="border-b border-gray-100 px-5 py-4">
                         <h3 class="text-lg font-semibold text-gray-900">Sizes &amp; pricing</h3>
-                        <p class="text-sm text-gray-500">Per-SKU amounts save on this colorway. Leave blank to inherit parent group defaults.</p>
+                        <p class="text-sm text-gray-500">Per-SKU amounts save on this colorway. Leave blank to inherit parent group defaults. Column <strong>Apply</strong> only fills the matrix — click <strong>Save colorway</strong> to persist.</p>
                     </div>
                     <div class="overflow-x-auto p-4">
                         <table class="min-w-full text-sm">

@@ -968,6 +968,9 @@ class ItemsController extends Controller
             'description' => $catalog['description'] ?? '',
             'description2' => $catalog['description2'] ?? '',
             'url' => $catalog['url'] ?? '',
+            'price' => $catalog['price'] ?? 0,
+            'cost' => $catalog['cost'] ?? 0,
+            'cost_cnh' => $catalog['cost_cnh'] ?? 0,
             'reseller_price' => $catalog['reseller_price'] ?? 0,
             'found' => $catalog !== null,
         ]);

@@ -88,6 +88,20 @@ test('apply colorway scope clears size overrides in the colorway', function () {
         ->and(ItemPricing::resolve($first->fresh(['group']), 'price'))->toBe(80000.0);
 });
 
+test('parentGroupHasStoredPricing detects parent row amounts', function () {
+    $parentKey = '1:AJD:CX80023';
+
+    expect(ItemPricing::parentGroupHasStoredPricing($parentKey))->toBeFalse();
+
+    ItemParentPrice::query()->create([
+        'parent_key' => $parentKey,
+        'price' => 100000,
+    ]);
+    ItemPricing::flushRequestCache();
+
+    expect(ItemPricing::parentGroupHasStoredPricing($parentKey))->toBeTrue();
+});
+
 test('apply group scope clears colorway and size pricing under parent', function () {
     $typeTag = \App\Models\Tag::factory()->create(['type' => \App\Models\Tag::TYPE_TYPE, 'code' => 'AJD', 'name' => 'Jacket']);
 

@@ -43,6 +43,27 @@ final class ItemPricing
         self::$columnExists = [];
     }
 
+    public static function parentGroupHasStoredPricing(string $parentKey): bool
+    {
+        $parentKey = trim($parentKey);
+        if ($parentKey === '') {
+            return false;
+        }
+
+        $record = self::parentRecordByKey($parentKey);
+        if ($record === null) {
+            return false;
+        }
+
+        foreach (self::FIELDS as $field) {
+            if (self::isSet(self::readParentColumn($record, $field))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public static function resolve(Item $item, string $field): float
     {
         self::assertField($field);
@@ -181,6 +202,7 @@ final class ItemPricing
             $record = ItemParentPrice::query()->firstOrNew(['parent_key' => $parentKey]);
             self::writeParentColumn($record, $field, $value);
             $record->save();
+            self::$parentRecordCache[$parentKey] = $record;
 
             if ($value > 0 && $cascadeOverrides && $groupIds !== []) {
                 ItemGroup::query()->whereIn('id', $groupIds)->update([$field => 0]);
@@ -222,6 +244,7 @@ final class ItemPricing
         $record = ItemParentPrice::query()->firstOrNew(['parent_key' => $parentKey]);
         self::writeParentColumn($record, $field, $value);
         $record->save();
+        self::$parentRecordCache[$parentKey] = $record;
 
         $groupIds = app(ItemGroupHierarchyService::class)->groupIdsForParentKey($parentKey);
 
@@ -245,8 +268,11 @@ final class ItemPricing
 
     private static function parentRecord(Item $item): ?ItemParentPrice
     {
-        $parentKey = app(ItemIdentityBuilder::class)->itemParentKey($item);
+        return self::parentRecordByKey(app(ItemIdentityBuilder::class)->itemParentKey($item));
+    }
 
+    private static function parentRecordByKey(string $parentKey): ?ItemParentPrice
+    {
         if (! array_key_exists($parentKey, self::$parentRecordCache)) {
             self::$parentRecordCache[$parentKey] = ItemParentPrice::query()
                 ->where('parent_key', $parentKey)

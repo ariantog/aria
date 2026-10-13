@@ -19,12 +19,36 @@
             @if($editingItem)
             <input type="hidden" name="pcode" value="{{ $fi['pcode'] ?? old('pcode') }}">
             <p id="item-form-pcode" class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-mono text-gray-800" data-testid="item-form-pcode">{{ $fi['pcode'] ?? old('pcode') }}</p>
-            @else
+            @elseif($isAsset)
             <input type="text" id="item-form-pcode" name="pcode" x-model="form.pcode" value="{{ $fi['pcode'] ?? old('pcode') }}" required
                    data-testid="item-form-pcode"
-                   placeholder="{{ $pcodePlaceholder }}" list="{{ $isAsset ? 'asset-pcode-suggestions' : '' }}"
+                   placeholder="{{ $pcodePlaceholder }}" list="asset-pcode-suggestions"
                    @input="onPcodeInput()" @blur="onPcodeBlur()" @change="onPcodeBlur()"
                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('pcode') border-red-500 @enderror">
+            @else
+            <input type="hidden" name="pcode" :value="manufacturedFullPcode()" data-testid="item-form-pcode-hidden">
+            <div class="grid gap-4 sm:grid-cols-2">
+                <div>
+                    <label class="mb-1 block text-xs font-medium text-gray-600" for="item-form-master-pcode">Production master</label>
+                    <input type="text" id="item-form-master-pcode" x-model="form.masterPcode" required
+                           data-testid="item-form-master-pcode"
+                           placeholder="CX80032"
+                           @input="onManufacturedIdentityChange()" @blur="onManufacturedIdentityChange()"
+                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('pcode') border-red-500 @enderror">
+                </div>
+                <div>
+                    <label class="mb-1 block text-xs font-medium text-gray-600" for="item-form-color-suffix">Color no.</label>
+                    <input type="text" id="item-form-color-suffix" x-model="form.colorSuffix" required
+                           data-testid="item-form-color-suffix"
+                           placeholder="02"
+                           maxlength="3"
+                           @input="onManufacturedIdentityChange()" @blur="onManufacturedIdentityChange()"
+                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('pcode') border-red-500 @enderror">
+                </div>
+            </div>
+            <p class="mt-2 font-mono text-xs text-gray-600" data-testid="item-form-pcode-preview">
+                Full pcode: <span x-text="manufacturedFullPcode() || '—'"></span>
+            </p>
             @endif
             @if($isAsset && !empty($assetPcodeSuggestions ?? []))
             <datalist id="asset-pcode-suggestions">
@@ -39,7 +63,7 @@
                 @if($isAsset)
                     Format: <span class="font-mono">TYPE-VARIANT</span> (e.g. GLOVE-01).
                 @else
-                    Format: <span class="font-mono">XX12345-23</span>.
+                    Enter master <span class="font-mono">XX12345</span> and color number <span class="font-mono">02</span> (combined as <span class="font-mono">XX12345-02</span>).
                 @endif
                 @if($editingItem && $colorwayEditUrl)
                     Change pcode on the <a href="{{ $colorwayEditUrl }}" class="font-medium text-blue-600 underline hover:text-blue-800">colorway editor</a>.
