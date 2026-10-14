@@ -471,6 +471,15 @@ class Item extends Model
         return route('items.group-parent-detail', $this->group_id);
     }
 
+    public function colorwayShowUrl(): ?string
+    {
+        if ((int) $this->group_id <= 0) {
+            return null;
+        }
+
+        return route('items.colorway-show', $this->group_id);
+    }
+
     public function colorwayEditUrl(): ?string
     {
         if ((int) $this->group_id <= 0) {

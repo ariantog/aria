@@ -167,6 +167,34 @@ test('single item update does not broadcast price to sibling sizes', function ()
         ->and($medium->catalogDescription())->toBe('OLD DESC');
 });
 
+test('colorway show page renders catalog and sku table', function () {
+    $group = ItemGroup::factory()->create([
+        'master' => 'CX90233-23',
+        'variant' => '23',
+        'name' => 'RUNNING SHIRT',
+        'description' => 'Lightweight tee',
+    ]);
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => $group->id,
+        'pcode' => 'CX90233-23',
+        'code' => 'AJD-CX90233-23-S',
+        'price' => 100000,
+    ]);
+    $item->tags()->sync([$this->typeTag->id, $this->warnaTag->id, $this->sizeTag->id, $this->jahitTag->id]);
+
+    $this->actingAs($this->user)
+        ->get(route('items.colorway-show', $group))
+        ->assertOk()
+        ->assertSee('data-testid="colorway-show-summary"', false)
+        ->assertSee('data-testid="colorway-show-sku-table"', false)
+        ->assertSee('data-testid="colorway-show-edit-link"', false)
+        ->assertSee('Lightweight tee', false)
+        ->assertSee('AJD-CX90233-23-S', false)
+        ->assertSee(route('items.colorway-edit', $group), false);
+});
+
 test('colorway edit page renders with size matrix and preview', function () {
     $group = ItemGroup::factory()->create([
         'master' => 'CX90233-23',
@@ -189,7 +217,7 @@ test('colorway edit page renders with size matrix and preview', function () {
         ->get(route('items.colorway-edit', $group));
 
     $response->assertOk()
-        ->assertSee('Edit colorway', false)
+        ->assertSee('Back to colorway', false)
         ->assertSee('data-testid="colorway-size-matrix"', false)
         ->assertSee('data-testid="colorway-name-preview"', false)
         ->assertSee('data-testid="colorway-save"', false)
@@ -472,7 +500,7 @@ test('colorway update via HTTP persists per-size price and reseller', function (
                 ],
             ],
         ])
-        ->assertRedirect(route('items.colorway-edit', $group));
+        ->assertRedirect(route('items.colorway-show', $group));
 
     $group->refresh();
     $small->refresh();

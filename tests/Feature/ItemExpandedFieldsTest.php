@@ -132,7 +132,7 @@ it('updates group url on colorway edit and restock threshold on item edit', func
                 $item->id => ['price' => $item->price],
             ],
         ])
-        ->assertRedirect(route('items.colorway-edit', $group));
+        ->assertRedirect(route('items.colorway-show', $group));
 
     $this->actingAs($this->user)
         ->put(route('items.update', $item), [
@@ -471,7 +471,7 @@ it('allows item create and colorway update without description2', function () {
                 $item->id => ['price' => $item->price],
             ],
         ])
-        ->assertRedirect(route('items.colorway-edit', $group))
+        ->assertRedirect(route('items.colorway-show', $group))
         ->assertSessionHas('success');
 
     expect($group->fresh()->description2)->toBe('');

@@ -627,7 +627,7 @@ test('items show page links group and tags to filtered lists', function () {
 
     $groupUrl = route('items.group-parent-detail', $group->id);
 
-    $colorwayEditUrl = route('items.colorway-edit', $group->id);
+    $colorwayShowUrl = route('items.colorway-show', $group->id);
 
     $this->actingAs($this->user)
         ->get(route('items.show', $item))
@@ -636,7 +636,7 @@ test('items show page links group and tags to filtered lists', function () {
         ->assertSee('data-testid="item-detail-parent-group-link"', false)
         ->assertSee('data-testid="item-detail-colorway-edit-link"', false)
         ->assertSee($groupUrl, false)
-        ->assertSee($colorwayEditUrl, false)
+        ->assertSee($colorwayShowUrl, false)
         ->assertSee($warnaTag->itemsIndexFilterUrl($item->type), false)
         ->assertSee($typeTag->itemsIndexFilterUrl($item->type), false);
 });

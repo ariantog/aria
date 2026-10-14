@@ -235,6 +235,9 @@ class ItemsController extends Controller
         $parentGroupUrl = $anchorGroupId && $canViewGroup
             ? route('items.group-parent-detail', $anchorGroupId)
             : null;
+        $colorwayShowUrl = (int) $item->group_id > 0 && $canViewGroup
+            ? route('items.colorway-show', $item->group_id)
+            : null;
         $colorwayEditUrl = (int) $item->group_id > 0 && $canEditColorway
             ? route('items.colorway-edit', $item->group_id)
             : null;
@@ -253,6 +256,7 @@ class ItemsController extends Controller
             'isAsset' => $item->type === ItemType::ASSET_LANCAR,
             'parentGroupUrl' => $parentGroupUrl,
             'groupUrl' => $parentGroupUrl,
+            'colorwayShowUrl' => $colorwayShowUrl,
             'colorwayEditUrl' => $colorwayEditUrl,
             'identityConvert' => $this->detailIdentityConvertContext($item),
             'canEditLegacyCode' => $this->canEditLegacyCode($item),
@@ -684,21 +688,50 @@ class ItemsController extends Controller
         return redirect()->route('items.group-parent-detail', $anchorGroupId);
     }
 
+    public function colorwayShow(ItemGroup $group)
+    {
+        Gate::authorize(ItemGroup::getPermissions()['view']);
+
+        $context = $this->colorwayContext($group);
+        abort_if($context['sample'] === null, 404);
+
+        return view('items.colorway-show', array_merge($this->formProps($context['itemTypeEnum']), $context, [
+            'canEditColorway' => Gate::check(ItemGroup::getPermissions()['edit']),
+        ]));
+    }
+
     public function colorwayEdit(ItemGroup $group)
     {
         Gate::authorize(ItemGroup::getPermissions()['edit']);
 
-        $group->load(['items.tags']);
+        $context = $this->colorwayContext($group);
+        abort_if($context['sample'] === null, 404);
+
+        return view('items.colorway-edit', array_merge($this->formProps($context['itemTypeEnum']), $context, [
+            'flash' => ['success' => session('success'), 'error' => session('error')],
+        ]));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function colorwayContext(ItemGroup $group): array
+    {
+        $group->load(['items.tags', 'items.warehouseItems']);
         $items = $group->items->sortBy(fn (Item $item) => $this->identityBuilder->itemSizeCode($item) ?? '')->values();
         $sample = $items->first();
 
-        abort_if($sample === null, 404);
+        if ($sample === null) {
+            return ['sample' => null, 'itemTypeEnum' => ItemType::ITEM];
+        }
 
         $itemType = $sample->type;
         $titleForm = \App\Support\ItemCatalogTitleForm::forItem($sample, $this->identityBuilder);
         $usesPlaceholder = $titleForm['uses_placeholder'];
         $color = $this->identityBuilder->itemColorInfo($sample);
         $typeTag = $sample->tags->firstWhere('type', Tag::TYPE_TYPE);
+        $jahitTag = $sample->tags->firstWhere('type', Tag::TYPE_JAHIT);
+        $warnaTag = $sample->tags->firstWhere('type', Tag::TYPE_WARNA);
         $parentGroupId = $this->groupHierarchy->anchorGroupIdForParentKey(
             $this->identityBuilder->itemParentKey($sample)
         ) ?? $group->id;
@@ -731,7 +764,9 @@ class ItemsController extends Controller
                     'items.'.$item->id.'.restock_urgent_threshold',
                     $item->restock_urgent_threshold
                 ),
+                'warehouse_qty' => (float) $item->warehouseItems->sum('quantity'),
                 'show_url' => $item->showUrl(),
+                'edit_url' => $item->editUrl(),
             ];
         })->all();
 
@@ -744,14 +779,15 @@ class ItemsController extends Controller
         $parentRecord = \App\Models\ItemParentPrice::query()->where('parent_key', $parentKey)->first();
         $parentProductName = trim((string) ($parentRecord?->product_name ?? ''));
 
-        $itemTypeEnum = $sample->type;
-
-        return view('items.colorway-edit', array_merge($this->formProps($itemTypeEnum), [
+        return [
             'group' => $group,
             'sample' => $sample,
             'curType' => optional($typeTag)->id,
-            'curJahit' => optional($sample->tags->firstWhere('type', Tag::TYPE_JAHIT))->id,
-            'curWarna' => optional($sample->tags->firstWhere('type', Tag::TYPE_WARNA))->id,
+            'curJahit' => optional($jahitTag)->id,
+            'curWarna' => optional($warnaTag)->id,
+            'typeTag' => $typeTag,
+            'jahitTag' => $jahitTag,
+            'warnaTag' => $warnaTag,
             'sizeRows' => $sizeRows,
             'previewRows' => $previewRows,
             'productTitle' => $titleForm['stored_title'],
@@ -761,8 +797,9 @@ class ItemsController extends Controller
             'color' => $color,
             'parentGroupId' => $parentGroupId,
             'isAsset' => $itemType === ItemType::ASSET_LANCAR,
-            'flash' => ['success' => session('success'), 'error' => session('error')],
-        ]));
+            'itemTypeEnum' => $itemType,
+            'effectiveProductTitle' => $titleForm['effective_title'] ?? '',
+        ];
     }
 
     public function colorwayUpdate(Request $request, ItemGroup $group)
@@ -839,7 +876,7 @@ class ItemsController extends Controller
             );
 
             return redirect()
-                ->route('items.colorway-edit', $group)
+                ->route('items.colorway-show', $group)
                 ->with('success', 'Colorway updated.');
         } catch (\Exception $e) {
             return back()->withErrors(['message' => $e->getMessage()])->withInput();

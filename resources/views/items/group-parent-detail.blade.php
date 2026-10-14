@@ -268,9 +268,9 @@ $fmt = fn ($v) => format_amount($v, 0);
                         ])
                     </div>
                     @if($canEditGroup && !empty($color['group_id']))
-                    <a href="{{ route('items.colorway-edit', $color['group_id']) }}"
+                    <a href="{{ route('items.colorway-show', $color['group_id']) }}"
                        class="inline-flex shrink-0 items-center gap-2 rounded-lg border border-purple-300 bg-white px-3 py-2 text-sm font-medium text-purple-800 hover:bg-purple-100">
-                        Edit colorway
+                        View colorway
                     </a>
                     @endif
                 </div>

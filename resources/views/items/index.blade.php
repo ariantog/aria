@@ -106,7 +106,7 @@ $columnsStorageKey = $isAsset ? 'aria-assetlancar-index-columns' : 'aria-items-i
                 @forelse($items as $item)
                     @php
                         $groupUrl = $item->groupParentUrl();
-                        $colorwayUrl = $item->colorwayEditUrl();
+                        $colorwayUrl = $item->colorwayShowUrl();
                         $parentGroupLabel = $item->listParentGroupLabel();
                         $colorwayLabel = $item->listColorwayLabel();
                         $parentLinkTitle = $item->listParentGroupLinkTitle();
