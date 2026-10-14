@@ -165,6 +165,31 @@ it('marks paid when discount bridges a higher sell total and matching cash-in', 
         ->and($snapshot['status'])->toBe(StandaloneInvoice::STATUS_PAID);
 });
 
+it('marks paid when cash-in equals subtotal, sell exceeds subtotal, and discount bridges both gaps', function () {
+    $this->invoice->update(['subtotal' => 31_200_000, 'discount_amount' => 150_000]);
+    StandaloneInvoiceLine::query()->where('standalone_invoice_id', $this->invoice->id)->delete();
+    StandaloneInvoiceLine::factory()->create([
+        'standalone_invoice_id' => $this->invoice->id,
+        'quantity' => 1,
+        'price' => 31_200_000,
+        'total' => 31_200_000,
+    ]);
+
+    sellFor($this->invoice->number, 24_150_000);
+    sellFor($this->invoice->number, 7_200_000);
+    cashInFor($this->invoice->number, 15_000_000);
+    cashInFor($this->invoice->number, 16_200_000);
+
+    $snapshot = app(StandaloneInvoiceSettlement::class)->snapshot($this->invoice->fresh());
+
+    expect($snapshot['invoice_amount'])->toBe(31_050_000.0)
+        ->and($snapshot['credit_total'])->toBe(31_200_000.0)
+        ->and($snapshot['debit_total'])->toBe(31_350_000.0)
+        ->and($snapshot['discount'])->toBe(150_000.0)
+        ->and($snapshot['is_paid'])->toBeTrue()
+        ->and($snapshot['status'])->toBe(StandaloneInvoice::STATUS_PAID);
+});
+
 it('auto-pays when discount is edited after sell exceeds cash-in', function () {
     sellFor($this->invoice->number, 10_000_000);
     cashInFor($this->invoice->number, 9_400_000);
