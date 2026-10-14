@@ -47,14 +47,25 @@
             const discount = Math.round(Number(this.discount || 0) * 100) / 100;
             return discount > 0 && this.discountGap() === discount;
         },
-        amountsMatch() {
+        creditMatchesInvoiceAmount() {
             const invoice = this.billedAmount();
             const credit = this.creditTotal();
-            const debit = this.debitTotal();
-            if (invoice <= 0 || invoice !== credit) {
+            const discount = Math.round(Number(this.discount || 0) * 100) / 100;
+            if (invoice <= 0) {
                 return false;
             }
-            if (this.linkingComplete() && invoice === debit) {
+            if (credit === invoice) {
+                return true;
+            }
+            return discount > 0 && Math.round((invoice + discount) * 100) / 100 === credit;
+        },
+        amountsMatch() {
+            const credit = this.creditTotal();
+            const debit = this.debitTotal();
+            if (! this.creditMatchesInvoiceAmount()) {
+                return false;
+            }
+            if (this.linkingComplete() && credit === debit) {
                 return true;
             }
             return this.discountSettlesDebitGap();
@@ -91,7 +102,11 @@
 
     <dl class="space-y-1.5 text-sm">
         <div class="flex justify-between gap-3">
-            <dt class="text-gray-500">Invoice</dt>
+            <dt class="text-gray-500">Subtotal</dt>
+            <dd class="font-mono font-medium text-gray-900">Rp <span x-text="formatRp(subtotal)">{{ number_format((float) $invoice->subtotal, 0, ',', '.') }}</span></dd>
+        </div>
+        <div class="flex justify-between gap-3" x-show="Number(discount) > 0">
+            <dt class="text-gray-500">After discount</dt>
             <dd class="font-mono font-medium text-gray-900">Rp <span x-text="formatRp(billedAmount())">{{ number_format($settlement['invoice_amount'], 0, ',', '.') }}</span></dd>
         </div>
         <div class="flex justify-between gap-3">
@@ -126,7 +141,7 @@
             <dt class="font-semibold text-gray-900">Match</dt>
             <dd class="text-sm font-semibold" :class="amountsMatch() ? 'text-green-700' : 'text-amber-700'">
                 <span x-show="amountsMatch()">Paid — amounts match</span>
-                <span x-show="!amountsMatch()">Waiting for invoice = credit and (credit = debit, or debit − credit = discount write-off)</span>
+                <span x-show="!amountsMatch()">Waiting for credit to match subtotal or after-discount amount, and (credit = debit, or debit − credit = discount write-off)</span>
             </dd>
         </div>
     </dl>

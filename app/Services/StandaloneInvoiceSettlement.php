@@ -284,11 +284,23 @@ class StandaloneInvoiceSettlement
         $debitTotal = round($debitTotal, 2);
         $discount = round($discount, 2);
 
-        if ($invoiceAmount <= 0 || $invoiceAmount !== $creditTotal) {
+        if ($invoiceAmount <= 0) {
             return false;
         }
 
-        if ($linkingComplete && $invoiceAmount === $debitTotal) {
+        $creditMatchesInvoice = $creditTotal === $invoiceAmount;
+        $creditMatchesSubtotalWithDocumentDiscount = $discount > 0
+            && round($invoiceAmount + $discount, 2) === $creditTotal;
+
+        if (! $creditMatchesInvoice && ! $creditMatchesSubtotalWithDocumentDiscount) {
+            return false;
+        }
+
+        if ($linkingComplete && $creditTotal === $debitTotal) {
+            return true;
+        }
+
+        if ($linkingComplete && $creditMatchesInvoice && $invoiceAmount === $debitTotal) {
             return true;
         }
 
