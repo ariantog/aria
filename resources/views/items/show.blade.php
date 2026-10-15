@@ -160,7 +160,7 @@ $showDualChannelStockMismatch = $showShopeeStock && ! empty($jubelioByWarehouse)
                     <svg class="h-5 w-5 shrink-0 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
                     Parent group
                 </span>
-                <span class="mt-2 text-sm leading-snug text-blue-900/80">Defaults for all colorways@if(!$isAsset) (brand, type)@endif.</span>
+                <span class="mt-2 text-sm leading-snug text-blue-900/80">{{ $isAsset ? 'Defaults for all colorways.' : 'Defaults for all colorways (brand, type).' }}</span>
             </a>
             @endif
         </div>
