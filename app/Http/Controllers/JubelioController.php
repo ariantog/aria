@@ -11,6 +11,7 @@ use App\Models\Jubelioreturn;
 use App\Models\Jubeliosync;
 use App\Models\Transaction;
 use App\Services\Jubelio\JubelioAdjustmentHint;
+use App\Services\Jubelio\JubelioOrderSyncStatus;
 use App\Services\Jubelio\JubelioOrderShowPresenter;
 use App\Services\Jubelio\JubelioOrderQueueEligibility;
 use App\Services\Jubelio\JubelioSellInvoiceGuard;
@@ -97,7 +98,7 @@ class JubelioController extends Controller
         } elseif ($request->status == 'success') {
             $q->where('status', 2)->where('error_type', 10);
         } elseif ($request->status == 'error') {
-            $q->where('status', 1)->whereIn('error_type', [1, 3]);
+            $q->where('status', 1)->whereIn('error_type', JubelioOrderSyncStatus::ATTENTION_ERROR_TYPES);
         } elseif ($request->status == 'pending') {
             $q->where('status', 0);
         } elseif ($request->status === 'all') {
@@ -111,7 +112,8 @@ class JubelioController extends Controller
             $resolver->applyWarehouseFilter($q, $warehouseId);
         }
 
-        $stats = Jubelioorder::selectRaw('COUNT(CASE WHEN status=0 THEN 1 END) as pending, COUNT(CASE WHEN status=2 AND error_type=10 THEN 1 END) as success, COUNT(CASE WHEN status=2 AND error_type=2 THEN 1 END) as warning, COUNT(CASE WHEN status=1 AND error_type IN (1, 3) THEN 1 END) as error, COUNT(*) as total')->first();
+        $attentionErrorTypes = implode(',', JubelioOrderSyncStatus::ATTENTION_ERROR_TYPES);
+        $stats = Jubelioorder::selectRaw("COUNT(CASE WHEN status=0 THEN 1 END) as pending, COUNT(CASE WHEN status=2 AND error_type=10 THEN 1 END) as success, COUNT(CASE WHEN status=2 AND error_type=2 THEN 1 END) as warning, COUNT(CASE WHEN status=1 AND error_type IN ({$attentionErrorTypes}) THEN 1 END) as error, COUNT(*) as total")->first();
         $syncIndex = $resolver->syncIndex();
         $syncsByWarehouseId = $resolver->syncsGroupedByWarehouse();
         $orders = $q->paginate(15)->withQueryString();

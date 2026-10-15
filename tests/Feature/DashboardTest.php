@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Models\WarehouseArrangementRefreshJob;
 use App\Models\Worker;
 use App\Services\DashboardService;
+use App\Services\Jubelio\JubelioOrderSyncStatus;
 use App\Services\PermissionGenerator;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -138,6 +139,57 @@ test('superadmin sees phase 1 dashboard widgets', function () {
         ->assertSee('data-testid="dashboard-stock-alerts-list"', false)
         ->assertSee('DASH-SKU', false)
         ->assertSee('1', false);
+});
+
+test('dashboard jubelio error count matches jubelio index attention errors', function () {
+    $user = User::factory()->create();
+    Cache::forget(DashboardService::panelCacheKey('jubelio'));
+
+    Jubelioorder::query()->delete();
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'dash-sku-error',
+        'source' => 1,
+        'invoice' => 'INV-SKU-ERR',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 1,
+        'status' => 1,
+        'error_type' => JubelioOrderSyncStatus::ERROR_SKU,
+    ]);
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'dash-payload-error',
+        'source' => 1,
+        'invoice' => 'INV-PAYLOAD-ERR',
+        'type' => 'RETURN',
+        'order_status' => 'RETURNED',
+        'run_count' => 1,
+        'status' => 1,
+        'error_type' => JubelioOrderSyncStatus::ERROR_PAYLOAD,
+    ]);
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'dash-skipped-not-error',
+        'source' => 1,
+        'invoice' => 'INV-SKIP',
+        'type' => 'SELL',
+        'order_status' => 'DRAFT',
+        'run_count' => 1,
+        'status' => 2,
+        'error_type' => JubelioOrderSyncStatus::ERROR_SKIPPED,
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('dashboard'))
+        ->assertOk()
+        ->assertSee('data-testid="dashboard-kpi-jubelio-error"', false)
+        ->assertSeeInOrder(['Error SKU', '2'], false);
+
+    $this->actingAs($user)
+        ->get(route('jubelio.index', ['status' => 'error']))
+        ->assertOk()
+        ->assertSee('2', false);
 });
 
 test('superadmin sees phase 2 dashboard widgets', function () {

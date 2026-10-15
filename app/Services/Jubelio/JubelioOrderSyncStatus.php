@@ -16,6 +16,12 @@ class JubelioOrderSyncStatus
     /** Outside max-age window or ineligible Jubelio status (e.g. DRAFT / canceled). */
     public const ERROR_SKIPPED = 4;
 
+    /** Rows counted on dashboard KPI and Jubelio index "Error SKU" tab (status = 1). */
+    public const ATTENTION_ERROR_TYPES = [
+        self::ERROR_SKU,
+        self::ERROR_PAYLOAD,
+    ];
+
     public const SUCCESS = 10;
 
     public const MESSAGE_SELL_API_EMPTY = 'Tidak dapat memuat order dari API Jubelio (fetch gagal atau respons kosong). Kolom payload kosong di database adalah normal — Aria selalu mengambil data lewat API. Periksa token/koneksi Jubelio, klik Refresh payload, lalu Buat Transaksi Manual.';
