@@ -367,6 +367,38 @@ function formatNumberId(value) {
     return Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
 }
 
+/** Strip invalid chars; keep at most one decimal point and two fractional digits. */
+function sanitizeDecimalInputValue(raw) {
+    let s = String(raw ?? '').replace(/,/g, '').replace(/[^\d.]/g, '');
+    const dot = s.indexOf('.');
+    if (dot !== -1) {
+        s = s.slice(0, dot + 1) + s.slice(dot + 1).replace(/\./g, '');
+        const [whole, frac = ''] = s.split('.');
+        s = whole + '.' + frac.slice(0, 2);
+    }
+    return s;
+}
+
+function parseDecimalInputValue(raw) {
+    const t = String(raw ?? '').trim();
+    if (t === '' || t === '.') {
+        return null;
+    }
+    const n = parseFloat(t);
+    return Number.isFinite(n) ? n : null;
+}
+
+function formatDecimalInputValue(value) {
+    if (value === null || value === undefined || value === '') {
+        return '';
+    }
+    const n = Number(value);
+    if (!Number.isFinite(n)) {
+        return '';
+    }
+    return String(n);
+}
+
 function ariaFormatCopyNumber(raw) {
     return raw == null ? '' : String(raw);
 }

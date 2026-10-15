@@ -167,8 +167,10 @@ $config = [
                             </div>
                             <div class="order-5 sm:order-4 sm:col-span-2">
                                 <label class="mb-1 block text-xs font-medium text-gray-500 sm:hidden">Total (Rp)</label>
-                                <input type="number" x-model.number="row.total" placeholder="0" min="0" step="any"
-                                       @input="onTotalChange(row)"
+                                <input type="text" inputmode="decimal" autocomplete="off" placeholder="0"
+                                       x-model="row.total_input"
+                                       @input="onCashTotalInput(row)"
+                                       @blur="onCashTotalBlur(row)"
                                        @keydown="fieldKeydown(idx, 'total', $event)"
                                        @keyup="fieldKeyup(idx, 'total', $event)"
                                        :id="'total_' + idx"
@@ -202,34 +204,28 @@ $config = [
                                     <div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
                                     <div>
                                         <label class="mb-1 block text-[10px] font-medium uppercase tracking-wide text-gray-500">DPP (Rp)</label>
-                                        <input type="number"
-                                               x-model.number="row.ppn_dpp"
-                                               min="0"
-                                               step="any"
-                                               placeholder="0"
-                                               @input="markPpnManual(row)"
+                                        <input type="text" inputmode="decimal" autocomplete="off" placeholder="0"
+                                               x-model="row.ppn_dpp_input"
+                                               @input="onCashTaxInput(row, 'ppn_dpp')"
+                                               @blur="onCashTaxBlur(row, 'ppn_dpp')"
                                                class="{{ $amountInput }}"
                                                :class="rowInvalid(row) && row.record_ppn && !(Number(row.ppn_dpp) >= 0.01) ? 'border-red-400 bg-red-50' : ''">
                                     </div>
                                     <div>
                                         <label class="mb-1 block text-[10px] font-medium uppercase tracking-wide text-gray-500">PPN (Rp)</label>
-                                        <input type="number"
-                                               x-model.number="row.ppn"
-                                               min="0"
-                                               step="any"
-                                               placeholder="0"
-                                               @input="markPpnManual(row)"
+                                        <input type="text" inputmode="decimal" autocomplete="off" placeholder="0"
+                                               x-model="row.ppn_input"
+                                               @input="onCashTaxInput(row, 'ppn')"
+                                               @blur="onCashTaxBlur(row, 'ppn')"
                                                class="{{ $amountInput }}"
                                                :class="rowInvalid(row) && row.record_ppn && !(Number(row.ppn) >= 0.01) ? 'border-red-400 bg-red-50' : ''">
                                     </div>
                                     <div x-show="row.record_pph" x-cloak>
                                         <label class="mb-1 block text-[10px] font-medium uppercase tracking-wide text-gray-500">PPh (Rp)</label>
-                                        <input type="number"
-                                               x-model.number="row.pph"
-                                               min="0"
-                                               step="any"
-                                               placeholder="0"
-                                               @input="markPpnManual(row)"
+                                        <input type="text" inputmode="decimal" autocomplete="off" placeholder="0"
+                                               x-model="row.pph_input"
+                                               @input="onCashTaxInput(row, 'pph')"
+                                               @blur="onCashTaxBlur(row, 'pph')"
                                                class="{{ $amountInput }}"
                                                :class="rowInvalid(row) && row.record_pph && !(Number(row.pph) >= 0.01) ? 'border-red-400 bg-red-50' : ''">
                                     </div>
@@ -324,7 +320,52 @@ function cashForm() {
             row.ppn_dpp = null;
             row.ppn = null;
             row.pph = null;
+            row.ppn_dpp_input = '';
+            row.ppn_input = '';
+            row.pph_input = '';
             row.ppn_manual = false;
+        },
+
+        onCashTotalInput(row) {
+            row.total_input = sanitizeDecimalInputValue(row.total_input);
+            row.total = parseDecimalInputValue(row.total_input);
+            this.onTotalChange(row);
+        },
+
+        onCashTotalBlur(row) {
+            row.total = parseDecimalInputValue(row.total_input);
+            if (row.total != null && Number.isFinite(row.total)) {
+                row.total = Math.round(row.total * 100) / 100;
+                row.total_input = formatDecimalInputValue(row.total);
+            } else {
+                row.total = null;
+                row.total_input = '';
+            }
+        },
+
+        onCashTaxInput(row, field) {
+            const inputKey = field + '_input';
+            row[inputKey] = sanitizeDecimalInputValue(row[inputKey]);
+            row[field] = parseDecimalInputValue(row[inputKey]);
+            this.markPpnManual(row);
+        },
+
+        onCashTaxBlur(row, field) {
+            const inputKey = field + '_input';
+            row[field] = parseDecimalInputValue(row[inputKey]);
+            if (row[field] != null && Number.isFinite(row[field])) {
+                row[field] = Math.round(row[field] * 100) / 100;
+                row[inputKey] = formatDecimalInputValue(row[field]);
+            } else {
+                row[field] = null;
+                row[inputKey] = '';
+            }
+        },
+
+        syncTaxInputsFromNumbers(row) {
+            row.ppn_dpp_input = formatDecimalInputValue(row.ppn_dpp);
+            row.ppn_input = formatDecimalInputValue(row.ppn);
+            row.pph_input = row.pph != null ? formatDecimalInputValue(row.pph) : '';
         },
 
         markPpnManual(row) {
@@ -340,6 +381,9 @@ function cashForm() {
                 row.ppn_dpp = null;
                 row.ppn = null;
                 row.pph = null;
+                row.ppn_dpp_input = '';
+                row.ppn_input = '';
+                row.pph_input = '';
                 return;
             }
             const ppnRate = _PpnRate / 100;
@@ -348,6 +392,7 @@ function cashForm() {
             row.ppn_dpp = Math.round(payment / divisor * 100) / 100;
             row.ppn = Math.round(row.ppn_dpp * ppnRate * 100) / 100;
             row.pph = row.record_pph ? Math.round(row.ppn_dpp * pphRate * 100) / 100 : null;
+            this.syncTaxInputsFromNumbers(row);
         },
 
         onTotalChange(row) {
@@ -369,6 +414,7 @@ function cashForm() {
         onRecordPphToggle(row) {
             if (! row.record_pph) {
                 row.pph = null;
+                row.pph_input = '';
             }
             if (! row.ppn_manual) {
                 this.syncTaxFromTotal(row);
@@ -623,11 +669,15 @@ function newRow() {
         invoice: '',
         note: '',
         total: null,
+        total_input: '',
         record_ppn: false,
         record_pph: false,
         ppn_dpp: null,
         ppn: null,
         pph: null,
+        ppn_dpp_input: '',
+        ppn_input: '',
+        pph_input: '',
         ppn_manual: false,
     };
 }
