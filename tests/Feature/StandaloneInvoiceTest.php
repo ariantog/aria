@@ -308,6 +308,27 @@ it('cache busts pdf urls and clears pdf after invoice update', function () {
     expect($service->invoicePdfExists($invoice->fresh()))->toBeFalse();
 });
 
+it('limits invoice maker warehouse lookup to active warehouses only', function () {
+    Addrbook::factory()->warehouse()->create(['name' => 'Invoice Maker Gudang']);
+    Addrbook::factory()->create(['name' => 'Invoice Maker Customer', 'type' => Addrbook::TYPE_CUSTOMER]);
+    Addrbook::factory()->account()->create(['name' => 'Invoice Maker Account']);
+    $deleted = Addrbook::factory()->warehouse()->create(['name' => 'Invoice Maker Deleted Gudang']);
+    $deleted->delete();
+
+    $url = route('transactions.lookup', [
+        'type' => 'sell',
+        'role' => 'sender',
+        'addrbook_type' => Addrbook::TYPE_WAREHOUSE,
+    ]).'&search=Invoice Maker';
+
+    $names = collect($this->actingAs($this->user)->getJson($url)->assertOk()->json())->pluck('name');
+
+    expect($names)->toContain('Invoice Maker Gudang')
+        ->not->toContain('Invoice Maker Customer')
+        ->not->toContain('Invoice Maker Account')
+        ->not->toContain('Invoice Maker Deleted Gudang');
+});
+
 it('renders invoice maker pages for superadmin', function () {
     $invoice = StandaloneInvoice::factory()->create();
     StandaloneInvoiceLine::factory()->create(['standalone_invoice_id' => $invoice->id]);

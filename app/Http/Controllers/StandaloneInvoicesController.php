@@ -58,7 +58,11 @@ class StandaloneInvoicesController extends Controller
             'invoice' => null,
             'presets' => $settingsService->presets(),
             'selectedPreset' => $settingsService->defaultPreset(),
-            'warehouseLookupUrl' => route('transactions.lookup', ['type' => 'sell', 'role' => 'sender']).'&addrbook_type='.Addrbook::TYPE_WAREHOUSE,
+            'warehouseLookupUrl' => route('transactions.lookup', [
+                'type' => 'sell',
+                'role' => 'sender',
+                'addrbook_type' => Addrbook::TYPE_WAREHOUSE,
+            ]),
             'can' => $this->permissions(),
         ]);
     }
@@ -112,7 +116,11 @@ class StandaloneInvoicesController extends Controller
             'invoice' => $invoice,
             'presets' => $settingsService->presets(),
             'selectedPreset' => $selectedPreset ?? $settingsService->defaultPreset(),
-            'warehouseLookupUrl' => route('transactions.lookup', ['type' => 'sell', 'role' => 'sender']).'&addrbook_type='.Addrbook::TYPE_WAREHOUSE,
+            'warehouseLookupUrl' => route('transactions.lookup', [
+                'type' => 'sell',
+                'role' => 'sender',
+                'addrbook_type' => Addrbook::TYPE_WAREHOUSE,
+            ]),
             'can' => $this->permissions(),
         ]);
     }
