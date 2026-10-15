@@ -8,6 +8,7 @@ use App\Models\ItemStockNotification;
 use App\Models\Report;
 use App\Models\Jubelio;
 use App\Models\Jubelioorder;
+use App\Services\Jubelio\JubelioOrderSyncStatus;
 use App\Models\JubelioStockCheck;
 use App\Models\Jubelioreturn;
 use App\Models\Produksi;
@@ -177,8 +178,10 @@ class DashboardService
     {
         $connection = $this->jubelioService->getConnectionStatus();
 
+        $attentionErrorTypes = implode(',', JubelioOrderSyncStatus::ATTENTION_ERROR_TYPES);
+
         $stats = Jubelioorder::query()
-            ->selectRaw('COUNT(CASE WHEN status = 0 THEN 1 END) as pending, COUNT(CASE WHEN status = 1 AND error_type = 1 THEN 1 END) as error')
+            ->selectRaw("COUNT(CASE WHEN status = 0 THEN 1 END) as pending, COUNT(CASE WHEN status = 1 AND error_type IN ({$attentionErrorTypes}) THEN 1 END) as error")
             ->first();
 
         $runningImport = Crongetorder::query()
