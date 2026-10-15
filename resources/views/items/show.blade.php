@@ -50,7 +50,29 @@ $showDualChannelStockMismatch = $showShopeeStock && ! empty($jubelioByWarehouse)
             <h1 class="mb-1 text-2xl font-bold text-gray-900">Detail Item #{{ $item->code }}</h1>
             <p class="text-sm text-gray-500">Last updated {{ optional($item->updated_at)->format('d/m/Y H:i') ?? 'recently' }}</p>
         </div>
-        <div class="flex flex-wrap gap-3">
+        <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+            <a href="{{ $base }}/{{ $item->id }}/edit"
+               data-testid="item-detail-edit-details-link"
+               class="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm ring-2 ring-green-600/20 hover:bg-green-700">
+                <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                Edit SKU details
+            </a>
+            @if(!empty($colorwayEditUrl))
+            <a href="{{ $colorwayEditUrl }}"
+               data-testid="item-detail-colorway-edit-link"
+               class="inline-flex items-center gap-2 rounded-lg border-2 border-indigo-300 bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">
+                <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg>
+                Edit colorway
+            </a>
+            @endif
+            @if(!empty($parentGroupUrl))
+            <a href="{{ $parentGroupUrl }}"
+               data-testid="item-detail-parent-group-link"
+               class="inline-flex items-center gap-2 rounded-lg border-2 border-blue-300 bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">
+                <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                Parent group
+            </a>
+            @endif
             @if($canRecalculateQty)
             <form method="POST" action="{{ $recalculateQtyRoute }}" class="inline">
                 @csrf
@@ -75,24 +97,6 @@ $showDualChannelStockMismatch = $showShopeeStock && ! empty($jubelioByWarehouse)
                 Duplicate SKU
             </a>
             @endif
-            @if(!empty($parentGroupUrl))
-            <a href="{{ $parentGroupUrl }}"
-               data-testid="item-detail-parent-group-link"
-               class="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-800 hover:bg-blue-100">
-                Parent group
-            </a>
-            @endif
-            @if(!empty($colorwayEditUrl))
-            <a href="{{ $colorwayEditUrl }}"
-               data-testid="item-detail-colorway-edit-link"
-               class="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-800 hover:bg-indigo-100">
-                Edit colorway
-            </a>
-            @endif
-            <a href="{{ $base }}/{{ $item->id }}/edit" class="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                Edit Details
-            </a>
             @if($canDelete)
             <form method="POST" action="{{ $destroyRoute }}" class="inline"
                   onsubmit="return confirm('Archive this SKU? It will be hidden from lists and autocomplete, but past transactions and reports stay unchanged.');">
@@ -120,26 +124,47 @@ $showDualChannelStockMismatch = $showShopeeStock && ! empty($jubelioByWarehouse)
 
     @include('items.partials.identity-convert', ['identityConvert' => $identityConvert ?? null])
 
-    @if(!empty($parentGroupUrl) || !empty($colorwayEditUrl))
-    <div class="mb-4 rounded-lg border border-indigo-100 bg-indigo-50/40 p-4 text-sm text-indigo-950" data-testid="item-detail-catalog-links">
-        <p class="font-medium">Shared catalog</p>
-        <p class="mt-1 text-xs text-indigo-900/80">Product name, descriptions, URL, and colorway pricing are edited on the group pages — not on this SKU form.</p>
-        <ul class="mt-2 list-inside list-disc space-y-1 text-indigo-900">
-            @if(!empty($parentGroupUrl))
-            <li>
-                <a href="{{ $parentGroupUrl }}" class="font-medium underline hover:text-indigo-700" data-testid="item-detail-catalog-parent-link">Parent group</a>
-                — defaults for all colorways @if(!$isAsset)(brand, type) @endif
-            </li>
-            @endif
+    @php
+        $editActionCount = 1 + (! empty($colorwayEditUrl) ? 1 : 0) + (! empty($parentGroupUrl) ? 1 : 0);
+        $editActionGridClass = $editActionCount >= 3 ? 'sm:grid-cols-3' : ($editActionCount === 2 ? 'sm:grid-cols-2' : 'sm:grid-cols-1');
+    @endphp
+    <div class="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5" data-testid="item-detail-edit-actions">
+        <p class="text-sm font-semibold text-gray-900">Where to edit</p>
+        <p class="mt-0.5 text-sm text-gray-600">SKU fields stay on this item; shared catalog and pricing live on group pages.</p>
+        <div class="mt-4 grid gap-3 {{ $editActionGridClass }}">
+            <a href="{{ $base }}/{{ $item->id }}/edit"
+               data-testid="item-detail-edit-actions-sku"
+               class="flex flex-col rounded-lg border-2 border-green-200 bg-green-50 p-4 transition hover:border-green-400 hover:bg-green-100/90 hover:shadow-md">
+                <span class="flex items-center gap-2 text-base font-semibold text-green-900">
+                    <svg class="h-5 w-5 shrink-0 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                    Edit SKU details
+                </span>
+                <span class="mt-2 text-sm leading-snug text-green-900/80">This size only: price, cost, restock threshold, legacy code.</span>
+            </a>
             @if(!empty($colorwayEditUrl))
-            <li>
-                <a href="{{ $colorwayEditUrl }}" class="font-medium underline hover:text-indigo-700" data-testid="item-detail-catalog-colorway-link">Colorway editor</a>
-                — pcode, colorway title, descriptions, image, size matrix pricing
-            </li>
+            <a href="{{ $colorwayEditUrl }}"
+               data-testid="item-detail-catalog-colorway-link"
+               class="flex flex-col rounded-lg border-2 border-indigo-200 bg-indigo-50 p-4 transition hover:border-indigo-400 hover:bg-indigo-100/90 hover:shadow-md">
+                <span class="flex items-center gap-2 text-base font-semibold text-indigo-900">
+                    <svg class="h-5 w-5 shrink-0 text-indigo-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg>
+                    Edit colorway
+                </span>
+                <span class="mt-2 text-sm leading-snug text-indigo-900/80">Pcode, colorway title, descriptions, image, size matrix pricing.</span>
+            </a>
             @endif
-        </ul>
+            @if(!empty($parentGroupUrl))
+            <a href="{{ $parentGroupUrl }}"
+               data-testid="item-detail-catalog-parent-link"
+               class="flex flex-col rounded-lg border-2 border-blue-200 bg-blue-50 p-4 transition hover:border-blue-400 hover:bg-blue-100/90 hover:shadow-md">
+                <span class="flex items-center gap-2 text-base font-semibold text-blue-900">
+                    <svg class="h-5 w-5 shrink-0 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                    Parent group
+                </span>
+                <span class="mt-2 text-sm leading-snug text-blue-900/80">Defaults for all colorways@if(!$isAsset) (brand, type)@endif.</span>
+            </a>
+            @endif
+        </div>
     </div>
-    @endif
 
     @if($canEditLegacyCode)
     <div x-show="legacyModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
@@ -276,10 +301,10 @@ $showDualChannelStockMismatch = $showShopeeStock && ! empty($jubelioByWarehouse)
                                 <span class="text-xs font-medium text-gray-700">{{ $item->group->name }}</span>
                                 @endif
                                 @if(!empty($parentGroupUrl))
-                                <a href="{{ $parentGroupUrl }}" class="rounded border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-100 hover:underline">Parent group</a>
+                                <a href="{{ $parentGroupUrl }}" class="rounded-md border-2 border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-800 hover:bg-blue-100">Parent group</a>
                                 @endif
                                 @if(!empty($colorwayEditUrl))
-                                <a href="{{ $colorwayEditUrl }}" class="rounded border border-indigo-200 bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100 hover:underline">Edit colorway</a>
+                                <a href="{{ $colorwayEditUrl }}" class="rounded-md border-2 border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-800 hover:bg-indigo-100">Edit colorway</a>
                                 @endif
                                 @forelse($item->tags as $tag)
                                 <a href="{{ $tag->itemsIndexFilterUrl($item->type) }}" class="rounded border border-blue-200 bg-blue-50 px-2 py-1 text-[9px] font-bold uppercase tracking-tighter text-blue-600 hover:bg-blue-100 hover:underline">{{ $tag->name }}</a>
