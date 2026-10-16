@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Transactions\PrepareMoveTransactionDraft;
+use App\Enums\ItemStockSourceStatus;
 use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\ItemStockNotification;
+use App\Models\Transaction;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -35,21 +38,55 @@ class ItemStockNotificationController extends Controller
                 filled($filters['source_warehouse_id']) && ctype_digit((string) $filters['source_warehouse_id']),
                 fn (Builder $query) => $query->where('source_warehouse_id', (int) $filters['source_warehouse_id']),
             )
+            ->when(
+                filled($filters['source_status']),
+                fn (Builder $query) => $query->where('source_status', $filters['source_status']),
+            )
             ->orderByDesc('created_at')
             ->paginate(30)
             ->withQueryString();
+
+        $warehouseFiltersLocked = $this->warehouseFiltersLocked($filters);
 
         return view('stock-notifications.index', [
             'notifications' => $notifications,
             'showDismissed' => $showDismissed,
             'filters' => $filters,
             'filterOptions' => $this->filterOptions($baseQuery),
+            'warehouseFiltersLocked' => $warehouseFiltersLocked,
+            'canDraftMove' => $warehouseFiltersLocked && auth()->user()?->can(Transaction::getPermissions()['type-move']),
             'unreadCount' => ItemStockNotification::query()->unread()->count(),
             'flash' => [
                 'success' => session('success'),
                 'error' => session('error'),
             ],
         ]);
+    }
+
+    public function draftMove(Request $request, PrepareMoveTransactionDraft $prepareMove): RedirectResponse
+    {
+        Gate::authorize(ItemStockNotification::getPermissions()['view']);
+        Gate::authorize(Transaction::getPermissions()['type-move']);
+
+        $validated = $request->validate([
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.item_id' => ['required', 'integer', 'exists:items,id'],
+            'items.*.quantity' => ['required', 'numeric', 'min:1'],
+            'from_warehouse_id' => ['required', 'integer', 'exists:customers,id'],
+            'to_warehouse_id' => ['required', 'integer', 'exists:customers,id'],
+        ]);
+
+        $fromId = (int) $validated['from_warehouse_id'];
+        $toId = (int) $validated['to_warehouse_id'];
+
+        $items = collect($validated['items'])->map(fn (array $row) => [
+            'item_id' => (int) $row['item_id'],
+            'quantity' => (float) $row['quantity'],
+            'from_warehouse_id' => $fromId,
+            'to_warehouse_id' => $toId,
+        ])->all();
+
+        return $prepareMove->execute($items);
     }
 
     public function unreadCount(): JsonResponse
@@ -96,15 +133,33 @@ class ItemStockNotificationController extends Controller
     }
 
     /**
-     * @return array{item_id: string, sold_out_warehouse_id: string, source_warehouse_id: string}
+     * @return array{item_id: string, sold_out_warehouse_id: string, source_warehouse_id: string, source_status: string}
      */
     private function filtersFromRequest(Request $request): array
     {
+        $sourceStatus = (string) $request->query('source_status', '');
+        $validStatuses = array_map(fn (ItemStockSourceStatus $case) => $case->value, ItemStockSourceStatus::cases());
+        if (! in_array($sourceStatus, $validStatuses, true)) {
+            $sourceStatus = '';
+        }
+
         return [
             'item_id' => (string) $request->query('item_id', ''),
             'sold_out_warehouse_id' => (string) $request->query('sold_out_warehouse_id', ''),
             'source_warehouse_id' => (string) $request->query('source_warehouse_id', ''),
+            'source_status' => $sourceStatus,
         ];
+    }
+
+    /**
+     * @param  array{item_id: string, sold_out_warehouse_id: string, source_warehouse_id: string, source_status: string}  $filters
+     */
+    private function warehouseFiltersLocked(array $filters): bool
+    {
+        return filled($filters['sold_out_warehouse_id'])
+            && ctype_digit((string) $filters['sold_out_warehouse_id'])
+            && filled($filters['source_warehouse_id'])
+            && ctype_digit((string) $filters['source_warehouse_id']);
     }
 
     private function scopedNotificationsQuery(bool $showDismissed): Builder

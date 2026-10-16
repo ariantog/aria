@@ -371,12 +371,109 @@ it('filters stock notifications by item, sold out warehouse, and stock at wareho
 
     expect($rowCount($sourceFilterHtml))->toBe(1);
 
+    $statusFilterHtml = $this->actingAs($this->user)
+        ->get(route('stock-notifications.index', ['source_status' => ItemStockSourceStatus::SlowMoving->value]))
+        ->assertOk()
+        ->assertSee('FILTER-B', false)
+        ->getContent();
+
+    expect($rowCount($statusFilterHtml))->toBe(1);
+
     $this->actingAs($this->user)
         ->get(route('stock-notifications.index'))
         ->assertOk()
         ->assertSee('data-testid="stock-notifications-filter-item"', false)
         ->assertSee('data-testid="stock-notifications-filter-sold-out"', false)
-        ->assertSee('data-testid="stock-notifications-filter-stock-at"', false);
+        ->assertSee('data-testid="stock-notifications-filter-stock-at"', false)
+        ->assertSee('data-testid="stock-notifications-filter-status"', false);
+});
+
+it('shows move controls only when warehouse filters are applied and user can move', function () {
+    $soldOut = Addrbook::factory()->warehouse()->create([
+        'name' => 'Move Dest Shop',
+        'arrangement_enabled' => true,
+    ]);
+    $source = Addrbook::factory()->warehouse()->create(['name' => 'Move Source WH']);
+    $item = Item::factory()->create(['code' => 'MOVE-SKU']);
+
+    ItemStockNotification::query()->create([
+        'item_id' => $item->id,
+        'sold_out_warehouse_id' => $soldOut->id,
+        'source_warehouse_id' => $source->id,
+        'source_stock' => 5,
+        'source_status' => ItemStockSourceStatus::Available,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('stock-notifications.index'))
+        ->assertOk()
+        ->assertSee('data-testid="stock-notifications-move-hint"', false)
+        ->assertDontSee('data-testid="stock-notifications-move"', false);
+
+    app(PermissionGenerator::class)->generateForModule('Transaction');
+    Permission::firstOrCreate(['name' => Transaction::getPermissions()['type-move'], 'guard_name' => 'web']);
+    $this->user->givePermissionTo(Transaction::getPermissions()['type-move']);
+
+    $filtered = $this->actingAs($this->user)
+        ->get(route('stock-notifications.index', [
+            'sold_out_warehouse_id' => $soldOut->id,
+            'source_warehouse_id' => $source->id,
+        ]))
+        ->assertOk()
+        ->assertSee('data-testid="stock-notifications-move"', false)
+        ->assertSee('data-testid="stock-notification-select"', false)
+        ->assertDontSee('data-testid="stock-notifications-move-hint"', false);
+
+    expect($filtered->getContent())->toContain('stock-alerts-draft-form');
+});
+
+it('drafts a move from selected stock alerts', function () {
+    $soldOut = Addrbook::factory()->warehouse()->create([
+        'name' => 'Alert Sold Out',
+        'arrangement_enabled' => true,
+    ]);
+    $source = Addrbook::factory()->warehouse()->create(['name' => 'Alert Source']);
+    $itemA = Item::factory()->create(['code' => 'ALERT-MOVE-A']);
+    $itemB = Item::factory()->create(['code' => 'ALERT-MOVE-B']);
+
+    WarehouseItem::create(['warehouse_id' => $source->id, 'item_id' => $itemA->id, 'quantity' => 4]);
+    WarehouseItem::create(['warehouse_id' => $source->id, 'item_id' => $itemB->id, 'quantity' => 2]);
+
+    ItemStockNotification::query()->create([
+        'item_id' => $itemA->id,
+        'sold_out_warehouse_id' => $soldOut->id,
+        'source_warehouse_id' => $source->id,
+        'source_stock' => 4,
+        'source_status' => ItemStockSourceStatus::Available,
+    ]);
+
+    ItemStockNotification::query()->create([
+        'item_id' => $itemB->id,
+        'sold_out_warehouse_id' => $soldOut->id,
+        'source_warehouse_id' => $source->id,
+        'source_stock' => 2,
+        'source_status' => ItemStockSourceStatus::DeadStock,
+    ]);
+
+    app(PermissionGenerator::class)->generateForModule('Transaction');
+    Permission::firstOrCreate(['name' => Transaction::getPermissions()['type-move'], 'guard_name' => 'web']);
+    $this->user->givePermissionTo(Transaction::getPermissions()['type-move']);
+
+    $this->actingAs($this->user)->post(route('stock-notifications.draft-move'), [
+        'from_warehouse_id' => $source->id,
+        'to_warehouse_id' => $soldOut->id,
+        'items' => [
+            ['item_id' => $itemA->id, 'quantity' => 2],
+            ['item_id' => $itemB->id, 'quantity' => 1],
+        ],
+    ])->assertRedirect(route('transactions.create', ['type' => 'move']));
+
+    $page = $this->actingAs($this->user)->get(route('transactions.create', ['type' => 'move']));
+    $page->assertOk()
+        ->assertSee('Alert Source', false)
+        ->assertSee('Alert Sold Out', false)
+        ->assertSee('ALERT-MOVE-A', false)
+        ->assertSee('ALERT-MOVE-B', false);
 });
 
 it('marks notifications read and dismissed', function () {
