@@ -449,6 +449,15 @@ class SidebarFavoriteRegistry
                 'active_prefix' => '/jubelio/order/cek',
             ],
             [
+                'key' => 'jubelio-cek-stock',
+                'label' => 'Cek Stok',
+                'group' => 'Jubelio',
+                'permission' => 'jubelio-view',
+                'route' => 'jubelio.stock.cek',
+                'params' => [],
+                'active_prefix' => '/jubelio/stock/cek',
+            ],
+            [
                 'key' => 'jubelio-item-links',
                 'label' => 'Item Links',
                 'group' => 'Jubelio',
