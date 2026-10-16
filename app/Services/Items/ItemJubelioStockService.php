@@ -90,6 +90,7 @@ class ItemJubelioStockService
 
             $ariaQty = (float) $warehouseItem->quantity;
             $available = $quantities['available'] ?? null;
+            $comparable = $quantities['comparable'] ?? $available;
 
             $byWarehouse[$warehouseId] = [
                 'linked' => true,
@@ -98,7 +99,7 @@ class ItemJubelioStockService
                 'on_order' => $quantities['on_order'] ?? null,
                 'reserved' => $quantities['reserved'] ?? null,
                 'available' => $available,
-                'mismatch' => $available !== null && $ariaQty !== $available,
+                'mismatch' => $comparable !== null && $ariaQty !== $comparable,
             ];
         }
 

@@ -9,6 +9,7 @@ use App\Models\Jubeliosync;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use App\Models\WarehouseItem;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -34,6 +35,9 @@ class JubelioStockCheckService
             ->where('warehouse_id', '>', 0)
             ->where('jubelio_store_id', '>', 0)
             ->whereMappedJubelioLocation()
+            ->whereHas('warehouse', function (Builder $query) {
+                $query->whereNull('deleted_at');
+            })
             ->orderBy('id')
             ->get()
             ->all();
@@ -381,12 +385,21 @@ class JubelioStockCheckService
             ? (float) $locationStock['available']
             : $onHand - $reserved;
 
+        $computedSellable = $onHand - $reserved;
+
+        // Jubelio all-stocks can report available == on_hand while reserved > 0 until
+        // pick/print completes (chronology already shows the deduction). Use the lower sellable qty.
+        $comparable = $available;
+        if ($reserved > 0.0001 && abs($available - $onHand) < 0.0001 && $computedSellable < $available) {
+            $comparable = $computedSellable;
+        }
+
         return [
             'on_hand' => $onHand,
             'on_order' => $onOrder,
             'reserved' => $reserved,
             'available' => $available,
-            'comparable' => $available,
+            'comparable' => $comparable,
         ];
     }
 }
