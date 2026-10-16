@@ -525,6 +525,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::get('/', [\App\Http\Controllers\ItemStockNotificationController::class, 'index'])->name('index');
         Route::get('/unread-count', [\App\Http\Controllers\ItemStockNotificationController::class, 'unreadCount'])->name('unread-count');
         Route::post('/mark-all-read', [\App\Http\Controllers\ItemStockNotificationController::class, 'markAllRead'])->name('mark-all-read');
+        Route::post('/draft-move', [\App\Http\Controllers\ItemStockNotificationController::class, 'draftMove'])->name('draft-move');
         Route::post('/{notification}/read', [\App\Http\Controllers\ItemStockNotificationController::class, 'markRead'])->name('read');
         Route::post('/{notification}/dismiss', [\App\Http\Controllers\ItemStockNotificationController::class, 'dismiss'])->name('dismiss');
     });

@@ -11,6 +11,7 @@ $breadcrumbs = [
 $fmtNum = fn ($v) => format_amount($v, 0);
 $filterQuery = array_filter($filters ?? []);
 $hasFilters = ! empty($filterQuery);
+$sourceStatusOptions = \App\Enums\ItemStockSourceStatus::cases();
 @endphp
 
 {{-- Do not use h-full + overflow-x-auto here: that pins height to the viewport and clips the table. --}}
@@ -101,6 +102,19 @@ $hasFilters = ! empty($filterQuery);
                 @endforeach
             </select>
         </label>
+        <label class="flex min-w-[10rem] flex-1 flex-col gap-1 sm:flex-none">
+            <span class="text-xs font-medium uppercase text-gray-500">Stock type</span>
+            <select name="source_status"
+                    class="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    data-testid="stock-notifications-filter-status">
+                <option value="">All types</option>
+                @foreach($sourceStatusOptions as $statusOption)
+                <option value="{{ $statusOption->value }}" @selected(($filters['source_status'] ?? '') === $statusOption->value)>
+                    {{ $statusOption->label() }}
+                </option>
+                @endforeach
+            </select>
+        </label>
         <button type="submit"
                 class="rounded-lg bg-blue-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-800"
                 data-testid="stock-notifications-filter-apply">
@@ -115,16 +129,83 @@ $hasFilters = ! empty($filterQuery);
         @endif
     </form>
 
-    <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+    @php
+    $selectionRows = $notifications->map(fn ($notification) => [
+        'id' => $notification->id,
+        'item_id' => $notification->item_id,
+        'quantity' => max(1, (int) floor((float) $notification->source_stock)),
+    ])->values();
+    @endphp
+
+    <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"
+         x-data="stockAlertsList(@js([
+             'canDraftMove' => $canDraftMove ?? false,
+             'warehouseFiltersLocked' => $warehouseFiltersLocked ?? false,
+             'fromWarehouseId' => filled($filters['source_warehouse_id'] ?? '') ? (int) $filters['source_warehouse_id'] : null,
+             'toWarehouseId' => filled($filters['sold_out_warehouse_id'] ?? '') ? (int) $filters['sold_out_warehouse_id'] : null,
+             'rows' => $selectionRows,
+         ]))">
         @if($notifications->isEmpty())
         <div class="p-8 text-center text-sm text-gray-500">
             No {{ $showDismissed ? 'dismissed' : 'active' }} stock alerts.
         </div>
         @else
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 bg-gray-50 px-4 py-3">
+            <div class="flex flex-wrap items-center gap-3">
+                @if($canDraftMove ?? false)
+                <button type="button"
+                        @click="submitDraft()"
+                        :disabled="selectedCount() === 0"
+                        class="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        data-testid="stock-notifications-move">
+                    Move to sold-out shop
+                    <span x-show="selectedCount() > 0" x-cloak>(<span x-text="selectedCount()"></span>)</span>
+                </button>
+                @endif
+                <button type="button"
+                        x-show="selectedCount() > 0"
+                        x-cloak
+                        @click="clearSelection()"
+                        class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                    Clear selection
+                </button>
+            </div>
+            @if(! ($warehouseFiltersLocked ?? false))
+            <p class="text-xs text-gray-500" data-testid="stock-notifications-move-hint">
+                Filter by <span class="font-medium">Sold out at</span> and <span class="font-medium">Stock at</span> to enable move.
+            </p>
+            @endif
+            @if(($canDraftMove ?? false) === false && ($warehouseFiltersLocked ?? false))
+            <p class="text-xs text-gray-500">Move requires permission to create move transactions.</p>
+            @endif
+        </div>
+
+        <form id="stock-alerts-draft-form" method="POST" action="{{ route('stock-notifications.draft-move') }}" class="hidden">
+            @csrf
+            <input type="hidden" name="from_warehouse_id" :value="fromWarehouseId">
+            <input type="hidden" name="to_warehouse_id" :value="toWarehouseId">
+            <template x-for="(draft, idx) in draftPayload()" :key="`${draft.item_id}-${idx}`">
+                <div>
+                    <input type="hidden" :name="`items[${idx}][item_id]`" :value="draft.item_id">
+                    <input type="hidden" :name="`items[${idx}][quantity]`" :value="draft.quantity">
+                </div>
+            </template>
+        </form>
+
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200 text-sm">
                 <thead class="bg-gray-50 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
                     <tr>
+                        <th class="w-10 px-4 py-3">
+                            @if($canDraftMove ?? false)
+                            <input type="checkbox"
+                                   class="rounded border-gray-300"
+                                   :checked="allSelected()"
+                                   @change="toggleAll($event.target.checked)"
+                                   data-testid="stock-notifications-select-all"
+                                   aria-label="Select all on this page">
+                            @endif
+                        </th>
                         <th class="px-4 py-3">Item</th>
                         <th class="px-4 py-3">Sold out at</th>
                         <th class="px-4 py-3">Stock at</th>
@@ -137,6 +218,14 @@ $hasFilters = ! empty($filterQuery);
                 <tbody class="divide-y divide-gray-100">
                     @foreach($notifications as $notification)
                     <tr class="{{ $notification->isUnread() ? 'bg-blue-50/40' : '' }}" data-testid="stock-notification-row">
+                        <td class="px-4 py-3 align-top">
+                            @if($canDraftMove ?? false)
+                            <input type="checkbox"
+                                   class="rounded border-gray-300"
+                                   x-model="selected[{{ $notification->id }}]"
+                                   data-testid="stock-notification-select">
+                            @endif
+                        </td>
                         @include('stock-notifications.partials.item-cell', ['notification' => $notification])
                         @include('stock-notifications.partials.warehouse-cell', ['warehouse' => $notification->soldOutWarehouse])
                         @include('stock-notifications.partials.warehouse-cell', ['warehouse' => $notification->sourceWarehouse])
@@ -190,3 +279,60 @@ $hasFilters = ! empty($filterQuery);
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+function stockAlertsList(config) {
+    const selected = {};
+    for (const row of config.rows || []) {
+        selected[row.id] = false;
+    }
+
+    return {
+        canDraftMove: !!config.canDraftMove,
+        warehouseFiltersLocked: !!config.warehouseFiltersLocked,
+        fromWarehouseId: config.fromWarehouseId,
+        toWarehouseId: config.toWarehouseId,
+        rows: config.rows || [],
+        selected,
+
+        selectedCount() {
+            return Object.values(this.selected).filter(Boolean).length;
+        },
+
+        allSelected() {
+            if (this.rows.length === 0) {
+                return false;
+            }
+            return this.rows.every((row) => this.selected[row.id]);
+        },
+
+        toggleAll(checked) {
+            for (const row of this.rows) {
+                this.selected[row.id] = checked;
+            }
+        },
+
+        clearSelection() {
+            this.toggleAll(false);
+        },
+
+        draftPayload() {
+            return this.rows
+                .filter((row) => this.selected[row.id])
+                .map((row) => ({
+                    item_id: row.item_id,
+                    quantity: row.quantity,
+                }));
+        },
+
+        submitDraft() {
+            if (!this.canDraftMove || this.selectedCount() === 0) {
+                return;
+            }
+            document.getElementById('stock-alerts-draft-form')?.requestSubmit();
+        },
+    };
+}
+</script>
+@endpush
