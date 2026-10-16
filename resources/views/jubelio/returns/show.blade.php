@@ -55,7 +55,12 @@ $breadcrumbs = [
                     · {{ \Carbon\Carbon::parse($transaction->date)->translatedFormat('d/m/Y') }}
                 </p>
 
-                @if($return->status === 0)
+                @if($return->status === 0 && ! empty($manualReturnBlocked))
+                <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                    Retur untuk invoice ini sudah ada atau menunggu di <a href="{{ route('jubelio.index', ['invoice' => $return->invoice]) }}" class="font-medium text-blue-700 hover:underline">Jubelio Orders</a> (nomor SR).
+                    Jangan buat retur manual di sini — gunakan <strong>Tandai Selesai</strong> setelah retur Jubelio diposting, atau proses retur SR di Jubelio Orders.
+                </div>
+                @elseif($return->status === 0)
                 <form method="POST" action="{{ route('jubelio.returns.process', $return) }}" class="space-y-4">
                     @csrf
                     <div class="overflow-x-auto">

@@ -312,6 +312,7 @@ class JubelioController extends Controller
             'jubelio_order_id' => $dataApi['return_id'],
             'source' => 1,
             'invoice' => $dataApi['return_no'],
+            'source_sell_invoice' => $dataApi['salesorder_no'] ?? null,
             'type' => 'RETURN',
             'order_status' => 'RETURN',
             'run_count' => 0,

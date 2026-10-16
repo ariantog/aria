@@ -5,13 +5,17 @@ namespace App\Actions\Jubelio;
 use App\Models\Jubelioreturn;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
+use App\Services\Jubelio\JubelioSellReturnGuard;
 use App\Services\TransactionService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class ProcessJubelioCancellation
 {
-    public function __construct(private TransactionService $transactionService) {}
+    public function __construct(
+        private TransactionService $transactionService,
+        private JubelioSellReturnGuard $sellReturnGuard,
+    ) {}
 
     /**
      * @param  list<int>  $itemIds
@@ -36,6 +40,14 @@ class ProcessJubelioCancellation
 
         if ((int) $sellTransaction->jubelio_return > 0) {
             return ['success' => false, 'message' => 'Transaksi jual sudah pernah diretur.'];
+        }
+
+        $sellInvoice = (string) $sellTransaction->invoice;
+        if ($this->sellReturnGuard->sellAlreadyReturned($sellInvoice)) {
+            return [
+                'success' => false,
+                'message' => 'Retur untuk invoice ini sudah ada atau menunggu di antrian Jubelio Orders (SR). Gunakan halaman Jubelio Orders, atau tandai pembatalan selesai tanpa retur manual.',
+            ];
         }
 
         $details = TransactionDetail::with('item')

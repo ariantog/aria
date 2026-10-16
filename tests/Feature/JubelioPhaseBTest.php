@@ -8,6 +8,7 @@ use App\Models\Jubeliosync;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\WarehouseItem;
+use App\Actions\Jubelio\ProcessJubelioOrder;
 use App\Services\JubelioService;
 use Mockery\MockInterface;
 use Spatie\Permission\Models\Permission;
@@ -58,7 +59,8 @@ it('accepts jubelio return webhook and stores return order', function () {
     expect(Jubelioorder::where('invoice', 'RET-100')->where('type', 'RETURN')->exists())->toBeTrue();
 
     $stored = Jubelioorder::where('invoice', 'RET-100')->first();
-    expect($stored->payload)->toBeNull();
+    expect($stored->payload)->toBeNull()
+        ->and($stored->source_sell_invoice)->toBe('INV-SELL-001');
 });
 
 it('rejects duplicate jubelio return webhook payloads', function () {
@@ -376,6 +378,119 @@ it('can process a jubelio cancellation into a return transaction', function () {
 
     $returnTrx = Transaction::where('type', Transaction::TYPE_RETURN)->where('invoice', 'INV-CANCEL-PROC')->first();
     expect((float) $returnTrx->total)->toBe(100000.0);
+});
+
+it('blocks manual cancellation return when jubelio SR return already posted', function () {
+    $user = User::factory()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+    $item = Item::factory()->create(['code' => 'SKU-SR-BLOCK']);
+
+    $sell = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'INV-SR-ALREADY',
+        'sender_id' => $warehouse->id,
+        'receiver_id' => $customer->id,
+    ]);
+
+    $sell->details()->create([
+        'date' => $sell->date,
+        'transaction_type' => Transaction::TYPE_SELL,
+        'sender_id' => $warehouse->id,
+        'receiver_id' => $customer->id,
+        'item_id' => $item->id,
+        'quantity' => 1,
+        'price' => 10000,
+        'discount' => 0,
+        'total' => 10000,
+    ]);
+
+    Transaction::factory()->create([
+        'type' => Transaction::TYPE_RETURN,
+        'invoice' => 'SR-INV-SR-ALREADY',
+        'description' => 'INV-SR-ALREADY',
+        'sender_id' => $customer->id,
+        'receiver_id' => $warehouse->id,
+    ]);
+
+    $cancellation = Jubelioreturn::create([
+        'order_id' => 'ord-sr-block',
+        'transaction_id' => $sell->id,
+        'invoice' => 'INV-SR-ALREADY',
+        'status' => 0,
+        'confirmed_by' => 0,
+    ]);
+
+    $this->actingAs($user)
+        ->post(route('jubelio.returns.process', $cancellation), [
+            'return_item' => [$item->id],
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('error');
+
+    expect(Transaction::where('type', Transaction::TYPE_RETURN)->count())->toBe(1);
+});
+
+it('blocks jubelio SR return when cancellation manual return already posted', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+    $item = Item::factory()->create(['code' => 'SKU-CANCEL-BLOCK-SR', 'jubelio_item_id' => 7001]);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 1,
+        'jubelio_store_name' => 'Store',
+        'jubelio_location_id' => 10,
+        'jubelio_location_name' => 'Loc',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => $customer->id,
+        'bin_id' => 0,
+    ]);
+
+    Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'INV-CANCEL-BLOCK-SR',
+        'sender_id' => $warehouse->id,
+        'receiver_id' => $customer->id,
+        'jubelio_return' => 2,
+    ]);
+
+    Transaction::factory()->create([
+        'type' => Transaction::TYPE_RETURN,
+        'invoice' => 'INV-CANCEL-BLOCK-SR',
+        'description' => ' ',
+        'sender_id' => $customer->id,
+        'receiver_id' => $warehouse->id,
+    ]);
+
+    mockJubelioSalesReturn('ret-block-sr', [
+        'return_no' => 'SR-BLOCK-TEST',
+        'salesorder_no' => 'INV-CANCEL-BLOCK-SR',
+        'store_id' => 1,
+        'location_id' => 10,
+        'sub_total' => 10000,
+        'real_total' => 10000,
+        'items' => [
+            ['item_id' => 7001, 'qty_in_base' => 1, 'price' => 10000],
+        ],
+    ]);
+
+    $order = Jubelioorder::create([
+        'jubelio_order_id' => 'ret-block-sr',
+        'source' => 1,
+        'invoice' => 'SR-BLOCK-TEST',
+        'source_sell_invoice' => 'INV-CANCEL-BLOCK-SR',
+        'type' => 'RETURN',
+        'order_status' => 'RETURN',
+        'run_count' => 0,
+        'status' => 0,
+    ]);
+
+    $result = app(ProcessJubelioOrder::class)->execute($order);
+
+    expect($result['success'])->toBeFalse()
+        ->and($result['message'])->toContain('sudah memiliki retur');
+
+    expect(Transaction::where('type', Transaction::TYPE_RETURN)->where('invoice', 'SR-BLOCK-TEST')->exists())->toBeFalse();
 });
 
 it('refetches jubelio order payload from API when processing polled order', function () {
