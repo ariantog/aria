@@ -33,7 +33,13 @@ $breadcrumbs = [
         <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm lg:col-span-1">
             <h2 class="mb-4 text-lg font-semibold">Cancellation Info</h2>
             <dl class="space-y-3 text-sm">
-                <div><dt class="text-gray-400">Invoice</dt><dd class="font-medium">{{ $return->invoice }}</dd></div>
+                <div>
+                    <dt class="text-gray-400">Invoice</dt>
+                    <dd class="font-medium">
+                        <a href="{{ route('transactions.show', $transaction) }}"
+                           class="font-mono text-sm text-blue-600 hover:underline">{{ $return->invoice }}</a>
+                    </dd>
+                </div>
                 <div><dt class="text-gray-400">Store</dt><dd class="font-medium">{{ $return->store_name ?: '—' }}</dd></div>
                 <div><dt class="text-gray-400">Location</dt><dd class="font-medium">{{ $return->location_name ?: '—' }}</dd></div>
                 <div><dt class="text-gray-400">Payment</dt><dd class="font-medium">{{ $return->method_pay ?: '—' }}</dd></div>

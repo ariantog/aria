@@ -296,9 +296,14 @@ it('shows jubelio sync for transactions-show without jubelio-sync permission', f
 it('lists pending jubelio cancellations by default', function () {
     $user = User::factory()->create();
 
+    $sell = Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'INV-CANCEL-PENDING',
+    ]);
+
     Jubelioreturn::create([
         'order_id' => 'ord-1',
-        'transaction_id' => '1',
+        'transaction_id' => $sell->id,
         'invoice' => 'INV-CANCEL-PENDING',
         'status' => 0,
         'confirmed_by' => 0,
@@ -316,6 +321,7 @@ it('lists pending jubelio cancellations by default', function () {
         ->get(route('jubelio.returns.index'))
         ->assertSuccessful()
         ->assertSee('INV-CANCEL-PENDING')
+        ->assertSee(route('transactions.show', $sell->id), false)
         ->assertDontSee('INV-CANCEL-SOLVED');
 });
 

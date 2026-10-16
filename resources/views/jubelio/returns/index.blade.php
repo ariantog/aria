@@ -56,7 +56,14 @@ $showSolved = ($filters['status'] ?? '') === 'SOLVED';
                 @forelse($returns as $entry)
                 <tr class="hover:bg-gray-50">
                     <td class="px-6 py-4 text-xs text-gray-500">{{ \Carbon\Carbon::parse($entry->updated_at)->translatedFormat('d/m/Y H:i') }}</td>
-                    <td class="px-6 py-4 font-mono text-xs">{{ $entry->invoice }}</td>
+                    <td class="px-6 py-4 font-mono text-xs">
+                        @if($entry->transaction_id)
+                        <a href="{{ route('transactions.show', $entry->transaction_id) }}"
+                           class="font-medium text-blue-600 hover:underline">{{ $entry->invoice }}</a>
+                        @else
+                        {{ $entry->invoice }}
+                        @endif
+                    </td>
                     <td class="px-6 py-4">{{ $entry->store_name ?: '—' }}</td>
                     <td class="px-6 py-4">{{ $entry->location_name ?: '—' }}</td>
                     <td class="px-6 py-4 max-w-xs truncate text-xs text-gray-600" title="{{ $entry->pesan }}">{{ $entry->pesan ?: '—' }}</td>
