@@ -1030,7 +1030,10 @@ function createTransaction() {
 
         /** Any filled line without jubelio_item_id on a Jubelio-mapped sell/move warehouse. */
         hasJubelioUnlinkedLinesForSubmit() {
-            if (_TxType !== 'sell' && _TxType !== 'move') {
+            if (_TxType === 'move') {
+                return this.moveJubelioUnlinkedSubmitApplies();
+            }
+            if (_TxType !== 'sell') {
                 return false;
             }
             if (! this.jubelioWarehouseMapped()) {
@@ -1038,6 +1041,36 @@ function createTransaction() {
             }
 
             return this.form.items.some(row => row.item_id && ! this.itemJubelioLinked(row));
+        },
+
+        /** Move: unlinked SKUs block submit only for mapped receiver or mixed cart from mapped sender. */
+        moveJubelioUnlinkedSubmitApplies() {
+            if (_TxType !== 'move') {
+                return false;
+            }
+            const receiverMapped = this.jubelioPartyMapped(this.form.receiver_id);
+            const senderMapped = this.jubelioPartyMapped(this.form.sender_id);
+            if (! receiverMapped && ! senderMapped) {
+                return false;
+            }
+            const hasUnlinked = this.form.items.some(row => row.item_id && ! this.itemJubelioLinked(row));
+            if (! hasUnlinked) {
+                return false;
+            }
+            if (receiverMapped) {
+                return true;
+            }
+
+            return senderMapped && this.jubelioLinkedLineCount() > 0;
+        },
+
+        /** Move row hints: mapped receiver, or mixed linked+unlinked from mapped sender. */
+        moveJubelioUnlinkedHintsActive() {
+            if (this.jubelioPartyMapped(this.form.receiver_id)) {
+                return true;
+            }
+
+            return this.jubelioPartyMapped(this.form.sender_id) && this.jubelioLinkedLineCount() > 0;
         },
 
         jubelioUnlinkedSubmitBlocked() {
@@ -1118,22 +1151,22 @@ function createTransaction() {
             row.activeIndex = -1;
         },
 
+        jubelioPartyMapped(id) {
+            const synced = new Set((_JubelioSync.synced_warehouse_ids || []).map(wid => Number(wid)));
+            const n = Number(id);
+
+            return n > 0 && synced.has(n);
+        },
+
         jubelioWarehouseMapped() {
-            const synced = new Set((_JubelioSync.synced_warehouse_ids || []).map(id => Number(id)));
-            const mapped = (id) => {
-                const n = Number(id);
-
-                return n > 0 && synced.has(n);
-            };
-
             if (_TxType === 'move') {
-                return mapped(this.form.sender_id) || mapped(this.form.receiver_id);
+                return this.jubelioPartyMapped(this.form.sender_id) || this.jubelioPartyMapped(this.form.receiver_id);
             }
             if (_TxType === 'sell' || _TxType === 'return-supplier') {
-                return mapped(this.form.sender_id);
+                return this.jubelioPartyMapped(this.form.sender_id);
             }
             if (_TxType === 'buy' || _TxType === 'return') {
-                return mapped(this.form.receiver_id);
+                return this.jubelioPartyMapped(this.form.receiver_id);
             }
 
             return false;
@@ -1160,13 +1193,18 @@ function createTransaction() {
 
         refreshRowJubelioWarning(row) {
             const unlinked = !!row.item_id && !this.itemJubelioLinked(row);
-            const mapped = this.jubelioWarehouseMapped();
             const mixed = this.jubelioLinkedLineCount() > 0;
 
             if (_TxType === 'sell' || _TxType === 'return-supplier') {
+                const mapped = this.jubelioWarehouseMapped();
+                row.jubelio_unlinked_hint = mapped && unlinked;
+                row.jubelio_unlinked_in_mixed_cart = row.jubelio_unlinked_hint && mixed;
+            } else if (_TxType === 'move') {
+                const mapped = this.moveJubelioUnlinkedHintsActive();
                 row.jubelio_unlinked_hint = mapped && unlinked;
                 row.jubelio_unlinked_in_mixed_cart = row.jubelio_unlinked_hint && mixed;
             } else {
+                const mapped = this.jubelioWarehouseMapped();
                 row.jubelio_unlinked_hint = mapped && unlinked;
                 row.jubelio_unlinked_in_mixed_cart = row.jubelio_unlinked_hint;
             }

@@ -35,16 +35,54 @@ final class JubelioUnlinkedSubmitGuard
             return false;
         }
 
-        if (! self::jubelioWarehouseMapped($typeSlug, $senderId, $receiverId)) {
-            return false;
-        }
-
         $ids = array_values(array_unique(array_filter(array_map('intval', $itemIds), fn (int $id) => $id > 0)));
         if ($ids === []) {
             return false;
         }
 
+        if ($typeSlug === 'move') {
+            return self::blocksMoveSubmit($senderId, $receiverId, $ids);
+        }
+
+        if (! self::jubelioWarehouseMapped($typeSlug, $senderId, $receiverId)) {
+            return false;
+        }
+
         return self::anyItemUnlinked($ids);
+    }
+
+    /**
+     * Move: block unlinked lines only when they would affect Jubelio-mapped stock — receiver
+     * mapped, or mixed linked+unlinked cart from a mapped sender (virtual / unmapped dest OK).
+     *
+     * @param  list<int>  $itemIds
+     */
+    private static function blocksMoveSubmit(int $senderId, int $receiverId, array $itemIds): bool
+    {
+        $synced = Jubeliosync::query()->pluck('warehouse_id')->map(fn ($id) => (int) $id)->all();
+        $set = array_flip($synced);
+
+        $receiverMapped = $receiverId > 0 && isset($set[$receiverId]);
+        $senderMapped = $senderId > 0 && isset($set[$senderId]);
+
+        if (! $receiverMapped && ! $senderMapped) {
+            return false;
+        }
+
+        if (! self::anyItemUnlinked($itemIds)) {
+            return false;
+        }
+
+        if ($receiverMapped) {
+            return true;
+        }
+
+        $linkedCount = Item::query()
+            ->whereIn('id', $itemIds)
+            ->where('jubelio_item_id', '>', 0)
+            ->count();
+
+        return $senderMapped && $linkedCount > 0;
     }
 
     public static function jubelioWarehouseMapped(string $typeSlug, int $senderId, int $receiverId): bool
