@@ -146,7 +146,7 @@
                             @elseif($isDeleted)
                                 <td class="whitespace-nowrap px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-rose-600" data-copy-col="status">Deleted warehouse</td>
                             @endif
-                            <td class="whitespace-nowrap px-3 py-2 text-right font-mono" data-copy-col="qty" data-copy-value="{{ format_copy_number($qty) }}" data-sort-value="{{ $qty }}">
+                            <td class="whitespace-nowrap px-3 py-2 text-right font-mono" data-copy-col="qty" data-sum-col="qty" data-sum-value="{{ $qty }}" data-copy-value="{{ format_copy_number($qty) }}" data-sort-value="{{ $qty }}">
                                 <span @class([
                                     'font-bold',
                                     'text-blue-600' => $variant === 'physical' && $qty > 0,
@@ -160,21 +160,40 @@
                                     @php
                                         $jubelioOnHandMismatch = $qtyDiffers($qty, $jubelio['on_hand'] ?? null);
                                     @endphp
-                                    <td class="whitespace-nowrap px-3 py-2 text-right font-mono text-xs {{ $jubelioOnHandMismatch ? 'font-semibold text-red-600' : 'text-blue-700' }}" data-copy-col="jb_on_hand" data-copy-value="{{ $jubelio['on_hand'] !== null ? format_copy_number($jubelio['on_hand']) : '' }}" title="{{ $jubelio['location_name'] ?? '' }}">{{ $fmtJubelio($jubelio['on_hand']) }}</td>
-                                    <td class="whitespace-nowrap px-3 py-2 text-right font-mono text-xs text-orange-600" data-copy-col="jb_on_order" data-copy-value="{{ $jubelio['on_order'] !== null ? format_copy_number($jubelio['on_order']) : '' }}">{{ $fmtJubelio($jubelio['on_order']) }}</td>
-                                    <td class="whitespace-nowrap px-3 py-2 text-right font-mono text-xs text-gray-600" data-copy-col="jb_reserved" data-copy-value="{{ $jubelio['reserved'] !== null ? format_copy_number($jubelio['reserved']) : '' }}">{{ $fmtJubelio($jubelio['reserved']) }}</td>
-                                    <td class="whitespace-nowrap px-3 py-2 text-right font-mono text-xs font-semibold {{ ($jubelio['mismatch'] ?? false) ? 'text-red-600' : 'text-green-600' }}" data-copy-col="jb_available" data-copy-value="{{ $jubelio['available'] !== null ? format_copy_number($jubelio['available']) : '' }}">{{ $fmtJubelio($jubelio['available']) }}</td>
+                                    <td class="whitespace-nowrap px-3 py-2 text-right font-mono text-xs {{ $jubelioOnHandMismatch ? 'font-semibold text-red-600' : 'text-blue-700' }}" data-copy-col="jb_on_hand" data-sum-col="jb_on_hand" @if($jubelio['on_hand'] !== null) data-sum-value="{{ $jubelio['on_hand'] }}" @endif data-copy-value="{{ $jubelio['on_hand'] !== null ? format_copy_number($jubelio['on_hand']) : '' }}" title="{{ $jubelio['location_name'] ?? '' }}">{{ $fmtJubelio($jubelio['on_hand']) }}</td>
+                                    <td class="whitespace-nowrap px-3 py-2 text-right font-mono text-xs text-orange-600" data-copy-col="jb_on_order" data-sum-col="jb_on_order" @if($jubelio['on_order'] !== null) data-sum-value="{{ $jubelio['on_order'] }}" @endif data-copy-value="{{ $jubelio['on_order'] !== null ? format_copy_number($jubelio['on_order']) : '' }}">{{ $fmtJubelio($jubelio['on_order']) }}</td>
+                                    <td class="whitespace-nowrap px-3 py-2 text-right font-mono text-xs text-gray-600" data-copy-col="jb_reserved" data-sum-col="jb_reserved" @if($jubelio['reserved'] !== null) data-sum-value="{{ $jubelio['reserved'] }}" @endif data-copy-value="{{ $jubelio['reserved'] !== null ? format_copy_number($jubelio['reserved']) : '' }}">{{ $fmtJubelio($jubelio['reserved']) }}</td>
+                                    <td class="whitespace-nowrap px-3 py-2 text-right font-mono text-xs font-semibold {{ ($jubelio['mismatch'] ?? false) ? 'text-red-600' : 'text-green-600' }}" data-copy-col="jb_available" data-sum-col="jb_available" @if($jubelio['available'] !== null) data-sum-value="{{ $jubelio['available'] }}" @endif data-copy-value="{{ $jubelio['available'] !== null ? format_copy_number($jubelio['available']) : '' }}">{{ $fmtJubelio($jubelio['available']) }}</td>
                                 @else
                                     <td colspan="4" class="px-3 py-2 text-right text-xs text-gray-300" data-copy-col="jb_on_hand">—</td>
                                 @endif
                             @endif
                             @if($showShopeeStock && $variant === 'physical')
-                                <td class="whitespace-nowrap px-3 py-2 text-right text-xs" data-copy-col="sp_sellable" @if(($shopee['sellable'] ?? null) !== null) data-copy-value="{{ format_copy_number($shopee['sellable']) }}" @endif>{!! $shopeeQtyCell($shopee, 'sellable', true) !!}</td>
-                                <td class="whitespace-nowrap px-3 py-2 text-right text-xs" data-copy-col="sp_reserved" @if(($shopee['reserved'] ?? null) !== null) data-copy-value="{{ format_copy_number($shopee['reserved']) }}" @endif>{!! $shopeeQtyCell($shopee, 'reserved') !!}</td>
+                                <td class="whitespace-nowrap px-3 py-2 text-right text-xs" data-copy-col="sp_sellable" data-sum-col="sp_sellable" @if(($shopee['sellable'] ?? null) !== null) data-sum-value="{{ $shopee['sellable'] }}" data-copy-value="{{ format_copy_number($shopee['sellable']) }}" @endif>{!! $shopeeQtyCell($shopee, 'sellable', true) !!}</td>
+                                <td class="whitespace-nowrap px-3 py-2 text-right text-xs" data-copy-col="sp_reserved" data-sum-col="sp_reserved" @if(($shopee['reserved'] ?? null) !== null) data-sum-value="{{ $shopee['reserved'] }}" data-copy-value="{{ format_copy_number($shopee['reserved']) }}" @endif>{!! $shopeeQtyCell($shopee, 'reserved') !!}</td>
                             @endif
                         </tr>
                     @endforeach
                 </tbody>
+                @php
+                    $totalLabelColspan = 2 + (($isVirtual || $isDeleted) ? 1 : 0);
+                @endphp
+                <tfoot class="border-t-2 border-gray-300 bg-gray-50" data-testid="{{ $testId }}-totals">
+                    <tr x-show="visibleRowCount() > 0">
+                        <td colspan="{{ $totalLabelColspan }}" class="px-3 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-gray-600">Total Stok</td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right font-mono text-sm font-bold text-blue-600" data-testid="{{ $testId }}-sum-qty" x-text="columnSum('qty')"></td>
+                        @if($showJubelioColumns)
+                            <td class="whitespace-nowrap px-3 py-2.5 text-right font-mono text-sm font-bold text-blue-700" x-text="columnSum('jb_on_hand')"></td>
+                            <td class="whitespace-nowrap px-3 py-2.5 text-right font-mono text-sm font-bold text-orange-600" x-text="columnSum('jb_on_order')"></td>
+                            <td class="whitespace-nowrap px-3 py-2.5 text-right font-mono text-sm font-bold text-violet-700" x-text="columnSum('jb_reserved')"></td>
+                            <td class="whitespace-nowrap px-3 py-2.5 text-right font-mono text-sm font-bold text-sky-700" x-text="columnSum('jb_available')"></td>
+                        @endif
+                        @if($showShopeeStock && $variant === 'physical')
+                            <td class="whitespace-nowrap px-3 py-2.5 text-right font-mono text-sm font-bold text-gray-700" x-text="columnSum('sp_sellable')"></td>
+                            <td class="whitespace-nowrap px-3 py-2.5 text-right font-mono text-sm font-bold text-gray-600" x-text="columnSum('sp_reserved')"></td>
+                        @endif
+                    </tr>
+                </tfoot>
             </table>
         </div>
     @endif
@@ -189,6 +208,53 @@
             sortDir: 'asc',
             copyFeedback: false,
             copyFeedbackTimer: null,
+            sumRevision: 0,
+            init() {
+                if (typeof this.showZero !== 'undefined') {
+                    this.$watch('showZero', () => {
+                        this.sumRevision++;
+                    });
+                }
+            },
+            visibleRows() {
+                const table = this.$refs.availabilityTable;
+                if (!table) {
+                    return [];
+                }
+
+                return Array.from(table.querySelectorAll('tbody tr'))
+                    .filter((row) => row.offsetParent !== null);
+            },
+            visibleRowCount() {
+                void this.sumRevision;
+
+                return this.visibleRows().length;
+            },
+            columnSum(col) {
+                void this.sumRevision;
+
+                let total = 0;
+                let hasAny = false;
+
+                for (const row of this.visibleRows()) {
+                    const cell = row.querySelector('[data-sum-col="' + col + '"]');
+                    if (!cell || cell.dataset.sumValue === undefined || cell.dataset.sumValue === '') {
+                        continue;
+                    }
+
+                    const value = Number(cell.dataset.sumValue);
+                    if (!Number.isFinite(value)) {
+                        continue;
+                    }
+
+                    total += value;
+                    hasAny = true;
+                }
+
+                return hasAny
+                    ? new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(total)
+                    : '—';
+            },
             showCopyFeedback() {
                 this.copyFeedback = true;
                 clearTimeout(this.copyFeedbackTimer);
@@ -243,6 +309,7 @@
                 ) * dir);
 
                 rows.forEach((row) => tbody.appendChild(row));
+                this.sumRevision++;
             },
             async copyTable() {
                 const table = this.$refs.availabilityTable;

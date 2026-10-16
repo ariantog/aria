@@ -95,6 +95,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::post('jubelio/auto-link/items/{item}/reset-attempts', [App\Http\Controllers\JubelioItemAutoLinkController::class, 'resetItem'])->name('jubelio.auto-link.reset-item');
     Route::get('jubelio/order/cek', [App\Http\Controllers\JubelioController::class, 'cekOrder'])->name('jubelio.order.cek');
     Route::post('jubelio/order/cek/queue', [App\Http\Controllers\JubelioController::class, 'queueCekOrder'])->name('jubelio.order.cek.queue');
+    Route::get('jubelio/stock/cek', [App\Http\Controllers\JubelioController::class, 'cekStock'])->name('jubelio.stock.cek');
     Route::get('jubelio/token', [App\Http\Controllers\JubelioTokenController::class, 'index'])->name('jubelio.token.index');
     Route::post('jubelio/token/refresh', [App\Http\Controllers\JubelioTokenController::class, 'refresh'])->name('jubelio.token.refresh');
     Route::post('jubelio/token/check', [App\Http\Controllers\JubelioTokenController::class, 'check'])->name('jubelio.token.check');

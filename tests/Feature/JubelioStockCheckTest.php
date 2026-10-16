@@ -195,6 +195,103 @@ it('on-hand comparison would miss webhook lag when on-hand has not dropped yet',
     expect($availableMismatch)->toBeTrue();
 });
 
+it('uses on_hand minus reserved when available still equals on_hand', function () {
+    $service = app(JubelioStockCheckService::class);
+
+    $quantities = $service->resolveLocationQuantities([
+        'on_hand' => 25,
+        'on_order' => 0,
+        'reserved' => 2,
+        'available' => 25,
+    ]);
+
+    expect($quantities['comparable'])->toBe(23.0);
+});
+
+it('excludes deleted warehouses from synced warehouse scan list', function () {
+    $active = Addrbook::factory()->warehouse()->create(['name' => 'Active WH']);
+    $deleted = Addrbook::factory()->warehouse()->create(['name' => 'Deleted WH']);
+    $deleted->delete();
+
+    seedStockCheckSync($active, 10, 'Active');
+    seedStockCheckSync($deleted, 20, 'Deleted');
+
+    $warehouseIds = collect(app(JubelioStockCheckService::class)->syncedWarehouses())
+        ->pluck('warehouse_id')
+        ->all();
+
+    expect($warehouseIds)->toBe([$active->id]);
+});
+
+it('completes stock check without api calls when only deleted warehouse syncs exist', function () {
+    $deleted = Addrbook::factory()->warehouse()->create();
+    $deleted->delete();
+    seedStockCheckSync($deleted);
+
+    $job = JubelioStockCheck::create([
+        'sync_cursor' => 0,
+        'per_type_limit' => 50,
+        'demand_days' => 90,
+        'status' => 'processing',
+    ]);
+
+    $this->mock(JubelioService::class, function (MockInterface $mock) {
+        $mock->shouldNotReceive('fetchItemsAllStocks');
+    });
+
+    $this->artisan('app:jubelio-stock-check')->assertSuccessful();
+
+    expect($job->fresh()->status)->toBe('completed');
+});
+
+it('flags mismatch using comparable when reserved lags available field', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    seedStockCheckSync($warehouse);
+
+    $item = Item::factory()->create([
+        'jubelio_item_id' => 777,
+        'type' => Item::TYPE_ITEM,
+    ]);
+
+    WarehouseItem::create([
+        'item_id' => $item->id,
+        'warehouse_id' => $warehouse->id,
+        'warehouse_type' => Addrbook::class,
+        'quantity' => 25,
+    ]);
+
+    $job = JubelioStockCheck::create([
+        'sync_cursor' => 0,
+        'per_type_limit' => 50,
+        'demand_days' => 90,
+        'target_discrepancies' => 50,
+        'status' => 'processing',
+    ]);
+
+    $this->mock(JubelioService::class, function (MockInterface $mock) {
+        $mock->shouldReceive('fetchItemsAllStocks')
+            ->once()
+            ->andReturn([
+                'data' => [[
+                    'item_id' => 777,
+                    'location_stocks' => [[
+                        'location_id' => 10,
+                        'on_hand' => 25,
+                        'on_order' => 0,
+                        'reserved' => 2,
+                        'available' => 25,
+                    ]],
+                ]],
+            ]);
+    });
+
+    $this->artisan('app:jubelio-stock-check')->assertSuccessful();
+
+    $discrepancy = $job->fresh()->discrepancies()->first();
+    expect($discrepancy)->not->toBeNull();
+    expect((float) $discrepancy->jubelio_qty)->toBe(23.0);
+});
+
 it('selects high-demand skus per warehouse and type', function () {
     $warehouse = Addrbook::factory()->warehouse()->create();
     $sync = seedStockCheckSync($warehouse);

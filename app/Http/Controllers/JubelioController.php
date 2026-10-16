@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Actions\Jubelio\AdjustStock;
 use App\Actions\Jubelio\ProcessJubelioOrder;
 use App\Models\Addrbook;
+use App\Models\Item;
 use App\Models\Jubelio;
 use App\Models\Jubelioorder;
 use App\Models\Jubelioreturn;
@@ -19,6 +20,7 @@ use App\Services\Jubelio\JubelioOrderWarehouseResolver;
 use App\Services\Jubelio\JubelioTransactionSyncPresenter;
 use App\Services\JubelioGetOrdersService;
 use App\Services\JubelioService;
+use App\Services\JubelioStockCheckService;
 use App\Services\WarehouseJubelioStockService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -78,6 +80,53 @@ class JubelioController extends Controller
         return redirect()
             ->route('jubelio.order.cek', ['order_id' => $validated['order_id']])
             ->with($result['success'] ? 'success' : 'error', $result['message']);
+    }
+
+    public function cekStock(Request $request, JubelioService $jubelioService, JubelioStockCheckService $stockCheckService): View
+    {
+        Gate::authorize(Jubelio::getPermissions()['view']);
+
+        $itemId = trim((string) $request->query('item_id', old('item_id', '')));
+        $payload = null;
+        $lookupError = null;
+        $ariaItem = null;
+        $locationInterpretation = [];
+
+        if ($itemId !== '') {
+            $jubelioItemId = (int) $itemId;
+            if ($jubelioItemId <= 0) {
+                $lookupError = 'Jubelio item ID harus angka positif.';
+            } else {
+                $response = $jubelioService->fetchItemsAllStocks([$jubelioItemId]);
+                if ($response === null) {
+                    $lookupError = 'Gagal memanggil Jubelio API inventory/items/all-stocks.';
+                } elseif (($response['data'] ?? []) === []) {
+                    $lookupError = 'Item tidak ditemukan di Jubelio all-stocks.';
+                } else {
+                    $payload = $response;
+                    $ariaItem = Item::query()->where('jubelio_item_id', $jubelioItemId)->first();
+
+                    foreach ($response['data'][0]['location_stocks'] ?? [] as $locationStock) {
+                        $quantities = $stockCheckService->resolveLocationQuantities($locationStock);
+                        $locationInterpretation[] = [
+                            'location_id' => (int) ($locationStock['location_id'] ?? 0),
+                            'on_hand' => $quantities['on_hand'],
+                            'reserved' => $quantities['reserved'],
+                            'available' => $quantities['available'],
+                            'comparable_for_aria' => $quantities['comparable'],
+                        ];
+                    }
+                }
+            }
+        }
+
+        return view('jubelio.stock-cek.index', [
+            'itemId' => $itemId,
+            'payload' => $payload,
+            'lookupError' => $lookupError,
+            'ariaItem' => $ariaItem,
+            'locationInterpretation' => $locationInterpretation,
+        ]);
     }
 
     public function index(Request $request): View

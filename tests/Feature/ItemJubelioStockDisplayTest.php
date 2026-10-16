@@ -121,3 +121,47 @@ it('shows per-warehouse jubelio columns when gudang is mapped', function () {
         ->assertSee(format_amount(13, 0), false)
         ->assertDontSee('data-dual-stock-mismatch="1"', false);
 });
+
+it('shows warehouse stock total row on item detail', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Total WH']);
+    Jubeliosync::create([
+        'jubelio_store_id' => 1,
+        'jubelio_store_name' => 'Store',
+        'jubelio_location_id' => 10,
+        'jubelio_location_name' => 'Loc 10',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => 0,
+        'bin_id' => 0,
+    ]);
+
+    $item = Item::factory()->create([
+        'jubelio_item_id' => 504,
+        'code' => 'JUB-TOTAL-ROW',
+    ]);
+
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $item->id,
+        'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 5,
+    ]);
+
+    mockJubelioAllStocksForItem(504, [
+        'on_hand' => 0,
+        'on_order' => 0,
+        'reserved' => 0,
+        'available' => 0,
+    ], [[
+        'location_id' => 10,
+        'on_hand' => 5,
+        'on_order' => 0,
+        'reserved' => 0,
+        'available' => 5,
+    ]]);
+
+    $this->actingAs($this->user)
+        ->get(route('items.show', $item))
+        ->assertOk()
+        ->assertSee('data-testid="item-availability-totals"', false)
+        ->assertSee('Total Stok', false);
+});
