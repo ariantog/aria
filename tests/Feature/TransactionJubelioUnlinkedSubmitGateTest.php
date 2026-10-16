@@ -14,6 +14,7 @@ beforeEach(function () {
     foreach ([
         'transactions-type-sell',
         'transactions-type-move',
+        'transactions-type-move-virtual',
         'transactions-submit-jubelio-unlinked',
     ] as $name) {
         Permission::firstOrCreate(['name' => $name]);
@@ -107,6 +108,67 @@ it('allows sell store with unlinked lines when submit-jubelio-unlinked permissio
         ->assertCreated();
 
     expect(Transaction::query()->where('type', Transaction::TYPE_SELL)->count())->toBe(1);
+});
+
+it('allows move from jubelio-mapped sender to virtual warehouse with only unlinked lines', function () {
+    $this->user->givePermissionTo(['transactions-type-move', 'transactions-type-move-virtual']);
+
+    $sender = Addrbook::factory()->warehouse()->create();
+    jubelioGateSync($sender);
+    $receiver = Addrbook::factory()->create(['type' => Addrbook::TYPE_V_WAREHOUSE]);
+    $item = Item::factory()->create(['jubelio_item_id' => null]);
+
+    WarehouseItem::create([
+        'warehouse_id' => $sender->id,
+        'item_id' => $item->id,
+        'warehouse_type' => Addrbook::class,
+        'quantity' => 5,
+    ]);
+
+    $this->postJson(route('transactions.store'), [
+        'date' => now()->toDateString(),
+        'type' => 'move',
+        'sender_id' => $sender->id,
+        'receiver_id' => $receiver->id,
+        'items' => [
+            ['item_id' => $item->id, 'quantity' => 1, 'price' => 1000, 'discount' => 0],
+        ],
+    ])
+        ->assertCreated();
+
+    expect(Transaction::query()->where('type', Transaction::TYPE_MOVE)->count())->toBe(1);
+});
+
+it('blocks move from jubelio-mapped sender when cart mixes linked and unlinked lines', function () {
+    $this->user->givePermissionTo(['transactions-type-move', 'transactions-type-move-virtual']);
+
+    $sender = Addrbook::factory()->warehouse()->create();
+    jubelioGateSync($sender);
+    $receiver = Addrbook::factory()->create(['type' => Addrbook::TYPE_V_WAREHOUSE]);
+    $linked = Item::factory()->create(['jubelio_item_id' => 2001]);
+    $unlinked = Item::factory()->create(['jubelio_item_id' => null]);
+
+    foreach ([$linked, $unlinked] as $item) {
+        WarehouseItem::create([
+            'warehouse_id' => $sender->id,
+            'item_id' => $item->id,
+            'warehouse_type' => Addrbook::class,
+            'quantity' => 5,
+        ]);
+    }
+
+    $this->postJson(route('transactions.store'), [
+        'date' => now()->toDateString(),
+        'type' => 'move',
+        'sender_id' => $sender->id,
+        'receiver_id' => $receiver->id,
+        'items' => [
+            ['item_id' => $linked->id, 'quantity' => 1, 'price' => 1000, 'discount' => 0],
+            ['item_id' => $unlinked->id, 'quantity' => 1, 'price' => 1000, 'discount' => 0],
+        ],
+    ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['items']);
 });
 
 it('blocks move store when receiver is jubelio-mapped and a line is unlinked', function () {
