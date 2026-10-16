@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers\Reports;
 
+use App\Actions\Transactions\PrepareMoveTransactionDraft;
 use App\Http\Controllers\Controller;
 use App\Enums\AddrbookType;
 use App\Models\Addrbook;
-use App\Models\Item;
 use App\Models\Report;
 use App\Services\WarehouseArrangementExportService;
 use App\Services\WarehouseArrangementRefreshService;
@@ -271,7 +271,7 @@ class WarehouseArrangementController extends Controller
         );
     }
 
-    public function draftMove(Request $request)
+    public function draftMove(Request $request, PrepareMoveTransactionDraft $prepareMove)
     {
         Gate::authorize(Report::getPermissions()['view-warehouse-arrangement']);
 
@@ -283,78 +283,14 @@ class WarehouseArrangementController extends Controller
             'items.*.to_warehouse_id' => ['required', 'integer', 'exists:customers,id'],
         ]);
 
-        $fromId = (int) $validated['items'][0]['from_warehouse_id'];
-        $toId = (int) $validated['items'][0]['to_warehouse_id'];
+        $items = collect($validated['items'])->map(fn (array $row) => [
+            'item_id' => (int) $row['item_id'],
+            'quantity' => (float) $row['quantity'],
+            'from_warehouse_id' => (int) $row['from_warehouse_id'],
+            'to_warehouse_id' => (int) $row['to_warehouse_id'],
+        ])->all();
 
-        foreach ($validated['items'] as $row) {
-            if ((int) $row['from_warehouse_id'] !== $fromId || (int) $row['to_warehouse_id'] !== $toId) {
-                return back()->with('error', 'All items in one draft must share the same source and destination warehouses.');
-            }
-        }
-
-        $draftItemIds = collect($validated['items'])->pluck('item_id')->map(fn ($id) => (int) $id);
-        if ($draftItemIds->unique()->count() !== $draftItemIds->count()) {
-            return back()->with('error', 'Each SKU can only be selected once.');
-        }
-
-        $from = Addrbook::query()
-            ->where('type', AddrbookType::Warehouse)
-            ->findOrFail($fromId);
-
-        $to = Addrbook::query()
-            ->where('type', AddrbookType::Warehouse)
-            ->where('arrangement_enabled', true)
-            ->findOrFail($toId);
-
-        $itemIds = $draftItemIds->all();
-        $items = Item::query()
-            ->with(['warehouseItems', 'group', 'tags'])
-            ->whereIn('id', $itemIds)
-            ->get()
-            ->keyBy('id');
-
-        $prefillItems = [];
-        foreach ($validated['items'] as $row) {
-            $item = $items->get((int) $row['item_id']);
-            if (! $item) {
-                continue;
-            }
-
-            $quantity = (float) $row['quantity'];
-            $price = $item->effectivePrice();
-
-            $prefillItems[] = [
-                'item_id' => (string) $item->id,
-                'code' => $item->code,
-                'name' => $item->name,
-                'quantity' => $quantity,
-                'price' => $price,
-                'discount' => 0,
-                'subtotal' => $quantity * $price,
-                'warehouse_item' => $item->warehouseItems->map(fn ($wi) => [
-                    'warehouse_id' => (string) $wi->warehouse_id,
-                    'quantity' => (float) $wi->quantity,
-                ])->values()->all(),
-            ];
-        }
-
-        if ($prefillItems === []) {
-            return back()->with('error', 'No valid items selected for the move draft.');
-        }
-
-        $this->rememberDraftedItems($toId, $itemIds);
-
-        session([
-            'transaction_move_prefill' => [
-                'sender_id' => (string) $from->id,
-                'sender' => ['id' => $from->id, 'name' => $from->name],
-                'receiver_id' => (string) $to->id,
-                'receiver' => ['id' => $to->id, 'name' => $to->name],
-                'items' => $prefillItems,
-            ],
-        ]);
-
-        return redirect()->route('transactions.create', ['type' => 'move']);
+        return $prepareMove->execute($items, rememberArrangementDraft: true);
     }
 
     /**
@@ -371,16 +307,4 @@ class WarehouseArrangementController extends Controller
         return array_values(array_map('intval', $all[$warehouseId] ?? []));
     }
 
-    /**
-     * @param  list<int>  $itemIds
-     */
-    private function rememberDraftedItems(int $destinationWarehouseId, array $itemIds): void
-    {
-        $all = session(self::SESSION_DRAFTED_KEY, []);
-        $existing = array_map('intval', $all[$destinationWarehouseId] ?? []);
-        $merged = array_values(array_unique(array_merge($existing, array_map('intval', $itemIds))));
-
-        $all[$destinationWarehouseId] = $merged;
-        session([self::SESSION_DRAFTED_KEY => $all]);
-    }
 }
