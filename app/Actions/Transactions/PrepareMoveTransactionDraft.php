@@ -63,6 +63,7 @@ class PrepareMoveTransactionDraft
                 'item_id' => (string) $item->id,
                 'code' => $item->code,
                 'name' => $item->name,
+                'jubelio_item_id' => (int) ($item->jubelio_item_id ?? 0),
                 'quantity' => $quantity,
                 'price' => $price,
                 'discount' => 0,

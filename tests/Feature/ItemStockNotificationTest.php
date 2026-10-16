@@ -433,8 +433,8 @@ it('drafts a move from selected stock alerts', function () {
         'arrangement_enabled' => true,
     ]);
     $source = Addrbook::factory()->warehouse()->create(['name' => 'Alert Source']);
-    $itemA = Item::factory()->create(['code' => 'ALERT-MOVE-A']);
-    $itemB = Item::factory()->create(['code' => 'ALERT-MOVE-B']);
+    $itemA = Item::factory()->create(['code' => 'ALERT-MOVE-A', 'jubelio_item_id' => 8801]);
+    $itemB = Item::factory()->create(['code' => 'ALERT-MOVE-B', 'jubelio_item_id' => null]);
 
     WarehouseItem::create(['warehouse_id' => $source->id, 'item_id' => $itemA->id, 'quantity' => 4]);
     WarehouseItem::create(['warehouse_id' => $source->id, 'item_id' => $itemB->id, 'quantity' => 2]);
@@ -473,7 +473,9 @@ it('drafts a move from selected stock alerts', function () {
         ->assertSee('Alert Source', false)
         ->assertSee('Alert Sold Out', false)
         ->assertSee('ALERT-MOVE-A', false)
-        ->assertSee('ALERT-MOVE-B', false);
+        ->assertSee('ALERT-MOVE-B', false)
+        ->assertSee('"jubelio_item_id":8801', false)
+        ->assertSee('"jubelio_item_id":0', false);
 });
 
 it('marks notifications read and dismissed', function () {

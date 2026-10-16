@@ -1064,13 +1064,10 @@ function createTransaction() {
             return senderMapped && this.jubelioLinkedLineCount() > 0;
         },
 
-        /** Move row hints: mapped receiver, or mixed linked+unlinked from mapped sender. */
+        /** Move row hints: any Jubelio-mapped party (strict text only when cart is mixed). */
         moveJubelioUnlinkedHintsActive() {
-            if (this.jubelioPartyMapped(this.form.receiver_id)) {
-                return true;
-            }
-
-            return this.jubelioPartyMapped(this.form.sender_id) && this.jubelioLinkedLineCount() > 0;
+            return this.jubelioPartyMapped(this.form.sender_id)
+                || this.jubelioPartyMapped(this.form.receiver_id);
         },
 
         jubelioUnlinkedSubmitBlocked() {
