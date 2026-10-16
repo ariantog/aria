@@ -6,6 +6,7 @@ use App\Actions\Jubelio\ProcessJubelioCancellation;
 use App\Models\Jubelio;
 use App\Models\Jubelioreturn;
 use App\Models\Transaction;
+use App\Services\Jubelio\JubelioSellReturnGuard;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -41,16 +42,21 @@ class JubelioReturnController extends Controller
         ]);
     }
 
-    public function show(Jubelioreturn $jubelioReturn): View
+    public function show(Jubelioreturn $jubelioReturn, JubelioSellReturnGuard $sellReturnGuard): View
     {
         Gate::authorize(Jubelio::getPermissions()['view']);
 
         $transaction = Transaction::with(['receiver', 'sender', 'user', 'details.item.group'])
             ->findOrFail($jubelioReturn->transaction_id);
 
+        $sellInvoice = (string) $transaction->invoice;
+        $manualReturnBlocked = (int) $transaction->jubelio_return > 0
+            || $sellReturnGuard->sellAlreadyReturned($sellInvoice);
+
         return view('jubelio.returns.show', [
             'return' => $jubelioReturn,
             'transaction' => $transaction,
+            'manualReturnBlocked' => $manualReturnBlocked,
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }

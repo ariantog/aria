@@ -14,6 +14,7 @@ use App\Services\Jubelio\JubelioOrderPayloadService;
 use App\Services\Jubelio\JubelioOrderQueueEligibility;
 use App\Services\Jubelio\JubelioOrderSyncStatus;
 use App\Services\Jubelio\JubelioSellInvoiceGuard;
+use App\Services\Jubelio\JubelioSellReturnGuard;
 use App\Services\Jubelio\JubelioOrderWarehouseResolver;
 use App\Services\Jubelio\JubelioSellerIncomeResolver;
 use App\Services\LocationAccessService;
@@ -32,6 +33,7 @@ class ProcessJubelioOrder
         private JubelioSellerIncomeResolver $sellerIncomeResolver,
         private JubelioOrderQueueEligibility $queueEligibility,
         private JubelioSellInvoiceGuard $sellInvoiceGuard,
+        private JubelioSellReturnGuard $sellReturnGuard,
     ) {}
 
     /**
@@ -226,6 +228,22 @@ class ProcessJubelioOrder
             return ['success' => false, 'message' => $message];
         }
 
+        $sellInvoice = (string) ($dataApi['salesorder_no'] ?? '');
+        if ((int) $cekTransaksiSell->jubelio_return > 0
+            || $this->sellReturnGuard->returnPostedForSell($sellInvoice)) {
+            $message = 'Invoice jual sudah memiliki retur (pembatalan manual atau retur Jubelio SR).';
+
+            $order->update([
+                'run_count' => $runCount,
+                'error_type' => 2,
+                'error' => $message,
+                'stock_error_items' => null,
+                'status' => 2,
+            ]);
+
+            return ['success' => false, 'message' => $message];
+        }
+
         $returnMapping = $this->warehouseResolver->resolveReturnSync($order, null, $dataApi);
         $jubelioSync = $returnMapping['sync'];
 
@@ -290,7 +308,9 @@ class ProcessJubelioOrder
                 'stock_error_items' => null,
                 'status' => 2,
                 'execute_by' => $executedByUserId ?? 0,
+                'source_sell_invoice' => $sellInvoice !== '' ? $sellInvoice : $order->source_sell_invoice,
             ]);
+            $cekTransaksiSell->update(['jubelio_return' => 2]);
             Log::info('Berhasil Return: '.$dataApi['return_no']);
 
             return ['success' => true, 'message' => 'Transaksi retur berhasil dibuat'];
