@@ -1,6 +1,7 @@
 <?php
 
 use App\Support\GreenfieldMysqlSchema;
+use App\Support\RestockCellHistoryAuditSchema;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -61,13 +62,8 @@ return new class extends Migration
                 });
         }
 
-        if (Schema::hasColumn('restock_cell_histories', 'user_id')) {
-            Schema::table('restock_cell_histories', function (Blueprint $table) {
-                $table->unsignedBigInteger('user_id')->nullable()->change();
-            });
-        }
-
-        $this->relaxRestockCellForeignKey();
+        RestockCellHistoryAuditSchema::makeUserIdNullable();
+        RestockCellHistoryAuditSchema::relaxRestockCellForeignKey();
     }
 
     public function down(): void
@@ -95,32 +91,6 @@ return new class extends Migration
             if ($this->indexExists('restock_cell_histories', 'restock_hist_created_idx')) {
                 $table->dropIndex('restock_hist_created_idx');
             }
-        });
-    }
-
-    private function relaxRestockCellForeignKey(): void
-    {
-        if (! Schema::hasColumn('restock_cell_histories', 'restock_cell_id')) {
-            return;
-        }
-
-        Schema::table('restock_cell_histories', function (Blueprint $table) {
-            try {
-                $table->dropForeign(['restock_cell_id']);
-            } catch (\Throwable) {
-                // SQLite / partial installs may not have a named FK.
-            }
-        });
-
-        Schema::table('restock_cell_histories', function (Blueprint $table) {
-            $table->unsignedBigInteger('restock_cell_id')->nullable()->change();
-        });
-
-        Schema::table('restock_cell_histories', function (Blueprint $table) {
-            $table->foreign('restock_cell_id', 'restock_cell_hist_cell_fk')
-                ->references('id')
-                ->on('restock_cells')
-                ->nullOnDelete();
         });
     }
 
