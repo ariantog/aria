@@ -369,37 +369,36 @@ class JubelioStockCheckService
     }
 
     /**
-     * Jubelio drops available when an order is placed (before Aria webhook). Compare
-     * against available so webhook-lag rows like Aria 10 vs Jubelio 9 are caught.
-     * On-hand may still read 10 while available is already 9.
+     * Parse Jubelio location_stocks row. {@see compareItemsAtWarehouse} compares Aria qty to
+     * {@see ariaParityTotal()} (on_hand + on_order + reserved, each clamped ≥ 0). The
+     * `available` field is kept for display only.
      *
      * @param  array<string, mixed>  $locationStock
      * @return array{on_hand: float, on_order: float, reserved: float, available: float, comparable: float}
      */
     public function resolveLocationQuantities(array $locationStock): array
     {
-        $onHand = (float) ($locationStock['on_hand'] ?? 0);
-        $onOrder = (float) ($locationStock['on_order'] ?? 0);
-        $reserved = (float) ($locationStock['reserved'] ?? 0);
+        $onHand = max(0, (float) ($locationStock['on_hand'] ?? 0));
+        $onOrder = max(0, (float) ($locationStock['on_order'] ?? 0));
+        $reserved = max(0, (float) ($locationStock['reserved'] ?? 0));
         $available = array_key_exists('available', $locationStock)
             ? (float) $locationStock['available']
             : $onHand - $reserved;
-
-        $computedSellable = $onHand - $reserved;
-
-        // Jubelio all-stocks can report available == on_hand while reserved > 0 until
-        // pick/print completes (chronology already shows the deduction). Use the lower sellable qty.
-        $comparable = $available;
-        if ($reserved > 0.0001 && abs($available - $onHand) < 0.0001 && $computedSellable < $available) {
-            $comparable = $computedSellable;
-        }
 
         return [
             'on_hand' => $onHand,
             'on_order' => $onOrder,
             'reserved' => $reserved,
             'available' => $available,
-            'comparable' => $comparable,
+            'comparable' => $this->ariaParityTotal($onHand, $onOrder, $reserved),
         ];
+    }
+
+    /**
+     * Jubelio quantity that should match Aria warehouse_item (stock check + display mismatch).
+     */
+    public function ariaParityTotal(float $onHand, float $onOrder, float $reserved): float
+    {
+        return max(0, $onHand) + max(0, $onOrder) + max(0, $reserved);
     }
 }

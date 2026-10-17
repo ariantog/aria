@@ -330,6 +330,7 @@ it('shows jubelio on-hand stock for synced warehouses', function () {
         ->assertOk()
         ->assertJsonPath('jubelio.stocks.'.$linkedItem->id.'.on_hand', 40)
         ->assertJsonPath('jubelio.stocks.'.$linkedItem->id.'.available', 38)
+        ->assertJsonPath('jubelio.stocks.'.$linkedItem->id.'.parity_total', 47)
         ->assertJsonPath('jubelio.stocks.'.$linkedItem->id.'.mismatch', true)
         ->assertJsonPath('jubelio.unlinked_count', 1);
 });

@@ -94,7 +94,8 @@
                             <th class="px-3 py-3 text-right font-bold" data-copy-col="jb_on_hand" title="Jubelio on hand at mapped location">JB on hand</th>
                             <th class="px-3 py-3 text-right font-bold" data-copy-col="jb_on_order" title="Jubelio on order">JB on order</th>
                             <th class="px-3 py-3 text-right font-bold" data-copy-col="jb_reserved" title="Jubelio reserved">JB rsv</th>
-                            <th class="px-3 py-3 text-right font-bold" data-copy-col="jb_available" title="Jubelio available">JB avail</th>
+                            <th class="px-3 py-3 text-right font-bold" data-copy-col="jb_parity" title="Jubelio on hand + on order + reserved (matches Aria)">JB parity</th>
+                            <th class="px-3 py-3 text-right font-bold" data-copy-col="jb_available" title="Jubelio available (reference)">JB avail</th>
                         @endif
                         @if($showShopeeStock && $variant === 'physical')
                             <th class="px-3 py-3 text-right font-bold" data-copy-col="sp_sellable" title="Shopee sellable">SP sell</th>
@@ -110,13 +111,14 @@
                             $warehouseUrl = $wh->warehouse ? url('/'.$wh->warehouse->type_slug.'/'.$wh->warehouse->id) : null;
                             $jubelio = $jubelioByWarehouse[$wh->warehouse_id] ?? null;
                             $shopee = ($shopeeStocksByWarehouse ?? [])[$wh->warehouse_id] ?? null;
+                            $jubelioParity = $jubelio['parity_total'] ?? null;
                             $dualChannelMismatch = $showJubelioColumns
                                 && $showShopeeStock
                                 && $variant === 'physical'
                                 && $jubelio !== null
                                 && ($jubelio['linked'] ?? false)
                                 && ($shopee['has_sync'] ?? false)
-                                && $qtyDiffers($qty, $jubelio['on_hand'] ?? null)
+                                && $qtyDiffers($qty, $jubelioParity)
                                 && $qtyDiffers($qty, $shopee['sellable'] ?? null);
                         @endphp
                         <tr @class([
@@ -157,15 +159,13 @@
                             </td>
                             @if($showJubelioColumns)
                                 @if($jubelio)
-                                    @php
-                                        $jubelioOnHandMismatch = $qtyDiffers($qty, $jubelio['on_hand'] ?? null);
-                                    @endphp
-                                    <td class="whitespace-nowrap px-3 py-2 text-right font-mono text-xs {{ $jubelioOnHandMismatch ? 'font-semibold text-red-600' : 'text-blue-700' }}" data-copy-col="jb_on_hand" data-sum-col="jb_on_hand" @if($jubelio['on_hand'] !== null) data-sum-value="{{ $jubelio['on_hand'] }}" @endif data-copy-value="{{ $jubelio['on_hand'] !== null ? format_copy_number($jubelio['on_hand']) : '' }}" title="{{ $jubelio['location_name'] ?? '' }}">{{ $fmtJubelio($jubelio['on_hand']) }}</td>
+                                    <td class="whitespace-nowrap px-3 py-2 text-right font-mono text-xs text-blue-700" data-copy-col="jb_on_hand" data-sum-col="jb_on_hand" @if($jubelio['on_hand'] !== null) data-sum-value="{{ $jubelio['on_hand'] }}" @endif data-copy-value="{{ $jubelio['on_hand'] !== null ? format_copy_number($jubelio['on_hand']) : '' }}" title="{{ $jubelio['location_name'] ?? '' }}">{{ $fmtJubelio($jubelio['on_hand']) }}</td>
                                     <td class="whitespace-nowrap px-3 py-2 text-right font-mono text-xs text-orange-600" data-copy-col="jb_on_order" data-sum-col="jb_on_order" @if($jubelio['on_order'] !== null) data-sum-value="{{ $jubelio['on_order'] }}" @endif data-copy-value="{{ $jubelio['on_order'] !== null ? format_copy_number($jubelio['on_order']) : '' }}">{{ $fmtJubelio($jubelio['on_order']) }}</td>
-                                    <td class="whitespace-nowrap px-3 py-2 text-right font-mono text-xs text-gray-600" data-copy-col="jb_reserved" data-sum-col="jb_reserved" @if($jubelio['reserved'] !== null) data-sum-value="{{ $jubelio['reserved'] }}" @endif data-copy-value="{{ $jubelio['reserved'] !== null ? format_copy_number($jubelio['reserved']) : '' }}">{{ $fmtJubelio($jubelio['reserved']) }}</td>
-                                    <td class="whitespace-nowrap px-3 py-2 text-right font-mono text-xs font-semibold {{ ($jubelio['mismatch'] ?? false) ? 'text-red-600' : 'text-green-600' }}" data-copy-col="jb_available" data-sum-col="jb_available" @if($jubelio['available'] !== null) data-sum-value="{{ $jubelio['available'] }}" @endif data-copy-value="{{ $jubelio['available'] !== null ? format_copy_number($jubelio['available']) : '' }}">{{ $fmtJubelio($jubelio['available']) }}</td>
+                                    <td class="whitespace-nowrap px-3 py-2 text-right font-mono text-xs text-violet-700" data-copy-col="jb_reserved" data-sum-col="jb_reserved" @if($jubelio['reserved'] !== null) data-sum-value="{{ $jubelio['reserved'] }}" @endif data-copy-value="{{ $jubelio['reserved'] !== null ? format_copy_number($jubelio['reserved']) : '' }}">{{ $fmtJubelio($jubelio['reserved']) }}</td>
+                                    <td class="whitespace-nowrap px-3 py-2 text-right font-mono text-xs font-semibold {{ ($jubelio['mismatch'] ?? false) ? 'text-red-600' : 'text-green-700' }}" data-copy-col="jb_parity" data-sum-col="jb_parity" @if($jubelioParity !== null) data-sum-value="{{ $jubelioParity }}" @endif data-copy-value="{{ $jubelioParity !== null ? format_copy_number($jubelioParity) : '' }}">{{ $fmtJubelio($jubelioParity) }}</td>
+                                    <td class="whitespace-nowrap px-3 py-2 text-right font-mono text-xs text-gray-600" data-copy-col="jb_available" data-sum-col="jb_available" @if($jubelio['available'] !== null) data-sum-value="{{ $jubelio['available'] }}" @endif data-copy-value="{{ $jubelio['available'] !== null ? format_copy_number($jubelio['available']) : '' }}">{{ $fmtJubelio($jubelio['available']) }}</td>
                                 @else
-                                    <td colspan="4" class="px-3 py-2 text-right text-xs text-gray-300" data-copy-col="jb_on_hand">—</td>
+                                    <td colspan="5" class="px-3 py-2 text-right text-xs text-gray-300" data-copy-col="jb_on_hand">—</td>
                                 @endif
                             @endif
                             @if($showShopeeStock && $variant === 'physical')
@@ -186,6 +186,7 @@
                             <td class="whitespace-nowrap px-3 py-2.5 text-right font-mono text-sm font-bold text-blue-700" x-text="columnSum('jb_on_hand')"></td>
                             <td class="whitespace-nowrap px-3 py-2.5 text-right font-mono text-sm font-bold text-orange-600" x-text="columnSum('jb_on_order')"></td>
                             <td class="whitespace-nowrap px-3 py-2.5 text-right font-mono text-sm font-bold text-violet-700" x-text="columnSum('jb_reserved')"></td>
+                            <td class="whitespace-nowrap px-3 py-2.5 text-right font-mono text-sm font-bold text-green-700" x-text="columnSum('jb_parity')"></td>
                             <td class="whitespace-nowrap px-3 py-2.5 text-right font-mono text-sm font-bold text-sky-700" x-text="columnSum('jb_available')"></td>
                         @endif
                         @if($showShopeeStock && $variant === 'physical')

@@ -324,7 +324,7 @@ $showDualChannelStockMismatch = $showShopeeStock && ! empty($jubelioByWarehouse)
         <div class="flex flex-col gap-2 border-b border-blue-100 bg-blue-50 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
                 <h3 class="text-sm font-semibold uppercase tracking-wider text-blue-900">Jubelio Inventory</h3>
-                <p class="mt-0.5 text-xs text-blue-800">All channels combined (not per warehouse). Per-gudang Jubelio columns appear below when the warehouse is mapped.</p>
+                <p class="mt-0.5 text-xs text-blue-800">All channels combined (not per warehouse). Per-gudang: mismatch uses Jubelio on hand + on order + reserved (parity); available is reference only.</p>
             </div>
             <a href="{{ route('items.jubelio', $item) }}" class="text-xs font-medium text-blue-700 hover:underline">Open Jubelio tab</a>
         </div>
