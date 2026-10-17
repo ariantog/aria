@@ -549,6 +549,8 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
         Route::get('/settings/lookup/{type}', [App\Http\Controllers\Restock\RestockSettingsController::class, 'lookup'])->name('settings.lookup');
         Route::get('/type/{typeTag:code}', [App\Http\Controllers\Restock\RestockTypeController::class, 'show'])->name('type.show');
         Route::post('/type/{typeTag:code}/sheets', [App\Http\Controllers\Restock\RestockSheetController::class, 'store'])->name('sheets.store');
+        Route::get('/history', [App\Http\Controllers\Restock\RestockHistoryController::class, 'index'])->name('history.index');
+        Route::get('/sheets/{sheet}/history', [App\Http\Controllers\Restock\RestockHistoryController::class, 'index'])->name('sheets.history');
         Route::get('/sheets/{sheet}', [App\Http\Controllers\Restock\RestockSheetController::class, 'show'])->name('sheets.show');
         Route::get('/sheets/{sheet}/export', [App\Http\Controllers\Restock\RestockSheetController::class, 'export'])->name('sheets.export');
         Route::put('/sheets/{sheet}', [App\Http\Controllers\Restock\RestockSheetController::class, 'update'])->name('sheets.update');

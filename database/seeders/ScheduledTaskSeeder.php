@@ -233,5 +233,15 @@ class ScheduledTaskSeeder extends Seeder
                 'description' => 'Runs Shopee Ads budget schedules, daily reset (WIB), and item ad replenishment. Same-day catch-up if a slot is missed.',
             ]
         );
+
+        \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'app:purge-restock-cell-histories'],
+            [
+                'name' => 'Purge Old Restock Change History',
+                'frequency' => 'monthly',
+                'active' => true,
+                'description' => 'Deletes restock_cell_histories rows older than 6 months (override with --months on the command).',
+            ]
+        );
     }
 }

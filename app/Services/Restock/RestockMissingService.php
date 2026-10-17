@@ -3,16 +3,20 @@
 namespace App\Services\Restock;
 
 use App\Models\RestockCell;
-use App\Models\RestockCellHistory;
 use App\Models\RestockSheet;
 use App\Models\Tag;
 use App\Models\User;
+use App\Support\RestockCellHistoryLabels;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
 class RestockMissingService
 {
+    public function __construct(
+        protected RestockCellHistoryRecorder $history,
+    ) {}
+
     /**
      * @return Collection<int, array{
      *   cell_id: int,
@@ -72,14 +76,15 @@ class RestockMissingService
             $locked->missing_at = null;
             $locked->save();
 
-            RestockCellHistory::create([
-                'restock_cell_id' => $locked->id,
-                'field' => 'missing',
-                'qty_before' => $before,
-                'qty_after' => 0,
-                'action' => 'found',
-                'user_id' => $user->id,
-            ]);
+            $this->history->record(
+                $locked,
+                'missing',
+                $before,
+                0,
+                'found',
+                $user,
+                RestockCellHistoryLabels::SOURCE_MISSING_FOUND,
+            );
 
             $locked->sheet?->update([
                 'last_saved_at' => now(),

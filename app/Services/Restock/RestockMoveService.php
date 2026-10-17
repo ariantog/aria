@@ -3,14 +3,18 @@
 namespace App\Services\Restock;
 
 use App\Models\RestockCell;
-use App\Models\RestockCellHistory;
 use App\Models\RestockSheet;
 use App\Models\User;
+use App\Support\RestockCellHistoryLabels;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
 class RestockMoveService
 {
+    public function __construct(
+        protected RestockCellHistoryRecorder $history,
+    ) {}
+
     private const MOVES = [
         'to_production' => ['from' => 'qty_restock', 'to' => 'qty_production', 'from_field' => 'restock', 'to_field' => 'production'],
         'to_shipped' => ['from' => 'qty_production', 'to' => 'qty_shipped', 'from_field' => 'production', 'to_field' => 'shipped'],
@@ -19,7 +23,13 @@ class RestockMoveService
     /**
      * @param  list<array{id: int, qty?: int}>  $cells
      */
-    public function move(RestockSheet $sheet, string $direction, array $cells, User $user): int
+    public function move(
+        RestockSheet $sheet,
+        string $direction,
+        array $cells,
+        User $user,
+        string $source = RestockCellHistoryLabels::SOURCE_SHEET_MOVE,
+    ): int
     {
         if (! isset(self::MOVES[$direction])) {
             throw new InvalidArgumentException("Unknown move direction: {$direction}");
@@ -32,7 +42,7 @@ class RestockMoveService
         $move = self::MOVES[$direction];
         $moved = 0;
 
-        DB::transaction(function () use ($sheet, $cells, $user, $move, &$moved) {
+        DB::transaction(function () use ($sheet, $cells, $user, $move, $source, &$moved) {
             $cellIds = collect($cells)->pluck('id')->all();
             $qtyById = collect($cells)->keyBy('id')->map(fn (array $row) => array_key_exists('qty', $row) ? (int) $row['qty'] : null);
 
@@ -68,23 +78,25 @@ class RestockMoveService
                 $cell->{$move['to']} = $toBefore + $qty;
                 $cell->save();
 
-                RestockCellHistory::create([
-                    'restock_cell_id' => $cell->id,
-                    'field' => $move['from_field'],
-                    'qty_before' => $fromBefore,
-                    'qty_after' => $fromBefore - $qty,
-                    'action' => 'move',
-                    'user_id' => $user->id,
-                ]);
+                $this->history->record(
+                    $cell,
+                    $move['from_field'],
+                    $fromBefore,
+                    $fromBefore - $qty,
+                    'move',
+                    $user,
+                    $source,
+                );
 
-                RestockCellHistory::create([
-                    'restock_cell_id' => $cell->id,
-                    'field' => $move['to_field'],
-                    'qty_before' => $toBefore,
-                    'qty_after' => $toBefore + $qty,
-                    'action' => 'move',
-                    'user_id' => $user->id,
-                ]);
+                $this->history->record(
+                    $cell,
+                    $move['to_field'],
+                    $toBefore,
+                    $toBefore + $qty,
+                    'move',
+                    $user,
+                    $source,
+                );
 
                 $moved += $qty;
             }

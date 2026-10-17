@@ -3,18 +3,27 @@
 namespace App\Services\Restock;
 
 use App\Models\RestockCell;
-use App\Models\RestockCellHistory;
 use App\Models\RestockSheet;
 use App\Models\User;
+use App\Support\RestockCellHistoryLabels;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
 class RestockCellService
 {
+  public function __construct(
+    protected RestockCellHistoryRecorder $history,
+  ) {}
+
   /**
    * @param  list<array{id: int, qty_restock?: int, qty_production?: int, qty_shipped?: int}>  $cells
    */
-  public function saveQuantities(RestockSheet $sheet, array $cells, User $user): int
+  public function saveQuantities(
+    RestockSheet $sheet,
+    array $cells,
+    User $user,
+    string $source = RestockCellHistoryLabels::SOURCE_SHEET_SAVE,
+  ): int
   {
     if ($cells === []) {
       return 0;
@@ -22,7 +31,7 @@ class RestockCellService
 
     $changes = 0;
 
-    DB::transaction(function () use ($sheet, $cells, $user, &$changes) {
+    DB::transaction(function () use ($sheet, $cells, $user, $source, &$changes) {
       $cellIds = collect($cells)->pluck('id')->all();
       $models = RestockCell::query()
         ->where('restock_sheet_id', $sheet->id)
@@ -60,14 +69,15 @@ class RestockCellService
           $cell->{$column} = $after;
           $changes++;
 
-          RestockCellHistory::create([
-            'restock_cell_id' => $cell->id,
-            'field' => $field,
-            'qty_before' => $before,
-            'qty_after' => $after,
-            'action' => 'edit',
-            'user_id' => $user->id,
-          ]);
+          $this->history->record(
+            $cell,
+            $field,
+            $before,
+            $after,
+            'edit',
+            $user,
+            $source,
+          );
         }
 
         $cell->save();
