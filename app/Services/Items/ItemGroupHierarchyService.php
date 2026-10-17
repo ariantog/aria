@@ -5,6 +5,7 @@ namespace App\Services\Items;
 use App\Enums\ItemType;
 use App\Models\Item;
 use App\Models\ItemGroup;
+use App\Models\ItemParentPrice;
 use App\Models\Tag;
 use App\Services\JubelioService;
 use App\Support\ItemImageResolver;
@@ -63,11 +64,24 @@ class ItemGroupHierarchyService
                 'like',
                 '%'.$filters['kode'].'%'
             ))
-            ->when(! empty($filters['product_name']), fn (Builder $q) => $q->where(
-                'item_group.name',
-                'like',
-                '%'.$filters['product_name'].'%'
-            ))
+            ->when(! empty($filters['product_name']), function (Builder $q) use ($filters) {
+                $term = '%'.$filters['product_name'].'%';
+                $groupIdsFromParentTitles = ItemParentPrice::query()
+                    ->where('product_name', 'like', $term)
+                    ->pluck('parent_key')
+                    ->flatMap(fn (string $parentKey) => $this->groupIdsForParentKey($parentKey))
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                $q->where(function (Builder $inner) use ($term, $groupIdsFromParentTitles) {
+                    $inner->where('item_group.name', 'like', $term);
+
+                    if ($groupIdsFromParentTitles !== []) {
+                        $inner->orWhereIn('item_group.id', $groupIdsFromParentTitles);
+                    }
+                });
+            })
             ->when(! empty($filters['desc']), fn (Builder $q) => $q->where(
                 'item_group.description',
                 'like',
@@ -100,12 +114,34 @@ class ItemGroupHierarchyService
         $sampleGroupIds = collect($paginator->items())->pluck('sample_group_id')->filter()->all();
         $samplesByGroupId = $this->sampleItemsByGroupId($sampleGroupIds);
 
+        $rowsWithKeys = collect($paginator->items())->map(function ($row) use ($samplesByGroupId) {
+            $master = (string) $row->canonical_master;
+            $sample = $samplesByGroupId[$row->sample_group_id] ?? null;
+            $isAsset = $this->isAssetMaster($master, $sample);
+            $parentKey = $this->parentKeyForMaster($master, $sample, $isAsset);
+
+            return [
+                'row' => $row,
+                'master' => $master,
+                'sample' => $sample,
+                'is_asset' => $isAsset,
+                'parent_key' => $parentKey,
+            ];
+        });
+
+        $parentCatalogTitles = ItemParentPrice::query()
+            ->whereIn('parent_key', $rowsWithKeys->pluck('parent_key')->unique()->filter()->all())
+            ->pluck('product_name', 'parent_key')
+            ->map(fn (?string $name) => strtoupper(trim((string) $name)))
+            ->all();
+
         $paginator->setCollection(
-            collect($paginator->items())->map(function ($row) use ($samplesByGroupId) {
-                $master = (string) $row->canonical_master;
-                $sample = $samplesByGroupId[$row->sample_group_id] ?? null;
-                $isAsset = $this->isAssetMaster($master, $sample);
-                $parentKey = $this->parentKeyForMaster($master, $sample, $isAsset);
+            $rowsWithKeys->map(function (array $wrapped) use ($parentCatalogTitles) {
+                $row = $wrapped['row'];
+                $master = $wrapped['master'];
+                $sample = $wrapped['sample'];
+                $isAsset = $wrapped['is_asset'];
+                $parentKey = $wrapped['parent_key'];
                 $label = $isAsset
                     ? $master
                     : trim(($sample ? $this->identityBuilder->manufacturedTypeCode($sample) : 'UNK').' '.$master);
@@ -118,6 +154,7 @@ class ItemGroupHierarchyService
                         (string) ($row->product_name ?? ''),
                         $master,
                         $isAsset,
+                        (string) ($parentCatalogTitles[$parentKey] ?? ''),
                     ),
                     'description' => (string) ($row->description ?? ''),
                     'is_asset' => $isAsset,
@@ -412,8 +449,17 @@ class ItemGroupHierarchyService
         return ItemType::ITEM->value.':'.strtoupper($typeCode).':'.strtoupper($master);
     }
 
-    protected function resolveListProductName(string $name, string $master, bool $isAsset): string
-    {
+    protected function resolveListProductName(
+        string $name,
+        string $master,
+        bool $isAsset,
+        string $parentCatalogTitle = '',
+    ): string {
+        $parentCatalogTitle = strtoupper(trim($parentCatalogTitle));
+        if ($parentCatalogTitle !== '') {
+            return $parentCatalogTitle;
+        }
+
         $name = trim($name);
         $masterUpper = strtoupper($master);
 

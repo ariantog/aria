@@ -43,7 +43,7 @@ $breadcrumbs = [
                 <thead class="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500">
                     <tr>
                         <th class="px-6 py-3 font-bold">Parent (TYPE + PCode)</th>
-                        <th class="px-6 py-3 font-bold">Product</th>
+                        <th class="px-6 py-3 font-bold">Name</th>
                         <th class="px-6 py-3 font-bold">Variants</th>
                         <th class="px-6 py-3 font-bold">SKUs</th>
                         <th class="px-6 py-3 font-bold">Description</th>
