@@ -223,6 +223,49 @@ it('parent detail finds leftover slash-master groups under the canonical CX00122
         ->and($this->builder->itemParentKey($item->fresh(['tags', 'group'])))->toBe('1:AJD:CX00122');
 });
 
+it('group list shows parent catalog title when colorway group names are pcode placeholders', function () {
+    $clnTag = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ITEM->value,
+        'code' => 'CLN',
+        'name' => 'Short',
+    ]);
+
+    $group = ItemGroup::factory()->create([
+        'master' => 'CI00103',
+        'variant' => '01',
+        'name' => 'CI00103',
+    ]);
+
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CI00103-01',
+        'code' => 'CLN-CI00103-01-S',
+    ]);
+    $item->tags()->attach([$clnTag->id, $this->pinkTag->id, $this->sizeS->id]);
+
+    $parentKey = $this->builder->itemParentKey($item->fresh(['tags', 'group']));
+
+    ItemParentPrice::query()->create([
+        'parent_key' => $parentKey,
+        'product_name' => 'KELSIE RUNNING SHORT',
+    ]);
+
+    $parents = $this->hierarchy->paginateParents(['kode' => 'CI00103'], 50);
+    $match = collect($parents->items())->firstWhere('label', 'CLN CI00103');
+
+    expect($match)->not->toBeNull()
+        ->and($match['product_name'])->toBe('KELSIE RUNNING SHORT');
+
+    $filtered = $this->hierarchy->paginateParents(['product_name' => 'KELSIE'], 50);
+
+    expect(collect($filtered->items())->pluck('label'))->toContain('CLN CI00103');
+
+    ItemParentPrice::query()->where('parent_key', $parentKey)->delete();
+    ItemProductTitle::flushRequestCache();
+});
+
 it('parent detail product name uses parent catalog title not colorway pcode placeholder', function () {
     $group = ItemGroup::factory()->create([
         'master' => 'CP26006',
