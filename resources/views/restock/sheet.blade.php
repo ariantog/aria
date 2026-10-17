@@ -5,12 +5,44 @@
 <style>
     /* Native horizontal scroll on the wrapper — whole grid (header + rows) moves together. */
     .restock-grid-wrap {
-        overflow-x: auto;
+        overflow-x: scroll;
         overflow-y: visible;
         max-width: 100%;
         min-width: 0;
         background: transparent;
         -webkit-overflow-scrolling: touch;
+        overscroll-behavior-x: contain;
+        padding-bottom: 6px;
+        scrollbar-width: auto;
+        scrollbar-color: #94a3b8 #e5e7eb;
+    }
+    .restock-grid-wrap::-webkit-scrollbar {
+        height: 14px;
+    }
+    .restock-grid-wrap::-webkit-scrollbar-track {
+        background: #e5e7eb;
+        border-radius: 7px;
+    }
+    .restock-grid-wrap::-webkit-scrollbar-thumb {
+        background: #94a3b8;
+        border-radius: 7px;
+        border: 2px solid #e5e7eb;
+    }
+    .restock-grid-wrap::-webkit-scrollbar-thumb:hover {
+        background: #64748b;
+    }
+    html.dark .restock-grid-wrap {
+        scrollbar-color: #64748b #374151;
+    }
+    html.dark .restock-grid-wrap::-webkit-scrollbar-track {
+        background: #374151;
+    }
+    html.dark .restock-grid-wrap::-webkit-scrollbar-thumb {
+        background: #64748b;
+        border-color: #374151;
+    }
+    html.dark .restock-grid-wrap::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
     }
     .restock-grid-wrap .tabulator {
         display: inline-block;
@@ -286,9 +318,12 @@ $breadcrumbs = [
                     <h2 class="text-sm font-semibold text-gray-700">{{ $block['title'] }}</h2>
                 </div>
             @endif
-            <div class="restock-grid-wrap restock-grid-{{ $block['kind'] }} p-2">
+            <div class="restock-grid-wrap restock-grid-{{ $block['kind'] }} p-2" data-testid="restock-grid-scroll-wrap">
                 <div data-block-grid="{{ $block['id'] }}" data-block-kind="{{ $block['kind'] }}"></div>
             </div>
+            <p class="border-t border-gray-100 px-4 py-1.5 text-xs text-gray-500">
+                Wide sheet: drag the scrollbar below the grid, or use the mouse wheel over the grid to scroll columns left/right.
+            </p>
         </section>
     @empty
         <div class="rounded-xl border border-gray-200 bg-white p-8 text-center text-gray-500">
@@ -451,8 +486,33 @@ function restockSheetPage() {
                         this.syncSelectionCount();
                         this.syncCheckboxCells(table);
                     });
+
+                    const scrollWrap = el.closest('.restock-grid-wrap');
+                    if (scrollWrap) {
+                        this.bindHorizontalWheelScroll(scrollWrap);
+                    }
                 }
             });
+        },
+
+        bindHorizontalWheelScroll(wrap) {
+            if (!wrap || wrap.dataset.restockWheelBound === '1') {
+                return;
+            }
+
+            wrap.dataset.restockWheelBound = '1';
+            wrap.addEventListener('wheel', (event) => {
+                if (wrap.scrollWidth <= wrap.clientWidth + 1) {
+                    return;
+                }
+
+                if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+                    return;
+                }
+
+                wrap.scrollLeft += event.deltaY;
+                event.preventDefault();
+            }, { passive: false });
         },
 
         releaseTabulatorInternalScroll(table) {
