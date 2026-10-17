@@ -20,6 +20,7 @@ class RestockSheetService
 
   public function __construct(
     protected ItemIdentityBuilder $identityBuilder,
+    protected RestockCellHistoryRecorder $history,
   ) {}
 
   public static function isAssetLancarTypeTag(Tag $tag): bool
@@ -177,7 +178,7 @@ class RestockSheetService
    *
    * @return array{added: int, removed: int}
    */
-  public function syncSkus(RestockSheet $sheet): array
+  public function syncSkus(RestockSheet $sheet, ?User $user = null): array
   {
     $items = $this->assetLancarItemsForType($sheet->typeTag)
       ->with('tags')
@@ -195,10 +196,27 @@ class RestockSheetService
 
     $removed = 0;
     if ($staleItemIds->isNotEmpty()) {
+      $staleCells = $sheet->cells()->whereIn('item_id', $staleItemIds->all())->get();
+      foreach ($staleCells as $cell) {
+        $this->history->recordCellRemovalSnapshot(
+          $cell,
+          ['restock', 'production', 'shipped', 'missing'],
+          $user,
+          'Removed from sheet during SKU sync',
+        );
+      }
+
       $removed = $sheet->cells()->whereIn('item_id', $staleItemIds->all())->delete();
     }
 
     $this->refreshCellMetadata($sheet, $items);
+
+    if ($user !== null && ($newItems->isNotEmpty() || $removed > 0)) {
+      $sheet->update([
+        'last_saved_at' => now(),
+        'last_saved_by' => $user->id,
+      ]);
+    }
 
     return [
       'added' => $newItems->count(),

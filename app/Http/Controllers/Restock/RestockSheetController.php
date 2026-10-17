@@ -104,7 +104,7 @@ class RestockSheetController extends Controller
   {
     Gate::authorize(RestockSheet::getPermissions()['edit']);
 
-    $result = $this->sheetService->syncSkus($sheet);
+    $result = $this->sheetService->syncSkus($sheet, $request->user());
 
     $message = match (true) {
       $result['added'] > 0 && $result['removed'] > 0 => "Added {$result['added']} new SKU cell(s) and removed {$result['removed']} stale cell(s).",

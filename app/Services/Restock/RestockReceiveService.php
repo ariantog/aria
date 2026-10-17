@@ -6,12 +6,12 @@ use App\Enums\AddrbookType;
 use App\Enums\TransactionStatus;
 use App\Enums\TransactionType;
 use App\Models\RestockCell;
-use App\Models\RestockCellHistory;
 use App\Models\RestockSheet;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\BookClosingService;
 use App\Services\TransactionService;
+use App\Support\RestockCellHistoryLabels;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
@@ -22,6 +22,7 @@ class RestockReceiveService
         protected RestockSettingsService $settings,
         protected TransactionService $transactionService,
         protected BookClosingService $bookClosingService,
+        protected RestockCellHistoryRecorder $history,
     ) {}
 
     /**
@@ -150,28 +151,32 @@ class RestockReceiveService
                 }
                 $cell->save();
 
-                RestockCellHistory::create([
-                    'restock_cell_id' => $cell->id,
-                    'field' => 'shipped',
-                    'qty_before' => $shippedBefore,
-                    'qty_after' => 0,
-                    'action' => 'receive',
-                    'user_id' => $user->id,
-                    'transaction_id' => $transaction->id,
-                    'note' => $invoiceNumber,
-                ]);
+                $this->history->record(
+                    $cell,
+                    'shipped',
+                    $shippedBefore,
+                    0,
+                    'receive',
+                    $user,
+                    RestockCellHistoryLabels::SOURCE_SHEET_RECEIVE,
+                    null,
+                    $transaction->id,
+                    $invoiceNumber,
+                );
 
                 if ($shortfall > 0) {
-                    RestockCellHistory::create([
-                        'restock_cell_id' => $cell->id,
-                        'field' => 'missing',
-                        'qty_before' => $missingBefore,
-                        'qty_after' => $missingBefore + $shortfall,
-                        'action' => 'missing',
-                        'user_id' => $user->id,
-                        'transaction_id' => $transaction->id,
-                        'note' => 'Receive shortfall',
-                    ]);
+                    $this->history->record(
+                        $cell,
+                        'missing',
+                        $missingBefore,
+                        $missingBefore + $shortfall,
+                        'missing',
+                        $user,
+                        RestockCellHistoryLabels::SOURCE_SHEET_RECEIVE,
+                        null,
+                        $transaction->id,
+                        'Receive shortfall',
+                    );
                 }
 
                 $itemsTotal += $total;

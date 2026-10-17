@@ -242,6 +242,13 @@ $breadcrumbs = [
                     Export Excel
                 </a>
                 @endcan
+                @can('restock-history')
+                <a href="{{ route('restock.sheets.history', $sheet) }}"
+                   class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                   data-testid="restock-sheet-history-link">
+                    Change history
+                </a>
+                @endcan
                 <a href="{{ route('restock.type.missing', $sheet->typeTag) }}"
                    class="rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-800 hover:bg-red-100">
                     Missing SKUs

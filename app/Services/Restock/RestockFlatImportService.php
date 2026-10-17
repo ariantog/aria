@@ -172,7 +172,13 @@ class RestockFlatImportService
                 continue;
             }
 
-            $totalMoved += $this->moveService->move($sheet, $moveDirection, $cells, $user);
+            $totalMoved += $this->moveService->move(
+                $sheet,
+                $moveDirection,
+                $cells,
+                $user,
+                \App\Support\RestockCellHistoryLabels::SOURCE_FLAT_IMPORT,
+            );
             $sheetCount++;
         }
 

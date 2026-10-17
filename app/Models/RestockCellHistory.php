@@ -14,6 +14,16 @@ class RestockCellHistory extends Model
         return $this->belongsTo(RestockCell::class, 'restock_cell_id');
     }
 
+    public function sheet(): BelongsTo
+    {
+        return $this->belongsTo(RestockSheet::class, 'restock_sheet_id');
+    }
+
+    public function item(): BelongsTo
+    {
+        return $this->belongsTo(Item::class);
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

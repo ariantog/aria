@@ -65,7 +65,13 @@ class RestockRecommendationApplyService
                 continue;
             }
 
-            $result = $this->setQtyOnTypeSheet($item, $qty, $user, floor: true);
+            $result = $this->setQtyOnTypeSheet(
+                $item,
+                $qty,
+                $user,
+                floor: true,
+                source: \App\Support\RestockCellHistoryLabels::SOURCE_RECOMMENDATIONS_APPLY,
+            );
             if ($result['ok']) {
                 $applied[] = [
                     'item_id' => $itemId,
@@ -124,7 +130,13 @@ class RestockRecommendationApplyService
             }
 
             $qty = max(0, (int) ($row['qty_restock'] ?? 0));
-            $result = $this->setQtyOnTypeSheet($item, $qty, $user, floor: false);
+            $result = $this->setQtyOnTypeSheet(
+                $item,
+                $qty,
+                $user,
+                floor: false,
+                source: \App\Support\RestockCellHistoryLabels::SOURCE_RECOMMENDATIONS_SAVE,
+            );
             if ($result['ok']) {
                 $applied[] = [
                     'item_id' => $itemId,
@@ -144,8 +156,13 @@ class RestockRecommendationApplyService
     /**
      * @return array{ok: true, qty_saved: int, sheet_id: int, sheet_name: string, sheet_url: string}|array{ok: false, reason: string}
      */
-    private function setQtyOnTypeSheet(Item $item, int $qty, User $user, bool $floor): array
-    {
+    private function setQtyOnTypeSheet(
+        Item $item,
+        int $qty,
+        User $user,
+        bool $floor,
+        string $source,
+    ): array {
         if (ItemType::coerce($item->type) !== ItemType::ASSET_LANCAR) {
             return ['ok' => false, 'reason' => 'Only asset lancar SKUs use restock sheets.'];
         }
@@ -161,7 +178,7 @@ class RestockRecommendationApplyService
         }
 
         $sheet->loadMissing('typeTag');
-        $this->sheetService->syncSkus($sheet);
+        $this->sheetService->syncSkus($sheet, $user);
 
         $inCatalog = $this->sheetService->itemBelongsToTypeCatalog($sheet->typeTag, $item->id);
 
@@ -182,7 +199,7 @@ class RestockRecommendationApplyService
         $targetQty = $floor ? max($currentQty, $qty) : $qty;
         $this->cellService->saveQuantities($sheet, [
             ['id' => $cell->id, 'qty_restock' => $targetQty],
-        ], $user);
+        ], $user, $source);
 
         return [
             'ok' => true,
