@@ -19,15 +19,11 @@ $breadcrumbs = [
         </p>
     </div>
 
-    <div class="max-w-2xl rounded-xl border border-amber-100 bg-amber-50/80 px-4 py-3 text-sm text-amber-900">
-        <p class="font-semibold">Stok 25 vs 23 (order malam / belum cetak resi)</p>
+    <div class="max-w-2xl rounded-xl border border-blue-100 bg-blue-50/80 px-4 py-3 text-sm text-blue-900">
+        <p class="font-semibold">Parity vs Aria</p>
         <p class="mt-1">
-            Cron membandingkan Aria ke kolom <strong>comparable</strong>: biasanya <code class="rounded bg-white/80 px-1">available</code>,
-            tetapi jika <code class="rounded bg-white/80 px-1">reserved &gt; 0</code> sementara <code class="rounded bg-white/80 px-1">available</code>
-            masih sama dengan <code class="rounded bg-white/80 px-1">on_hand</code>, Aria memakai
-            <code class="rounded bg-white/80 px-1">on_hand − reserved</code> (sering sudah benar sebelum pick/cetak selesai di UI Jubelio).
-            Kronologi di Jubelio v2 bisa lebih dini dari angka all-stocks; jika <code class="rounded bg-white/80 px-1">reserved</code> masih 0,
-            API belum mengalokasi order — Aria tidak bisa menebak; pastikan webhook/order cron sudah jalan dan bandingkan field di JSON di bawah.
+            Stock check membandingkan Aria <code class="rounded bg-white/80 px-1">warehouse_item.qty</code> ke
+            <strong>on hand + on order + reserved</strong> (masing-masing ≥ 0). Kolom <code class="rounded bg-white/80 px-1">available</code> hanya referensi.
         </p>
     </div>
 
@@ -82,9 +78,10 @@ $breadcrumbs = [
                         <tr>
                             <th class="py-2 pr-4">location_id</th>
                             <th class="py-2 pr-4 text-right">on_hand</th>
+                            <th class="py-2 pr-4 text-right">on_order</th>
                             <th class="py-2 pr-4 text-right">reserved</th>
                             <th class="py-2 pr-4 text-right">available</th>
-                            <th class="py-2 text-right">comparable</th>
+                            <th class="py-2 text-right">parity</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y font-mono text-xs">
@@ -92,9 +89,10 @@ $breadcrumbs = [
                         <tr>
                             <td class="py-2 pr-4">{{ $row['location_id'] }}</td>
                             <td class="py-2 pr-4 text-right text-blue-700">{{ format_amount($row['on_hand'], 0) }}</td>
+                            <td class="py-2 pr-4 text-right text-orange-700">{{ format_amount($row['on_order'], 0) }}</td>
                             <td class="py-2 pr-4 text-right text-violet-700">{{ format_amount($row['reserved'], 0) }}</td>
-                            <td class="py-2 pr-4 text-right text-green-700">{{ format_amount($row['available'], 0) }}</td>
-                            <td class="py-2 text-right font-semibold text-gray-900">{{ format_amount($row['comparable_for_aria'], 0) }}</td>
+                            <td class="py-2 pr-4 text-right text-gray-600">{{ format_amount($row['available'], 0) }}</td>
+                            <td class="py-2 text-right font-semibold text-gray-900">{{ format_amount($row['parity_for_aria'], 0) }}</td>
                         </tr>
                         @endforeach
                     </tbody>

@@ -53,8 +53,8 @@ $showQueryParams = array_filter([
         </div>
         <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
             <p class="text-sm font-medium text-gray-700">Perbandingan</p>
-            <p class="mt-2 text-sm text-gray-600">Aria qty vs Jubelio <strong>available</strong> — menangkap lag webhook (Aria belum turun, Jubelio sudah)</p>
-            <p class="mt-1 text-xs text-gray-500">On-hand / reserved / on-order ditampilkan sebagai referensi.</p>
+            <p class="mt-2 text-sm text-gray-600">Aria qty vs Jubelio <strong>on hand + on order + reserved</strong> (parity).</p>
+            <p class="mt-1 text-xs text-gray-500">Kolom Available hanya referensi; tidak dipakai untuk selisih.</p>
         </div>
     </div>
 
@@ -95,10 +95,11 @@ $showQueryParams = array_filter([
                             <th class="px-4 py-3">Warehouse (Aria)</th>
                             <th class="px-4 py-3">Location (Jubelio)</th>
                             <th class="px-4 py-3 text-center">Qty Aria</th>
-                            <th class="px-4 py-3 text-center">Jubelio Available</th>
+                            <th class="px-4 py-3 text-center">Jubelio Parity</th>
                             <th class="px-4 py-3 text-center">On Hand</th>
-                            <th class="px-4 py-3 text-center">Reserved</th>
                             <th class="px-4 py-3 text-center">On Order</th>
+                            <th class="px-4 py-3 text-center">Reserved</th>
+                            <th class="px-4 py-3 text-center">Available</th>
                             <th class="px-4 py-3 text-center">Selisih</th>
                         </tr>
                     </thead>
@@ -133,10 +134,11 @@ $showQueryParams = array_filter([
                                 </div>
                             </td>
                             <td class="px-4 py-3 text-center font-bold">{{ $item->aria_qty }}</td>
-                            <td class="px-4 py-3 text-center font-bold text-green-600">{{ $item->jubelio_available ?? $item->jubelio_qty }}</td>
+                            <td class="px-4 py-3 text-center font-bold text-green-600">{{ $item->jubelio_qty }}</td>
                             <td class="px-4 py-3 text-center text-blue-600">{{ $item->jubelio_on_hand ?? '—' }}</td>
-                            <td class="px-4 py-3 text-center text-gray-500">{{ $item->jubelio_reserved ?? '—' }}</td>
-                            <td class="px-4 py-3 text-center text-gray-500">{{ $item->jubelio_on_order ?? '—' }}</td>
+                            <td class="px-4 py-3 text-center text-orange-600">{{ $item->jubelio_on_order ?? '—' }}</td>
+                            <td class="px-4 py-3 text-center text-violet-700">{{ $item->jubelio_reserved ?? '—' }}</td>
+                            <td class="px-4 py-3 text-center text-gray-500">{{ $item->jubelio_available ?? '—' }}</td>
                             <td class="px-4 py-3 text-center">
                                 <span class="inline-flex rounded px-2 py-0.5 text-xs font-medium {{ $diff < 0 ? 'bg-red-600 text-white' : ($diff > 0 ? 'bg-yellow-500 text-white' : 'bg-gray-800 text-white') }}">
                                     {{ $diff > 0 ? '+' . number_format($diff, 2) : number_format($diff, 2) }}
@@ -145,7 +147,7 @@ $showQueryParams = array_filter([
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="10" class="px-4 py-8 text-center italic text-gray-500">Tidak ada ketidakcocokan ditemukan pada pengecekan ini.</td>
+                            <td colspan="11" class="px-4 py-8 text-center italic text-gray-500">Tidak ada ketidakcocokan ditemukan pada pengecekan ini.</td>
                         </tr>
                         @endforelse
                     </tbody>

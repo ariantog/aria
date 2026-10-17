@@ -111,9 +111,10 @@ class JubelioController extends Controller
                         $locationInterpretation[] = [
                             'location_id' => (int) ($locationStock['location_id'] ?? 0),
                             'on_hand' => $quantities['on_hand'],
+                            'on_order' => $quantities['on_order'],
                             'reserved' => $quantities['reserved'],
                             'available' => $quantities['available'],
-                            'comparable_for_aria' => $quantities['comparable'],
+                            'parity_for_aria' => $quantities['comparable'],
                         ];
                     }
                 }

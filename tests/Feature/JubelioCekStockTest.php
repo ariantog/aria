@@ -47,7 +47,7 @@ it('shows raw all-stocks json for a jubelio item id', function () {
         ->assertSee('data-testid="jubelio-cek-stock-json"', false)
         ->assertSee('901', false)
         ->assertSee('item_id', false)
-        ->assertSee('comparable', false);
+        ->assertSee('parity', false);
 });
 
 it('links aria sku when jubelio item id is mapped', function () {

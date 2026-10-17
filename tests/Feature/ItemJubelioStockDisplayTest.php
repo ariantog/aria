@@ -117,7 +117,8 @@ it('shows per-warehouse jubelio columns when gudang is mapped', function () {
     $this->actingAs($this->user)
         ->get(route('items.show', $item))
         ->assertOk()
-        ->assertSee('JB on hand', false)
+        ->assertSee('JB parity', false)
+        ->assertSee(format_amount(18, 0), false)
         ->assertSee(format_amount(13, 0), false)
         ->assertDontSee('data-dual-stock-mismatch="1"', false);
 });

@@ -144,7 +144,7 @@ class WarehouseJubelioStockService
                 'on_order' => $quantities['on_order'] ?? null,
                 'reserved' => $quantities['reserved'] ?? null,
                 'available' => $quantities['available'] ?? null,
-                'comparable' => $quantities['comparable'] ?? null,
+                'parity_total' => $quantities['comparable'] ?? null,
                 'mismatch' => false,
             ];
         }

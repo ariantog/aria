@@ -61,7 +61,7 @@ $sortLink = function (string $column) use ($filters, $sortColumn, $sortDirection
                 <p class="mt-1 text-xs text-gray-500">
                     Jubelio location:
                     <span class="font-medium text-gray-700">{{ $jubelioSync->jubelio_location_name }}</span>
-                    <span class="text-gray-400">· mismatch compares Aria stock to Jubelio available</span>
+                    <span class="text-gray-400">· mismatch compares Aria stock to Jubelio on hand + on order + reserved</span>
                 </p>
             @endif
             @if($hasShopee)
@@ -231,7 +231,8 @@ $sortLink = function (string $column) use ($filters, $sortColumn, $sortDirection
                         <th class="px-3 py-2.5 text-right font-medium" data-copy-col="jb_on_hand" title="Jubelio on hand">On hand</th>
                         <th class="px-3 py-2.5 text-right font-medium" data-copy-col="jb_on_order" title="Jubelio on order">On order</th>
                         <th class="px-3 py-2.5 text-right font-medium" data-copy-col="jb_reserved" title="Jubelio reserved">Rsv</th>
-                        <th class="px-3 py-2.5 text-right font-medium" data-copy-col="jb_available" title="Jubelio available">Avail</th>
+                        <th class="px-3 py-2.5 text-right font-medium" data-copy-col="jb_parity" title="On hand + on order + reserved">Parity</th>
+                        <th class="px-3 py-2.5 text-right font-medium" data-copy-col="jb_available" title="Jubelio available (reference)">Avail</th>
                     @endif
                     @if($hasShopee)
                         <th class="px-3 py-2.5 text-right font-medium" data-copy-col="sp_sellable" title="Shopee sellable" x-show="loadShopeeStock">SP sell</th>
@@ -287,7 +288,7 @@ $sortLink = function (string $column) use ($filters, $sortColumn, $sortDirection
                         <td class="whitespace-nowrap px-3 py-2.5 text-right font-mono text-xs font-bold tabular-nums {{ $qty > 0 ? 'text-emerald-600' : 'text-gray-400' }}" data-copy-col="qty" data-copy-value="{{ format_copy_number($qty) }}">{{ format_amount($qty, 0) }}</td>
                         @if($hasJubelio)
                             @if(! $jubelioLinked)
-                                <td colspan="4" class="px-3 py-2.5 text-right" data-copy-col="jb_on_hand">
+                                <td colspan="5" class="px-3 py-2.5 text-right" data-copy-col="jb_on_hand">
                                     <span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700" title="Item is not linked to Jubelio">
                                         Not linked
                                     </span>
@@ -296,7 +297,8 @@ $sortLink = function (string $column) use ($filters, $sortColumn, $sortDirection
                                 <td class="whitespace-nowrap px-3 py-2.5 text-right text-xs" data-copy-col="jb_on_hand" :data-copy-value="marketplaceCopyValue({{ $item->id }}, 'jubelio', 'on_hand')" x-html="jubelioQtyCell({{ $item->id }}, 'on_hand')"></td>
                                 <td class="whitespace-nowrap px-3 py-2.5 text-right text-xs" data-copy-col="jb_on_order" :data-copy-value="marketplaceCopyValue({{ $item->id }}, 'jubelio', 'on_order')" x-html="jubelioQtyCell({{ $item->id }}, 'on_order')"></td>
                                 <td class="whitespace-nowrap px-3 py-2.5 text-right text-xs" data-copy-col="jb_reserved" :data-copy-value="marketplaceCopyValue({{ $item->id }}, 'jubelio', 'reserved')" x-html="jubelioQtyCell({{ $item->id }}, 'reserved')"></td>
-                                <td class="whitespace-nowrap px-3 py-2.5 text-right text-xs" data-copy-col="jb_available" :data-copy-value="marketplaceCopyValue({{ $item->id }}, 'jubelio', 'available')" x-html="jubelioQtyCell({{ $item->id }}, 'available', true)"></td>
+                                <td class="whitespace-nowrap px-3 py-2.5 text-right text-xs" data-copy-col="jb_parity" :data-copy-value="marketplaceCopyValue({{ $item->id }}, 'jubelio', 'parity_total')" x-html="jubelioQtyCell({{ $item->id }}, 'parity_total', true)"></td>
+                                <td class="whitespace-nowrap px-3 py-2.5 text-right text-xs" data-copy-col="jb_available" :data-copy-value="marketplaceCopyValue({{ $item->id }}, 'jubelio', 'available')" x-html="jubelioQtyCell({{ $item->id }}, 'available')"></td>
                             @endif
                         @endif
                         @if($hasShopee)
