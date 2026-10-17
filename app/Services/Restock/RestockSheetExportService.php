@@ -223,11 +223,14 @@ class RestockSheetExportService
                 continue;
             }
 
-            if (($blockRow['_type'] ?? '') !== 'data') {
+            if (! in_array($blockRow['_type'] ?? '', ['data', 'summary'], true)) {
                 continue;
             }
 
             $worksheet->setCellValue([self::COL_COLOR, $rowNum], $blockRow['color_name'] ?? '—');
+            if (($blockRow['_type'] ?? '') === 'summary') {
+                $worksheet->getStyle([self::COL_COLOR, $rowNum])->getFont()->setBold(true);
+            }
             $col = self::COL_COST + 1;
             $parentSizes = $blockRow['parent_sizes'] ?? [];
             foreach ($stages as $stageKey) {
@@ -238,10 +241,16 @@ class RestockSheetExportService
                         $prefix = $this->fieldPrefix($size);
                         $worksheet->setCellValue([$col, $rowNum], $blockRow[$prefix.$stageKey] ?? 0);
                     }
+                    if (($blockRow['_type'] ?? '') === 'summary') {
+                        $worksheet->getStyle([$col, $rowNum])->getFont()->setBold(true);
+                    }
                     $col++;
                 }
                 if (count($sizes) > 1) {
                     $worksheet->setCellValue([$col, $rowNum], $blockRow[$stageKey.'_total'] ?? 0);
+                    if (($blockRow['_type'] ?? '') === 'summary') {
+                        $worksheet->getStyle([$col, $rowNum])->getFont()->setBold(true);
+                    }
                     $col++;
                 }
             }
@@ -395,14 +404,20 @@ class RestockSheetExportService
                 continue;
             }
 
-            if (($blockRow['_type'] ?? '') !== 'data') {
+            if (! in_array($blockRow['_type'] ?? '', ['data', 'summary'], true)) {
                 continue;
             }
 
             $worksheet->setCellValue([self::COL_COLOR, $rowNum], $blockRow['color_name'] ?? '—');
+            if (($blockRow['_type'] ?? '') === 'summary') {
+                $worksheet->getStyle([self::COL_COLOR, $rowNum])->getFont()->setBold(true);
+            }
             $col = self::COL_COST + 1;
             foreach ($stages as $stageKey) {
                 $worksheet->setCellValue([$col, $rowNum], $blockRow[$stageKey] ?? 0);
+                if (($blockRow['_type'] ?? '') === 'summary') {
+                    $worksheet->getStyle([$col, $rowNum])->getFont()->setBold(true);
+                }
                 $col++;
             }
             $rowNum++;
@@ -428,6 +443,9 @@ class RestockSheetExportService
         for ($i = $sectionIndex + 1; $i < count($blockRows); $i++) {
             $row = $blockRows[$i];
             if (($row['_type'] ?? '') === 'section') {
+                break;
+            }
+            if (($row['_type'] ?? '') === 'summary') {
                 break;
             }
             if (($row['_type'] ?? '') !== 'data') {
