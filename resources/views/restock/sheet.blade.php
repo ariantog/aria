@@ -159,6 +159,16 @@
         text-overflow: ellipsis;
         white-space: nowrap;
     }
+    .restock-grid-wrap .tabulator .tabulator-row.restock-summary-row > .tabulator-cell {
+        font-weight: 600;
+        background-color: #f3f4f6 !important;
+        border-top: 1px solid rgba(156, 163, 175, 0.55) !important;
+        color: #374151;
+    }
+    html.dark .restock-grid-wrap .tabulator .tabulator-row.restock-summary-row > .tabulator-cell {
+        background-color: #374151 !important;
+        color: #e5e7eb;
+    }
     .restock-section-image {
         cursor: pointer;
     }
@@ -642,6 +652,13 @@ function restockSheetPage() {
                 return wrap;
             }
 
+            if (data._type === 'summary') {
+                const total = document.createElement('span');
+                total.className = 'font-semibold text-gray-800';
+                total.textContent = data.color_name ?? 'Total';
+                return total;
+            }
+
             const label = data.color_name ?? '';
 
             if (data.color_url) {
@@ -746,7 +763,8 @@ function restockSheetPage() {
         canEditFlatCell(cell, stageEditable) {
             if (!this.canEdit || !stageEditable) return false;
 
-            return cell.getRow().getData()._type === 'data';
+            const type = cell.getRow().getData()._type;
+            return type === 'data';
         },
 
         formatQtyCell(cell, size) {
@@ -776,6 +794,14 @@ function restockSheetPage() {
                 return size;
             }
 
+            if (row._type === 'summary') {
+                if (size !== null && size !== '—' && !(row.parent_sizes ?? []).includes(size)) {
+                    el.classList.add('restock-na-cell');
+                    return '—';
+                }
+                return cell.getValue() ?? 0;
+            }
+
             if (row._type !== 'data') {
                 return '';
             }
@@ -797,7 +823,7 @@ function restockSheetPage() {
             const data = row.getData();
             const el = row.getElement();
 
-            el.classList.remove('restock-section-row', 'restock-section-divider', 'restock-data-row');
+            el.classList.remove('restock-section-row', 'restock-section-divider', 'restock-data-row', 'restock-summary-row');
 
             if (data._type === 'section') {
                 el.classList.add('restock-section-row');
@@ -812,6 +838,12 @@ function restockSheetPage() {
                 el.classList.add('restock-data-row');
                 el.style.height = '';
                 this.formatUrgentRow(row);
+                return;
+            }
+
+            if (data._type === 'summary') {
+                el.classList.add('restock-summary-row');
+                el.style.height = '';
             }
         },
 

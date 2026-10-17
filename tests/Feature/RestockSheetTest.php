@@ -327,6 +327,38 @@ test('grid groups legacy full-sku pcodes into parent color rows and size columns
     expect($blueRow['restock_total'])->toBe(0);
 });
 
+test('grid block rows include per-parent total summary before the next section', function () {
+    createAssetLancarSkus($this);
+    createAssetLancarSkus($this, 'ELBOW-07', 'Elbow Support v2');
+
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+
+    $cells = $sheet->cells()->with('item')->get();
+    foreach ($cells as $cell) {
+        if ($cell->item && str_starts_with($cell->item->code, 'ELBOW-03')) {
+            $cell->update(['qty_restock' => 3, 'qty_production' => 1, 'qty_shipped' => 0]);
+        }
+    }
+
+    $grid = app(RestockGridBuilder::class)->build($sheet->fresh());
+    $rows = $grid['blocks'][0]['rows'];
+
+    $summary = collect($rows)->first(fn (array $row) => ($row['_type'] ?? '') === 'summary' && $row['pcode'] === 'ELBOW-03');
+    expect($summary)->not->toBeNull()
+        ->and($summary['color_name'])->toBe('Total')
+        ->and($summary['restock_total'])->toBe(12)
+        ->and($summary['production_total'])->toBe(4);
+
+    $summaryIndex = collect($rows)->search(
+        fn (array $row) => ($row['_rowKey'] ?? '') === 'summary:ELBOW-03',
+    );
+    expect($summaryIndex)->not->toBeFalse();
+    $nextRow = $rows[$summaryIndex + 1] ?? null;
+    expect($nextRow)->not->toBeNull()
+        ->and($nextRow['_type'])->toBe('section')
+        ->and($nextRow['pcode'])->toBe('ELBOW-07');
+});
+
 test('grid blocks combine sized parents into one matrix with union sizes', function () {
     createAssetLancarSkus($this);
     createAssetLancarSkus($this, 'ELBOW-07', 'Elbow Support v2');

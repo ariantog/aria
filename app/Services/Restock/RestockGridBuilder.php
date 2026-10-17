@@ -171,9 +171,73 @@ class RestockGridBuilder
                     'parent_sizes' => $parent['sizes'],
                 ], $colorRow);
             }
+
+            $summary = $this->buildParentSummaryRow($parent['rows'], $parent['sizes'], $parent['pcode']);
+            if ($summary !== null) {
+                $rows[] = $summary;
+            }
         }
 
         return $rows;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $colorRows
+     * @param  list<string>  $sizes
+     * @return array<string, mixed>|null
+     */
+    protected function buildParentSummaryRow(array $colorRows, array $sizes, string $pcode): ?array
+    {
+        if ($colorRows === []) {
+            return null;
+        }
+
+        $row = [
+            '_type' => 'summary',
+            '_rowKey' => 'summary:'.$pcode,
+            'pcode' => $pcode,
+            'parent_sizes' => $sizes,
+            'color_name' => 'Total',
+        ];
+
+        $restockTotal = 0;
+        $productionTotal = 0;
+        $shippedTotal = 0;
+        $stockTotal = 0;
+
+        foreach ($sizes as $sizeCode) {
+            $prefix = $this->fieldPrefix($sizeCode);
+            $sizeRestock = 0;
+            $sizeProduction = 0;
+            $sizeShipped = 0;
+            $sizeStock = 0;
+
+            foreach ($colorRows as $colorRow) {
+                $sizeRestock += (int) ($colorRow[$prefix.'restock'] ?? 0);
+                $sizeProduction += (int) ($colorRow[$prefix.'production'] ?? 0);
+                $sizeShipped += (int) ($colorRow[$prefix.'shipped'] ?? 0);
+                $sizeStock += (int) ($colorRow[$prefix.'stock'] ?? 0);
+            }
+
+            $row[$prefix.'restock'] = $sizeRestock;
+            $row[$prefix.'production'] = $sizeProduction;
+            $row[$prefix.'shipped'] = $sizeShipped;
+            $row[$prefix.'stock'] = $sizeStock;
+
+            $restockTotal += $sizeRestock;
+            $productionTotal += $sizeProduction;
+            $shippedTotal += $sizeShipped;
+            $stockTotal += $sizeStock;
+        }
+
+        if (count($sizes) > 1) {
+            $row['restock_total'] = $restockTotal;
+            $row['production_total'] = $productionTotal;
+            $row['shipped_total'] = $shippedTotal;
+            $row['stock_total'] = $stockTotal;
+        }
+
+        return $row;
     }
 
     /**
