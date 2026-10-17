@@ -386,6 +386,7 @@ function restockSheetPage() {
         receiveUrl: @json(route('restock.sheets.receive', $sheet)),
         defaultImageUrl: @json(asset('images/default-item.svg')),
         tables: {},
+        blockMeta: {},
         selectionCount: 0,
         saving: false,
         moving: false,
@@ -429,10 +430,17 @@ function restockSheetPage() {
                         rowFormatter: (row) => this.formatRow(row),
                     });
 
+                    this.blockMeta[block.id] = {
+                        kind: block.kind,
+                        sizes: block.sizes ?? [],
+                    };
                     this.tables[block.id] = table;
                     if (isMatrix) {
                         table.on('columnResized', () => this.collapseMatrixSubHeader(table));
                     }
+                    table.on('cellEdited', (cell) => {
+                        this.recalcTotalsAfterEdit(table, block.id, cell);
+                    });
                     table.on('tableBuilt', () => {
                         if (isMatrix) {
                             this.collapseMatrixSubHeader(table);
@@ -817,6 +825,107 @@ function restockSheetPage() {
         sizePrefix(size) {
             if (size === '—') return '';
             return size.toLowerCase().replace(/[. ]/g, '_') + '_';
+        },
+
+        pipelineQtyField(field) {
+            if (!field || field.endsWith('_total')) {
+                return false;
+            }
+            if (field === 'restock' || field === 'production' || field === 'shipped') {
+                return true;
+            }
+
+            return field.endsWith('_restock') || field.endsWith('_production') || field.endsWith('_shipped');
+        },
+
+        sumStageAcrossSizes(rowData, sizes, stage) {
+            let sum = 0;
+            for (const size of sizes) {
+                const prefix = this.sizePrefix(size);
+                sum += Math.max(0, Number(rowData[prefix + stage] ?? 0));
+            }
+
+            return sum;
+        },
+
+        recalcTotalsAfterEdit(table, blockId, cell) {
+            const field = cell.getField();
+            if (!this.pipelineQtyField(field)) {
+                return;
+            }
+
+            const row = cell.getRow();
+            const data = row.getData();
+            if (data._type !== 'data' || !data.pcode) {
+                return;
+            }
+
+            const sizes = data.parent_sizes ?? [];
+            if (sizes.length > 1) {
+                const rowTotals = {};
+                for (const stage of ['restock', 'production', 'shipped', 'stock']) {
+                    rowTotals[stage + '_total'] = this.sumStageAcrossSizes(data, sizes, stage);
+                }
+                row.update(rowTotals);
+            }
+
+            this.recalcParentSummaryRow(table, data.pcode, sizes);
+        },
+
+        recalcParentSummaryRow(table, pcode, parentSizes) {
+            const summaryRow = table.getRow('summary:' + pcode);
+            if (!summaryRow) {
+                return;
+            }
+
+            const colorRows = table.getRows()
+                .map((row) => row.getData())
+                .filter((row) => row._type === 'data' && row.pcode === pcode);
+
+            if (colorRows.length === 0 || parentSizes.length === 0) {
+                return;
+            }
+
+            const updates = { color_name: 'Total' };
+            let restockGrand = 0;
+            let productionGrand = 0;
+            let shippedGrand = 0;
+            let stockGrand = 0;
+
+            for (const size of parentSizes) {
+                const prefix = this.sizePrefix(size);
+                let sizeRestock = 0;
+                let sizeProduction = 0;
+                let sizeShipped = 0;
+                let sizeStock = 0;
+
+                for (const colorRow of colorRows) {
+                    sizeRestock += Math.max(0, Number(colorRow[prefix + 'restock'] ?? 0));
+                    sizeProduction += Math.max(0, Number(colorRow[prefix + 'production'] ?? 0));
+                    sizeShipped += Math.max(0, Number(colorRow[prefix + 'shipped'] ?? 0));
+                    sizeStock += Math.max(0, Number(colorRow[prefix + 'stock'] ?? 0));
+                }
+
+                updates[prefix + 'restock'] = sizeRestock;
+                updates[prefix + 'production'] = sizeProduction;
+                updates[prefix + 'shipped'] = sizeShipped;
+                updates[prefix + 'stock'] = sizeStock;
+
+                restockGrand += sizeRestock;
+                productionGrand += sizeProduction;
+                shippedGrand += sizeShipped;
+                stockGrand += sizeStock;
+            }
+
+            if (parentSizes.length > 1) {
+                updates.restock_total = restockGrand;
+                updates.production_total = productionGrand;
+                updates.shipped_total = shippedGrand;
+                updates.stock_total = stockGrand;
+            }
+
+            summaryRow.update(updates);
+            this.formatRow(summaryRow);
         },
 
         formatRow(row) {
