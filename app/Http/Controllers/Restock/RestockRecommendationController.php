@@ -71,8 +71,8 @@ class RestockRecommendationController extends Controller
         ]);
 
         $itemIds = array_values(array_unique(array_map('intval', $validated['item_ids'])));
-        $rates = collect($recommendations->monthlySellingRatesForItems($request, $request->user(), $itemIds));
-        $result = $apply->applyOneMonthRate($itemIds, $rates, $request->user());
+        $recommended = collect($recommendations->recommendedRestockQuantitiesForItems($request, $request->user(), $itemIds));
+        $result = $apply->applyRecommendedQuantities($itemIds, $recommended, $request->user());
 
         $redirect = $this->recommendationsRedirect($request);
 
@@ -84,11 +84,11 @@ class RestockRecommendationController extends Controller
                 'success',
                 $appliedCount === 1
                     ? sprintf(
-                        'Set restock qty to at least 1 month sell rate (%d units) on %s.',
+                        'Set restock qty to recommended %d units on %s.',
                         $result['applied'][0]['qty'],
                         $result['applied'][0]['sheet_name'],
                     )
-                    : sprintf('Updated restock qty for %d SKUs (1 month sell rate).', $appliedCount),
+                    : sprintf('Set recommended restock qty for %d SKUs.', $appliedCount),
             );
         }
 

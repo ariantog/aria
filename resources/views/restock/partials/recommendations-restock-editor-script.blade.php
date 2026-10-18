@@ -76,6 +76,30 @@ function restockRecommendationsRestockEditor(initialRows) {
         draftQty: function (itemId) {
             return this.drafts[this.itemKey(itemId)] ?? 0;
         },
+        applySelectionTick: 0,
+        bumpApplySelection: function () {
+            this.applySelectionTick++;
+        },
+        applyCheckedCount: function () {
+            void this.applySelectionTick;
+            const root = this.$refs.applyTable;
+            if (!root) {
+                return 0;
+            }
+
+            return root.querySelectorAll('[data-apply-row-checkbox]:checked').length;
+        },
+        setAllApplySelected: function (checked) {
+            const root = this.$refs.applyTable;
+            if (!root) {
+                return;
+            }
+
+            root.querySelectorAll('[data-apply-row-checkbox]').forEach(function (el) {
+                el.checked = checked;
+            });
+            this.bumpApplySelection();
+        },
     };
 }
 </script>

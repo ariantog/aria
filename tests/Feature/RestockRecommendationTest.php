@@ -173,7 +173,7 @@ it('filters recommendations by item type', function () {
         ->not->toContain($manufactured->id);
 });
 
-it('applies one month sell rate to the matching restock sheet', function () {
+it('applies recommended restock qty to the matching restock sheet', function () {
     $this->travelTo('2026-05-15');
     $item = restockHealthItem('Apply SKU', 'APPLY-1', ItemType::ASSET_LANCAR);
     restockHealthStock($item, $this->warehouse, 1);
@@ -218,8 +218,8 @@ it('applies one month sell rate to the matching restock sheet', function () {
         ->assertSessionHas('success');
 
     $cell->refresh();
-    // 45 net in the default 90-day health window → ≈15 net units / calendar month.
-    expect($cell->qty_restock)->toBe(15);
+    // 45 net in 90d, stock 1 → 8-week cover order qty replaces sheet cell (not max with old qty).
+    expect($cell->qty_restock)->toBe(27);
 });
 
 it('saves an edited restock qty from recommendations to the restock sheet', function () {
