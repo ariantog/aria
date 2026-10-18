@@ -12,6 +12,9 @@ use Illuminate\Support\Collection;
 
 class RestockRecommendationApplyService
 {
+    /** Target weeks of cover when deriving recommended restock qty (matches Jubelio-style exports). */
+    public const COVER_WEEKS = 8;
+
     public function __construct(
         private readonly RestockSheetService $sheetService,
         private readonly RestockCellService $cellService,
@@ -27,14 +30,41 @@ class RestockRecommendationApplyService
     }
 
     /**
+     * Units to order so on-hand stock reaches {@see COVER_WEEKS} weeks of cover at the period sell rate.
+     */
+    public static function suggestedQtyEightWeekCover(float $netPeriod, int $periodDays, float $stockQty): int
+    {
+        if ($netPeriod <= 0) {
+            return 0;
+        }
+
+        $periodDays = max(1, $periodDays);
+        $weeklyNet = ($netPeriod / $periodDays) * 7;
+        $needed = ($weeklyNet * self::COVER_WEEKS) - max(0.0, $stockQty);
+
+        if ($needed <= 0) {
+            return 0;
+        }
+
+        return max(1, (int) round($needed));
+    }
+
+    /**
      * @param  list<int>  $itemIds
      * @return array{
      *     applied: list<array{item_id: int, qty: int, sheet_id: int, sheet_name: string, sheet_url: string}>,
      *     skipped: list<array{item_id: int, reason: string}>
      * }
      */
-    public function applyOneMonthRate(array $itemIds, Collection $monthlyRateByItemId, User $user): array
+    /**
+     * @param  Collection<int, int>|array<int, int>  $recommendedQtyByItemId
+     */
+    public function applyRecommendedQuantities(array $itemIds, Collection|array $recommendedQtyByItemId, User $user): array
     {
+        $qtyMap = $recommendedQtyByItemId instanceof Collection
+            ? $recommendedQtyByItemId
+            : collect($recommendedQtyByItemId);
+
         $itemIds = array_values(array_unique(array_filter($itemIds, fn (int $id) => $id > 0)));
         if ($itemIds === []) {
             return ['applied' => [], 'skipped' => []];
@@ -57,10 +87,9 @@ class RestockRecommendationApplyService
                 continue;
             }
 
-            $monthly = (float) ($monthlyRateByItemId->get($itemId, 0.0));
-            $qty = self::suggestedQtyFromMonthlyRate($monthly);
+            $qty = max(0, (int) $qtyMap->get($itemId, 0));
             if ($qty === 0) {
-                $skipped[] = ['item_id' => $itemId, 'reason' => 'No net selling rate for the selected sales window.'];
+                $skipped[] = ['item_id' => $itemId, 'reason' => 'No recommended restock qty for the selected sales window.'];
 
                 continue;
             }
@@ -69,7 +98,7 @@ class RestockRecommendationApplyService
                 $item,
                 $qty,
                 $user,
-                floor: true,
+                replace: true,
                 source: \App\Support\RestockCellHistoryLabels::SOURCE_RECOMMENDATIONS_APPLY,
             );
             if ($result['ok']) {
@@ -134,7 +163,7 @@ class RestockRecommendationApplyService
                 $item,
                 $qty,
                 $user,
-                floor: false,
+                replace: true,
                 source: \App\Support\RestockCellHistoryLabels::SOURCE_RECOMMENDATIONS_SAVE,
             );
             if ($result['ok']) {
@@ -160,7 +189,7 @@ class RestockRecommendationApplyService
         Item $item,
         int $qty,
         User $user,
-        bool $floor,
+        bool $replace,
         string $source,
     ): array {
         if (ItemType::coerce($item->type) !== ItemType::ASSET_LANCAR) {
@@ -195,8 +224,7 @@ class RestockRecommendationApplyService
             return ['ok' => false, 'reason' => 'Could not create a restock cell for this SKU.'];
         }
 
-        $currentQty = (int) $cell->qty_restock;
-        $targetQty = $floor ? max($currentQty, $qty) : $qty;
+        $targetQty = $replace ? $qty : max((int) $cell->qty_restock, $qty);
         $this->cellService->saveQuantities($sheet, [
             ['id' => $cell->id, 'qty_restock' => $targetQty],
         ], $user, $source);

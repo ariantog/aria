@@ -198,9 +198,9 @@ $restockEditorSeedFromPaginator = function ($paginator) use ($canApplyToSheets) 
                     <button type="submit"
                             class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
                             data-testid="restock-recommendations-apply-page-hero">
-                        Add this page to sheets (1 mo rate)
+                        Apply recommended qty to this page
                     </button>
-                    <span class="text-xs text-gray-500">Sets restock qty to ⌈net/mo⌉ per SKU (won’t lower existing qty).</span>
+                    <span class="text-xs text-gray-500">Sets restock qty to 8-week cover minus on-hand (replaces existing qty).</span>
                 </form>
             @endif
             <div class="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -261,7 +261,7 @@ $restockEditorSeedFromPaginator = function ($paginator) use ($canApplyToSheets) 
                                                 <button type="submit"
                                                         class="whitespace-nowrap rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100"
                                                         data-testid="restock-recommendations-apply-{{ $row['item_id'] }}">
-                                                    Add {{ $row['suggested_restock_qty'] }}
+                                                    Set {{ $row['suggested_restock_qty'] }}
                                                 </button>
                                             </form>
                                         @else
@@ -316,8 +316,9 @@ $restockEditorSeedFromPaginator = function ($paginator) use ($canApplyToSheets) 
                     <button type="submit"
                             class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
                             data-testid="restock-recommendations-apply-page-margin">
-                        Add this page to sheets (1 mo rate)
+                        Apply recommended qty to this page
                     </button>
+                    <span class="text-xs text-gray-500">Sets restock qty to 8-week cover minus on-hand (replaces existing qty).</span>
                 </form>
             @endif
             <div class="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -384,7 +385,7 @@ $restockEditorSeedFromPaginator = function ($paginator) use ($canApplyToSheets) 
                                                 <button type="submit"
                                                         class="whitespace-nowrap rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100"
                                                         data-testid="restock-recommendations-apply-{{ $row['item_id'] }}">
-                                                    Add {{ $row['suggested_restock_qty'] }}
+                                                    Set {{ $row['suggested_restock_qty'] }}
                                                 </button>
                                             </form>
                                         @else

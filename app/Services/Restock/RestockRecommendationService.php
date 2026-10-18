@@ -428,7 +428,13 @@ class RestockRecommendationService
             $monthlyRate = (float) ($row['display_monthly_net'] ?? $row['monthly_net'] ?? 0.0);
             $row = array_merge($row, $pipe);
             $row['monthly_selling_rate'] = $monthlyRate;
-            $row['suggested_restock_qty'] = RestockRecommendationApplyService::suggestedQtyFromMonthlyRate($monthlyRate);
+            $periodDays = max(1, (int) ($row['sales_window_days'] ?? InventoryHealthSyncService::DEFAULT_PERIOD_DAYS));
+            $netSold = (float) ($row['display_net_sold'] ?? $row['net_period'] ?? 0.0);
+            $row['suggested_restock_qty'] = RestockRecommendationApplyService::suggestedQtyEightWeekCover(
+                $netSold,
+                $periodDays,
+                (float) ($row['stock_qty'] ?? 0.0),
+            );
 
             return $row;
         })->values();
@@ -641,6 +647,59 @@ class RestockRecommendationService
             $out[$itemId] = $item !== null
                 ? RestockNetSell::monthlyRateFromPeriod((float) $item->net_period, $periodDays)
                 : 0.0;
+        }
+
+        return $out;
+    }
+
+    /**
+     * Recommended restock qty per SKU (8-week cover minus on-hand), matching the recommendations list.
+     *
+     * @param  list<int>  $itemIds
+     * @return array<int, int>
+     */
+    public function recommendedRestockQuantitiesForItems(Request $request, ?User $user, array $itemIds): array
+    {
+        $itemIds = array_values(array_unique(array_filter($itemIds, fn (int $id) => $id > 0)));
+        if ($itemIds === []) {
+            return [];
+        }
+
+        $salesWindow = $this->normalizeSalesWindow($request);
+        $healthRequest = $this->healthRequest($request);
+        $windows = $this->inventoryHealth->resolveWindows($healthRequest);
+        $periodDays = max(1, (int) $windows['period_days']);
+
+        $healthByItem = $this->inventoryHealth
+            ->companyHealthRows($healthRequest, $user)
+            ->keyBy('id');
+
+        $yearStats = $salesWindow === self::SALES_WINDOW_YEAR
+            ? $this->rollingYearStats->summariesForItems($itemIds, Carbon::parse($windows['period_to']))
+            : [];
+
+        $out = [];
+        foreach ($itemIds as $itemId) {
+            $item = $healthByItem->get($itemId);
+            $stock = $item !== null ? (float) $item->current_stock : 0.0;
+
+            if ($salesWindow === self::SALES_WINDOW_YEAR) {
+                $stats = $yearStats[$itemId] ?? ['net_12m' => 0.0];
+                $out[$itemId] = RestockRecommendationApplyService::suggestedQtyEightWeekCover(
+                    (float) $stats['net_12m'],
+                    self::SALES_WINDOW_YEAR,
+                    $stock,
+                );
+
+                continue;
+            }
+
+            $net = $item !== null ? (float) $item->net_period : 0.0;
+            $out[$itemId] = RestockRecommendationApplyService::suggestedQtyEightWeekCover(
+                $net,
+                $periodDays,
+                $stock,
+            );
         }
 
         return $out;
