@@ -173,7 +173,7 @@ it('filters recommendations by item type', function () {
         ->not->toContain($manufactured->id);
 });
 
-it('applies one month sell rate to the matching restock sheet', function () {
+it('applies recommended restock qty to the matching restock sheet', function () {
     $this->travelTo('2026-05-15');
     $item = restockHealthItem('Apply SKU', 'APPLY-1', ItemType::ASSET_LANCAR);
     restockHealthStock($item, $this->warehouse, 1);
