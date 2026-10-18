@@ -169,15 +169,23 @@ $sourceStatusOptions = \App\Enums\ItemStockSourceStatus::cases();
                         class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
                     Clear selection
                 </button>
+                @if(! ($warehouseFiltersLocked ?? false))
+                <p class="text-xs text-gray-500" data-testid="stock-notifications-move-hint">
+                    Filter by <span class="font-medium">Sold out at</span> and <span class="font-medium">Stock at</span> to enable move.
+                </p>
+                @endif
+                @if(($canDraftMove ?? false) === false && ($warehouseFiltersLocked ?? false))
+                <p class="text-xs text-gray-500">Move requires permission to create move transactions.</p>
+                @endif
             </div>
-            @if(! ($warehouseFiltersLocked ?? false))
-            <p class="text-xs text-gray-500" data-testid="stock-notifications-move-hint">
-                Filter by <span class="font-medium">Sold out at</span> and <span class="font-medium">Stock at</span> to enable move.
-            </p>
-            @endif
-            @if(($canDraftMove ?? false) === false && ($warehouseFiltersLocked ?? false))
-            <p class="text-xs text-gray-500">Move requires permission to create move transactions.</p>
-            @endif
+            <button type="button"
+                    @click="copyRowsTable()"
+                    data-testid="stock-notifications-copy-rows"
+                    title="Copy table for Excel"
+                    class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                <span x-text="copyFeedback ? 'Copied!' : 'Copy rows'"></span>
+            </button>
         </div>
 
         <form id="stock-alerts-draft-form" method="POST" action="{{ route('stock-notifications.draft-move') }}" class="hidden">
@@ -193,7 +201,7 @@ $sourceStatusOptions = \App\Enums\ItemStockSourceStatus::cases();
         </form>
 
         <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200 text-sm">
+            <table x-ref="alertsTable" class="min-w-full divide-y divide-gray-200 text-sm">
                 <thead class="bg-gray-50 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
                     <tr>
                         <th class="w-10 px-4 py-3">
@@ -206,12 +214,12 @@ $sourceStatusOptions = \App\Enums\ItemStockSourceStatus::cases();
                                    aria-label="Select all on this page">
                             @endif
                         </th>
-                        <th class="px-4 py-3">Item</th>
-                        <th class="px-4 py-3">Sold out at</th>
-                        <th class="px-4 py-3">Stock at</th>
-                        <th class="px-4 py-3">Qty</th>
-                        <th class="px-4 py-3">Status</th>
-                        <th class="px-4 py-3">When</th>
+                        <th class="px-4 py-3" data-copy-col="item">Item</th>
+                        <th class="px-4 py-3" data-copy-col="sold_out_at">Sold out at</th>
+                        <th class="px-4 py-3" data-copy-col="stock_at">Stock at</th>
+                        <th class="px-4 py-3" data-copy-col="qty">Qty</th>
+                        <th class="px-4 py-3" data-copy-col="status">Status</th>
+                        <th class="px-4 py-3" data-copy-col="when">When</th>
                         <th class="px-4 py-3 text-right">Actions</th>
                     </tr>
                 </thead>
@@ -226,16 +234,16 @@ $sourceStatusOptions = \App\Enums\ItemStockSourceStatus::cases();
                                    data-testid="stock-notification-select">
                             @endif
                         </td>
-                        @include('stock-notifications.partials.item-cell', ['notification' => $notification])
-                        @include('stock-notifications.partials.warehouse-cell', ['warehouse' => $notification->soldOutWarehouse])
-                        @include('stock-notifications.partials.warehouse-cell', ['warehouse' => $notification->sourceWarehouse])
-                        <td class="px-4 py-3 font-medium text-gray-900">{{ $fmtNum($notification->source_stock) }}</td>
-                        <td class="px-4 py-3">
+                        @include('stock-notifications.partials.item-cell', ['notification' => $notification, 'copyCol' => 'item'])
+                        @include('stock-notifications.partials.warehouse-cell', ['warehouse' => $notification->soldOutWarehouse, 'copyCol' => 'sold_out_at'])
+                        @include('stock-notifications.partials.warehouse-cell', ['warehouse' => $notification->sourceWarehouse, 'copyCol' => 'stock_at'])
+                        <td class="px-4 py-3 font-medium text-gray-900" data-copy-col="qty">{{ $fmtNum($notification->source_stock) }}</td>
+                        <td class="px-4 py-3" data-copy-col="status">
                             <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium {{ $notification->source_status->colorClass() }}">
                                 {{ $notification->source_status->label() }}
                             </span>
                         </td>
-                        <td class="px-4 py-3 text-gray-500">
+                        <td class="px-4 py-3 text-gray-500" data-copy-col="when">
                             {{ $notification->created_at?->format('d M Y H:i') }}
                             @if($notification->read_at)
                             <div class="text-xs">Read {{ $notification->read_at->format('d M H:i') }}</div>
@@ -295,6 +303,8 @@ function stockAlertsList(config) {
         toWarehouseId: config.toWarehouseId,
         rows: config.rows || [],
         selected,
+        copyFeedback: false,
+        copyFeedbackTimer: null,
 
         selectedCount() {
             return Object.values(this.selected).filter(Boolean).length;
@@ -331,6 +341,24 @@ function stockAlertsList(config) {
                 return;
             }
             document.getElementById('stock-alerts-draft-form')?.requestSubmit();
+        },
+
+        showCopyFeedback() {
+            this.copyFeedback = true;
+            clearTimeout(this.copyFeedbackTimer);
+            this.copyFeedbackTimer = setTimeout(() => {
+                this.copyFeedback = false;
+            }, 2000);
+        },
+
+        isCopyColumnVisible() {
+            return true;
+        },
+
+        async copyRowsTable() {
+            if (await ariaCopyTable(this.$refs.alertsTable, (col) => this.isCopyColumnVisible(col))) {
+                this.showCopyFeedback();
+            }
         },
     };
 }

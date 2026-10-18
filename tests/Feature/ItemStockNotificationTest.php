@@ -279,6 +279,27 @@ it('renders the stock notifications page for authorized users', function () {
         ->assertDontSee('flex h-full flex-1 flex-col gap-4 overflow-x-auto', false);
 });
 
+it('renders copy rows control when stock alerts are listed', function () {
+    $soldOut = Addrbook::factory()->warehouse()->create(['name' => 'Sold Out Shop']);
+    $source = Addrbook::factory()->warehouse()->create(['name' => 'Source Warehouse']);
+    $item = Item::factory()->create(['code' => 'COPY-SKU-01', 'name' => 'Copy Test Item']);
+
+    ItemStockNotification::query()->create([
+        'item_id' => $item->id,
+        'sold_out_warehouse_id' => $soldOut->id,
+        'source_warehouse_id' => $source->id,
+        'source_stock' => 5,
+        'source_status' => ItemStockSourceStatus::Available,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('stock-notifications.index'))
+        ->assertOk()
+        ->assertSee('data-testid="stock-notifications-copy-rows"', false)
+        ->assertSee('copyRowsTable()', false)
+        ->assertSee('data-copy-col="item"', false);
+});
+
 it('renders a long stock alert list including the last row and pagination', function () {
     $soldOut = Addrbook::factory()->warehouse()->create(['name' => 'Sold Out Shop']);
     $source = Addrbook::factory()->warehouse()->create(['name' => 'Source Warehouse']);
