@@ -209,7 +209,6 @@ class ItemGroupHierarchyService
             'is_asset' => $itemType === ItemType::ASSET_LANCAR,
             'product_name' => $productName,
             'uses_placeholder' => $usesPlaceholder,
-            'description' => $this->resolveDescription($groups),
             'image_url' => $this->imageResolver->resolveUrlForGroups($groups),
             'group_ids' => $groups->pluck('id')->all(),
             'colors' => $colors,
@@ -726,14 +725,6 @@ class ItemGroupHierarchyService
     /**
      * @param  Collection<int, ItemGroup>  $groups
      */
-    protected function resolveDescription(Collection $groups): string
-    {
-        return $groups
-            ->map(fn (ItemGroup $group) => $group->description)
-            ->filter()
-            ->first() ?? '';
-    }
-
     /**
      * @param  Collection<int, Item>  $items
      * @return list<string>

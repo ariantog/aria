@@ -58,13 +58,6 @@ $fmt = fn ($v) => format_amount($v, 0);
                             'align' => 'left',
                         ])
                     </div>
-                    @if($detail['description'])
-                    <div class="border-t border-gray-100 pt-4 md:col-span-2">
-                        <p class="text-sm font-semibold uppercase tracking-wider text-gray-500">Description</p>
-                        <p class="leading-relaxed text-gray-700">{{ $detail['description'] }}</p>
-                    </div>
-                    @endif
-
                     @if($canEditGroup)
                     <div class="border-t border-gray-100 pt-4 md:col-span-2" x-data="{ parentEditOpen: {{ (old('name') || old('pricing')) ? 'true' : 'false' }} }">
                         <div class="flex flex-wrap items-center justify-between gap-3">
