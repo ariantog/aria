@@ -13,6 +13,12 @@ class InventoryHealthSyncService
 {
     public const COMPANY_WAREHOUSE_ID = 0;
 
+    /** Default net-sell window for snapshots and the inventory-health report (restock recommendations reuse this). */
+    public const DEFAULT_PERIOD_DAYS = 90;
+
+    /** Longer lookback for dead / slow classification (must be greater than {@see DEFAULT_PERIOD_DAYS}). */
+    public const EXTENDED_LOOKBACK_DAYS = 180;
+
     /**
      * Rebuild snapshots from warehouse_item_monthly_stats + current warehouse_item stock.
      * One warehouse at a time so this stays bounded on production.
@@ -23,8 +29,8 @@ class InventoryHealthSyncService
     {
         $asOf ??= now();
         $windows = $this->windows($asOf);
-        $startPeriod = ItemDimensionResolver::periodStartKey(30);
-        $startExtended = ItemDimensionResolver::periodStartKey(90);
+        $startPeriod = ItemDimensionResolver::periodStartKey(self::DEFAULT_PERIOD_DAYS);
+        $startExtended = ItemDimensionResolver::periodStartKey(self::EXTENDED_LOOKBACK_DAYS);
         $syncedAt = $asOf->copy();
 
         $warehouseIds = Addrbook::query()
@@ -59,13 +65,13 @@ class InventoryHealthSyncService
     {
         $asOf ??= now();
         $to = $asOf->toDateString();
-        $from = $asOf->copy()->subDays(30)->toDateString();
+        $from = $asOf->copy()->subDays(self::DEFAULT_PERIOD_DAYS)->toDateString();
 
         return [
             'period_from' => $from,
             'period_to' => $to,
-            'extended_from' => $asOf->copy()->subDays(90)->toDateString(),
-            'period_days' => 30,
+            'extended_from' => $asOf->copy()->subDays(self::EXTENDED_LOOKBACK_DAYS)->toDateString(),
+            'period_days' => self::DEFAULT_PERIOD_DAYS,
         ];
     }
 

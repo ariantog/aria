@@ -58,7 +58,7 @@ $fmtCover = function (?float $cover, float $stock, float $netPeriod) {
                 @endif
             @elseif($hasSnapshots)
                 Live query (custom date range).
-                The default 30-day view uses the daily snapshot.
+                The default 90-day view uses the daily snapshot.
             @else
                 <span class="text-amber-700">No snapshot yet — this page is scanning transactions. Run <code class="text-xs">php artisan app:sync-inventory-health</code> or wait for the daily cron.</span>
             @endif

@@ -200,7 +200,7 @@ class RestockRecommendationService
     }
 
     /**
-     * Reuse default inventory-health windows (last 30 days) unless the user set an explicit range.
+     * Reuse default inventory-health windows (last 90 days) unless the user set an explicit range.
      */
     private function healthRequest(Request $request): Request
     {

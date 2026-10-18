@@ -113,14 +113,15 @@ class InventoryHealthQueryService
     public function resolveWindows(Request $request): array
     {
         $to = $this->parseDate($request->query('to')) ?? now()->toDateString();
-        $from = $this->parseDate($request->query('from')) ?? Carbon::parse($to)->subDays(30)->toDateString();
+        $from = $this->parseDate($request->query('from'))
+            ?? Carbon::parse($to)->subDays(InventoryHealthSyncService::DEFAULT_PERIOD_DAYS)->toDateString();
 
         if ($from > $to) {
             [$from, $to] = [$to, $from];
         }
 
         $periodDays = max(1, (int) Carbon::parse($from)->startOfDay()->diffInDays(Carbon::parse($to)->startOfDay()));
-        $extendedFrom = Carbon::parse($to)->subDays(90)->toDateString();
+        $extendedFrom = Carbon::parse($to)->subDays(InventoryHealthSyncService::EXTENDED_LOOKBACK_DAYS)->toDateString();
         if ($from < $extendedFrom) {
             $extendedFrom = $from;
         }
