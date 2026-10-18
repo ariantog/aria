@@ -19,7 +19,7 @@ For catalog attributes that support overrides, resolve **SKU → colorway → pa
 | Attribute | SKU | Colorway | Parent |
 |-----------|-----|----------|--------|
 | Sell / reseller / cost / cost CNY | `items.*` | *(legacy column — ignored)* | `item_parent_prices.*` |
-| Description / description2 | `items.*` (only if different from colorway) | `item_group.*` | *(no column yet — UI aggregates colorways on parent detail)* |
+| Description / description2 | `items.*` (only if different from colorway) | `item_group.*` | *(no parent column — edit per colorway or SKU)* |
 | Bare product title | `items.alias` | `item_group.name` | `item_parent_prices.product_name` |
 | Brand / genre | `items.*` (legacy mirror) | `item_group.*` | — |
 | Full display `items.name` | Built from bare title + warna + size (`ItemProductTitle::buildDisplayName()`) | | |
