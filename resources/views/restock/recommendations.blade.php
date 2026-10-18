@@ -67,6 +67,14 @@ $restockEditorSeedFromPaginator = function ($paginator) use ($canApplyToSheets) 
         ->values()
         ->all();
 };
+$canApplyRecommended = function (array $row) use ($canApplyToSheets): bool {
+    if (! ($canApplyToSheets ?? false)) {
+        return false;
+    }
+
+    return \App\Enums\ItemType::coerce($row['item_type'] ?? null) === \App\Enums\ItemType::ASSET_LANCAR
+        && (int) ($row['suggested_restock_qty'] ?? 0) > 0;
+};
 @endphp
 
 <div class="flex flex-col gap-4 p-4" data-testid="restock-recommendations-page">
@@ -187,26 +195,36 @@ $restockEditorSeedFromPaginator = function ($paginator) use ($canApplyToSheets) 
             @if($canApplyToSheets)
             <div x-data="restockRecommendationsRestockEditor(@js($fastRestockEditorSeed))" class="flex flex-col gap-2">
                 @include('restock.partials.recommendations-restock-save-bar')
-                <form method="POST" action="{{ route('restock.recommendations.apply') }}" class="flex flex-wrap items-center gap-2">
+                <form id="restock-recommendations-apply-hero"
+                      method="POST"
+                      action="{{ route('restock.recommendations.apply') }}"
+                      class="flex flex-wrap items-center gap-2">
                     @csrf
                     @include('restock.partials.recommendations-apply-hidden')
-                    @foreach($fastMoving as $row)
-                        @if(($row['suggested_restock_qty'] ?? 0) > 0 && \App\Enums\ItemType::coerce($row['item_type'] ?? null) === \App\Enums\ItemType::ASSET_LANCAR)
-                            <input type="hidden" name="item_ids[]" value="{{ $row['item_id'] }}">
-                        @endif
-                    @endforeach
                     <button type="submit"
-                            class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+                            class="rounded-lg px-3 py-1.5 text-sm font-medium text-white"
+                            :disabled="applyCheckedCount() === 0"
+                            :class="applyCheckedCount() === 0 ? 'cursor-not-allowed bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'"
                             data-testid="restock-recommendations-apply-page-hero">
-                        Apply recommended qty to this page
+                        Apply selected (<span x-text="applyCheckedCount()"></span>)
                     </button>
-                    <span class="text-xs text-gray-500">Sets restock qty to 8-week cover minus on-hand (replaces existing qty).</span>
+                    <span class="text-xs text-gray-500">Checked rows get 8-week cover minus on-hand (replaces sheet qty). Uncheck to skip.</span>
                 </form>
             @endif
-            <div class="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+            <div class="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm" x-ref="applyTable">
                 <table class="min-w-full divide-y divide-gray-200 text-sm" data-testid="restock-recommendations-hero-table">
                     <thead class="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                         <tr>
+                            @if($canApplyToSheets)
+                                <th class="px-2 py-2 w-10" title="Include in Apply selected">
+                                    <input type="checkbox"
+                                           checked
+                                           class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                           aria-label="Select all for apply"
+                                           data-testid="restock-recommendations-apply-select-all-hero"
+                                           @change="setAllApplySelected($event.target.checked)">
+                                </th>
+                            @endif
                             <th class="px-3 py-2">SKU</th>
                             <th class="px-3 py-2 text-right">Stock</th>
                             <th class="px-3 py-2 text-right">Net / mo</th>
@@ -232,6 +250,15 @@ $restockEditorSeedFromPaginator = function ($paginator) use ($canApplyToSheets) 
                                     :class="isEdited({{ $rowItemId }}) ? 'bg-amber-50/80' : ''"
                                 @endif
                             >
+                                @if($canApplyToSheets)
+                                    <td class="px-2 py-2 text-center">
+                                        @include('restock.partials.recommendations-apply-checkbox', [
+                                            'row' => $row,
+                                            'applyFormId' => 'restock-recommendations-apply-hero',
+                                            'canApplyRecommended' => $canApplyRecommended,
+                                        ])
+                                    </td>
+                                @endif
                                 <td class="px-3 py-2">
                                     <a href="{{ $row['show_url'] }}" class="font-medium text-blue-600 hover:underline">
                                         {{ $row['item_code'] ?: $row['item_id'] }}
@@ -253,7 +280,7 @@ $restockEditorSeedFromPaginator = function ($paginator) use ($canApplyToSheets) 
                                 </td>
                                 @if($canApplyToSheets)
                                     <td class="px-3 py-2">
-                                        @if(\App\Enums\ItemType::coerce($row['item_type'] ?? null) === \App\Enums\ItemType::ASSET_LANCAR && ($row['suggested_restock_qty'] ?? 0) > 0)
+                                        @if($canApplyRecommended($row))
                                             <form method="POST" action="{{ route('restock.recommendations.apply') }}">
                                                 @csrf
                                                 @include('restock.partials.recommendations-apply-hidden')
@@ -305,26 +332,36 @@ $restockEditorSeedFromPaginator = function ($paginator) use ($canApplyToSheets) 
             @if($canApplyToSheets)
             <div x-data="restockRecommendationsRestockEditor(@js($marginRestockEditorSeed))" class="flex flex-col gap-2">
                 @include('restock.partials.recommendations-restock-save-bar')
-                <form method="POST" action="{{ route('restock.recommendations.apply') }}" class="flex flex-wrap items-center gap-2">
+                <form id="restock-recommendations-apply-margin"
+                      method="POST"
+                      action="{{ route('restock.recommendations.apply') }}"
+                      class="flex flex-wrap items-center gap-2">
                     @csrf
                     @include('restock.partials.recommendations-apply-hidden')
-                    @foreach($highMargin as $row)
-                        @if(($row['suggested_restock_qty'] ?? 0) > 0 && \App\Enums\ItemType::coerce($row['item_type'] ?? null) === \App\Enums\ItemType::ASSET_LANCAR)
-                            <input type="hidden" name="item_ids[]" value="{{ $row['item_id'] }}">
-                        @endif
-                    @endforeach
                     <button type="submit"
-                            class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+                            class="rounded-lg px-3 py-1.5 text-sm font-medium text-white"
+                            :disabled="applyCheckedCount() === 0"
+                            :class="applyCheckedCount() === 0 ? 'cursor-not-allowed bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'"
                             data-testid="restock-recommendations-apply-page-margin">
-                        Apply recommended qty to this page
+                        Apply selected (<span x-text="applyCheckedCount()"></span>)
                     </button>
-                    <span class="text-xs text-gray-500">Sets restock qty to 8-week cover minus on-hand (replaces existing qty).</span>
+                    <span class="text-xs text-gray-500">Checked rows get 8-week cover minus on-hand (replaces sheet qty). Uncheck to skip.</span>
                 </form>
             @endif
-            <div class="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+            <div class="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm" x-ref="applyTable">
                 <table class="min-w-full divide-y divide-gray-200 text-sm" data-testid="restock-recommendations-margin-table">
                     <thead class="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                         <tr>
+                            @if($canApplyToSheets)
+                                <th class="px-2 py-2 w-10" title="Include in Apply selected">
+                                    <input type="checkbox"
+                                           checked
+                                           class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                           aria-label="Select all for apply"
+                                           data-testid="restock-recommendations-apply-select-all-margin"
+                                           @change="setAllApplySelected($event.target.checked)">
+                                </th>
+                            @endif
                             <th class="px-3 py-2">SKU</th>
                             <th class="px-3 py-2 text-right">Margin</th>
                             <th class="px-3 py-2 text-right">Stock</th>
@@ -353,6 +390,15 @@ $restockEditorSeedFromPaginator = function ($paginator) use ($canApplyToSheets) 
                                     :class="isEdited({{ $rowItemId }}) ? 'bg-amber-50/80' : ''"
                                 @endif
                             >
+                                @if($canApplyToSheets)
+                                    <td class="px-2 py-2 text-center">
+                                        @include('restock.partials.recommendations-apply-checkbox', [
+                                            'row' => $row,
+                                            'applyFormId' => 'restock-recommendations-apply-margin',
+                                            'canApplyRecommended' => $canApplyRecommended,
+                                        ])
+                                    </td>
+                                @endif
                                 <td class="px-3 py-2">
                                     <a href="{{ $row['show_url'] }}" class="font-medium text-blue-600 hover:underline">
                                         {{ $row['item_code'] ?: $row['item_id'] }}
@@ -377,7 +423,7 @@ $restockEditorSeedFromPaginator = function ($paginator) use ($canApplyToSheets) 
                                 </td>
                                 @if($canApplyToSheets)
                                     <td class="px-3 py-2">
-                                        @if(\App\Enums\ItemType::coerce($row['item_type'] ?? null) === \App\Enums\ItemType::ASSET_LANCAR && ($row['suggested_restock_qty'] ?? 0) > 0)
+                                        @if($canApplyRecommended($row))
                                             <form method="POST" action="{{ route('restock.recommendations.apply') }}">
                                                 @csrf
                                                 @include('restock.partials.recommendations-apply-hidden')
