@@ -161,6 +161,10 @@ class ProcessJubelioOrder
                 'status' => 1,
             ]);
 
+            if (config('lark.enabled')) {
+                app(\App\Services\Lark\JubelioOversellBlockedNotifier::class)->notify($order, $stockError);
+            }
+
             return ['success' => false, 'message' => $stockError['message']];
         }
 

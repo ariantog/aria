@@ -39,6 +39,9 @@ Route::post('jubelio/webhook/order', [App\Http\Controllers\JubelioController::cl
 Route::post('jubelio/webhook/return', [App\Http\Controllers\JubelioController::class, 'webhookReturn'])
     ->name('jubelio.webhook.return');
 
+Route::post('webhooks/lark/events', [App\Http\Controllers\LarkWebhookController::class, 'handleEvent'])
+    ->name('webhooks.lark.events');
+
 // Shopee Ads OAuth callback — public (Shopee redirects here after seller approval)
 Route::get('shopee-ads/oauth/callback', [App\Http\Controllers\ShopeeAdsController::class, 'oauthCallback'])
     ->name('shopee-ads.oauth.callback');

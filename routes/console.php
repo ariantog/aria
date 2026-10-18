@@ -40,3 +40,10 @@ Schedule::command('app:process-warehouse-arrangement-refresh')
     ->onFailure(function () {
         Log::error('Scheduled task failed', ['command' => 'app:process-warehouse-arrangement-refresh']);
     });
+
+Schedule::command('lark:scan-low-cover')
+    ->dailyAt('07:00')
+    ->timezone(config('lark.timezone', 'Asia/Jakarta'))
+    ->withoutOverlapping(30)
+    ->onOneServer()
+    ->when(fn () => (bool) config('lark.enabled'));
