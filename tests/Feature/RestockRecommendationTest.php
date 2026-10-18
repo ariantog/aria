@@ -218,7 +218,8 @@ it('applies one month sell rate to the matching restock sheet', function () {
         ->assertSessionHas('success');
 
     $cell->refresh();
-    expect($cell->qty_restock)->toBeGreaterThanOrEqual(40);
+    // 45 net in the default 90-day health window → ≈15 net units / calendar month.
+    expect($cell->qty_restock)->toBe(15);
 });
 
 it('saves an edited restock qty from recommendations to the restock sheet', function () {
@@ -394,14 +395,14 @@ it('renders the restock recommendations page', function () {
 it('shows rolling 12-month net sell from warehouse stats when sales_window is 365', function () {
     $this->travelTo('2026-06-20');
     $item = restockHealthItem('Year Window SKU', 'YEAR-1');
-    restockHealthStock($item, $this->warehouse, 3);
+    restockHealthStock($item, $this->warehouse, 2);
     restockHealthLine(
         $this->user,
         $this->warehouse,
         $this->customer,
         $item,
         Transaction::TYPE_SELL,
-        10,
+        90,
         now()->subDays(5)->toDateString(),
         'YEAR-1-RECENT',
     );

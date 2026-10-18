@@ -88,6 +88,16 @@ function healthLiveLine(
     ]);
 }
 
+it('uses a 90-day default health window for snapshots', function () {
+    $this->travelTo('2026-06-01');
+    $windows = app(InventoryHealthSyncService::class)->windows();
+
+    expect($windows['period_days'])->toBe(90)
+        ->and($windows['period_from'])->toBe('2026-03-03')
+        ->and($windows['period_to'])->toBe('2026-06-01')
+        ->and($windows['extended_from'])->toBe('2025-12-03');
+});
+
 it('rebuilds snapshots from monthly stats and current stock', function () {
     $item = healthStatItem('Cached Health Tee', 'SNAP-TEE');
     healthOnHand($item, $this->warehouse, 2);

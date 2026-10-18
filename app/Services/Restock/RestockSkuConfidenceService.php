@@ -4,6 +4,7 @@ namespace App\Services\Restock;
 
 use App\Models\Transaction;
 use App\Services\InventoryHealth\InventoryHealthClassifier;
+use App\Services\InventoryHealth\InventoryHealthSyncService;
 use App\Services\ItemInsightLastBuyResolver;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -79,7 +80,7 @@ class RestockSkuConfidenceService
         foreach ($itemIds as $itemId) {
             $context = $contextByItem[$itemId] ?? [
                 'net_period' => 0.0,
-                'period_days' => 30,
+                'period_days' => InventoryHealthSyncService::DEFAULT_PERIOD_DAYS,
                 'stock_qty' => 0.0,
                 'days_of_cover' => null,
                 'health_key' => null,

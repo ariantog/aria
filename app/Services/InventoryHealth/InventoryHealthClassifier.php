@@ -116,14 +116,14 @@ class InventoryHealthClassifier
                 'key' => self::DEAD,
                 'label' => 'Dead Stock',
                 'color' => 'bg-rose-500',
-                'rec' => 'No net sales in 90 days. Move or clear the stock.',
+                'rec' => 'No net sales in the extended lookback. Move or clear the stock.',
                 'days_of_cover' => $cover,
             ],
             self::SLOW => [
                 'key' => self::SLOW,
                 'label' => 'Slow Moving',
                 'color' => 'bg-gray-500',
-                'rec' => 'Sold in 90 days but not in the selected period. Reduce stock.',
+                'rec' => 'Sold in the extended window but not in the selected period. Reduce stock.',
                 'days_of_cover' => $cover,
             ],
             self::LOW => [
