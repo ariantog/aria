@@ -692,7 +692,15 @@ class ItemsController extends Controller
         $items = $group->items->sortBy(fn (Item $item) => $this->identityBuilder->itemSizeCode($item) ?? '')->values();
         $sample = $items->first();
 
-        abort_if($sample === null, 404);
+        if ($sample === null) {
+            $redirectGroup = $this->resolveColorwayEditGroupFallback($group);
+
+            if ($redirectGroup) {
+                return redirect()->route('items.colorway-edit', $redirectGroup);
+            }
+
+            abort(404);
+        }
 
         $itemType = $sample->type;
         $titleForm = \App\Support\ItemCatalogTitleForm::forItem($sample, $this->identityBuilder);
@@ -834,7 +842,7 @@ class ItemsController extends Controller
             ]);
             $payload['tags'] = $request->input('tags', []);
 
-            $this->itemService->updateColorway(
+            $group = $this->itemService->updateColorway(
                 $group,
                 (object) $payload,
                 $itemRows,
@@ -1174,6 +1182,58 @@ class ItemsController extends Controller
             : ['nullable', 'numeric', 'min:0'];
 
         return $rules;
+    }
+
+    /**
+     * After a colorway save, SKUs may live on a different item_group row (canonical master/variant).
+     * Follow them when the URL still points at an empty legacy group.
+     */
+    private function resolveColorwayEditGroupFallback(ItemGroup $group): ?ItemGroup
+    {
+        $master = trim((string) ($group->master ?? ''));
+        $variant = trim((string) ($group->variant ?? ''));
+
+        if ($master !== '') {
+            $match = ItemGroup::query()
+                ->where('id', '!=', $group->id)
+                ->where('master', $master)
+                ->when($variant !== '', fn ($query) => $query->where('variant', $variant))
+                ->whereHas('items')
+                ->orderBy('id')
+                ->first();
+
+            if ($match) {
+                return $match;
+            }
+        }
+
+        $pcodeHints = array_values(array_unique(array_filter([
+            strtoupper(trim((string) ($group->name ?? ''))),
+            $master !== '' && $variant !== '' ? strtoupper("{$master}-{$variant}") : '',
+            $this->identityBuilder->normalizeManufacturedPcode($master),
+        ])));
+
+        foreach ($pcodeHints as $pcodeHint) {
+            if ($pcodeHint === '') {
+                continue;
+            }
+
+            $groupId = Item::query()
+                ->where('group_id', '!=', $group->id)
+                ->where('group_id', '>', 0)
+                ->whereRaw('UPPER(TRIM(pcode)) = ?', [$pcodeHint])
+                ->orderBy('id')
+                ->value('group_id');
+
+            if ($groupId) {
+                $match = ItemGroup::query()->whereKey($groupId)->whereHas('items')->first();
+                if ($match) {
+                    return $match;
+                }
+            }
+        }
+
+        return null;
     }
 
     /**

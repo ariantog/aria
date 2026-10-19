@@ -421,6 +421,58 @@ test('colorway catalog save does not apply colorway pricing or clear size overri
         ->and((float) $medium->price)->toBe(0.0);
 });
 
+test('colorway update redirects to canonical group when items move off stale group row', function () {
+    $canonicalGroup = ItemGroup::factory()->create([
+        'master' => 'CX90233-23',
+        'variant' => '23',
+        'name' => 'CANONICAL',
+    ]);
+
+    $staleGroup = ItemGroup::factory()->create([
+        'master' => 'CX90233',
+        'variant' => '',
+        'name' => 'CX90233-23',
+    ]);
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => $staleGroup->id,
+        'pcode' => 'CX90233-23',
+        'code' => 'AJD-CX90233-23-S',
+        'name' => 'CX90233-23 - BLUE - S',
+        'price' => 100000,
+    ]);
+    $item->tags()->sync([$this->typeTag->id, $this->warnaTag->id, $this->sizeTag->id, $this->jahitTag->id]);
+
+    $response = $this->actingAs($this->user)
+        ->put(route('items.colorway-update', $staleGroup), [
+            'pcode' => 'CX90233-23',
+            'product_name' => 'After Save Title',
+            'tags' => [
+                'types' => $this->typeTag->id,
+                'warna' => $this->warnaTag->id,
+                'jahit' => $this->jahitTag->id,
+            ],
+            'items' => [
+                $item->id => [
+                    'pricing' => [
+                        'price' => ['scope' => 'size', 'value' => 100000],
+                    ],
+                ],
+            ],
+        ]);
+
+    $item->refresh();
+
+    expect($item->group_id)->toBe($canonicalGroup->id);
+
+    $response->assertRedirect(route('items.colorway-edit', $canonicalGroup));
+
+    $this->actingAs($this->user)
+        ->get(route('items.colorway-edit', $staleGroup))
+        ->assertRedirect(route('items.colorway-edit', $canonicalGroup));
+});
+
 test('colorway update via HTTP persists per-size price and reseller', function () {
     $group = ItemGroup::factory()->create([
         'master' => 'CX90233-23',
