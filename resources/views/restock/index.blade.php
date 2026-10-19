@@ -162,7 +162,7 @@ $stageLabels = [
                             <label class="mb-1 block text-xs font-medium text-gray-700" for="restock-flat-direction">Move</label>
                             <select id="restock-flat-direction" x-model="flatDirection"
                                     data-testid="restock-flat-direction"
-                                    class="rounded-lg border-gray-300 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                    class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                                 <option value="to_production">Restock → Production</option>
                                 <option value="to_shipped">Production → Shipping</option>
                             </select>
