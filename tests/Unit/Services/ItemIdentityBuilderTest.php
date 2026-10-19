@@ -511,3 +511,21 @@ describe('Item SKU resolution', function () {
             ->and($stale->id)->not->toBe($converted->id);
     });
 });
+
+describe('warnaTagForItem', function () {
+    it('resolves asset warna from item_group.variant when pivot tag is missing', function () {
+        $group = \App\Models\ItemGroup::factory()->create([
+            'master' => 'GLOVE-01',
+            'variant' => 'BLUE',
+        ]);
+
+        $item = Item::factory()->create([
+            'type' => ItemType::ASSET_LANCAR,
+            'group_id' => $group->id,
+            'pcode' => 'GLOVE-01',
+            'code' => 'GLOVE-01-BLUE-S',
+        ]);
+
+        expect($this->builder->warnaTagForItem($item)?->id)->toBe($this->warnaTag->id);
+    });
+});
