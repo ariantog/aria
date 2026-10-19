@@ -201,55 +201,84 @@ $sourceStatusOptions = \App\Enums\ItemStockSourceStatus::cases();
         </form>
 
         <div class="overflow-x-auto">
-            <table x-ref="alertsTable" class="min-w-full divide-y divide-gray-200 text-sm">
-                <thead class="bg-gray-50 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+            <table x-ref="alertsTable" class="w-full min-w-[960px] text-sm">
+                <thead class="border-b border-gray-200 bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
                     <tr>
-                        <th class="w-10 px-4 py-3">
-                            @if($canDraftMove ?? false)
+                        @if($canDraftMove ?? false)
+                        <th class="w-10 px-3 py-2.5">
                             <input type="checkbox"
                                    class="rounded border-gray-300"
                                    :checked="allSelected()"
                                    @change="toggleAll($event.target.checked)"
                                    data-testid="stock-notifications-select-all"
                                    aria-label="Select all on this page">
-                            @endif
                         </th>
-                        <th class="px-4 py-3" data-copy-col="item">Item</th>
-                        <th class="px-4 py-3" data-copy-col="sold_out_at">Sold out at</th>
-                        <th class="px-4 py-3" data-copy-col="stock_at">Stock at</th>
-                        <th class="px-4 py-3" data-copy-col="qty">Qty</th>
-                        <th class="px-4 py-3" data-copy-col="status">Status</th>
-                        <th class="px-4 py-3" data-copy-col="when">When</th>
-                        <th class="px-4 py-3 text-right">Actions</th>
+                        @endif
+                        <th class="px-3 py-2.5 text-left font-medium" data-copy-col="code">Code</th>
+                        <th class="px-3 py-2.5 text-left font-medium" data-copy-col="name">Name</th>
+                        <th class="px-3 py-2.5 text-left font-medium" data-copy-col="sold_out_at">Sold out at</th>
+                        <th class="px-3 py-2.5 text-left font-medium" data-copy-col="stock_at">Stock at</th>
+                        <th class="px-3 py-2.5 text-right font-medium" data-copy-col="qty">Qty</th>
+                        <th class="px-3 py-2.5 text-left font-medium" data-copy-col="status">Status</th>
+                        <th class="px-3 py-2.5 text-left font-medium" data-copy-col="when">When</th>
+                        <th class="w-12 px-3 py-2.5 text-center font-medium"></th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                     @foreach($notifications as $notification)
-                    <tr class="{{ $notification->isUnread() ? 'bg-blue-50/40' : '' }}" data-testid="stock-notification-row">
-                        <td class="px-4 py-3 align-top">
-                            @if($canDraftMove ?? false)
+                    @php
+                        $item = $notification->item;
+                        $itemShowUrl = $item?->showUrl();
+                        $sourceStock = (float) $notification->source_stock;
+                        $soldOutWarehouse = $notification->soldOutWarehouse;
+                        $sourceWarehouse = $notification->sourceWarehouse;
+                        $whenCopy = $notification->created_at?->format('d M Y H:i') ?? '';
+                        if ($notification->read_at) {
+                            $whenCopy .= ' · Read '.$notification->read_at->format('d M H:i');
+                        }
+                    @endphp
+                    <tr class="align-top {{ $notification->isUnread() ? 'bg-blue-50/40' : '' }}" data-testid="stock-notification-row">
+                        @if($canDraftMove ?? false)
+                        <td class="px-3 py-2.5 align-top">
                             <input type="checkbox"
                                    class="rounded border-gray-300"
                                    x-model="selected[{{ $notification->id }}]"
                                    data-testid="stock-notification-select">
+                        </td>
+                        @endif
+                        <td class="whitespace-nowrap px-3 py-2.5 text-xs" data-copy-col="code">
+                            @if($item && $itemShowUrl)
+                            <a href="{{ $itemShowUrl }}" class="text-blue-600 hover:underline" title="{{ $item->code }}">{{ $item->code }}</a>
                             @endif
                         </td>
-                        @include('stock-notifications.partials.item-cell', ['notification' => $notification, 'copyCol' => 'item'])
-                        @include('stock-notifications.partials.warehouse-cell', ['warehouse' => $notification->soldOutWarehouse, 'copyCol' => 'sold_out_at'])
-                        @include('stock-notifications.partials.warehouse-cell', ['warehouse' => $notification->sourceWarehouse, 'copyCol' => 'stock_at'])
-                        <td class="px-4 py-3 font-medium text-gray-900" data-copy-col="qty">{{ $fmtNum($notification->source_stock) }}</td>
-                        <td class="px-4 py-3" data-copy-col="status">
+                        <td class="max-w-[220px] px-3 py-2.5" data-copy-col="name">
+                            @if($item && $itemShowUrl)
+                            <a href="{{ $itemShowUrl }}" class="block truncate font-medium text-gray-800 hover:text-blue-600" title="{{ $item->name }}">{{ $item->name }}</a>
+                            @endif
+                        </td>
+                        <td class="px-3 py-2.5 text-gray-700" data-copy-col="sold_out_at" @if($soldOutWarehouse) data-copy-value="{{ $soldOutWarehouse->name }}" @endif>
+                            @if($soldOutWarehouse)
+                            <a href="{{ $soldOutWarehouse->transactionsUrl() }}" class="text-blue-600 hover:underline">{{ $soldOutWarehouse->name }}</a>
+                            @endif
+                        </td>
+                        <td class="px-3 py-2.5 text-gray-700" data-copy-col="stock_at" @if($sourceWarehouse) data-copy-value="{{ $sourceWarehouse->name }}" @endif>
+                            @if($sourceWarehouse)
+                            <a href="{{ $sourceWarehouse->transactionsUrl() }}" class="text-blue-600 hover:underline">{{ $sourceWarehouse->name }}</a>
+                            @endif
+                        </td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right font-mono text-xs font-bold tabular-nums text-gray-900" data-copy-col="qty" data-copy-value="{{ format_copy_number($sourceStock) }}">{{ $fmtNum($sourceStock) }}</td>
+                        <td class="px-3 py-2.5" data-copy-col="status" data-copy-value="{{ $notification->source_status->label() }}">
                             <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium {{ $notification->source_status->colorClass() }}">
                                 {{ $notification->source_status->label() }}
                             </span>
                         </td>
-                        <td class="px-4 py-3 text-gray-500" data-copy-col="when">
+                        <td class="whitespace-nowrap px-3 py-2.5 text-xs text-gray-500" data-copy-col="when" data-copy-value="{{ $whenCopy }}">
                             {{ $notification->created_at?->format('d M Y H:i') }}
                             @if($notification->read_at)
                             <div class="text-xs">Read {{ $notification->read_at->format('d M H:i') }}</div>
                             @endif
                         </td>
-                        <td class="px-4 py-3">
+                        <td class="px-3 py-2.5">
                             <div class="flex justify-end gap-2">
                                 <a href="{{ route('reports.warehouse-arrangement', ['warehouse_id' => $notification->sold_out_warehouse_id]) }}"
                                    class="rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">

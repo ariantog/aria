@@ -423,6 +423,15 @@ function ariaCopyCellText(cell) {
 
 function ariaPrepareCopyTable(table, isColumnVisible) {
     const clone = table.cloneNode(true);
+
+    clone.querySelectorAll('tr').forEach((row) => {
+        Array.from(row.children).forEach((cell) => {
+            if ((cell.tagName === 'TH' || cell.tagName === 'TD') && !cell.hasAttribute('data-copy-col')) {
+                cell.remove();
+            }
+        });
+    });
+
     const liveCells = table.querySelectorAll('[data-copy-col]');
 
     clone.querySelectorAll('[data-copy-col]').forEach((cell, index) => {

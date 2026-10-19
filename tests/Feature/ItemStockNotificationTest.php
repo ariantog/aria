@@ -297,7 +297,9 @@ it('renders copy rows control when stock alerts are listed', function () {
         ->assertOk()
         ->assertSee('data-testid="stock-notifications-copy-rows"', false)
         ->assertSee('copyRowsTable()', false)
-        ->assertSee('data-copy-col="item"', false);
+        ->assertSee('data-copy-col="code"', false)
+        ->assertSee('data-copy-col="name"', false)
+        ->assertSee('data-copy-value="5"', false);
 });
 
 it('renders a long stock alert list including the last row and pagination', function () {

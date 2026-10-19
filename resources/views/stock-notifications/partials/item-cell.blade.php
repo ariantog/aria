@@ -1,6 +1,6 @@
-@props(['notification', 'tdClass' => 'px-4 py-3', 'copyCol' => null])
+@props(['notification', 'tdClass' => 'px-4 py-3'])
 
-<td class="{{ $tdClass }}" @if($copyCol) data-copy-col="{{ $copyCol }}" @endif>
+<td class="{{ $tdClass }}">
     @if($notification->item)
     <a href="{{ $notification->item->showUrl() }}" class="block hover:text-blue-700">
         <div class="font-medium text-gray-900 hover:underline">{{ $notification->item->code }}</div>
