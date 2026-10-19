@@ -12,6 +12,7 @@ use App\Models\Tag;
 use App\Models\User;
 use App\Models\WarehouseItem;
 use App\Services\Jubelio\JubelioWebhookOversellScanner;
+use App\Services\Lark\LarkCardBuilder;
 use App\Services\Lark\LarkRestockSubmitService;
 use App\Services\Lark\OperationalAlertDispatcher;
 use App\Services\Restock\RestockSheetService;
@@ -23,6 +24,15 @@ beforeEach(function () {
     Config::set('lark.dry_run', false);
     Config::set('lark.bot_webhook_url', 'https://open.larksuite.com/open-apis/bot/v2/hook/test-token');
     Config::set('services.jubelio.webhook_secret', 'test-secret');
+});
+
+test('lark url buttons request system browser', function () {
+    $button = app(LarkCardBuilder::class)->urlButton('Test', 'https://aria.test/items/1?foo=bar');
+
+    expect($button['url'])
+        ->toContain('lk_jump_to_browser=true')
+        ->toContain('lk_mobile_jump_to_browser=true')
+        ->toContain('foo=bar');
 });
 
 test('lark url verification returns challenge', function () {

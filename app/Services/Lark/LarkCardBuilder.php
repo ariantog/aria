@@ -3,6 +3,7 @@
 namespace App\Services\Lark;
 
 use App\Models\LarkRestockRequest;
+use Illuminate\Support\Uri;
 
 class LarkCardBuilder
 {
@@ -100,12 +101,7 @@ class LarkCardBuilder
                             ],
                         ]],
                     ],
-                    $itemUrl ? [
-                        'tag' => 'button',
-                        'text' => ['tag' => 'plain_text', 'content' => 'Buka di Aria'],
-                        'type' => 'default',
-                        'url' => $itemUrl,
-                    ] : null,
+                    $itemUrl ? $this->urlButton('Buka di Aria', $itemUrl) : null,
                 ])),
             ],
         ];
@@ -131,7 +127,31 @@ class LarkCardBuilder
             'tag' => 'button',
             'text' => ['tag' => 'plain_text', 'content' => $label],
             'type' => 'default',
-            'url' => $url,
+            'url' => $this->withSystemBrowserParams($url),
         ];
+    }
+
+    /**
+     * Feishu/Lark opens card button URLs in an in-app webview by default; these query params
+     * request the system browser when the client supports it.
+     *
+     * @see https://open.feishu.cn/document/develop-web-apps/web-app-open-ability/configure-webpage-to-open-in-browser
+     */
+    public function withSystemBrowserParams(string $url): string
+    {
+        if ($url === '') {
+            return $url;
+        }
+
+        try {
+            $uri = Uri::of($url);
+        } catch (\Throwable) {
+            return $url;
+        }
+
+        return (string) $uri->withQuery(array_merge($uri->query()->all(), [
+            'lk_jump_to_browser' => 'true',
+            'lk_mobile_jump_to_browser' => 'true',
+        ]));
     }
 }
