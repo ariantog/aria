@@ -699,20 +699,23 @@ class ItemsController extends Controller
         $usesPlaceholder = $titleForm['uses_placeholder'];
         $color = $this->identityBuilder->itemColorInfo($sample);
         $typeTag = $sample->tags->firstWhere('type', Tag::TYPE_TYPE);
+        $resolvedSampleWarna = $this->identityBuilder->warnaTagForItem($sample);
         $parentGroupId = $this->groupHierarchy->anchorGroupIdForParentKey(
             $this->identityBuilder->itemParentKey($sample)
         ) ?? $group->id;
 
-        $sizeRows = $items->map(function (Item $item) use ($itemType, $typeTag) {
+        $identityBuilder = $this->identityBuilder;
+        $sizeRows = $items->map(function (Item $item) use ($itemType, $typeTag, $identityBuilder) {
             $sizeTag = $item->tags->firstWhere('type', Tag::TYPE_SIZE);
-            $warnaTag = $item->tags->firstWhere('type', Tag::TYPE_WARNA);
+            $warnaTag = $identityBuilder->warnaTagForItem($item);
             $pricing = ItemPricing::formState($item);
-            $canonicalCode = $this->identityBuilder->buildCode(
+            $canonicalCode = $identityBuilder->buildCodeOrStored(
                 $itemType,
                 (string) $item->pcode,
                 $typeTag,
                 $warnaTag,
                 $sizeTag,
+                (string) $item->code,
             );
 
             return [
@@ -751,7 +754,7 @@ class ItemsController extends Controller
             'sample' => $sample,
             'curType' => optional($typeTag)->id,
             'curJahit' => optional($sample->tags->firstWhere('type', Tag::TYPE_JAHIT))->id,
-            'curWarna' => optional($sample->tags->firstWhere('type', Tag::TYPE_WARNA))->id,
+            'curWarna' => $resolvedSampleWarna?->id,
             'sizeRows' => $sizeRows,
             'previewRows' => $previewRows,
             'productTitle' => $titleForm['stored_title'],

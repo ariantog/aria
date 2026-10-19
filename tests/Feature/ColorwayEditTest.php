@@ -486,3 +486,70 @@ test('colorway update via HTTP persists per-size price and reseller', function (
         ->and((float) $medium->reseller_price)->toBe(110000.0)
         ->and($small->name)->toBe('RENAMED SHIRT - BLUE - S');
 });
+
+test('asset colorway edit loads when warna tag missing but group variant matches a tag', function () {
+    $gloveType = Tag::factory()->create(['type' => Tag::TYPE_TYPE, 'code' => 'GLOVE', 'name' => 'Glove']);
+    $size = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'S', 'name' => 'Small']);
+
+    $group = ItemGroup::factory()->create([
+        'master' => 'GLOVE-01',
+        'variant' => 'BLACK',
+        'name' => 'ELBOW STRAP',
+    ]);
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => $group->id,
+        'pcode' => 'GLOVE-01',
+        'code' => 'GLOVE-01-BLACK-S',
+        'name' => 'ELBOW STRAP - BLACK - S',
+        'price' => 50000,
+    ]);
+    $item->tags()->sync([$gloveType->id, $size->id]);
+
+    $this->actingAs($this->user)
+        ->get(route('items.colorway-edit', $group))
+        ->assertOk()
+        ->assertSee('GLOVE-01-BLACK-S', false)
+        ->assertSee('data-testid="colorway-save"', false);
+});
+
+test('asset colorway update infers warna from group variant when form omits warna tag', function () {
+    $gloveType = Tag::factory()->create(['type' => Tag::TYPE_TYPE, 'code' => 'GLOVE', 'name' => 'Glove']);
+    $size = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'S', 'name' => 'Small']);
+
+    $group = ItemGroup::factory()->create([
+        'master' => 'GLOVE-01',
+        'variant' => 'BLUE',
+        'name' => 'ELBOW STRAP',
+    ]);
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => $group->id,
+        'pcode' => 'GLOVE-01',
+        'code' => 'GLOVE-01-BLUE-S',
+        'name' => 'ELBOW STRAP - BLUE - S',
+        'price' => 50000,
+    ]);
+    $item->tags()->sync([$gloveType->id, $size->id]);
+
+    $this->itemService->updateColorway(
+        $group,
+        (object) [
+            'pcode' => 'GLOVE-01',
+            'product_name' => 'Updated Strap',
+            'tags' => [
+                'types' => [$gloveType->id],
+            ],
+        ],
+        [['id' => $item->id, 'price' => 55000]],
+    );
+
+    $item->refresh();
+    $group->refresh();
+
+    expect($group->name)->toBe('UPDATED STRAP')
+        ->and($item->tags->firstWhere('type', Tag::TYPE_WARNA)?->id)->toBe($this->warnaTag->id)
+        ->and($item->code)->toBe('GLOVE-01-BLUE-S');
+});
