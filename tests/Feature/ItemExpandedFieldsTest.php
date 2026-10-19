@@ -289,6 +289,87 @@ it('redirects to asset lancar detail page after update', function () {
         ->assertSessionHas('success', 'Item updated.');
 });
 
+it('allows asset lancar size-only edit without resubmitting warna from the form', function () {
+    $sizeTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'S', 'name' => 'S']);
+    $mediumTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'M']);
+    $blackTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLACK', 'name' => 'BLACK']);
+    $gloveType = Tag::factory()->create(['type' => Tag::TYPE_TYPE, 'code' => 'GLOVE', 'name' => 'Glove']);
+
+    $group = ItemGroup::factory()->create([
+        'master' => 'GLOVE-07',
+        'variant' => 'BLACK',
+        'name' => 'GLOVE 07',
+    ]);
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => $group->id,
+        'code' => 'GLOVE-07-BLACK-S',
+        'pcode' => 'GLOVE-07',
+        'name' => 'GLOVE 07 - BLACK - S',
+        'cost' => 1000,
+    ]);
+    $item->tags()->attach([$sizeTag->id, $gloveType->id, $blackTag->id]);
+
+    $this->actingAs($this->user)
+        ->put(route('assetlancar.update', $item), [
+            'type' => ItemType::ASSET_LANCAR->value,
+            'pcode' => 'GLOVE-07',
+            'product_name' => 'Glove 07',
+            'cost' => 1500,
+            'tags' => [
+                'sizes' => [$mediumTag->id],
+            ],
+        ])
+        ->assertRedirect(route('assetlancar.show', $item))
+        ->assertSessionHas('success', 'Item updated.');
+
+    $item->refresh();
+
+    expect($item->code)->toBe('GLOVE-07-BLACK-M')
+        ->and($item->tags->firstWhere('type', Tag::TYPE_WARNA)?->id)->toBe($blackTag->id);
+});
+
+it('infers warna from group variant on asset lancar size edit when pivot tag is missing', function () {
+    $sizeTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'S', 'name' => 'S']);
+    $mediumTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'M']);
+    $blackTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLACK', 'name' => 'BLACK']);
+    $gloveType = Tag::factory()->create(['type' => Tag::TYPE_TYPE, 'code' => 'GLOVE', 'name' => 'Glove']);
+
+    $group = ItemGroup::factory()->create([
+        'master' => 'GLOVE-07',
+        'variant' => 'BLACK',
+        'name' => 'GLOVE 07',
+    ]);
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => $group->id,
+        'code' => 'GLOVE-07-BLACK-S',
+        'pcode' => 'GLOVE-07',
+        'name' => 'GLOVE 07 - BLACK - S',
+        'cost' => 1000,
+    ]);
+    $item->tags()->attach([$sizeTag->id, $gloveType->id]);
+
+    $this->actingAs($this->user)
+        ->put(route('assetlancar.update', $item), [
+            'type' => ItemType::ASSET_LANCAR->value,
+            'pcode' => 'GLOVE-07',
+            'product_name' => 'Glove 07',
+            'cost' => 1500,
+            'tags' => [
+                'sizes' => [$mediumTag->id],
+            ],
+        ])
+        ->assertRedirect(route('assetlancar.show', $item));
+
+    $item->refresh();
+
+    expect($item->code)->toBe('GLOVE-07-BLACK-M')
+        ->and($item->tags->firstWhere('type', Tag::TYPE_WARNA)?->id)->toBe($blackTag->id);
+});
+
 it('stores legacy_code when asset lancar edit changes the sku', function () {
     $sizeTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'S', 'name' => 'S']);
     $blackTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLACK', 'name' => 'BLACK']);

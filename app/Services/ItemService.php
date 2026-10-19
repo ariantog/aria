@@ -73,11 +73,18 @@ class ItemService
                     ->toArray();
             }
 
-            if ($inputType === ItemType::ITEM && empty($tags['warna'])) {
+            if (($inputType === ItemType::ITEM || $inputType === ItemType::ASSET_LANCAR) && empty($tags['warna'])) {
                 $tags['warna'] = Tag::whereIn('id', $currentTagIds)
                     ->where('type', Tag::TYPE_WARNA)
                     ->pluck('id')
                     ->toArray();
+            }
+
+            if ($inputType === ItemType::ASSET_LANCAR && empty($tags['warna'])) {
+                $inferred = $this->identityBuilder->warnaTagForItem($item);
+                if ($inferred) {
+                    $tags['warna'] = [$inferred->id];
+                }
             }
 
             $typeId = (int) ($tags['types'][0] ?? 0);
