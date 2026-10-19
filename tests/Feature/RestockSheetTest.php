@@ -153,6 +153,49 @@ test('restock index shows empty state when no sheets exist', function () {
         ->assertDontSee('data-testid="restock-sheets-table"', false);
 });
 
+test('front page restock totals match the sheet grid when two skus share a color-size slot', function () {
+    createAssetLancarSkus($this, 'ELBOW-03', 'Elbow Support');
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+
+    $primary = $sheet->cells()->with('item')->get()->first(
+        fn (RestockCell $cell) => $cell->item && str_ends_with($cell->item->code, '-BLUE-S')
+    );
+    expect($primary)->not->toBeNull();
+
+    $duplicate = Item::factory()->create([
+        'group_id' => $primary->item->group_id,
+        'type' => ItemType::ASSET_LANCAR,
+        'pcode' => 'ELBOW-03',
+        'code' => 'ELBOW-03-BLUE-S-LEGACY',
+        'name' => 'Elbow Support - BLUE - S (legacy)',
+    ]);
+    $duplicate->tags()->sync([$this->typeTag->id, $this->warnaBlue->id, $this->sizeS->id]);
+
+    RestockCell::create([
+        'restock_sheet_id' => $sheet->id,
+        'item_id' => $duplicate->id,
+        'color_id' => $this->warnaBlue->id,
+        'size_id' => $this->sizeS->id,
+        'qty_restock' => 500,
+    ]);
+
+    $primary->update(['qty_restock' => 2000]);
+
+    expect($sheet->cells()->sum('qty_restock'))->toBe(2500);
+
+    $parentRow = app(RestockSheetService::class)->parentsForType($this->typeTag)
+        ->firstWhere('pcode', 'ELBOW-03');
+    expect($parentRow['totals']['restock'])->toBe(2000);
+
+    $summary = app(RestockSheetService::class)->sheetSummaries()->firstWhere('id', $sheet->id);
+    expect($summary['qty_restock'])->toBe(2000);
+
+    $this->actingAs($this->user)
+        ->get('/restock')
+        ->assertOk()
+        ->assertSee('data-qty-restock="2000"', false);
+});
+
 test('type landing lists parent pcodes under the type', function () {
     createAssetLancarSkus($this);
     createAssetLancarSkus($this, 'ELBOW-07', 'Elbow Support v2');

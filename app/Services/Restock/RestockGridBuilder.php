@@ -69,6 +69,90 @@ class RestockGridBuilder
     }
 
     /**
+     * Pipeline qty totals for the whole sheet, using the same per-slot cell selection as the grid.
+     *
+     * @return array{restock: int, production: int, shipped: int}
+     */
+    public function pipelineTotalsForSheet(RestockSheet $sheet): array
+    {
+        $sheet->loadMissing([
+            'cells.color',
+            'cells.size',
+            'cells.item.group',
+            'cells.item.tags',
+        ]);
+
+        $totals = ['restock' => 0, 'production' => 0, 'shipped' => 0];
+
+        foreach ($this->cellsGroupedByParent($sheet) as $cells) {
+            $parentTotals = $this->pipelineTotalsForCells($cells);
+            $totals['restock'] += $parentTotals['restock'];
+            $totals['production'] += $parentTotals['production'];
+            $totals['shipped'] += $parentTotals['shipped'];
+        }
+
+        return $totals;
+    }
+
+    /**
+     * Pipeline qty totals per parent pcode (matches the sheet grid / parent Total row).
+     *
+     * @return array<string, array{restock: int, production: int, shipped: int}>
+     */
+    public function pipelineTotalsByParentPcode(RestockSheet $sheet): array
+    {
+        $sheet->loadMissing([
+            'cells.color',
+            'cells.size',
+            'cells.item.group',
+            'cells.item.tags',
+        ]);
+
+        $byParent = [];
+
+        foreach ($this->cellsGroupedByParent($sheet) as $pcode => $cells) {
+            $byParent[$pcode] = $this->pipelineTotalsForCells($cells);
+        }
+
+        return $byParent;
+    }
+
+    /**
+     * @param  Collection<int, RestockCell>  $cells
+     * @return array{restock: int, production: int, shipped: int}
+     */
+    public function pipelineTotalsForCells(Collection $cells): array
+    {
+        $sizes = $this->orderedSizeCodes($cells);
+        $colorRows = $this->buildColorRows($cells, $sizes);
+        $summary = $this->buildParentSummaryRow($colorRows, $sizes, 'totals');
+
+        return [
+            'restock' => $this->pipelineStageTotal($summary, $sizes, 'restock'),
+            'production' => $this->pipelineStageTotal($summary, $sizes, 'production'),
+            'shipped' => $this->pipelineStageTotal($summary, $sizes, 'shipped'),
+        ];
+    }
+
+    /**
+     * @param  list<string>  $sizes
+     */
+    protected function pipelineStageTotal(?array $summary, array $sizes, string $stage): int
+    {
+        if ($summary === null || $sizes === []) {
+            return 0;
+        }
+
+        if (count($sizes) > 1) {
+            return (int) ($summary[$stage.'_total'] ?? 0);
+        }
+
+        $prefix = $this->fieldPrefix($sizes[0]);
+
+        return (int) ($summary[$prefix.$stage] ?? 0);
+    }
+
+    /**
      * @param  list<array{pcode: string, name: string, image_url: string, sizes: list<string>, rows: list<array<string, mixed>>}>  $parents
      * @return list<array{kind: 'matrix'|'flat', id: string, title: string, sizes?: list<string>, rows: list<array<string, mixed>>}>
      */
