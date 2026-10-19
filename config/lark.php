@@ -21,6 +21,12 @@ return [
     /** Fallback user when Lark submitter cannot be mapped (restock apply audit). */
     'system_user_id' => (int) env('LARK_SYSTEM_USER_ID', 1),
 
+    /**
+     * Optional deep link into Jubelio’s web UI. Placeholders: {salesorder_id}, {invoice}
+     * Example: https://app.jubelio.com/your-tenant/sales/order/{salesorder_id}
+     */
+    'jubelio_order_url_template' => env('LARK_JUBELIO_ORDER_URL_TEMPLATE'),
+
     'low_cover' => [
         'default_cover_days' => (int) env('LARK_LOW_COVER_DAYS', 14),
         'best_seller_cover_days' => (int) env('LARK_BEST_SELLER_COVER_DAYS', 30),

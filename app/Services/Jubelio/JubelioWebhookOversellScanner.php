@@ -5,6 +5,7 @@ namespace App\Services\Jubelio;
 use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\WarehouseItem;
+use App\Services\Lark\LarkAlertLinkBuilder;
 use App\Services\Lark\OperationalAlertDispatcher;
 
 /**
@@ -15,6 +16,7 @@ class JubelioWebhookOversellScanner
     public function __construct(
         protected OperationalAlertDispatcher $alerts,
         protected JubelioOrderWarehouseResolver $resolver,
+        protected LarkAlertLinkBuilder $links,
     ) {}
 
     /**
@@ -56,6 +58,7 @@ class JubelioWebhookOversellScanner
             $needed = (float) $row['quantity'];
             if ($needed > $available) {
                 $insufficient[] = [
+                    'item_id' => $row['itemId'],
                     'code' => $row['code'],
                     'available' => $available,
                     'needed' => $needed,
@@ -74,6 +77,9 @@ class JubelioWebhookOversellScanner
 
         $fingerprint = 'oversell:webhook:'.hash('sha256', $invoice.':'.$warehouseId.':'.$summary);
 
+        $firstItemId = (int) ($insufficient[0]['item_id'] ?? 0);
+        $salesorderId = isset($payload['salesorder_id']) ? (string) $payload['salesorder_id'] : null;
+
         $this->alerts->dispatch(
             'jubelio.oversell.webhook',
             $fingerprint,
@@ -84,6 +90,7 @@ class JubelioWebhookOversellScanner
                 'Gudang' => $warehouseName,
                 'Detail' => $summary,
                 'Status webhook' => (string) ($payload['status'] ?? ''),
+                '_actions' => $this->links->jubelioOversellActions($invoice, $salesorderId, $firstItemId > 0 ? $firstItemId : null),
             ],
         );
     }

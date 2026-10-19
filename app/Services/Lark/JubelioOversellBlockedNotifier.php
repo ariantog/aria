@@ -8,6 +8,7 @@ class JubelioOversellBlockedNotifier
 {
     public function __construct(
         protected OperationalAlertDispatcher $alerts,
+        protected LarkAlertLinkBuilder $links,
     ) {}
 
     /**
@@ -24,6 +25,7 @@ class JubelioOversellBlockedNotifier
             ->implode('; ');
 
         $fingerprint = 'oversell:blocked:'.$order->id.':'.hash('sha256', $summary);
+        $firstItemId = (int) ($stockError['items'][0]['item_id'] ?? 0);
 
         $this->alerts->dispatch(
             'jubelio.oversell.blocked',
@@ -35,6 +37,12 @@ class JubelioOversellBlockedNotifier
                 'Order ID' => (string) $order->id,
                 'Detail' => $summary,
                 'Pesan' => $stockError['message'] ?? '',
+                '_actions' => $this->links->jubelioOversellActions(
+                    (string) $order->invoice,
+                    (string) ($order->jubelio_order_id ?? ''),
+                    $firstItemId > 0 ? $firstItemId : null,
+                    (int) $order->id,
+                ),
             ],
         );
     }
