@@ -114,6 +114,8 @@ class User extends Authenticatable
         'password',
         'active',
         'location_id',
+        'lark_open_id',
+        'lark_notify_enabled',
     ];
 
     /**
@@ -140,6 +142,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
             'active' => 'boolean',
+            'lark_notify_enabled' => 'boolean',
         ];
     }
 
@@ -180,6 +183,8 @@ class User extends Authenticatable
             // Operational staff roles (checklist assignment)
             'staff-roles-view' => 'users-staff-roles-view',
             'staff-roles-edit' => 'users-staff-roles-edit',
+
+            'lark-notify-edit' => 'users-lark-notify-edit',
         ];
     }
 

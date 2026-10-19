@@ -22,10 +22,11 @@ class LowCoverScanService
             return 0;
         }
 
-        $defaultDays = (int) config('lark.low_cover.default_cover_days', 14);
-        $bestDays = (int) config('lark.low_cover.best_seller_cover_days', 30);
-        $buffer = (float) config('lark.low_cover.rearm_buffer_days', 4);
-        $mismatchDelta = (int) config('lark.low_cover.mismatch_qty_delta', 3);
+        $lowCover = app(LarkSettingsService::class)->lowCover();
+        $defaultDays = (int) $lowCover['default_cover_days'];
+        $bestDays = (int) $lowCover['best_seller_cover_days'];
+        $buffer = (float) $lowCover['rearm_buffer_days'];
+        $mismatchDelta = (int) $lowCover['mismatch_qty_delta'];
 
         $bestSellerIds = $this->bestSellerItemIds();
         $candidates = $this->loadCoverCandidates();

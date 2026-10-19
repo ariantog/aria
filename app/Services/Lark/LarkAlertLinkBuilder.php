@@ -59,7 +59,8 @@ class LarkAlertLinkBuilder
 
     public function jubelioWebOrderUrl(?string $salesorderId, string $invoice): ?string
     {
-        $template = config('lark.jubelio_order_url_template');
+        $template = app(LarkSettingsService::class)->jubelioOrderUrlTemplate()
+            ?? config('lark.jubelio_order_url_template');
         if (! is_string($template) || trim($template) === '') {
             return null;
         }
