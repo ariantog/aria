@@ -32,6 +32,7 @@ class LarkRosterService
             ->whereKeyNot(User::SUPERADMIN_ID)
             ->whereNotNull('lark_open_id')
             ->where('lark_open_id', '!=', '')
+            ->where('lark_notify_enabled', true)
             ->whereHas('staffRoles', fn ($q) => $q->whereIn('staff_roles.id', $roleIds))
             ->pluck('lark_open_id')
             ->unique()

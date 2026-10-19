@@ -166,6 +166,8 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::put('system-settings/invoice/branding', [App\Http\Controllers\InvoiceSettingsController::class, 'update'])->name('invoice-settings.update');
     Route::get('system-settings/lookup/{type}', [App\Http\Controllers\SettingController::class, 'lookup'])->name('system-settings.lookup');
     Route::resource('system-settings', App\Http\Controllers\SettingController::class)->except(['show']);
+    Route::get('lark-settings', [App\Http\Controllers\LarkOpsSettingsController::class, 'index'])->name('lark-settings.index');
+    Route::put('lark-settings', [App\Http\Controllers\LarkOpsSettingsController::class, 'update'])->name('lark-settings.update');
 
     // Warehouse stats backfill
     Route::get('warehouse-stat-backfill', [App\Http\Controllers\WarehouseStatBackfillController::class, 'index'])->name('warehouse-stat-backfill.index');

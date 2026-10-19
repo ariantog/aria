@@ -237,6 +237,7 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'roles' => 'roles',
     'system-settings' => 'system-settings',
     'recalculate running balances' => 'recalculate-running-balances',
+    'lark ops settings' => 'lark-settings',
     'jubelio legacy catchup repair' => 'jubelio-legacy-catchup-repair',
     'user activity audit' => 'user-activity-audit',
     'cron manager' => 'cron-manager',

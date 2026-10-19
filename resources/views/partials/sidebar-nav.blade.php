@@ -757,8 +757,8 @@
 @endif
 
 {{-- ── System Settings ───────────────────────────────────────────────── --}}
-@if($hasPerm('setting-general-view') || $hasPerm('setting-cron-manager-view') || $hasPerm('user-activity-audit-view') || $isSuperAdmin)
-@php $sysActive = $isActive('/system-settings') || $isActive('/cron-manager') || $isActive('/data-retention') || $isActive('/recalculate-running-balances') || $isActive('/user-activity-audit'); @endphp
+@if($hasPerm('setting-general-view') || $hasPerm('setting-cron-manager-view') || $hasPerm('user-activity-audit-view') || $hasPerm('lark-ops-settings-view') || $isSuperAdmin)
+@php $sysActive = $isActive('/system-settings') || $isActive('/cron-manager') || $isActive('/data-retention') || $isActive('/recalculate-running-balances') || $isActive('/user-activity-audit') || $isActive('/lark-settings'); @endphp
 <div x-data="{ open: {{ $sysActive ? 'true' : 'false' }} }"
      class="mb-1"
      x-show="navGroupVisible(@js($systemNavLabels))"
@@ -782,6 +782,9 @@
         @endif
         @if($hasPerm('setting-general-view') || $isSuperAdmin)
         <a href="{{ route('recalculate-running-balances.index') }}" x-show="navLinkVisible('Running Balances', 'System Settings')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/recalculate-running-balances') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Running Balances</a>
+        @endif
+        @if($hasPerm('lark-ops-settings-view') || $isSuperAdmin)
+        <a href="{{ route('lark-settings.index') }}" x-show="navLinkVisible('Lark Ops', 'System Settings')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/lark-settings') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Lark Ops</a>
         @endif
         @if($hasPerm('user-activity-audit-view') || $isSuperAdmin)
         <a href="{{ route('user-activity-audit.index') }}" x-show="navLinkVisible('User Activity Audit', 'System Settings')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/user-activity-audit') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">User Activity Audit</a>

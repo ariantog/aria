@@ -63,6 +63,11 @@ $currentRole = old('role', $userRoles->first());
                 'canAssignStaffRoles' => $canAssignStaffRoles ?? false,
             ])
 
+            @include('users.partials.lark-notify', [
+                'editUser' => $editUser,
+                'canEditLarkNotify' => $canEditLarkNotify ?? false,
+            ])
+
             {{-- Danger Zone --}}
             <div class="mt-8 border-t border-gray-200 pt-6">
                 <div class="rounded-lg border border-red-200 bg-red-50 p-5">

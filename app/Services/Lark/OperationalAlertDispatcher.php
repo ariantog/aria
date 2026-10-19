@@ -52,7 +52,7 @@ class OperationalAlertDispatcher
         $alert->payload = $payload;
         $alert->save();
 
-        $eventConfig = config('lark.events.'.$eventKey, ['mention' => 'none', 'roles' => []]);
+        $eventConfig = app(LarkSettingsService::class)->eventConfig($eventKey);
         $mention = null;
         if (($eventConfig['mention'] ?? 'none') === 'roster') {
             $mention = $this->roster->mentionLineForRoles($eventConfig['roles'] ?? []);
