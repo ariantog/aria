@@ -124,4 +124,14 @@ class LarkCardBuilder
     {
         return $this->simpleAlert($title, $template, ['Hasil' => $body]);
     }
+
+    public function urlButton(string $label, string $url): array
+    {
+        return [
+            'tag' => 'button',
+            'text' => ['tag' => 'plain_text', 'content' => $label],
+            'type' => 'default',
+            'url' => $url,
+        ];
+    }
 }

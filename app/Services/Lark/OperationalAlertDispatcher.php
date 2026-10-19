@@ -64,14 +64,21 @@ class OperationalAlertDispatcher
             default => 'blue',
         };
 
+        $actions = isset($payload['_actions']) && is_array($payload['_actions'])
+            ? $payload['_actions']
+            : null;
+
         $fields = [];
         foreach ($payload as $key => $value) {
+            if (str_starts_with((string) $key, '_')) {
+                continue;
+            }
             if (is_scalar($value) || $value === null) {
                 $fields[(string) $key] = (string) $value;
             }
         }
 
-        $card = $this->cards->simpleAlert($title, $template, $fields, $mention);
+        $card = $this->cards->simpleAlert($title, $template, $fields, $mention, $actions);
         if ($this->webhook->sendInteractiveCard($card, $eventKey, $fingerprint)) {
             $alert->sent_at = $now;
             $alert->save();
