@@ -581,6 +581,61 @@ class ItemIdentityBuilder
         return $pcode !== '' ? $pcode : strtoupper(trim($item->code ?? 'UNKNOWN'));
     }
 
+    /**
+     * Resolve the warna tag for identity/buildCode paths.
+     * Legacy asset rows may store color on item_group.variant or in items.code without a warna pivot.
+     */
+    public function warnaTagForItem(Item $item): ?Tag
+    {
+        $item->loadMissing(['tags', 'group']);
+
+        $warna = $item->tags->firstWhere('type', Tag::TYPE_WARNA);
+        if ($warna) {
+            return $warna;
+        }
+
+        $itemType = $item->type instanceof ItemType ? $item->type : ItemType::coerce($item->type);
+        if ($itemType !== ItemType::ASSET_LANCAR) {
+            return null;
+        }
+
+        $variant = strtoupper(trim((string) ($item->group?->variant ?? '')));
+        if ($variant !== '') {
+            $fromVariant = Tag::findWarnaTag($variant);
+            if ($fromVariant) {
+                return $fromVariant;
+            }
+        }
+
+        $label = $this->assetLancarColorLabel($item);
+        if ($label !== '—') {
+            return Tag::findWarnaTag($label);
+        }
+
+        return null;
+    }
+
+    /**
+     * Build SKU code when possible; for legacy asset rows without a resolvable warna tag, keep stored code.
+     */
+    public function buildCodeOrStored(
+        ItemType $itemType,
+        string $pcode,
+        ?Tag $typeTag,
+        ?Tag $warnaTag,
+        ?Tag $sizeTag,
+        ?string $storedCode = null,
+    ): string {
+        if ($itemType === ItemType::ASSET_LANCAR && ! $warnaTag) {
+            $stored = strtoupper(trim((string) $storedCode));
+            if ($stored !== '') {
+                return $stored;
+            }
+        }
+
+        return $this->buildCode($itemType, $pcode, $typeTag, $warnaTag, $sizeTag);
+    }
+
     public function assetLancarColorLabel(Item $item): string
     {
         $warna = $item->relationLoaded('tags')

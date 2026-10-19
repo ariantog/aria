@@ -520,7 +520,13 @@ class ItemService
         }
 
         if ($itemType === ItemType::ASSET_LANCAR && empty($tags['warna'])) {
-            throw new Exception('Please select a color (warna).');
+            $sample = $items->first();
+            $inferred = $sample ? $this->identityBuilder->warnaTagForItem($sample) : null;
+            if ($inferred) {
+                $tags['warna'] = [$inferred->id];
+            } else {
+                throw new Exception('Please select a color (warna).');
+            }
         }
 
         if ($itemType === ItemType::ASSET_LANCAR && empty($tags['types'])) {
@@ -625,14 +631,21 @@ class ItemService
         foreach ($items as $item) {
             $typeTag = $item->tags->firstWhere('type', Tag::TYPE_TYPE);
             $sizeTag = $item->tags->firstWhere('type', Tag::TYPE_SIZE);
-            $warnaTag = $item->tags->firstWhere('type', Tag::TYPE_WARNA);
+            $warnaTag = $this->identityBuilder->warnaTagForItem($item);
 
             if ($itemType === ItemType::ASSET_LANCAR && ! $warnaTag) {
                 continue;
             }
 
             try {
-                $targetCode = $this->identityBuilder->buildCode($itemType, $newPcode, $typeTag, $warnaTag, $sizeTag);
+                $targetCode = $this->identityBuilder->buildCodeOrStored(
+                    $itemType,
+                    $newPcode,
+                    $typeTag,
+                    $warnaTag,
+                    $sizeTag,
+                    (string) $item->code,
+                );
             } catch (InvalidArgumentException) {
                 continue;
             }
