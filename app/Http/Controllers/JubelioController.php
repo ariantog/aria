@@ -395,6 +395,11 @@ class JubelioController extends Controller
         }
 
         $d = $request->all();
+
+        if (config('lark.enabled')) {
+            app(\App\Services\Jubelio\JubelioWebhookOversellScanner::class)->scanAndNotify($d);
+        }
+
         $webhookStatus = strtoupper(trim((string) ($d['status'] ?? '')));
         if (in_array($webhookStatus, ['SHIPPED', 'COMPLETED'], true)) {
             $cutoff = config('services.jubelio.webhook_order_cutoff_date', '2025-03-06');

@@ -22,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             'jubelio/webhook/order',
             'jubelio/webhook/return',
+            'webhooks/lark/events',
         ]);
 
         $middleware->web(append: [
