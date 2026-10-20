@@ -282,7 +282,12 @@
                     <div class="col-span-2">Code / Barcode</div>
                     <div class="col-span-3">Item Name</div>
                     <div class="col-span-1 text-center">Qty</div>
-                    <div class="{{ $isMove ? 'col-span-2' : 'col-span-1' }} text-center">Whs. Stock</div>
+                    @if($isMove)
+                    <div class="col-span-1 text-center">From Stock</div>
+                    <div class="col-span-1 text-center">To Stock</div>
+                    @else
+                    <div class="col-span-1 text-center">Whs. Stock</div>
+                    @endif
                     @unless($isMove)<div class="col-span-1 text-right">Disc %</div>@endunless
                     <div class="col-span-2 text-right">Price</div>
                     <div class="col-span-1 text-right">Subtotal</div>
@@ -376,8 +381,31 @@
                                        class="{{ $rowInput }} text-center"
                                        :class="(isOverStock(item) || !quantityValid(item)) ? 'border-red-400 text-red-700' : ''">
                             </div>
-                            {{-- Warehouse stock (read-only) --}}
-                            <div class="flex items-center justify-between {{ $isMove ? 'sm:col-span-2' : 'sm:col-span-1' }} sm:block sm:text-center">
+                            {{-- Warehouse stock (read-only) — move shows sender + receiver --}}
+                            @if($isMove)
+                            <div class="flex items-center justify-between sm:col-span-1 sm:block sm:text-center">
+                                <span class="text-xs font-medium text-gray-500 sm:hidden">From Stock</span>
+                                <span class="text-base tabular-nums"
+                                      :class="isOverStock(item) ? 'font-semibold text-red-500' : 'text-gray-400'"
+                                      data-testid="move-from-stock">
+                                    <span x-show="!item.item_id" x-cloak>—</span>
+                                    <span x-show="item.item_id && !rowTracksInventory(item)" x-cloak>∞</span>
+                                    <span x-show="item.item_id && rowTracksInventory(item)" x-cloak
+                                          x-text="formatNumberId(item.warehouse_stock ?? 0)"></span>
+                                </span>
+                            </div>
+                            <div class="flex items-center justify-between sm:col-span-1 sm:block sm:text-center">
+                                <span class="text-xs font-medium text-gray-500 sm:hidden">To Stock</span>
+                                <span class="text-base tabular-nums text-gray-400"
+                                      data-testid="move-to-stock">
+                                    <span x-show="!item.item_id" x-cloak>—</span>
+                                    <span x-show="item.item_id && !rowTracksInventory(item)" x-cloak>∞</span>
+                                    <span x-show="item.item_id && rowTracksInventory(item)" x-cloak
+                                          x-text="formatNumberId(item.receiver_warehouse_stock ?? 0)"></span>
+                                </span>
+                            </div>
+                            @else
+                            <div class="flex items-center justify-between sm:col-span-1 sm:block sm:text-center">
                                 <span class="text-xs font-medium text-gray-500 sm:hidden">Whs. Stock</span>
                                 <span class="text-base tabular-nums"
                                       :class="isOverStock(item) ? 'font-semibold text-red-500' : 'text-gray-400'">
@@ -387,6 +415,7 @@
                                           x-text="formatNumberId(item.warehouse_stock ?? 0)"></span>
                                 </span>
                             </div>
+                            @endif
                             {{-- Discount % --}}
                             @unless($isMove)
                             <div class="sm:col-span-1">
@@ -1079,7 +1108,7 @@ function createTransaction() {
                 uid: Math.random().toString(36).slice(2),
                 item_id: '', code: '', name: '',
                 quantity: 1, price: null, discount: 0,
-                warehouse_stock: null, warehouse_item: [],
+                warehouse_stock: null, receiver_warehouse_stock: null, warehouse_item: [],
                 jubelio_item_id: 0,
                 jubelio_unlinked_hint: false,
                 jubelio_unlinked_in_mixed_cart: false,
@@ -1109,15 +1138,29 @@ function createTransaction() {
             this.refreshJubelioWarnings();
         },
 
-        stockFor(row) {
-            const wid = String(this.warehouseId() || '');
+        stockAtWarehouse(row, warehouseId) {
+            const wid = String(warehouseId || '');
             if (!wid) return 0;
             const wi = (row.warehouse_item || []).find(w => String(w.warehouse_id) === wid);
             return wi ? Number(wi.quantity || 0) : 0;
         },
 
+        stockFor(row) {
+            return this.stockAtWarehouse(row, this.warehouseId());
+        },
+
+        receiverStockFor(row) {
+            return this.stockAtWarehouse(row, this.form.receiver_id);
+        },
+
         refreshStocks() {
-            this.form.items.forEach(row => { if (row.item_id) row.warehouse_stock = this.stockFor(row); });
+            this.form.items.forEach(row => {
+                if (!row.item_id) return;
+                row.warehouse_stock = this.stockFor(row);
+                if (_TxType === 'move') {
+                    row.receiver_warehouse_stock = this.receiverStockFor(row);
+                }
+            });
         },
 
         // Mutate the existing row object; x-for scopes keep their original reference,
@@ -1139,6 +1182,9 @@ function createTransaction() {
                 : true;
             row.allow_decimal_quantity = !!source.allow_decimal_quantity;
             row.warehouse_stock = this.stockFor(row);
+            if (_TxType === 'move') {
+                row.receiver_warehouse_stock = this.receiverStockFor(row);
+            }
             row.jubelio_item_id = Number(source.jubelio_item_id ?? 0);
             row.jubelio_marketplace_stock = null;
             row.jubelio_stock_warning = '';
@@ -1619,6 +1665,7 @@ function createTransaction() {
             if (e && !e.isTrusted) return;
             row.item_id = '';
             row.warehouse_stock = null;
+            row.receiver_warehouse_stock = null;
             row.warehouse_item = [];
             row.jubelio_item_id = 0;
             row.jubelio_unlinked_hint = false;
