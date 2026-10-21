@@ -11,10 +11,16 @@ use App\Services\Lark\LarkAlertLinkBuilder;
 use App\Services\Lark\OperationalAlertDispatcher;
 
 /**
- * Read-only oversell probe for inbound webhook payloads (before queue insert).
+ * Early oversell probe on inbound webhooks (pre-ship statuses only).
+ *
+ * SHIPPED/COMPLETED payloads must not use warehouse_item qty vs order qty — stock is
+ * already consumed when Aria posted the sell, and Jubelio resends those webhooks often.
+ * Post-time checks live in ProcessJubelioOrder::validateWarehouseStock.
  */
 class JubelioWebhookOversellScanner
 {
+    /** @var list<string> */
+    private const POST_SHIP_WEBHOOK_STATUSES = ['SHIPPED', 'COMPLETED', 'RETURNED'];
     public function __construct(
         protected OperationalAlertDispatcher $alerts,
         protected JubelioOrderWarehouseResolver $resolver,
@@ -31,7 +37,7 @@ class JubelioWebhookOversellScanner
             return;
         }
 
-        $invoice = (string) ($payload['salesorder_no'] ?? '');
+        $invoice = trim((string) ($payload['salesorder_no'] ?? ''));
         if ($invoice === '') {
             return;
         }
@@ -47,6 +53,12 @@ class JubelioWebhookOversellScanner
         }
 
         if ($this->sellAlreadyFulfilledInAria($invoice)) {
+            $this->rearmWhenClear($invoice, $warehouseId);
+
+            return;
+        }
+
+        if ($this->isPostShipWebhookStatus($payload)) {
             $this->rearmWhenClear($invoice, $warehouseId);
 
             return;
@@ -174,12 +186,30 @@ class JubelioWebhookOversellScanner
      */
     private function isTerminalWebhookStatus(array $payload): bool
     {
-        $status = strtoupper(trim((string) ($payload['status'] ?? '')));
+        $status = $this->normalizedWebhookStatus($payload);
         if ($status === '') {
             return false;
         }
 
         return in_array($status, ['CANCELED', 'CANCELLED', 'VOID', 'VOIDED'], true);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function isPostShipWebhookStatus(array $payload): bool
+    {
+        $status = $this->normalizedWebhookStatus($payload);
+
+        return $status !== '' && in_array($status, self::POST_SHIP_WEBHOOK_STATUSES, true);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function normalizedWebhookStatus(array $payload): string
+    {
+        return strtoupper(trim((string) ($payload['status'] ?? '')));
     }
 
     /**
