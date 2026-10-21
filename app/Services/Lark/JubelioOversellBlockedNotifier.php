@@ -24,7 +24,7 @@ class JubelioOversellBlockedNotifier
             ->map(fn (array $r) => $r['code'].' (avail '.$r['available'].', need '.$r['needed'].')')
             ->implode('; ');
 
-        $fingerprint = 'oversell:blocked:'.$order->id.':'.hash('sha256', $summary);
+        $fingerprint = 'oversell:blocked:'.$order->id;
         $firstItemId = (int) ($stockError['items'][0]['item_id'] ?? 0);
 
         $this->alerts->dispatch(

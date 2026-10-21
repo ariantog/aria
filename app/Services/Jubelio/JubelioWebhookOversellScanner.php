@@ -4,6 +4,7 @@ namespace App\Services\Jubelio;
 
 use App\Models\Addrbook;
 use App\Models\Item;
+use App\Models\OperationalAlert;
 use App\Models\WarehouseItem;
 use App\Services\Lark\LarkAlertLinkBuilder;
 use App\Services\Lark\OperationalAlertDispatcher;
@@ -30,6 +31,10 @@ class JubelioWebhookOversellScanner
 
         $invoice = (string) ($payload['salesorder_no'] ?? '');
         if ($invoice === '') {
+            return;
+        }
+
+        if ($this->isTerminalWebhookStatus($payload)) {
             return;
         }
 
@@ -67,6 +72,8 @@ class JubelioWebhookOversellScanner
         }
 
         if ($insufficient === []) {
+            $this->rearmWhenClear($invoice, $warehouseId);
+
             return;
         }
 
@@ -75,7 +82,9 @@ class JubelioWebhookOversellScanner
             ->map(fn (array $r) => $r['code'].' (avail '.$r['available'].', need '.$r['needed'].')')
             ->implode('; ');
 
-        $fingerprint = 'oversell:webhook:'.hash('sha256', $invoice.':'.$warehouseId.':'.$summary);
+        // One Lark card per invoice + warehouse while oversell persists. Do not hash avail/need —
+        // they change on every webhook retry and caused thousands of duplicate notifications.
+        $fingerprint = $this->webhookFingerprint($invoice, $warehouseId);
 
         $firstItemId = (int) ($insufficient[0]['item_id'] ?? 0);
         $salesorderId = isset($payload['salesorder_id']) ? (string) $payload['salesorder_id'] : null;
@@ -134,5 +143,34 @@ class JubelioWebhookOversellScanner
         }
 
         return ['error' => null, 'items' => $items];
+    }
+
+    public function webhookFingerprint(string $invoice, int $warehouseId): string
+    {
+        return 'oversell:webhook:'.hash('sha256', $invoice.':'.$warehouseId);
+    }
+
+    private function rearmWhenClear(string $invoice, int $warehouseId): void
+    {
+        OperationalAlert::query()
+            ->where('fingerprint', $this->webhookFingerprint($invoice, $warehouseId))
+            ->where('status', 'open')
+            ->update([
+                'status' => 'rearmed',
+                'rearmed_at' => now(),
+            ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function isTerminalWebhookStatus(array $payload): bool
+    {
+        $status = strtoupper(trim((string) ($payload['status'] ?? '')));
+        if ($status === '') {
+            return false;
+        }
+
+        return in_array($status, ['CANCELED', 'CANCELLED', 'VOID', 'VOIDED'], true);
     }
 }
