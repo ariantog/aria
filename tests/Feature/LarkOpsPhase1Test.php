@@ -126,3 +126,51 @@ test('jubelio webhook oversell scanner notifies when stock insufficient', functi
 
     expect(OperationalAlert::query()->where('event_key', 'jubelio.oversell.webhook')->exists())->toBeTrue();
 });
+
+test('jubelio webhook oversell sends one lark card per invoice despite stock snapshot changes', function () {
+    Http::fake(['*' => Http::response(['StatusCode' => 0])]);
+
+    $item = Item::factory()->create(['jubelio_item_id' => 99902, 'code' => 'TST-SKU-2']);
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+
+    WarehouseItem::query()->create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $item->id,
+        'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 1,
+    ]);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 11,
+        'jubelio_store_name' => 'Store',
+        'jubelio_location_id' => -1,
+        'jubelio_location_name' => 'Pusat',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => $customer->id,
+        'bin_id' => 0,
+    ]);
+
+    $scanner = app(JubelioWebhookOversellScanner::class);
+    $payload = [
+        'salesorder_no' => 'INV-OS-DEDUP',
+        'status' => 'SHIPPED',
+        'store_id' => 11,
+        'location_id' => -1,
+        'items' => [
+            ['item_id' => 99902, 'qty' => 5],
+        ],
+    ];
+
+    $scanner->scanAndNotify($payload);
+
+    WarehouseItem::query()
+        ->where('warehouse_id', $warehouse->id)
+        ->where('item_id', $item->id)
+        ->update(['quantity' => 0]);
+
+    $scanner->scanAndNotify($payload);
+
+    Http::assertSentCount(1);
+    expect(OperationalAlert::query()->where('event_key', 'jubelio.oversell.webhook')->count())->toBe(1);
+});
