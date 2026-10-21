@@ -9,6 +9,7 @@ use App\Models\OperationalAlert;
 use App\Models\RestockCell;
 use App\Models\RestockSheet;
 use App\Models\Tag;
+use App\Models\Transaction;
 use App\Models\User;
 use App\Models\WarehouseItem;
 use App\Services\Jubelio\JubelioWebhookOversellScanner;
@@ -173,4 +174,51 @@ test('jubelio webhook oversell sends one lark card per invoice despite stock sna
 
     Http::assertSentCount(1);
     expect(OperationalAlert::query()->where('event_key', 'jubelio.oversell.webhook')->count())->toBe(1);
+});
+
+test('jubelio webhook oversell skipped when sell invoice already posted in aria', function () {
+    Http::fake(['*' => Http::response(['StatusCode' => 0])]);
+
+    $item = Item::factory()->create(['jubelio_item_id' => 99903, 'code' => 'TST-POSTED']);
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+    $buyer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+
+    WarehouseItem::query()->create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $item->id,
+        'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 0,
+    ]);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 12,
+        'jubelio_store_name' => 'Store',
+        'jubelio_location_id' => -1,
+        'jubelio_location_name' => 'Pusat',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => $customer->id,
+        'bin_id' => 0,
+    ]);
+
+    Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'INV-ALREADY-POSTED',
+        'sender_id' => $warehouse->id,
+        'receiver_id' => $buyer->id,
+        'submit_type' => 2,
+    ]);
+
+    app(JubelioWebhookOversellScanner::class)->scanAndNotify([
+        'salesorder_no' => 'INV-ALREADY-POSTED',
+        'status' => 'SHIPPED',
+        'store_id' => 12,
+        'location_id' => -1,
+        'items' => [
+            ['item_id' => 99903, 'qty' => 2],
+        ],
+    ]);
+
+    Http::assertNothingSent();
+    expect(OperationalAlert::query()->where('event_key', 'jubelio.oversell.webhook')->exists())->toBeFalse();
 });

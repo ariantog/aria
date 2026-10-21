@@ -4,6 +4,7 @@ namespace App\Services\Jubelio;
 
 use App\Models\Addrbook;
 use App\Models\Item;
+use App\Models\Jubelioorder;
 use App\Models\OperationalAlert;
 use App\Models\WarehouseItem;
 use App\Services\Lark\LarkAlertLinkBuilder;
@@ -18,6 +19,7 @@ class JubelioWebhookOversellScanner
         protected OperationalAlertDispatcher $alerts,
         protected JubelioOrderWarehouseResolver $resolver,
         protected LarkAlertLinkBuilder $links,
+        protected JubelioSellInvoiceGuard $invoiceGuard,
     ) {}
 
     /**
@@ -41,6 +43,12 @@ class JubelioWebhookOversellScanner
         $warehouseColumns = $this->resolver->sellWarehouseColumnsFromPayload($payload);
         $warehouseId = (int) ($warehouseColumns['warehouse_id'] ?? 0);
         if ($warehouseId <= 0) {
+            return;
+        }
+
+        if ($this->sellAlreadyFulfilledInAria($invoice)) {
+            $this->rearmWhenClear($invoice, $warehouseId);
+
             return;
         }
 
@@ -172,5 +180,23 @@ class JubelioWebhookOversellScanner
         }
 
         return in_array($status, ['CANCELED', 'CANCELLED', 'VOID', 'VOIDED'], true);
+    }
+
+    /**
+     * After Aria posts the sell, warehouse qty already reflects this order — comparing
+     * webhook need vs current stock would false-positive as oversell.
+     */
+    private function sellAlreadyFulfilledInAria(string $invoice): bool
+    {
+        if ($this->invoiceGuard->sellInvoiceInTransactions($invoice)) {
+            return true;
+        }
+
+        return Jubelioorder::query()
+            ->where('type', 'SELL')
+            ->where('invoice', $invoice)
+            ->where('status', 2)
+            ->where('error_type', JubelioOrderSyncStatus::SUCCESS)
+            ->exists();
     }
 }
