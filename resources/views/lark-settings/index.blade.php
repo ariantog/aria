@@ -73,7 +73,7 @@ $events = $settings['events'] ?? [];
             @endphp
             <div class="border-t border-gray-100 px-6 py-4">
                 <p class="text-sm font-medium text-gray-900">Stok rendah — jenis item</p>
-                <p class="mt-1 text-xs text-gray-500">Lark mengirim alert cover rendah, selisih Aria/Jubelio (dari scan ini), dan kartu restock hanya untuk tipe yang dicentang. Default: asset lancar saja.</p>
+                <p class="mt-1 text-xs text-gray-500">Lark mengirim alert cover rendah, selisih Aria/Jubelio (dari scan ini), dan kartu restock hanya untuk tipe yang dicentang. Default: asset lancar saja. Service tidak ditawarkan (stok tidak terbatas).</p>
                 <div class="mt-3 flex flex-wrap gap-x-6 gap-y-2">
                     @foreach($lowCoverItemTypeOptions as $typeId => $label)
                         <label class="inline-flex items-center gap-2 text-sm text-gray-700">

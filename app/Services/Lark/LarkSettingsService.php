@@ -88,7 +88,7 @@ class LarkSettingsService
     public function itemTypeEligibleForLowCoverAlert(Item $item): bool
     {
         $type = ItemType::coerce($item->type);
-        if ($type === null) {
+        if ($type === null || $type === ItemType::SERVICE) {
             return false;
         }
 
@@ -96,7 +96,7 @@ class LarkSettingsService
     }
 
     /**
-     * @return array<int, string> ItemType value => label (Lark Ops UI).
+     * @return array<int, string> ItemType value => label (Lark Ops UI). Service omitted (unlimited stock).
      */
     public static function lowCoverItemTypeOptions(): array
     {
@@ -104,7 +104,6 @@ class LarkSettingsService
             ItemType::ITEM->value => 'Manufaktur (item)',
             ItemType::ASSET_LANCAR->value => 'Asset lancar',
             ItemType::ASSET_TETAP->value => 'Asset tetap',
-            ItemType::SERVICE->value => 'Service',
         ];
     }
 
