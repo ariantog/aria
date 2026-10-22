@@ -81,6 +81,11 @@ class LowCoverScanService
                 continue;
             }
 
+            $larkSettings = app(LarkSettingsService::class);
+            if (! $larkSettings->itemTypeEligibleForLowCoverAlert($item)) {
+                continue;
+            }
+
             $monthlyNet = (float) ($row['net_qty_30d'] ?? 0);
             $suggested = RestockRecommendationApplyService::suggestedQtyFromMonthlyRate($monthlyNet);
 

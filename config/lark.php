@@ -32,6 +32,8 @@ return [
         'best_seller_cover_days' => (int) env('LARK_BEST_SELLER_COVER_DAYS', 30),
         'rearm_buffer_days' => (float) env('LARK_LOW_COVER_REARM_BUFFER', 4),
         'mismatch_qty_delta' => (int) env('LARK_STOCK_MISMATCH_QTY', 3),
+        /** ItemType ints eligible for stok rendah Lark cards (default: asset lancar only). Overridable in Lark Ops settings. */
+        'alert_item_types' => array_map('intval', array_filter(explode(',', env('LARK_LOW_COVER_ITEM_TYPES', '2')))),
     ],
 
     'jubelio' => [

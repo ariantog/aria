@@ -68,6 +68,25 @@ $events = $settings['events'] ?? [];
                     @error('mismatch_qty_delta')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
                 </div>
             </div>
+            @php
+                $selectedTypes = old('low_cover_alert_item_types', $lc['alert_item_types'] ?? [2]);
+            @endphp
+            <div class="border-t border-gray-100 px-6 py-4">
+                <p class="text-sm font-medium text-gray-900">Stok rendah — jenis item</p>
+                <p class="mt-1 text-xs text-gray-500">Lark mengirim alert cover rendah, selisih Aria/Jubelio (dari scan ini), dan kartu restock hanya untuk tipe yang dicentang. Default: asset lancar saja.</p>
+                <div class="mt-3 flex flex-wrap gap-x-6 gap-y-2">
+                    @foreach($lowCoverItemTypeOptions as $typeId => $label)
+                        <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                            <input type="checkbox" name="low_cover_alert_item_types[]" value="{{ $typeId }}"
+                                   @checked(in_array($typeId, $selectedTypes, true))
+                                   @disabled(! $canEdit)
+                                   class="rounded border-gray-300 text-blue-600">
+                            {{ $label }}
+                        </label>
+                    @endforeach
+                </div>
+                @error('low_cover_alert_item_types')<p class="mt-2 text-xs text-red-600">{{ $message }}</p>@enderror
+            </div>
         </div>
 
         <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
