@@ -47,3 +47,10 @@ Schedule::command('lark:scan-low-cover')
     ->withoutOverlapping(30)
     ->onOneServer()
     ->when(fn () => (bool) config('lark.enabled'));
+
+Schedule::command('lark:scan-jubelio-error-backlog')
+    ->hourly()
+    ->timezone(config('lark.timezone', 'Asia/Jakarta'))
+    ->withoutOverlapping(15)
+    ->onOneServer()
+    ->when(fn () => (bool) config('lark.enabled'));

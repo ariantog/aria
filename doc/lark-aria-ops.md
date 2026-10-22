@@ -124,12 +124,12 @@ A person can have **multiple** staff roles; they will match any event that check
 **System Settings → Lark Ops**
 
 - **Threshold stok:** cover days, re-arm buffer, Aria vs Jubelio mismatch delta.
-- **Jubelio:** backlog threshold (for future/scheduled backlog alert), order URL template for “Buka di Jubelio” buttons.
-- **Event → @ mention:** as in your screenshot — e.g. keep webhook oversell as **None** (silent card), use **Roster @** for blocked oversell and stock mismatch.
+- **Jubelio:** backlog threshold for `lark:scan-jubelio-error-backlog`, order URL template for “Buka di Jubelio” buttons.
+- **Event → @ mention:** per event, toggle **Kirim Lark** (disable cards without stopping scanners), mention mode, and staff roles — e.g. keep webhook oversell as **None** (silent card), use **Roster @** for blocked oversell and stock mismatch.
 
 ### Cron
 
-Scheduler runs `lark:scan-low-cover` (see **Cron Manager**). Ensure Laravel scheduler is running on the server.
+Scheduler runs `lark:scan-low-cover` (daily) and `lark:scan-jubelio-error-backlog` (hourly when error count ≥ threshold). Ensure Laravel scheduler is running on the server.
 
 ---
 

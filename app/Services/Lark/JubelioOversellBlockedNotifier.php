@@ -20,6 +20,10 @@ class JubelioOversellBlockedNotifier
             return;
         }
 
+        if (! app(LarkSettingsService::class)->eventSendEnabled('jubelio.oversell.blocked')) {
+            return;
+        }
+
         $summary = collect($stockError['items'] ?? [])
             ->map(fn (array $r) => $r['code'].' (avail '.$r['available'].', need '.$r['needed'].')')
             ->implode('; ');

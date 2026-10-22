@@ -42,6 +42,7 @@ class LarkOpsSettingsController extends Controller
             'error_backlog_threshold' => 'required|integer|min:1|max:99999',
             'jubelio_order_url_template' => 'nullable|string|max:500',
             'events' => 'nullable|array',
+            'events.*.send_enabled' => 'nullable|in:0,1',
             'events.*.mention' => 'nullable|in:none,roster',
             'events.*.roles' => 'nullable|array',
             'events.*.roles.*' => 'string|max:64',

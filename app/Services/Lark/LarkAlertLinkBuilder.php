@@ -39,6 +39,11 @@ class LarkAlertLinkBuilder
         return $actions;
     }
 
+    public function jubelioErrorBacklogIndexUrl(): string
+    {
+        return route('jubelio.index', ['status' => 'error']);
+    }
+
     public function ariaJubelioOrdersUrl(string $invoice, ?int $jubelioOrderRowId = null): ?string
     {
         if ($jubelioOrderRowId !== null && $jubelioOrderRowId > 0) {
