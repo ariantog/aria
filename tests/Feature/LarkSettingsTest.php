@@ -36,6 +36,9 @@ test('low cover lark alerts default to asset lancar item type only', function ()
 
     expect($service->itemTypeEligibleForLowCoverAlert($manufactured))->toBeFalse();
     expect($service->itemTypeEligibleForLowCoverAlert($asset))->toBeTrue();
+
+    $serviceItem = Item::factory()->create(['type' => ItemType::SERVICE]);
+    expect($service->itemTypeEligibleForLowCoverAlert($serviceItem))->toBeFalse();
 });
 
 test('lark settings page requires view permission', function () {
