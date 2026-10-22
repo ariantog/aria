@@ -155,7 +155,7 @@ test('jubelio webhook oversell sends one lark card per invoice despite stock sna
     $scanner = app(JubelioWebhookOversellScanner::class);
     $payload = [
         'salesorder_no' => 'INV-OS-DEDUP',
-        'status' => 'SHIPPED',
+        'status' => 'DRAFT',
         'store_id' => 11,
         'location_id' => -1,
         'items' => [
@@ -216,6 +216,44 @@ test('jubelio webhook oversell skipped when sell invoice already posted in aria'
         'location_id' => -1,
         'items' => [
             ['item_id' => 99903, 'qty' => 2],
+        ],
+    ]);
+
+    Http::assertNothingSent();
+    expect(OperationalAlert::query()->where('event_key', 'jubelio.oversell.webhook')->exists())->toBeFalse();
+});
+
+test('jubelio webhook oversell does not run stock compare on shipped webhooks', function () {
+    Http::fake(['*' => Http::response(['StatusCode' => 0])]);
+
+    $item = Item::factory()->create(['jubelio_item_id' => 99904, 'code' => 'KNEESUPPORT-19-BLACK-S']);
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Online - WTC']);
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
+
+    WarehouseItem::query()->create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $item->id,
+        'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 0,
+    ]);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 13,
+        'jubelio_store_name' => 'Store',
+        'jubelio_location_id' => -1,
+        'jubelio_location_name' => 'Pusat',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => $customer->id,
+        'bin_id' => 0,
+    ]);
+
+    app(JubelioWebhookOversellScanner::class)->scanAndNotify([
+        'salesorder_no' => 'SP-2610216MU2UV7R',
+        'status' => 'SHIPPED',
+        'store_id' => 13,
+        'location_id' => -1,
+        'items' => [
+            ['item_id' => 99904, 'qty' => 1],
         ],
     ]);
 
