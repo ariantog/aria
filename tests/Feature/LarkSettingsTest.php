@@ -1,5 +1,7 @@
 <?php
 
+use App\Enums\ItemType;
+use App\Models\Item;
 use App\Models\LarkOpsSettings;
 use App\Models\Setting;
 use App\Models\StaffRole;
@@ -24,6 +26,18 @@ function larkSettingsNonSuperadminUser(): User
     return User::factory()->create();
 }
 
+test('low cover lark alerts default to asset lancar item type only', function () {
+    $service = app(LarkSettingsService::class);
+
+    expect($service->lowCoverAlertItemTypes())->toBe([ItemType::ASSET_LANCAR->value]);
+
+    $manufactured = Item::factory()->create(['type' => ItemType::ITEM]);
+    $asset = Item::factory()->create(['type' => ItemType::ASSET_LANCAR]);
+
+    expect($service->itemTypeEligibleForLowCoverAlert($manufactured))->toBeFalse();
+    expect($service->itemTypeEligibleForLowCoverAlert($asset))->toBeTrue();
+});
+
 test('lark settings page requires view permission', function () {
     $user = larkSettingsNonSuperadminUser();
     $this->actingAs($user)
@@ -47,6 +61,7 @@ test('lark settings can be saved and read back', function () {
             'mismatch_qty_delta' => 5,
             'error_backlog_threshold' => 40,
             'jubelio_order_url_template' => 'https://jub.example/{invoice}',
+            'low_cover_alert_item_types' => [ItemType::ASSET_LANCAR->value],
             'events' => [
                 'jubelio.oversell.webhook' => ['mention' => 'roster', 'roles' => [$role->slug]],
             ],

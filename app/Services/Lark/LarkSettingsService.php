@@ -2,6 +2,8 @@
 
 namespace App\Services\Lark;
 
+use App\Enums\ItemType;
+use App\Models\Item;
 use App\Models\Setting;
 use App\Models\StaffRole;
 
@@ -38,6 +40,9 @@ class LarkSettingsService
                 'best_seller_cover_days' => (int) config('lark.low_cover.best_seller_cover_days', 30),
                 'rearm_buffer_days' => (float) config('lark.low_cover.rearm_buffer_days', 4),
                 'mismatch_qty_delta' => (int) config('lark.low_cover.mismatch_qty_delta', 3),
+                'alert_item_types' => $this->normalizeAlertItemTypes(
+                    config('lark.low_cover.alert_item_types', [ItemType::ASSET_LANCAR->value]),
+                ),
             ],
             'jubelio' => [
                 'error_backlog_threshold' => (int) config('lark.jubelio.error_backlog_threshold', 25),
@@ -68,6 +73,39 @@ class LarkSettingsService
         $all = $this->all();
 
         return $all['low_cover'];
+    }
+
+    /**
+     * @return list<int> ItemType values that receive stok rendah / mismatch-from-scan Lark alerts.
+     */
+    public function lowCoverAlertItemTypes(): array
+    {
+        $types = $this->lowCover()['alert_item_types'] ?? [ItemType::ASSET_LANCAR->value];
+
+        return $this->normalizeAlertItemTypes($types);
+    }
+
+    public function itemTypeEligibleForLowCoverAlert(Item $item): bool
+    {
+        $type = ItemType::coerce($item->type);
+        if ($type === null) {
+            return false;
+        }
+
+        return in_array($type->value, $this->lowCoverAlertItemTypes(), true);
+    }
+
+    /**
+     * @return array<int, string> ItemType value => label (Lark Ops UI).
+     */
+    public static function lowCoverItemTypeOptions(): array
+    {
+        return [
+            ItemType::ITEM->value => 'Manufaktur (item)',
+            ItemType::ASSET_LANCAR->value => 'Asset lancar',
+            ItemType::ASSET_TETAP->value => 'Asset tetap',
+            ItemType::SERVICE->value => 'Service',
+        ];
     }
 
     /**
@@ -142,6 +180,9 @@ class LarkSettingsService
                 'best_seller_cover_days' => (int) ($input['best_seller_cover_days'] ?? $defaults['low_cover']['best_seller_cover_days']),
                 'rearm_buffer_days' => (float) ($input['rearm_buffer_days'] ?? $defaults['low_cover']['rearm_buffer_days']),
                 'mismatch_qty_delta' => (int) ($input['mismatch_qty_delta'] ?? $defaults['low_cover']['mismatch_qty_delta']),
+                'alert_item_types' => $this->normalizeAlertItemTypes(
+                    $input['low_cover_alert_item_types'] ?? $defaults['low_cover']['alert_item_types'],
+                ),
             ],
             'jubelio' => [
                 'error_backlog_threshold' => (int) ($input['error_backlog_threshold'] ?? $defaults['jubelio']['error_backlog_threshold']),
@@ -191,5 +232,31 @@ class LarkSettingsService
         $merged['events'] = $events;
 
         return $merged;
+    }
+
+    /**
+     * @param  mixed  $types
+     * @return list<int>
+     */
+    private function normalizeAlertItemTypes(mixed $types): array
+    {
+        $allowed = array_keys(self::lowCoverItemTypeOptions());
+        $allowedMap = array_fill_keys($allowed, true);
+        $list = is_array($types) ? $types : [$types];
+        $normalized = [];
+        foreach ($list as $type) {
+            $int = (int) $type;
+            if (isset($allowedMap[$int])) {
+                $normalized[] = $int;
+            }
+        }
+
+        if ($normalized === []) {
+            return [ItemType::ASSET_LANCAR->value];
+        }
+
+        sort($normalized);
+
+        return array_values(array_unique($normalized));
     }
 }

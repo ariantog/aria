@@ -17,6 +17,7 @@ class LarkOpsSettingsController extends Controller
         return view('lark-settings.index', [
             'settings' => $settings->all(),
             'eventLabels' => $settings->eventLabels(),
+            'lowCoverItemTypeOptions' => LarkSettingsService::lowCoverItemTypeOptions(),
             'staffRoles' => StaffRole::query()->where('is_active', true)->orderBy('sort_order')->get(['id', 'name', 'slug']),
             'runtime' => [
                 'enabled' => (bool) config('lark.enabled'),
@@ -36,6 +37,8 @@ class LarkOpsSettingsController extends Controller
             'best_seller_cover_days' => 'required|integer|min:1|max:365',
             'rearm_buffer_days' => 'required|numeric|min:0|max:60',
             'mismatch_qty_delta' => 'required|integer|min:0|max:9999',
+            'low_cover_alert_item_types' => 'required|array|min:1',
+            'low_cover_alert_item_types.*' => 'integer|in:1,2,3,5',
             'error_backlog_threshold' => 'required|integer|min:1|max:99999',
             'jubelio_order_url_template' => 'nullable|string|max:500',
             'events' => 'nullable|array',
