@@ -302,6 +302,36 @@ it('parent detail product name uses parent catalog title not colorway pcode plac
         ->and($detailWithoutParent['uses_placeholder'])->toBeTrue();
 });
 
+it('saves parent group descriptions from the parent detail page', function () {
+    $group = ItemGroup::factory()->create([
+        'master' => 'CX88001',
+        'variant' => '01',
+        'description' => 'OLD COLORWAY',
+        'description2' => '',
+    ]);
+
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CX88001-01',
+        'code' => 'AJD-CX88001-01-S',
+    ]);
+    $item->tags()->attach([$this->typeTag->id, $this->pinkTag->id, $this->sizeS->id]);
+
+    $this->actingAs($this->user)
+        ->put(route('items.group-parent-update-descriptions', $group->id), [
+            'description' => 'Parent shared text',
+            'description2' => 'Parent NB',
+            'reset_colorway_descriptions' => '1',
+        ])
+        ->assertRedirect(route('items.group-parent-detail', $group->id));
+
+    $group->refresh();
+
+    expect($group->description)->toBe('')
+        ->and(\App\Support\ItemCatalog::description($item->fresh(['group'])))->toBe('PARENT SHARED TEXT');
+});
+
 it('renders group list and parent detail pages', function () {
     $group = ItemGroup::factory()->create(['master' => 'GLOVE-01', 'variant' => 'BLACK', 'name' => 'BOXING GLOVE']);
 

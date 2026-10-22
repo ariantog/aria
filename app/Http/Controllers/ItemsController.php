@@ -668,6 +668,33 @@ class ItemsController extends Controller
             ->with('success', 'Parent group pricing updated.');
     }
 
+    public function updateGroupParentDescriptions(Request $request, ItemGroup $group)
+    {
+        Gate::authorize(ItemGroup::getPermissions()['edit']);
+
+        $detail = $this->groupHierarchy->parentDetailForAnchorGroup($group, fetchJubelio: false);
+
+        abort_if($detail === null, 404);
+
+        $request->validate([
+            'description' => ['nullable', 'string', 'max:200'],
+            'description2' => ['nullable', 'string', 'max:250'],
+            'reset_colorway_descriptions' => ['nullable', 'boolean'],
+        ]);
+
+        $this->itemService->applyParentGroupDescriptions(
+            $detail['parent_key'],
+            (string) $request->input('description', ''),
+            (string) $request->input('description2', ''),
+            $detail['group_ids'],
+            $request->boolean('reset_colorway_descriptions'),
+        );
+
+        return redirect()
+            ->route('items.group-parent-detail', $group->id)
+            ->with('success', 'Parent group descriptions updated.');
+    }
+
     public function groupDetail(ItemGroup $group)
     {
         Gate::authorize(ItemGroup::getPermissions()['view']);
@@ -754,6 +781,8 @@ class ItemsController extends Controller
         $parentKey = $this->identityBuilder->itemParentKey($sample);
         $parentRecord = \App\Models\ItemParentPrice::query()->where('parent_key', $parentKey)->first();
         $parentProductName = trim((string) ($parentRecord?->product_name ?? ''));
+        $parentDescription = \App\Support\ItemCatalog::parentDescriptionForKey($parentKey);
+        $parentDescription2 = \App\Support\ItemCatalog::parentDescription2ForKey($parentKey);
 
         $itemTypeEnum = $sample->type;
 
@@ -768,6 +797,8 @@ class ItemsController extends Controller
             'productTitle' => $titleForm['stored_title'],
             'titleForm' => $titleForm,
             'parentProductName' => $parentProductName,
+            'parentDescription' => $parentDescription,
+            'parentDescription2' => $parentDescription2,
             'usesPlaceholder' => $usesPlaceholder,
             'color' => $color,
             'parentGroupId' => $parentGroupId,

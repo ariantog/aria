@@ -315,6 +315,7 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     Route::get('items-group/parent/{group}', [App\Http\Controllers\ItemsController::class, 'groupParentDetail'])->whereNumber('group')->name('items.group-parent-detail');
     Route::get('items-group/parent/{group}/export', [App\Http\Controllers\ItemsController::class, 'exportGroupParent'])->whereNumber('group')->name('items.group-parent-export');
     Route::put('items-group/parent/{group}/name', [App\Http\Controllers\ItemsController::class, 'updateGroupParentName'])->whereNumber('group')->name('items.group-parent-update-name');
+    Route::put('items-group/parent/{group}/descriptions', [App\Http\Controllers\ItemsController::class, 'updateGroupParentDescriptions'])->whereNumber('group')->name('items.group-parent-update-descriptions');
     Route::put('items-group/parent/{group}/pricing', [App\Http\Controllers\ItemsController::class, 'updateGroupParentPricing'])->whereNumber('group')->name('items.group-parent-update-pricing');
     Route::get('items-group/parent/{parentSlug}', [App\Http\Controllers\ItemsController::class, 'redirectLegacyGroupParent'])->name('items.group-parent-legacy');
     Route::get('items-group/colorway/{group}/edit', [App\Http\Controllers\ItemsController::class, 'colorwayEdit'])->name('items.colorway-edit');

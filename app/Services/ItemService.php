@@ -441,6 +441,47 @@ class ItemService
     }
 
     /**
+     * Store parent group descriptions. Colorways with their own text are kept unless reset is requested.
+     *
+     * @param  list<int>  $groupIds
+     */
+    public function applyParentGroupDescriptions(
+        string $parentKey,
+        string $description,
+        string $description2,
+        array $groupIds,
+        bool $resetColorwayDescriptionsToInherit = false,
+    ): void {
+        DB::transaction(function () use (
+            $parentKey,
+            $description,
+            $description2,
+            $groupIds,
+            $resetColorwayDescriptionsToInherit,
+        ): void {
+            ItemCatalog::syncParentDescriptions($parentKey, $description, $description2);
+
+            if (! $resetColorwayDescriptionsToInherit) {
+                return;
+            }
+
+            foreach ($groupIds as $groupId) {
+                $group = ItemGroup::query()->find($groupId);
+
+                if ($group === null) {
+                    continue;
+                }
+
+                ItemCatalog::applyToGroup($group, [
+                    'description' => '',
+                    'description2' => '',
+                ]);
+                ItemCatalog::resetDescriptionMirrorsForColorway($group);
+            }
+        });
+    }
+
+    /**
      * @param  array<string, array{scope?: mixed, value?: mixed}>  $pricingRows
      */
     public function applyParentGroupPricing(string $parentKey, array $pricingRows, bool $cascadeOverrides = false): void

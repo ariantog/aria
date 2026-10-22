@@ -51,6 +51,13 @@ $fmt = fn ($v) => format_amount($v, 0);
                         </p>
                     </div>
                     <div>
+                        <p class="text-sm font-semibold uppercase tracking-wider text-gray-500">Group description</p>
+                        <p class="text-sm text-gray-800 whitespace-pre-wrap">{{ ($detail['description'] ?? '') !== '' ? $detail['description'] : '—' }}</p>
+                        @if(($detail['description2'] ?? '') !== '')
+                        <p class="mt-2 text-sm text-gray-600 whitespace-pre-wrap"><span class="font-medium text-gray-500">NB:</span> {{ $detail['description2'] }}</p>
+                        @endif
+                    </div>
+                    <div>
                         <p class="text-sm font-semibold uppercase tracking-wider text-gray-500">Aria stock (physical warehouses)</p>
                         @include('items.partials.warehouse-qty-breakdown', [
                             'total' => $detail['total_warehouse_qty'],
@@ -61,7 +68,7 @@ $fmt = fn ($v) => format_amount($v, 0);
                     @if($canEditGroup)
                     <div class="border-t border-gray-100 pt-4 md:col-span-2" x-data="{ parentEditOpen: {{ (old('name') || old('pricing')) ? 'true' : 'false' }} }">
                         <div class="flex flex-wrap items-center justify-between gap-3">
-                            <p class="text-sm text-gray-600">Edit parent product name and group pricing.</p>
+                            <p class="text-sm text-gray-600">Edit parent product name, shared descriptions, and group pricing.</p>
                             <button type="button"
                                     @click="parentEditOpen = !parentEditOpen"
                                     data-testid="group-parent-edit-toggle"
@@ -100,6 +107,43 @@ $fmt = fn ($v) => format_amount($v, 0);
                                            @checked(old('reset_colorway_titles'))>
                                     <span>Reset all colorway titles to inherit this parent name (clears custom colorway product names and SKU aliases)</span>
                                 </label>
+                            </form>
+                        </div>
+
+                        <div>
+                            <p class="mb-2 text-sm font-semibold uppercase tracking-wider text-gray-500">Parent group descriptions</p>
+                            <p class="mb-3 text-sm text-gray-600">Default description and notes for every colorway that leaves those fields blank. Per-colorway and per-SKU overrides are kept unless you reset them.</p>
+                            <form method="POST" action="{{ route('items.group-parent-update-descriptions', $detail['anchor_group_id']) }}" class="space-y-4"
+                                  onsubmit="return confirm(this.querySelector('[name=reset_colorway_descriptions]')?.checked
+                                      ? 'Reset every colorway description to inherit this parent text? Custom colorway and mirrored SKU text will be cleared.'
+                                      : 'Save parent group descriptions? Colorways that already have their own text are kept.');">
+                                @csrf
+                                @method('PUT')
+                                <div>
+                                    <label for="group-parent-description" class="mb-1 block text-sm font-medium text-gray-700">Description</label>
+                                    <textarea id="group-parent-description" name="description" rows="4"
+                                              data-testid="group-parent-description"
+                                              class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('description') border-red-500 @enderror">{{ old('description', $detail['description'] ?? '') }}</textarea>
+                                    @error('description')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+                                </div>
+                                <div>
+                                    <label for="group-parent-description2" class="mb-1 block text-sm font-medium text-gray-700">Notes (NB) <span class="font-normal text-gray-400">(optional)</span></label>
+                                    <textarea id="group-parent-description2" name="description2" rows="3"
+                                              data-testid="group-parent-description2"
+                                              class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('description2') border-red-500 @enderror">{{ old('description2', $detail['description2'] ?? '') }}</textarea>
+                                    @error('description2')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+                                </div>
+                                <label class="flex cursor-pointer items-start gap-2 text-sm text-gray-700">
+                                    <input type="checkbox" name="reset_colorway_descriptions" value="1" class="mt-0.5 rounded border-gray-300"
+                                           data-testid="group-parent-reset-colorway-descriptions"
+                                           @checked(old('reset_colorway_descriptions'))>
+                                    <span>Reset all colorway descriptions to inherit this parent text (clears custom colorway descriptions and mirrored SKU text)</span>
+                                </label>
+                                <div>
+                                    <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700" data-testid="group-parent-save-descriptions">
+                                        Save group descriptions
+                                    </button>
+                                </div>
                             </form>
                         </div>
 
