@@ -174,7 +174,7 @@ $initialDiscountAmount = old('discount_amount', $invoice?->discount_amount ?? 0)
                                 <div>
                                     <div class="text-xs text-gray-500">Terms of Payment</div>
                                     <ul class="mt-1 list-disc space-y-1 pl-4" x-show="selectedPreset()?.terms_lines?.length">
-                                        <template x-for="line in selectedPreset()?.terms_lines || []" :key="line">
+                                        <template x-for="(line, lineIndex) in selectedPreset()?.terms_lines || []" :key="lineIndex">
                                             <li x-text="line"></li>
                                         </template>
                                     </ul>
@@ -266,10 +266,12 @@ function invoiceMakerForm(initial) {
             return {
                 ...preset,
                 template_label: templateLabels[preset.template] || preset.template,
-                terms_lines: String(preset.terms_of_payment || '')
-                    .split(/\r?\n/)
-                    .map((line) => line.trim())
-                    .filter((line) => line !== ''),
+                terms_lines: Array.isArray(preset.terms_lines) && preset.terms_lines.length
+                    ? preset.terms_lines
+                    : String(preset.terms_of_payment || '')
+                        .split(/\r?\n/)
+                        .map((line) => line.trim())
+                        .filter((line) => line !== ''),
             };
         },
         applyPreset() {},

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Addrbook;
 use App\Models\StandaloneInvoice;
 use App\Services\InvoiceMakerSettingsService;
 use Illuminate\Http\Request;
@@ -29,6 +30,7 @@ class InvoiceMakerSettingsController extends Controller
             'preset' => null,
             'templates' => StandaloneInvoice::TEMPLATES,
             'defaultPreset' => $settingsService->defaultPreset(),
+            'banks' => $this->invoiceBankOptions(),
         ]);
     }
 
@@ -55,6 +57,7 @@ class InvoiceMakerSettingsController extends Controller
             'preset' => $found,
             'templates' => StandaloneInvoice::TEMPLATES,
             'defaultPreset' => $settingsService->defaultPreset(),
+            'banks' => $this->invoiceBankOptions(),
         ]);
     }
 
@@ -94,10 +97,26 @@ class InvoiceMakerSettingsController extends Controller
             'name' => ['required', 'string', 'max:120'],
             'terms_of_payment' => ['nullable', 'string', 'max:5000'],
             'pay_to' => ['nullable', 'string', 'max:1000'],
+            'bank_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('customers', 'id')->where(fn ($query) => $query->where('type', Addrbook::TYPE_BANK)),
+            ],
             'signatory_name' => ['nullable', 'string', 'max:255'],
             'template' => ['required', 'string', Rule::in(array_keys(StandaloneInvoice::TEMPLATES))],
             'signature' => ['nullable', 'image', 'max:2048'],
             'logo' => ['nullable', 'image', 'max:2048'],
         ]);
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, Addrbook>
+     */
+    private function invoiceBankOptions()
+    {
+        return Addrbook::query()
+            ->where('type', Addrbook::TYPE_BANK)
+            ->orderBy('name')
+            ->get(['id', 'name']);
     }
 }
