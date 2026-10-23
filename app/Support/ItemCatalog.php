@@ -5,6 +5,8 @@ namespace App\Support;
 use App\Enums\ItemBrand;
 use App\Models\Item;
 use App\Models\ItemGroup;
+use App\Models\ItemParentPrice;
+use App\Services\Items\ItemIdentityBuilder;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Schema;
 
@@ -44,6 +46,15 @@ final class ItemCatalog
 
     /** @var array<string, bool> */
     private static array $columnExists = [];
+
+    /** @var array<string, ItemParentPrice|null> */
+    private static array $parentRecordCache = [];
+
+    public static function flushRequestCache(): void
+    {
+        self::$parentRecordCache = [];
+        self::$columnExists = [];
+    }
 
     public static function shouldMirrorItemColumns(): bool
     {
@@ -94,7 +105,45 @@ final class ItemCatalog
             return $groupText;
         }
 
+        $parentText = self::readParentCatalogText($item, $field);
+        if ($parentText !== '') {
+            if ($itemText !== '' && strtoupper($itemText) !== strtoupper($parentText)) {
+                return $itemText;
+            }
+
+            return $parentText;
+        }
+
         return $itemText;
+    }
+
+    public static function parentDescriptionForKey(string $parentKey): string
+    {
+        return self::readParentFieldForKey($parentKey, 'description');
+    }
+
+    public static function parentDescription2ForKey(string $parentKey): string
+    {
+        return self::readParentFieldForKey($parentKey, 'description2');
+    }
+
+    public static function syncParentDescriptions(string $parentKey, string $description, string $description2): void
+    {
+        if (! self::hasColumn('item_parent_prices', 'description')) {
+            return;
+        }
+
+        $parentKey = trim($parentKey);
+        if ($parentKey === '') {
+            return;
+        }
+
+        $record = ItemParentPrice::query()->firstOrNew(['parent_key' => $parentKey]);
+        $record->description = strtoupper(trim($description));
+        $record->description2 = strtoupper(trim($description2));
+        $record->save();
+
+        self::$parentRecordCache[$parentKey] = $record->fresh();
     }
 
     public static function resellerPrice(Item $item): float
@@ -497,5 +546,50 @@ final class ItemCatalog
         $key = $table.'.'.$column;
 
         return self::$columnExists[$key] ??= Schema::hasColumn($table, $column);
+    }
+
+    private static function readParentCatalogText(Item $item, string $field): string
+    {
+        if (! in_array($field, ['description', 'description2'], true)
+            || ! self::hasColumn('item_parent_prices', $field)) {
+            return '';
+        }
+
+        $parent = self::parentRecord($item);
+
+        return strtoupper(trim((string) ($parent?->{$field} ?? '')));
+    }
+
+    private static function readParentFieldForKey(string $parentKey, string $field): string
+    {
+        if (! self::hasColumn('item_parent_prices', $field)) {
+            return '';
+        }
+
+        $parentKey = trim($parentKey);
+        if ($parentKey === '') {
+            return '';
+        }
+
+        if (! array_key_exists($parentKey, self::$parentRecordCache)) {
+            self::$parentRecordCache[$parentKey] = ItemParentPrice::query()
+                ->where('parent_key', $parentKey)
+                ->first();
+        }
+
+        return strtoupper(trim((string) (self::$parentRecordCache[$parentKey]?->{$field} ?? '')));
+    }
+
+    private static function parentRecord(Item $item): ?ItemParentPrice
+    {
+        $parentKey = app(ItemIdentityBuilder::class)->itemParentKey($item);
+
+        if (! array_key_exists($parentKey, self::$parentRecordCache)) {
+            self::$parentRecordCache[$parentKey] = ItemParentPrice::query()
+                ->where('parent_key', $parentKey)
+                ->first();
+        }
+
+        return self::$parentRecordCache[$parentKey];
     }
 }

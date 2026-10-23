@@ -61,6 +61,14 @@ $breadcrumbs = [
                             <p class="text-sm font-medium text-gray-900" data-testid="colorway-parent-product-name">{{ $parentProductName !== '' ? $parentProductName : '— (not set on parent group)' }}</p>
                             <p class="mt-0.5 text-xs text-gray-500">Edit on the <a href="{{ route('items.group-parent-detail', $parentGroupId) }}" class="font-medium text-blue-600 underline hover:text-blue-800">parent group</a> page.</p>
                         </div>
+                        <div class="sm:col-span-2">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Parent group description</p>
+                            <p class="text-sm text-gray-800 whitespace-pre-wrap" data-testid="colorway-parent-description">{{ ($parentDescription ?? '') !== '' ? $parentDescription : '— (not set on parent group)' }}</p>
+                            @if(($parentDescription2 ?? '') !== '')
+                            <p class="mt-1 text-sm text-gray-600 whitespace-pre-wrap"><span class="font-medium text-gray-500">NB:</span> {{ $parentDescription2 }}</p>
+                            @endif
+                            <p class="mt-0.5 text-xs text-gray-500">Shared default for all colorways — edit on the parent group page.</p>
+                        </div>
                         <div>
                             <label for="colorway-pcode" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">PCode</label>
                             <input type="text" id="colorway-pcode" name="pcode" x-model="form.pcode"
@@ -105,16 +113,18 @@ $breadcrumbs = [
                             <p class="mt-1 text-xs text-gray-500">Maps to <span class="font-mono">item_group.name</span> for this color only. Empty field = inherit parent; preview below uses the effective title.</p>
                         </div>
                         <div>
-                            <label for="colorway-description" class="mb-1 block text-sm font-medium text-gray-700">Description</label>
+                            <label for="colorway-description" class="mb-1 block text-sm font-medium text-gray-700">Description (this colorway)</label>
                             <textarea id="colorway-description" name="description" rows="4"
                                       data-testid="colorway-description"
+                                      placeholder="Leave blank to inherit parent group description"
                                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">{{ old('description', $group->description) }}</textarea>
+                            <p class="mt-1 text-xs text-gray-500">Stored on <span class="font-mono">item_group.description</span>. Empty = inherit parent when set.</p>
                         </div>
                         <div>
-                            <label for="colorway-description2" class="mb-1 block text-sm font-medium text-gray-700">Notes (NB) <span class="font-normal text-gray-400">(optional)</span></label>
+                            <label for="colorway-description2" class="mb-1 block text-sm font-medium text-gray-700">Notes (NB) (this colorway) <span class="font-normal text-gray-400">(optional)</span></label>
                             <textarea id="colorway-description2" name="description2" rows="3"
                                       data-testid="colorway-description2"
-                                      placeholder="Additional notes for this colorway"
+                                      placeholder="Leave blank to inherit parent group notes"
                                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">{{ old('description2', $group->description2) }}</textarea>
                         </div>
                         <div>

@@ -11,6 +11,8 @@ class ItemParentPrice extends Model
     protected $fillable = [
         'parent_key',
         'product_name',
+        'description',
+        'description2',
         'price',
         'reseller_price',
         'cost',

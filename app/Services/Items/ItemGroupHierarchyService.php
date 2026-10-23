@@ -82,11 +82,28 @@ class ItemGroupHierarchyService
                     }
                 });
             })
-            ->when(! empty($filters['desc']), fn (Builder $q) => $q->where(
-                'item_group.description',
-                'like',
-                '%'.$filters['desc'].'%'
-            ));
+            ->when(! empty($filters['desc']), function (Builder $q) use ($filters) {
+                $term = '%'.$filters['desc'].'%';
+                $groupIdsFromParentDescriptions = ItemParentPrice::query()
+                    ->where(function (Builder $inner) use ($term) {
+                        $inner->where('description', 'like', $term)
+                            ->orWhere('description2', 'like', $term);
+                    })
+                    ->pluck('parent_key')
+                    ->flatMap(fn (string $parentKey) => $this->groupIdsForParentKey($parentKey))
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                $q->where(function (Builder $inner) use ($term, $groupIdsFromParentDescriptions) {
+                    $inner->where('item_group.description', 'like', $term)
+                        ->orWhere('item_group.description2', 'like', $term);
+
+                    if ($groupIdsFromParentDescriptions !== []) {
+                        $inner->orWhereIn('item_group.id', $groupIdsFromParentDescriptions);
+                    }
+                });
+            });
 
         // Compute canonical_master per row first, then aggregate — MySQL ONLY_FULL_GROUP_BY
         // rejects GROUP BY on a CASE expression that references item_group.master when
@@ -208,6 +225,8 @@ class ItemGroupHierarchyService
             'item_type' => $itemType,
             'is_asset' => $itemType === ItemType::ASSET_LANCAR,
             'product_name' => $productName,
+            'description' => \App\Support\ItemCatalog::parentDescriptionForKey($parentKey),
+            'description2' => \App\Support\ItemCatalog::parentDescription2ForKey($parentKey),
             'uses_placeholder' => $usesPlaceholder,
             'image_url' => $this->imageResolver->resolveUrlForGroups($groups),
             'group_ids' => $groups->pluck('id')->all(),

@@ -98,6 +98,46 @@ test('it renames group product name and syncs all item display names', function 
     $this->assertDatabaseHas('items', ['code' => 'AJD-CX90233-23-M', 'name' => 'SLASH RUNNING SHIRT - BLUE - M']);
 });
 
+test('apply parent group descriptions with reset clears colorway text', function () {
+    $group = ItemGroup::factory()->create([
+        'master' => 'CX90111',
+        'variant' => '01',
+        'description' => 'COLORWAY ONLY',
+        'description2' => 'CW NB',
+    ]);
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CX90111-01',
+        'description' => 'COLORWAY ONLY',
+        'description2' => 'CW NB',
+    ]);
+    $parentKey = app(ItemIdentityBuilder::class)->itemParentKey($item->fresh(['group', 'tags']));
+
+    $this->itemService->applyParentGroupDescriptions(
+        $parentKey,
+        'Shared parent copy',
+        'Parent notes',
+        [$group->id],
+        resetColorwayDescriptionsToInherit: true,
+    );
+
+    $group->refresh();
+    $item->refresh();
+
+    expect($group->description)->toBe('')
+        ->and($group->description2)->toBe('')
+        ->and((string) $item->description)->toBe('')
+        ->and(\App\Support\ItemCatalog::description($item))->toBe('SHARED PARENT COPY')
+        ->and(\App\Support\ItemCatalog::description2($item))->toBe('PARENT NOTES');
+
+    $this->assertDatabaseHas('item_parent_prices', [
+        'parent_key' => $parentKey,
+        'description' => 'SHARED PARENT COPY',
+        'description2' => 'PARENT NOTES',
+    ]);
+});
+
 test('apply parent group product name with reset clears colorway titles and cascaded pricing', function () {
     $mediumTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'Medium']);
 

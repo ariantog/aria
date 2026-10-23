@@ -54,7 +54,7 @@
                 @if($parentGroupUrl)
                 <li>
                     <a href="{{ $parentGroupUrl }}" class="font-medium underline hover:text-indigo-700">Parent group</a>
-                    — product name @if(!($isAsset ?? false))and brand/type @endif defaults
+                    — product name, descriptions @if(!($isAsset ?? false))and brand/type @endif defaults
                     @if($parentProductName !== '')
                         (current parent title: <span class="font-semibold">{{ $parentProductName }}</span>)
                     @endif
@@ -122,17 +122,19 @@
                 <p class="mt-1 text-xs text-gray-500">Stored on <span class="font-mono">item_group.name</span>. Blank = inherit parent product name when the parent row exists.</p>
             </div>
             <div>
-                <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-description">Description</label>
+                <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-description">Description (this colorway)</label>
                 <textarea id="item-form-description" name="description" rows="4"
                           data-testid="item-form-description"
+                          placeholder="Leave blank to inherit parent group description"
                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">{{ $fi['description'] }}</textarea>
                 @error('description')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+                <p class="mt-1 text-xs text-gray-500">Blank inherits the parent group default when set.</p>
             </div>
             <div>
-                <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-description2">Notes (NB) <span class="font-normal text-gray-400">(optional)</span></label>
+                <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-description2">Notes (NB) (this colorway) <span class="font-normal text-gray-400">(optional)</span></label>
                 <textarea id="item-form-description2" name="description2" rows="3"
                           data-testid="item-form-description2"
-                          placeholder="Additional notes for this colorway"
+                          placeholder="Leave blank to inherit parent group notes"
                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">{{ $fi['description2'] }}</textarea>
                 @error('description2')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
             </div>

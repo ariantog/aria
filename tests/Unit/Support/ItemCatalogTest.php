@@ -3,7 +3,9 @@
 use App\Enums\ItemBrand;
 use App\Models\Item;
 use App\Models\ItemGroup;
+use App\Models\ItemParentPrice;
 use App\Support\ItemCatalog;
+use App\Services\Items\ItemIdentityBuilder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(Tests\TestCase::class, RefreshDatabase::class);
@@ -51,6 +53,35 @@ test('sync writes the group and mirrors leftover item columns', function () {
         ->and($item->description2)->toBe('nb')
         ->and($item->brand)->toBe(ItemBrand::CX9)
         ->and($item->genre)->toBe(77);
+});
+
+test('catalog description inherits parent group when colorway text is empty', function () {
+    $group = ItemGroup::factory()->create([
+        'master' => 'CX90001',
+        'variant' => '01',
+        'description' => '',
+        'description2' => '',
+    ]);
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'type' => 1,
+        'pcode' => 'CX90001-01',
+        'description' => '',
+        'description2' => '',
+    ]);
+
+    $parentKey = app(ItemIdentityBuilder::class)->itemParentKey($item->fresh(['group', 'tags']));
+    ItemParentPrice::query()->create([
+        'parent_key' => $parentKey,
+        'description' => 'PARENT DESC',
+        'description2' => 'PARENT NB',
+    ]);
+    ItemCatalog::flushRequestCache();
+
+    $item = $item->fresh(['group']);
+
+    expect(ItemCatalog::description($item))->toBe('PARENT DESC')
+        ->and(ItemCatalog::description2($item))->toBe('PARENT NB');
 });
 
 test('catalog reads keep working when leftover item columns are empty', function () {

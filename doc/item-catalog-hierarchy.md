@@ -19,7 +19,7 @@ For catalog attributes that support overrides, resolve **SKU → colorway → pa
 | Attribute | SKU | Colorway | Parent |
 |-----------|-----|----------|--------|
 | Sell / reseller / cost / cost CNY | `items.*` | *(legacy column — ignored)* | `item_parent_prices.*` |
-| Description / description2 | `items.*` (only if different from colorway) | `item_group.*` | *(no parent column — edit per colorway or SKU)* |
+| Description / description2 | `items.*` (only if different from colorway) | `item_group.*` | `item_parent_prices.description` / `description2` |
 | Bare product title | `items.alias` | `item_group.name` | `item_parent_prices.product_name` |
 | Brand / genre | `items.*` (legacy mirror) | `item_group.*` | — |
 | Full display `items.name` | Built from bare title + warna + size (`ItemProductTitle::buildDisplayName()`) | | |
@@ -33,7 +33,7 @@ For catalog attributes that support overrides, resolve **SKU → colorway → pa
 
 **Pricing:** numeric `0` means inherit (`ItemPricing::resolve()`).
 
-**Descriptions:** shared text is authoritative on `item_group`; leftover `items.description` is a per-SKU override only when it differs from the group (`ItemCatalog::description()`).
+**Descriptions:** resolve SKU → colorway → parent (`ItemCatalog::description()`). Shared colorway text lives on `item_group`; parent defaults on `item_parent_prices`; leftover `items.description` is a per-SKU override only when it differs from the resolved colorway/parent text.
 
 Implementation entry points:
 
@@ -70,6 +70,7 @@ Set the value on **`item_parent_prices`** for the parent key. **Product name** a
 Examples:
 
 - Group parent “Save product name” → `ItemService::applyParentGroupProductName()` (optional reset of colorway titles + SKU aliases).
+- Group parent “Save group descriptions” → `ItemService::applyParentGroupDescriptions()` (optional reset of colorway descriptions + SKU mirrors).
 - Group parent “Save group pricing” → `ItemPricing::applyForParent()` with cascade only when amount > 0 and user opts in.
 
 **UI:** each submit shows a confirmation tailored to the selected options.
