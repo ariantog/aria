@@ -5,17 +5,20 @@ namespace App\Http\Controllers;
 use App\Models\Addrbook;
 use App\Models\Jubelio;
 use App\Models\Jubeliosync;
+use App\Services\Jubelio\JubelioSyncCatalogService;
 use App\Services\JubelioService;
-use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 
 class JubelioSyncController extends Controller
 {
-    public function __construct(private JubelioService $jubelioService) {}
+    public function __construct(
+        private JubelioService $jubelioService,
+        private JubelioSyncCatalogService $syncCatalog,
+    ) {}
 
     /**
      * Display a listing of the resource.
@@ -47,18 +50,12 @@ class JubelioSyncController extends Controller
     {
         Gate::authorize(Jubelio::getPermissions()['sync']);
 
-        $dataList = ['data' => []];
-        $response = $this->jubelioService->get('https://api2.jubelio.com/locations/', [
-            'page' => 1,
-            'pageSize' => 200,
-        ]);
-
-        if ($response && $response->successful()) {
-            $dataList = $response->json();
-        }
+        $locations = $this->syncCatalog->fetchAllLocations();
 
         return view('jubelio.sync.create', [
-            'locations' => $dataList['data'] ?? [],
+            'locations' => $locations,
+            'preselectedLocationId' => request()->query('location_id'),
+            'preselectedStoreIds' => array_filter(array_map('intval', (array) request()->query('store_ids', []))),
             'addrbookTypes' => [
                 'warehouse' => Addrbook::TYPE_WAREHOUSE,
                 'customer' => Addrbook::TYPE_CUSTOMER,
@@ -74,43 +71,77 @@ class JubelioSyncController extends Controller
     {
         Gate::authorize(Jubelio::getPermissions()['sync']);
 
-        $request->validate([
-            'location_id' => 'required',
-            'location_name' => 'required',
+        $validated = $request->validate([
+            'location_id' => 'required|integer',
+            'location_name' => 'required|string|max:255',
             'warehouse_id' => 'required|exists:customers,id',
+            'customer_id' => 'nullable|exists:customers,id',
+            'store_ids' => 'required|array|min:1',
+            'store_ids.*' => 'integer|min:1',
         ]);
 
-        $response = $this->jubelioService->get('https://api2.jubelio.com/locations/'.$request->location_id);
+        $locationId = (int) $validated['location_id'];
+        $selectedStoreIds = collect($validated['store_ids'])
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
 
-        if (! $response || ! $response->successful()) {
-            return back()->with('errorMessage', 'Failed to fetch location details from Jubelio.');
+        $stores = $this->syncCatalog->fetchStoresForLocation($locationId);
+
+        if ($stores === null) {
+            return back()->withInput()->with('errorMessage', 'Gagal mengambil daftar marketplace dari Jubelio.');
         }
 
-        $dataList = $response->json();
-        $dataRow = $dataList['warehouse'] ?? ($dataList['stores'] ?? []);
-
-        if (empty($dataRow)) {
-            return back()->with('errorMessage', 'No stores or warehouses found for this location in Jubelio.');
+        if ($stores === []) {
+            return back()->withInput()->with('errorMessage', 'Tidak ada marketplace di lokasi Jubelio ini.');
         }
 
-        $syncArray = [];
-        foreach ($dataRow as $data) {
-            $syncArray[] = [
-                'jubelio_store_id' => $data['store_id'],
-                'jubelio_store_name' => $data['store_name'],
-                'jubelio_location_id' => $request->location_id,
-                'jubelio_location_name' => $request->location_name,
-                'warehouse_id' => $request->warehouse_id,
-                'customer_id' => $request->customer_id ?? 0,
+        $storesById = collect($stores)->keyBy('store_id');
+        $invalidIds = $selectedStoreIds->filter(fn (int $id) => ! $storesById->has($id));
+        if ($invalidIds->isNotEmpty()) {
+            return back()->withInput()->with('errorMessage', 'Marketplace tidak valid untuk lokasi ini: '.$invalidIds->implode(', '));
+        }
+
+        $mappedKeys = $this->syncCatalog->mappedStoreLocationKeys();
+        $created = 0;
+        $skipped = 0;
+
+        foreach ($selectedStoreIds as $storeId) {
+            $pairKey = $this->syncCatalog->pairKey($storeId, $locationId);
+            if (isset($mappedKeys[$pairKey])) {
+                $skipped++;
+
+                continue;
+            }
+
+            $store = $storesById->get($storeId);
+
+            Jubeliosync::create([
+                'jubelio_store_id' => $storeId,
+                'jubelio_store_name' => $store['store_name'],
+                'jubelio_location_id' => $locationId,
+                'jubelio_location_name' => $validated['location_name'],
+                'warehouse_id' => (int) $validated['warehouse_id'],
+                'customer_id' => (int) ($validated['customer_id'] ?? 0),
                 'bin_id' => 0,
-                'created_at' => Carbon::now(),
-                'updated_at' => Carbon::now(),
-            ];
+            ]);
+            $created++;
         }
 
-        DB::table('jubeliosyncs')->insert($syncArray);
+        if ($created === 0) {
+            return redirect()->route('jubelio.sync.index')
+                ->with('fail', 'Tidak ada mapping baru — marketplace yang dipilih sudah ada.');
+        }
 
-        return redirect()->route('jubelio.sync.index')->with('success', 'Jubelio sync created.');
+        $message = $created === 1
+            ? '1 mapping marketplace dibuat.'
+            : "{$created} mapping marketplace dibuat.";
+
+        if ($skipped > 0) {
+            $message .= " {$skipped} sudah ada dan dilewati.";
+        }
+
+        return redirect()->route('jubelio.sync.index')->with('success', $message);
     }
 
     /**
@@ -160,6 +191,49 @@ class JubelioSyncController extends Controller
         $sync->delete();
 
         return redirect()->route('jubelio.sync.index')->with('success', 'Jubelio sync deleted.');
+    }
+
+    /**
+     * List Jubelio store channels not yet mapped in Aria (for locations we already use).
+     */
+    public function discover(): View
+    {
+        Gate::authorize(Jubelio::getPermissions()['sync']);
+
+        $unmapped = $this->syncCatalog->discoverUnmappedStores();
+
+        return view('jubelio.sync.discover', [
+            'unmapped' => $unmapped,
+            'flash' => ['success' => session('success'), 'error' => session('errorMessage') ?? session('error')],
+        ]);
+    }
+
+    /**
+     * JSON: stores at a Jubelio location, with mapped flag for the create form.
+     */
+    public function locationStores(int $locationId): JsonResponse
+    {
+        Gate::authorize(Jubelio::getPermissions()['sync']);
+
+        $stores = $this->syncCatalog->fetchStoresForLocation($locationId);
+
+        if ($stores === null) {
+            return response()->json(['message' => 'Gagal mengambil marketplace dari Jubelio.'], 502);
+        }
+
+        $mappedKeys = $this->syncCatalog->mappedStoreLocationKeys();
+
+        $payload = collect($stores)->map(function (array $store) use ($locationId, $mappedKeys) {
+            $key = $this->syncCatalog->pairKey($store['store_id'], $locationId);
+
+            return [
+                'store_id' => $store['store_id'],
+                'store_name' => $store['store_name'],
+                'mapped' => isset($mappedKeys[$key]),
+            ];
+        })->values();
+
+        return response()->json(['stores' => $payload]);
     }
 
     /**

@@ -128,6 +128,8 @@ Route::middleware(['auth', 'verified', 'active'])->group(function () {
     // Jubelio Sync Mappings
     Route::get('jubelio-sync', [App\Http\Controllers\JubelioSyncController::class, 'index'])->name('jubelio.sync.index');
     Route::get('jubelio-sync/create', [App\Http\Controllers\JubelioSyncController::class, 'create'])->name('jubelio.sync.create');
+    Route::get('jubelio-sync/discover', [App\Http\Controllers\JubelioSyncController::class, 'discover'])->name('jubelio.sync.discover');
+    Route::get('jubelio-sync/locations/{locationId}/stores', [App\Http\Controllers\JubelioSyncController::class, 'locationStores'])->name('jubelio.sync.locationStores');
     Route::post('jubelio-sync', [App\Http\Controllers\JubelioSyncController::class, 'store'])->name('jubelio.sync.store');
     Route::post('jubelio-sync/refresh-bins', [App\Http\Controllers\JubelioSyncController::class, 'refreshAllBins'])->name('jubelio.sync.refreshBins');
     Route::get('jubelio-sync/{sync}/edit', [App\Http\Controllers\JubelioSyncController::class, 'edit'])->name('jubelio.sync.edit');
