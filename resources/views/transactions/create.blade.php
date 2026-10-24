@@ -361,7 +361,7 @@
                                     Memuat stok Jubelio…
                                 </p>
                                 <p x-show="jubelioStockInfoLine(item)" x-cloak
-                                   class="mt-1 text-[10px] font-mono text-gray-600"
+                                   class="mt-1 text-[10px] text-gray-600"
                                    data-testid="jubelio-stock-info"
                                    x-text="jubelioStockInfoLine(item)"></p>
                                 <p x-show="item.jubelio_stock_warning" x-cloak
