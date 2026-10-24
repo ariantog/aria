@@ -116,13 +116,14 @@ $events = $settings['events'] ?? [];
         <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
             <div class="border-b border-gray-200 px-6 py-4">
                 <h3 class="text-lg font-semibold text-gray-900">Event → @ mention</h3>
-                <p class="mt-1 text-sm text-gray-500">Roster = @ users with matching staff role, Lark Open ID, and notify enabled.</p>
+                <p class="mt-1 text-sm text-gray-500">Matikan <span class="font-medium">Kirim Lark</span> untuk menonaktifkan kartu event tanpa mengubah scanner/cron. Roster = @ users with matching staff role, Lark Open ID, and notify enabled.</p>
             </div>
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200 text-sm">
                     <thead class="bg-gray-50">
                         <tr>
                             <th class="px-4 py-3 text-left font-medium text-gray-700">Event</th>
+                            <th class="px-4 py-3 text-left font-medium text-gray-700">Kirim Lark</th>
                             <th class="px-4 py-3 text-left font-medium text-gray-700">Mention</th>
                             <th class="px-4 py-3 text-left font-medium text-gray-700">Staff roles</th>
                         </tr>
@@ -130,14 +131,27 @@ $events = $settings['events'] ?? [];
                     <tbody class="divide-y divide-gray-100">
                         @foreach($eventLabels as $eventKey => $label)
                             @php
-                                $row = $events[$eventKey] ?? ['mention' => 'none', 'roles' => []];
+                                $row = $events[$eventKey] ?? ['send_enabled' => true, 'mention' => 'none', 'roles' => []];
                                 $mention = old("events.{$eventKey}.mention", $row['mention'] ?? 'none');
                                 $selectedRoles = old("events.{$eventKey}.roles", $row['roles'] ?? []);
+                                $sendEnabled = (bool) old("events.{$eventKey}.send_enabled", $row['send_enabled'] ?? true);
                             @endphp
                             <tr>
                                 <td class="px-4 py-3 align-top">
                                     <div class="font-medium text-gray-900">{{ $label }}</div>
                                     <div class="font-mono text-xs text-gray-400">{{ $eventKey }}</div>
+                                </td>
+                                <td class="px-4 py-3 align-top">
+                                    @if($canEdit)
+                                        <input type="hidden" name="events[{{ $eventKey }}][send_enabled]" value="0">
+                                    @endif
+                                    <label class="inline-flex items-center gap-2 text-gray-700">
+                                        <input type="checkbox" name="events[{{ $eventKey }}][send_enabled]" value="1"
+                                               @checked($sendEnabled)
+                                               @disabled(! $canEdit)
+                                               class="rounded border-gray-300 text-blue-600">
+                                        <span class="text-xs">Aktif</span>
+                                    </label>
                                 </td>
                                 <td class="px-4 py-3 align-top">
                                     <select name="events[{{ $eventKey }}][mention]" class="rounded-md border border-gray-300 px-2 py-1.5 text-sm" @disabled(! $canEdit)>

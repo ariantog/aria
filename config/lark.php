@@ -44,13 +44,13 @@ return [
      * event_key => mention mode: none | roster, and staff role slugs for @ roster (Package 2).
      */
     'events' => [
-        'jubelio.oversell.webhook' => ['mention' => 'none', 'roles' => []],
-        'stock.low_cover' => ['mention' => 'none', 'roles' => []],
-        'stock.low_cover.both' => ['mention' => 'roster', 'roles' => ['produk', 'gudang', 'penjualan_online']],
-        'stock.mismatch' => ['mention' => 'roster', 'roles' => ['penjualan_online', 'gudang']],
-        'jubelio.oversell.blocked' => ['mention' => 'roster', 'roles' => ['penjualan_online', 'gudang']],
-        'jubelio.error.backlog' => ['mention' => 'roster', 'roles' => ['penjualan_online']],
-        'stock.restock.pending' => ['mention' => 'none', 'roles' => []],
+        'jubelio.oversell.webhook' => ['send_enabled' => true, 'mention' => 'none', 'roles' => []],
+        'stock.low_cover' => ['send_enabled' => true, 'mention' => 'none', 'roles' => []],
+        'stock.low_cover.both' => ['send_enabled' => true, 'mention' => 'roster', 'roles' => ['produk', 'gudang', 'penjualan_online']],
+        'stock.mismatch' => ['send_enabled' => true, 'mention' => 'roster', 'roles' => ['penjualan_online', 'gudang']],
+        'jubelio.oversell.blocked' => ['send_enabled' => true, 'mention' => 'roster', 'roles' => ['penjualan_online', 'gudang']],
+        'jubelio.error.backlog' => ['send_enabled' => true, 'mention' => 'roster', 'roles' => ['penjualan_online']],
+        'stock.restock.pending' => ['send_enabled' => true, 'mention' => 'none', 'roles' => []],
     ],
 
 ];

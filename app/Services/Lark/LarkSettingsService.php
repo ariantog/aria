@@ -126,15 +126,30 @@ class LarkSettingsService
         return trim($template);
     }
 
+    public function eventSendEnabled(string $eventKey): bool
+    {
+        $events = $this->all()['events'] ?? [];
+        $config = $events[$eventKey] ?? null;
+        if (! is_array($config)) {
+            return true;
+        }
+
+        if (! array_key_exists('send_enabled', $config)) {
+            return true;
+        }
+
+        return (bool) $config['send_enabled'];
+    }
+
     /**
-     * @return array{mention: string, roles: list<string>}
+     * @return array{send_enabled: bool, mention: string, roles: list<string>}
      */
     public function eventConfig(string $eventKey): array
     {
         $events = $this->all()['events'] ?? [];
         $config = $events[$eventKey] ?? null;
         if (! is_array($config)) {
-            return ['mention' => 'none', 'roles' => []];
+            return ['send_enabled' => true, 'mention' => 'none', 'roles' => []];
         }
 
         $mention = ($config['mention'] ?? 'none') === 'roster' ? 'roster' : 'none';
@@ -143,7 +158,11 @@ class LarkSettingsService
             fn ($slug) => is_string($slug) && $slug !== '',
         ));
 
-        return ['mention' => $mention, 'roles' => $roles];
+        return [
+            'send_enabled' => $this->eventSendEnabled($eventKey),
+            'mention' => $mention,
+            'roles' => $roles,
+        ];
     }
 
     /**
@@ -153,6 +172,7 @@ class LarkSettingsService
     {
         $defaults = $this->defaults();
         $eventKeys = array_keys($defaults['events'] ?? $this->eventLabels());
+        $existingEvents = $this->all()['events'] ?? [];
 
         $events = [];
         foreach ($eventKeys as $key) {
@@ -168,7 +188,16 @@ class LarkSettingsService
                     }
                 }
             }
-            $events[$key] = ['mention' => $mention, 'roles' => array_values(array_unique($roleSlugs))];
+            if (array_key_exists('send_enabled', $row)) {
+                $sendEnabled = ! empty($row['send_enabled']);
+            } else {
+                $sendEnabled = (bool) ($existingEvents[$key]['send_enabled'] ?? true);
+            }
+            $events[$key] = [
+                'send_enabled' => $sendEnabled,
+                'mention' => $mention,
+                'roles' => array_values(array_unique($roleSlugs)),
+            ];
         }
 
         $template = isset($input['jubelio_order_url_template']) ? trim((string) $input['jubelio_order_url_template']) : '';
@@ -224,9 +253,15 @@ class LarkSettingsService
         $storedEvents = is_array($stored['events'] ?? null) ? $stored['events'] : [];
         $events = [];
         foreach (array_keys($this->eventLabels()) as $key) {
-            $base = is_array($defaultEvents[$key] ?? null) ? $defaultEvents[$key] : ['mention' => 'none', 'roles' => []];
+            $base = is_array($defaultEvents[$key] ?? null) ? $defaultEvents[$key] : ['send_enabled' => true, 'mention' => 'none', 'roles' => []];
             $over = is_array($storedEvents[$key] ?? null) ? $storedEvents[$key] : [];
-            $events[$key] = array_merge($base, $over);
+            $eventRow = array_merge($base, $over);
+            if (! array_key_exists('send_enabled', $eventRow)) {
+                $eventRow['send_enabled'] = true;
+            } else {
+                $eventRow['send_enabled'] = (bool) $eventRow['send_enabled'];
+            }
+            $events[$key] = $eventRow;
         }
         $merged['events'] = $events;
 

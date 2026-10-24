@@ -26,6 +26,26 @@ function larkSettingsNonSuperadminUser(): User
     return User::factory()->create();
 }
 
+test('lark settings mergeStored keeps thresholds when stored payload is partial', function () {
+    Setting::query()->updateOrCreate(
+        ['slug' => LarkSettingsService::SETTING_SLUG],
+        [
+            'name' => 'Lark Ops Settings',
+            'group' => 'lark',
+            'value' => [
+                'jubelio' => ['error_backlog_threshold' => 99],
+                'events' => [],
+            ],
+            'location_id' => 0,
+        ],
+    );
+
+    $service = app(LarkSettingsService::class);
+
+    expect($service->lowCover()['default_cover_days'])->toBeGreaterThan(0);
+    expect($service->jubelio()['error_backlog_threshold'])->toBe(99);
+});
+
 test('low cover lark alerts default to asset lancar item type only', function () {
     $service = app(LarkSettingsService::class);
 
@@ -66,7 +86,7 @@ test('lark settings can be saved and read back', function () {
             'jubelio_order_url_template' => 'https://jub.example/{invoice}',
             'low_cover_alert_item_types' => [ItemType::ASSET_LANCAR->value],
             'events' => [
-                'jubelio.oversell.webhook' => ['mention' => 'roster', 'roles' => [$role->slug]],
+                'jubelio.oversell.webhook' => ['send_enabled' => '1', 'mention' => 'roster', 'roles' => [$role->slug]],
             ],
         ])
         ->assertRedirect(route('lark-settings.index'));
@@ -76,7 +96,8 @@ test('lark settings can be saved and read back', function () {
     expect($service->jubelio()['error_backlog_threshold'])->toBe(40);
     expect($service->jubelioOrderUrlTemplate())->toBe('https://jub.example/{invoice}');
     expect($service->eventConfig('jubelio.oversell.webhook'))
-        ->toMatchArray(['mention' => 'roster', 'roles' => ['gudang']]);
+        ->toMatchArray(['send_enabled' => true, 'mention' => 'roster', 'roles' => ['gudang']]);
+    expect($service->eventSendEnabled('jubelio.oversell.webhook'))->toBeTrue();
 
     expect(Setting::query()->where('slug', LarkSettingsService::SETTING_SLUG)->exists())->toBeTrue();
 });
