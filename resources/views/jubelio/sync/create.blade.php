@@ -33,6 +33,7 @@ $storesUrlTemplate = route('jubelio.sync.locationStores', ['locationId' => '__LO
                     selectedLocationId: @js(old('location_id', $preselectedLocationId ?? '')),
                     preselectedStoreIds: @js($preselectedStoreIds ?? []),
                     stores: [],
+                    warehouseId: @js((string) old('warehouse_id', '')),
                     selectedStoreIds: @js(array_map('intval', old('store_ids', $preselectedStoreIds ?? []))),
                     loadingStores: false,
                     storesError: '',
@@ -57,9 +58,12 @@ $storesUrlTemplate = route('jubelio.sync.locationStores', ['locationId' => '__LO
                             .then(r => r.ok ? r.json() : Promise.reject())
                             .then(data => {
                                 this.stores = data.stores || [];
-                                const available = this.stores.filter(s => !s.mapped).map(s => s.store_id);
+                                const available = this.stores.filter(s => !s.mapped).map(s => Number(s.store_id));
+                                this.selectedStoreIds = this.selectedStoreIds.map(id => Number(id));
                                 if (this.selectedStoreIds.length === 0 && this.preselectedStoreIds.length) {
-                                    this.selectedStoreIds = this.preselectedStoreIds.filter(id => available.includes(id));
+                                    this.selectedStoreIds = this.preselectedStoreIds
+                                        .map(id => Number(id))
+                                        .filter(id => available.includes(id));
                                 } else {
                                     this.selectedStoreIds = this.selectedStoreIds.filter(id => available.includes(id));
                                 }
@@ -67,15 +71,10 @@ $storesUrlTemplate = route('jubelio.sync.locationStores', ['locationId' => '__LO
                             .catch(() => { this.storesError = 'Gagal memuat daftar marketplace.'; this.stores = []; })
                             .finally(() => { this.loadingStores = false; });
                     },
-                    toggleStore(id) {
-                        if (this.selectedStoreIds.includes(id)) {
-                            this.selectedStoreIds = this.selectedStoreIds.filter(x => x !== id);
-                        } else {
-                            this.selectedStoreIds.push(id);
-                        }
-                    },
                     canSubmit() {
-                        return document.getElementById('warehouse_id').value && this.selectedStoreIds.length > 0 && this.selectedLocationId;
+                        return String(this.warehouseId || '').length > 0
+                            && this.selectedStoreIds.length > 0
+                            && String(this.selectedLocationId || '').length > 0;
                     },
                     init() {
                         if (this.selectedLocationId) {
@@ -87,7 +86,7 @@ $storesUrlTemplate = route('jubelio.sync.locationStores', ['locationId' => '__LO
                 @csrf
                 <input type="hidden" name="location_id" id="location_id" value="{{ old('location_id', $preselectedLocationId ?? '') }}">
                 <input type="hidden" name="location_name" id="location_name" value="{{ old('location_name') }}">
-                <input type="hidden" name="warehouse_id" id="warehouse_id" value="{{ old('warehouse_id') }}">
+                <input type="hidden" name="warehouse_id" id="warehouse_id" x-model="warehouseId" value="{{ old('warehouse_id') }}">
                 <input type="hidden" name="customer_id" id="customer_id" value="{{ old('customer_id') }}">
                 <template x-for="storeId in selectedStoreIds" :key="storeId">
                     <input type="hidden" name="store_ids[]" :value="storeId">
@@ -120,8 +119,8 @@ $storesUrlTemplate = route('jubelio.sync.locationStores', ['locationId' => '__LO
                                 <input type="checkbox"
                                        class="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                                        :disabled="store.mapped"
-                                       :checked="selectedStoreIds.includes(store.store_id)"
-                                       @change="toggleStore(store.store_id)">
+                                       :value="Number(store.store_id)"
+                                       x-model.number="selectedStoreIds">
                                 <span>
                                     <span class="block text-sm font-medium text-gray-900" x-text="store.store_name"></span>
                                     <span class="text-xs text-gray-400" x-show="store.mapped">Sudah dipetakan</span>

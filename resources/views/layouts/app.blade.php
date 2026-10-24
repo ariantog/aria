@@ -1051,7 +1051,10 @@ function asyncCombobox(config) {
             this.activeIndex = -1;
             if (this.hiddenField) {
                 const el = document.getElementById(this.hiddenField);
-                if (el) el.value = item ? item.id : '';
+                if (el) {
+                    el.value = item ? item.id : '';
+                    el.dispatchEvent(new Event('input', { bubbles: true }));
+                }
             }
             if (this.onSelect) this.onSelect(item);
             if (item) suppressFieldNavigation(400);
