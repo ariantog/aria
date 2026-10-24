@@ -56,7 +56,7 @@ class StandaloneInvoicesController extends Controller
 
         return view('invoice-maker.form', [
             'invoice' => null,
-            'presets' => $settingsService->presets(),
+            'presets' => $settingsService->presetsForForm(),
             'selectedPreset' => $settingsService->defaultPreset(),
             'warehouseLookupUrl' => route('transactions.lookup', [
                 'type' => 'sell',
@@ -114,7 +114,7 @@ class StandaloneInvoicesController extends Controller
 
         return view('invoice-maker.form', [
             'invoice' => $invoice,
-            'presets' => $settingsService->presets(),
+            'presets' => $settingsService->presetsForForm(),
             'selectedPreset' => $selectedPreset ?? $settingsService->defaultPreset(),
             'warehouseLookupUrl' => route('transactions.lookup', [
                 'type' => 'sell',

@@ -151,8 +151,13 @@ $fmt = fn ($n) => format_currency($n);
         <div class="space-y-4 xl:col-span-5">
             <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm text-sm">
                 <h3 class="mb-2 font-semibold text-gray-900">Terms of Payment</h3>
+                @php
+                    $settingsService = app(\App\Services\InvoiceMakerSettingsService::class);
+                    $invoicePreset = $invoice->preset_id ? $settingsService->findPreset($invoice->preset_id) : null;
+                    $termsBankId = $invoicePreset ? $settingsService->presetBankId($invoicePreset) : null;
+                @endphp
                 <ul class="list-disc space-y-1 pl-5 text-gray-700">
-                    @foreach(app(\App\Services\InvoiceMakerSettingsService::class)->termsBullets($invoice->terms_of_payment) as $bullet)
+                    @foreach($settingsService->termsBullets($invoice->terms_of_payment, $termsBankId) as $bullet)
                         <li>{{ $bullet }}</li>
                     @endforeach
                 </ul>

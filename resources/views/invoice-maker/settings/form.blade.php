@@ -68,6 +68,18 @@ $breadcrumbs = [
             </div>
 
             <div>
+                <label for="bank_id" class="mb-1 block text-sm font-medium text-gray-700">Bank account (Aria)</label>
+                <select id="bank_id" name="bank_id" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500">
+                    <option value="">— No linked bank —</option>
+                    @foreach($banks as $bank)
+                        <option value="{{ $bank->id }}" @selected((string) old('bank_id', $preset['bank_id'] ?? '') === (string) $bank->id)>{{ $bank->name }}</option>
+                    @endforeach
+                </select>
+                <p class="mt-1 text-xs text-gray-500">Used for cash-in and PKP checks. The “Harga belum termasuk PPN” term is shown only when this bank belongs to an active PKP reporting entity.</p>
+                @error('bank_id')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+            </div>
+
+            <div>
                 <label for="pay_to" class="mb-1 block text-sm font-medium text-gray-700">Pay To</label>
                 <textarea id="pay_to" name="pay_to" rows="3"
                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500"

@@ -145,7 +145,8 @@ class StandaloneInvoiceService
         $signaturePath = $this->settingsService->pdfImagePath(
             $invoice->signature_path ?? $preset['signature_path'] ?? null
         );
-        $termsBullets = $this->settingsService->termsBullets($terms);
+        $bankId = $preset ? $this->settingsService->presetBankId($preset) : null;
+        $termsBullets = $this->settingsService->termsBullets($terms, $bankId);
         $payToParsed = $this->settingsService->parsePayTo($payTo);
 
         $template = $invoice->template;

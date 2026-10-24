@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Addrbook;
+use App\Models\ReportingEntity;
 use App\Models\StandaloneInvoice;
 use App\Models\StandaloneInvoiceLine;
 use App\Models\User;
@@ -40,6 +41,61 @@ it('converts terms of payment lines into bullets', function () {
     $service = app(InvoiceMakerSettingsService::class);
 
     expect($service->termsBullets("Line one\n\nLine two"))->toBe(['Line one', 'Line two']);
+});
+
+it('hides the ppn exclusion term when the preset bank is not on a pkp entity', function () {
+    $service = app(InvoiceMakerSettingsService::class);
+    $terms = "Pembayaran lunas.\nHarga belum termasuk PPN 11%.";
+
+    $nonPkpBank = Addrbook::factory()->bank()->create(['name' => 'Non PKP Bank']);
+    $entity = ReportingEntity::create(['name' => 'Non PKP Entity', 'slug' => 'non-pkp-entity', 'is_pkp' => false]);
+    $entity->banks()->attach($nonPkpBank->id, ['is_active' => true]);
+
+    expect($service->termsBullets($terms, $nonPkpBank->id))->toBe(['Pembayaran lunas.'])
+        ->and($service->termsBullets($terms, null))->toBe(['Pembayaran lunas.']);
+});
+
+it('shows the ppn exclusion term when the preset bank is on a pkp entity', function () {
+    $service = app(InvoiceMakerSettingsService::class);
+    $terms = "Pembayaran lunas.\nHarga belum termasuk PPN 11%.";
+
+    $pkpBank = Addrbook::factory()->bank()->create(['name' => 'PKP Bank']);
+    $entity = ReportingEntity::create(['name' => 'PKP Entity', 'slug' => 'pkp-entity', 'is_pkp' => true]);
+    $entity->banks()->attach($pkpBank->id, ['is_active' => true]);
+
+    expect($service->termsBullets($terms, $pkpBank->id))->toBe([
+        'Pembayaran lunas.',
+        'Harga belum termasuk PPN 11%.',
+    ]);
+});
+
+it('omits the ppn exclusion term on invoice show when preset bank is non-pkp', function () {
+    $service = app(InvoiceMakerSettingsService::class);
+    $bank = Addrbook::factory()->bank()->create(['name' => 'Invoice Non PKP Bank']);
+    $entity = ReportingEntity::create(['name' => 'Invoice Non PKP', 'slug' => 'invoice-non-pkp', 'is_pkp' => false]);
+    $entity->banks()->attach($bank->id, ['is_active' => true]);
+
+    $preset = $service->createPreset([
+        'name' => 'Non PKP Preset',
+        'terms_of_payment' => "Pembayaran lunas.\nHarga belum termasuk PPN 11%.",
+        'pay_to' => "BCA\n123",
+        'signatory_name' => 'Signatory',
+        'template' => StandaloneInvoice::TEMPLATE_CLASSIC,
+        'bank_id' => $bank->id,
+    ]);
+
+    $invoice = StandaloneInvoice::factory()->create([
+        'preset_id' => $preset['id'],
+        'terms_of_payment' => $preset['terms_of_payment'],
+        'sender_addrbook_id' => $this->warehouse->id,
+    ]);
+    StandaloneInvoiceLine::factory()->create(['standalone_invoice_id' => $invoice->id]);
+
+    $this->actingAs($this->user)
+        ->get(route('invoice-maker.show', $invoice))
+        ->assertOk()
+        ->assertSee('Pembayaran lunas.', false)
+        ->assertDontSee('Harga belum termasuk PPN', false);
 });
 
 it('creates a standalone invoice with free-text lines', function () {

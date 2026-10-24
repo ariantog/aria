@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\Addrbook;
+use App\Models\ReportingEntity;
 use App\Models\Setting;
 use App\Models\StandaloneInvoice;
 use Illuminate\Http\UploadedFile;
@@ -44,6 +46,7 @@ class InvoiceMakerSettingsService
      *     logo_path: ?string,
      *     logo_url: ?string,
      *     template: string,
+     *     bank_id: ?int,
      * }>
      */
     public function presets(): array
@@ -71,6 +74,7 @@ class InvoiceMakerSettingsService
      *     logo_path: ?string,
      *     logo_url: ?string,
      *     template: string,
+     *     bank_id: ?int,
      * }
      */
     public function defaultPreset(): array
@@ -100,6 +104,7 @@ class InvoiceMakerSettingsService
      *     logo_path: ?string,
      *     logo_url: ?string,
      *     template: string,
+     *     bank_id: ?int,
      * }|null
      */
     public function findPreset(string $id): ?array
@@ -120,6 +125,7 @@ class InvoiceMakerSettingsService
      *     pay_to: string,
      *     signatory_name: string,
      *     template: string,
+     *     bank_id?: int|null,
      * }  $data
      */
     public function createPreset(array $data, ?UploadedFile $signature = null, ?UploadedFile $logo = null): array
@@ -133,6 +139,7 @@ class InvoiceMakerSettingsService
             'signature_path' => null,
             'logo_path' => null,
             'template' => $data['template'] ?? StandaloneInvoice::TEMPLATE_CLASSIC,
+            'bank_id' => $this->normalizePresetBankId($data['bank_id'] ?? null),
         ];
 
         if ($signature) {
@@ -159,6 +166,7 @@ class InvoiceMakerSettingsService
      *     pay_to: string,
      *     signatory_name: string,
      *     template: string,
+     *     bank_id?: int|null,
      * }  $data
      */
     public function updatePreset(string $id, array $data, ?UploadedFile $signature = null, ?UploadedFile $logo = null): array
@@ -176,6 +184,7 @@ class InvoiceMakerSettingsService
             $preset['pay_to'] = $data['pay_to'] ?? '';
             $preset['signatory_name'] = $data['signatory_name'] ?? '';
             $preset['template'] = $data['template'] ?? StandaloneInvoice::TEMPLATE_CLASSIC;
+            $preset['bank_id'] = $this->normalizePresetBankId($data['bank_id'] ?? null);
 
             if ($signature) {
                 $this->deleteSignatureFiles($preset['id']);
@@ -227,13 +236,70 @@ class InvoiceMakerSettingsService
     }
 
     /**
+     * Presets for the invoice form, with terms lines filtered for PKP bank rules.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function presetsForForm(): array
+    {
+        return array_map(function (array $preset) {
+            $bankId = $this->presetBankId($preset);
+            $preset['terms_lines'] = $this->termsBullets($preset['terms_of_payment'] ?? '', $bankId);
+
+            return $preset;
+        }, $this->presets());
+    }
+
+    /**
+     * @param  array<string, mixed>  $preset
+     */
+    public function presetBankId(array $preset): ?int
+    {
+        return $this->normalizePresetBankId($preset['bank_id'] ?? null);
+    }
+
+    public function presetUsesPkpBank(?int $bankId): bool
+    {
+        if ($bankId === null || $bankId < 1) {
+            return false;
+        }
+
+        $isBank = Addrbook::query()
+            ->whereKey($bankId)
+            ->where('type', Addrbook::TYPE_BANK)
+            ->exists();
+
+        if (! $isBank) {
+            return false;
+        }
+
+        $entity = ReportingEntity::findActiveForBank($bankId);
+
+        return (bool) ($entity?->is_pkp ?? false);
+    }
+
+    public function isPpnExclusionTermsLine(string $line): bool
+    {
+        return (bool) preg_match('/harga\s+belum\s+termasuk\s+ppn/ui', $line);
+    }
+
+    /**
      * @return list<string>
      */
-    public function termsBullets(?string $terms): array
+    public function termsBullets(?string $terms, ?int $bankId = null): array
     {
         $lines = preg_split('/\R+/', (string) $terms) ?: [];
 
-        return array_values(array_filter(array_map('trim', $lines), fn (string $line) => $line !== ''));
+        $bullets = array_values(array_filter(array_map('trim', $lines), fn (string $line) => $line !== ''));
+
+        if ($this->presetUsesPkpBank($bankId)) {
+            return $bullets;
+        }
+
+        return array_values(array_filter(
+            $bullets,
+            fn (string $line) => ! $this->isPpnExclusionTermsLine($line)
+        ));
     }
 
     /**
@@ -355,6 +421,7 @@ class InvoiceMakerSettingsService
             'signature_path' => $legacySignature,
             'logo_path' => $legacyLogo,
             'template' => (string) (Setting::getValue(self::LEGACY_SETTING_TEMPLATE) ?? StandaloneInvoice::TEMPLATE_CLASSIC),
+            'bank_id' => null,
         ];
     }
 
@@ -417,6 +484,7 @@ class InvoiceMakerSettingsService
                 'signature_path' => $preset['signature_path'] ?? null,
                 'logo_path' => $preset['logo_path'] ?? null,
                 'template' => (string) ($preset['template'] ?? StandaloneInvoice::TEMPLATE_CLASSIC),
+                'bank_id' => $this->normalizePresetBankId($preset['bank_id'] ?? null),
             ];
         }, array_values($presets));
 
@@ -636,5 +704,16 @@ class InvoiceMakerSettingsService
             ['slug' => $slug],
             ['group' => 'Invoice', 'name' => $name, 'value' => $value]
         );
+    }
+
+    private function normalizePresetBankId(mixed $bankId): ?int
+    {
+        if ($bankId === null || $bankId === '') {
+            return null;
+        }
+
+        $id = (int) $bankId;
+
+        return $id > 0 ? $id : null;
     }
 }
