@@ -39,6 +39,11 @@ $breadcrumbs = [
                     Cek semua bin
                 </button>
             </form>
+            <a href="{{ route('jubelio.sync.discover') }}"
+               class="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100"
+               data-testid="jubelio-sync-discover">
+                Marketplace baru
+            </a>
             <a href="{{ route('jubelio.sync.create') }}" class="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-800">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                 Create Mapping
