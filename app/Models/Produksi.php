@@ -180,6 +180,11 @@ class Produksi extends Model
         return strtoupper(base_convert((string) $this->original_id, 10, 36));
     }
 
+    public function isSplitChild(): bool
+    {
+        return (int) $this->original_id > 0;
+    }
+
     public static function getPermissions(): array
     {
         return [
