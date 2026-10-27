@@ -224,16 +224,38 @@ class ProduksiController extends Controller
     public function update(Request $request, Produksi $produksi)
     {
         Gate::authorize(Produksi::getPermissions()['edit']);
-        $validated = $request->validate([
+
+        $rules = [
+            'temp_name' => 'required|string|max:255',
             'warna' => 'nullable|string|max:255',
             'customer' => 'nullable|string|max:255',
             'surat_jalan_potong' => 'nullable|string|max:255',
-        ]);
-        $produksi->update([
+        ];
+
+        if (! $produksi->isSplitChild()) {
+            $rules['quantity'] = 'required|integer|min:1';
+        }
+
+        $validated = $request->validate($rules);
+
+        if ($produksi->isSplitChild() && $request->has('quantity') && (int) $request->input('quantity') !== (int) $produksi->quantity) {
+            return back()
+                ->withErrors(['quantity' => 'Quantity cannot be changed on a split entry.'])
+                ->withInput();
+        }
+
+        $payload = [
+            'temp_name' => trim($validated['temp_name']),
             'warna' => $validated['warna'] ? strtoupper($validated['warna']) : null,
             'customer' => $validated['customer'] ? strtoupper($validated['customer']) : null,
             'surat_jalan_potong' => $validated['surat_jalan_potong'] ?? null,
-        ]);
+        ];
+
+        if (! $produksi->isSplitChild()) {
+            $payload['quantity'] = (int) $validated['quantity'];
+        }
+
+        $produksi->update($payload);
 
         return back()->with('success', 'Basic info updated.');
     }

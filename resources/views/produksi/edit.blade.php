@@ -55,7 +55,12 @@ $breadcrumbs = [
 
         {{-- Right: edit forms --}}
         <div class="space-y-8 lg:col-span-2">
-            @include('produksi.setoran._basic-form', ['produksi' => $produksi, 'canEdit' => true])
+            @include('produksi.setoran._basic-form', [
+                'produksi' => $produksi,
+                'canEdit' => true,
+                'canEditKode' => true,
+                'canEditQuantity' => ! $produksi->isSplitChild(),
+            ])
 
             {{-- Split Form --}}
             <div class="rounded-xl border border-l-4 border-gray-200 border-l-orange-500 bg-white p-6 shadow-md" x-data="{

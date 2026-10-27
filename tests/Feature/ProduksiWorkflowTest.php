@@ -46,6 +46,92 @@ it('shows split lineage on produksi index', function () {
     $response->assertSee(route('produksi.edit', $parent->id), false);
 });
 
+it('updates kode and quantity on parent produksi edit', function () {
+    $worker = Worker::create(['name' => 'Cutter', 'type' => Worker::TYPE_POTONG]);
+    $size = Tag::create(['name' => 'L', 'type' => Tag::TYPE_SIZE, 'item_type' => 0]);
+
+    $produksi = Produksi::create([
+        'temp_name' => 'Old Kode',
+        'size_id' => $size->id,
+        'quantity' => 10,
+        'potong_id' => $worker->id,
+        'potong_date' => now(),
+        'status' => Produksi::STATUS_PRODUKSI,
+    ]);
+
+    $response = $this->actingAs($this->user)->patch("/produksi/{$produksi->id}", [
+        'temp_name' => 'New Kode',
+        'quantity' => 12,
+        'warna' => 'MERAH',
+        'customer' => 'TEST CO',
+        'surat_jalan_potong' => 'SJP-1',
+    ]);
+
+    $response->assertRedirect();
+    $response->assertSessionHas('success');
+
+    $produksi->refresh();
+    expect($produksi->temp_name)->toBe('New Kode')
+        ->and($produksi->quantity)->toBe(12)
+        ->and($produksi->warna)->toBe('MERAH');
+});
+
+it('allows kode edit but not quantity on split child produksi edit', function () {
+    $worker = Worker::create(['name' => 'Cutter', 'type' => Worker::TYPE_POTONG]);
+    $size = Tag::create(['name' => 'L', 'type' => Tag::TYPE_SIZE, 'item_type' => 0]);
+
+    $parent = Produksi::create([
+        'temp_name' => 'Parent Kode',
+        'size_id' => $size->id,
+        'quantity' => 7,
+        'potong_id' => $worker->id,
+        'potong_date' => now(),
+        'status' => Produksi::STATUS_PRODUKSI,
+    ]);
+
+    $split = Produksi::create([
+        'temp_name' => 'Parent Kode',
+        'size_id' => $size->id,
+        'quantity' => 3,
+        'potong_id' => $worker->id,
+        'potong_date' => now(),
+        'status' => Produksi::STATUS_PRODUKSI,
+        'original_id' => $parent->id,
+    ]);
+
+    $this->actingAs($this->user)->get("/produksi/{$split->id}/edit")
+        ->assertSuccessful()
+        ->assertSee('Split entries cannot change quantity here.')
+        ->assertDontSee('name="quantity"', false);
+
+    $response = $this->actingAs($this->user)->patch("/produksi/{$split->id}", [
+        'temp_name' => 'Split Renamed',
+        'quantity' => 99,
+        'warna' => null,
+        'customer' => null,
+        'surat_jalan_potong' => null,
+    ]);
+
+    $response->assertRedirect();
+    $response->assertSessionHasErrors('quantity');
+
+    $split->refresh();
+    expect($split->temp_name)->toBe('Parent Kode')
+        ->and($split->quantity)->toBe(3);
+
+    $ok = $this->actingAs($this->user)->patch("/produksi/{$split->id}", [
+        'temp_name' => 'Split Renamed',
+        'warna' => null,
+        'customer' => null,
+        'surat_jalan_potong' => null,
+    ]);
+
+    $ok->assertRedirect();
+    $ok->assertSessionHas('success');
+    expect($split->fresh()->temp_name)->toBe('Split Renamed')
+        ->and($split->fresh()->quantity)->toBe(3);
+});
+
 it('does not show qc reassignment on produksi edit page', function () {
     $worker = Worker::create(['name' => 'Cutter', 'type' => Worker::TYPE_POTONG]);
     $qc = Worker::create(['name' => 'QC One', 'type' => Worker::TYPE_QC]);
