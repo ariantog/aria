@@ -112,13 +112,25 @@ $initialDiscountAmount = old('discount_amount', $invoice?->discount_amount ?? 0)
                             </div>
                             <div class="sm:col-span-2">
                                 <label class="mb-1 block text-xs text-gray-500 sm:hidden">Qty</label>
-                                <input type="number" step="0.01" min="1" :name="'lines['+index+'][quantity]'" x-model.number="line.quantity" @input="recalc()" required
-                                       class="w-full rounded-md border border-gray-300 px-3 py-2 text-right text-sm focus:border-blue-500">
+                                <input type="hidden" :name="'lines['+index+'][quantity]'" :value="lineQuantitySubmitValue(line)">
+                                <input type="text" inputmode="decimal" autocomplete="off"
+                                       x-model="line.quantity_input"
+                                       @input="onLineQuantityInput(line)"
+                                       @blur="onLineQuantityBlur(line)"
+                                       placeholder="1"
+                                       class="w-full rounded-md border border-gray-300 px-3 py-2 text-right text-sm tabular-nums focus:border-blue-500"
+                                       :class="!lineQuantityValid(line) ? 'border-red-400 bg-red-50' : ''">
                             </div>
                             <div class="sm:col-span-2">
                                 <label class="mb-1 block text-xs text-gray-500 sm:hidden">Price</label>
-                                <input type="number" step="0.01" min="0" :name="'lines['+index+'][price]'" x-model.number="line.price" @input="recalc()" required
-                                       class="w-full rounded-md border border-gray-300 px-3 py-2 text-right text-sm focus:border-blue-500">
+                                <input type="hidden" :name="'lines['+index+'][price]'" :value="linePriceSubmitValue(line)">
+                                <input type="text" inputmode="decimal" autocomplete="off"
+                                       x-model="line.price_input"
+                                       @input="onLinePriceInput(line)"
+                                       @blur="onLinePriceBlur(line)"
+                                       placeholder="0"
+                                       class="w-full rounded-md border border-gray-300 px-3 py-2 text-right text-sm tabular-nums focus:border-blue-500"
+                                       :class="!(Number(line.price) >= 0) ? 'border-red-400 bg-red-50' : ''">
                             </div>
                             <div class="sm:col-span-2 text-right font-mono text-sm font-medium text-gray-900" x-text="formatCurrency(lineTotal(line))"></div>
                             <div class="sm:col-span-1 text-right">
@@ -256,8 +268,67 @@ function invoiceMakerForm(initial) {
     return {
         form: initial,
         init() {
+            this.form.lines.forEach((line) => this.syncLineDecimalInputs(line));
             this.recalc();
             this.applyPreset();
+        },
+        syncLineDecimalInputs(line) {
+            if (line.quantity_input === undefined) {
+                line.quantity_input = formatDecimalInputValue(line.quantity ?? 1);
+            }
+            if (line.price_input === undefined) {
+                line.price_input = formatDecimalInputValue(line.price ?? 0);
+            }
+            const qty = parseDecimalInputValue(line.quantity_input);
+            line.quantity = qty != null ? qty : (Number(line.quantity) || 1);
+            const price = parseDecimalInputValue(line.price_input);
+            line.price = price != null ? price : (Number(line.price) || 0);
+        },
+        onLineQuantityInput(line) {
+            line.quantity_input = sanitizeDecimalInputValue(line.quantity_input);
+            const parsed = parseDecimalInputValue(line.quantity_input);
+            if (parsed != null) {
+                line.quantity = parsed;
+            }
+            this.recalc();
+        },
+        onLineQuantityBlur(line) {
+            const parsed = parseDecimalInputValue(line.quantity_input);
+            if (parsed != null && Number.isFinite(parsed)) {
+                line.quantity = Math.round(parsed * 100) / 100;
+                line.quantity_input = formatDecimalInputValue(line.quantity);
+            } else {
+                line.quantity = null;
+                line.quantity_input = '';
+            }
+            this.recalc();
+        },
+        onLinePriceInput(line) {
+            line.price_input = sanitizeDecimalInputValue(line.price_input);
+            const parsed = parseDecimalInputValue(line.price_input);
+            if (parsed != null) {
+                line.price = parsed;
+            }
+            this.recalc();
+        },
+        onLinePriceBlur(line) {
+            const parsed = parseDecimalInputValue(line.price_input);
+            if (parsed != null && Number.isFinite(parsed)) {
+                line.price = Math.round(parsed * 100) / 100;
+                line.price_input = formatDecimalInputValue(line.price);
+            } else {
+                line.price = null;
+                line.price_input = '';
+            }
+            this.recalc();
+        },
+        lineQuantitySubmitValue(line) {
+            const q = Number(line.quantity);
+            return Number.isFinite(q) ? q : '';
+        },
+        linePriceSubmitValue(line) {
+            const p = Number(line.price);
+            return Number.isFinite(p) ? p : '';
         },
         selectedPreset() {
             const preset = this.form.presets.find((item) => item.id === this.form.preset_id);
@@ -276,7 +347,13 @@ function invoiceMakerForm(initial) {
         },
         applyPreset() {},
         addLine() {
-            this.form.lines.push({ description: '', quantity: 1, price: 0 });
+            this.form.lines.push({
+                description: '',
+                quantity: 1,
+                price: 0,
+                quantity_input: '1',
+                price_input: '0',
+            });
         },
         removeLine(index) {
             if (this.form.lines.length <= 1) return;
@@ -316,7 +393,7 @@ function invoiceMakerForm(initial) {
         },
         lineQuantityValid(line) {
             const q = Number(line.quantity);
-            if (Number.isNaN(q) || q < 1) return false;
+            if (!Number.isFinite(q) || q < 1) return false;
             return Math.abs(q - Math.round(q * 100) / 100) < 0.00001;
         },
         canSubmit() {

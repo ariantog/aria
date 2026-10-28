@@ -397,6 +397,15 @@ it('renders invoice maker pages for superadmin', function () {
     $this->actingAs($this->user)->get(route('invoice-maker.settings.create'))->assertOk()->assertSee('New Preset', false);
 });
 
+it('uses decimal text inputs for invoice line qty and price', function () {
+    $this->actingAs($this->user)
+        ->get(route('invoice-maker.create'))
+        ->assertOk()
+        ->assertSee('onLineQuantityInput', false)
+        ->assertSee('line.quantity_input', false)
+        ->assertSee('inputmode="decimal"', false);
+});
+
 it('updates an existing invoice preset', function () {
     $service = app(InvoiceMakerSettingsService::class);
     $preset = $service->createPreset([
