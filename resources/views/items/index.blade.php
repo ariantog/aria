@@ -17,7 +17,7 @@ $filtersStorageKey = $isAsset ? 'aria-assetlancar-index-filters-open' : 'aria-it
 $columnsStorageKey = $isAsset ? 'aria-assetlancar-index-columns' : 'aria-items-index-columns';
 @endphp
 
-<div class="flex flex-col gap-3 p-3 sm:p-4" x-data="itemsIndexPage(@js($filtersStorageKey), @js($columnsStorageKey), @js($isAsset))">
+<div class="flex flex-col gap-3 p-3 sm:p-4" x-data="itemsIndexPage(@js($filtersStorageKey), @js($columnsStorageKey), @js($isAsset), @js($can['view_cost'] ?? false))">
     {{-- Header --}}
     <div class="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
         <div>
@@ -47,6 +47,12 @@ $columnsStorageKey = $isAsset ? 'aria-assetlancar-index-columns' : 'aria-items-i
                     <input type="checkbox" x-model="showDesc" class="rounded border-gray-300">
                     Desc
                 </label>
+                @if($can['view_cost'] ?? false)
+                <label class="inline-flex items-center gap-1.5 text-sm text-gray-600">
+                    <input type="checkbox" x-model="showBaseCost" class="rounded border-gray-300" data-testid="items-index-toggle-base-cost">
+                    Base Cost
+                </label>
+                @endif
                 @if($isAsset)
                 <label class="inline-flex items-center gap-1.5 text-sm text-gray-600">
                     <input type="checkbox" x-model="showNb" class="rounded border-gray-300">
@@ -91,6 +97,9 @@ $columnsStorageKey = $isAsset ? 'aria-assetlancar-index-columns' : 'aria-items-i
                     <th class="px-3 py-2.5 text-left font-medium" x-show="showName">Name</th>
                     <th class="px-3 py-2.5 text-left font-medium" x-show="showDesc">Desc</th>
                     <th class="px-3 py-2.5 text-right font-medium">Price</th>
+                    @if($can['view_cost'] ?? false)
+                    <th class="px-3 py-2.5 text-right font-medium" x-show="showBaseCost">Base Cost</th>
+                    @endif
                     @if($isAsset)
                     <th class="px-3 py-2.5 text-left font-medium" x-show="showNb">NB</th>
                     @else
@@ -146,6 +155,9 @@ $columnsStorageKey = $isAsset ? 'aria-assetlancar-index-columns' : 'aria-items-i
                             <div class="truncate" title="{{ $item->catalogDescription() }}">{{ $item->catalogDescription() ?: '-' }}</div>
                         </td>
                         <td class="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-gray-800">{{ $idr($item->effectivePrice()) }}</td>
+                        @if($can['view_cost'] ?? false)
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-gray-700" x-show="showBaseCost" data-testid="item-list-base-cost-{{ $item->id }}">{{ $idr($item->effectiveCost()) }}</td>
+                        @endif
                         @if($isAsset)
                         <td class="max-w-[200px] px-3 py-2.5 text-gray-500" x-show="showNb">
                             <div class="truncate" title="{{ $item->catalogDescription2() }}">{{ $item->catalogDescription2() ?: '--' }}</div>
@@ -190,7 +202,7 @@ $columnsStorageKey = $isAsset ? 'aria-assetlancar-index-columns' : 'aria-items-i
 
 @push('scripts')
 <script>
-function itemsIndexPage(filtersStorageKey, columnsStorageKey, isAsset) {
+function itemsIndexPage(filtersStorageKey, columnsStorageKey, isAsset, canViewCost) {
     return {
         showImage: true,
         showGroup: true,
@@ -198,6 +210,8 @@ function itemsIndexPage(filtersStorageKey, columnsStorageKey, isAsset) {
         showName: true,
         showDesc: true,
         showNb: true,
+        showBaseCost: false,
+        canViewCost: !!canViewCost,
         filtersOpen: true,
         filtersStorageKey: filtersStorageKey,
         columnsStorageKey: columnsStorageKey,
@@ -229,6 +243,9 @@ function itemsIndexPage(filtersStorageKey, columnsStorageKey, isAsset) {
                 if (this.isAsset && typeof columns.showNb === 'boolean') {
                     this.showNb = columns.showNb;
                 }
+                if (this.canViewCost && typeof columns.showBaseCost === 'boolean') {
+                    this.showBaseCost = columns.showBaseCost;
+                }
             } catch (e) {}
 
             this.$watch('showImage', () => this.persistColumns());
@@ -238,6 +255,9 @@ function itemsIndexPage(filtersStorageKey, columnsStorageKey, isAsset) {
             this.$watch('showDesc', () => this.persistColumns());
             if (this.isAsset) {
                 this.$watch('showNb', () => this.persistColumns());
+            }
+            if (this.canViewCost) {
+                this.$watch('showBaseCost', () => this.persistColumns());
             }
         },
         persistColumns() {
@@ -250,6 +270,9 @@ function itemsIndexPage(filtersStorageKey, columnsStorageKey, isAsset) {
             };
             if (this.isAsset) {
                 payload.showNb = this.showNb;
+            }
+            if (this.canViewCost) {
+                payload.showBaseCost = this.showBaseCost;
             }
             localStorage.setItem(this.columnsStorageKey, JSON.stringify(payload));
         },

@@ -17,6 +17,11 @@ Route::get('dashboard', App\Http\Controllers\DashboardController::class)
     ->middleware(['auth', 'verified', 'active'])
     ->name('dashboard');
 
+Route::middleware(['auth', 'active', 'can:export-readonly', 'enforce.readonly', 'throttle:readonly-export'])->group(function (): void {
+    Route::get('exports/items.csv', [App\Http\Controllers\Readonly\ReadonlyItemExportController::class, 'indexCsv'])
+        ->name('exports.items.csv');
+});
+
 Route::get('my-checklist', [App\Http\Controllers\MyChecklistController::class, 'index'])
     ->middleware(['auth', 'verified', 'active'])
     ->name('my-checklist.index');
@@ -49,7 +54,7 @@ Route::get('shopee-ads/oauth/callback', [App\Http\Controllers\ShopeeAdsControlle
 Route::get('shopee-stock/oauth/callback', [App\Http\Controllers\ShopeeSyncController::class, 'oauthCallback'])
     ->name('shopee-stock.oauth.callback');
 
-Route::middleware(['auth', 'verified', 'active'])->group(function () {
+Route::middleware(['auth', 'verified', 'active', 'enforce.readonly'])->group(function () {
     Route::get('/permissions', [App\Http\Controllers\PermissionController::class, 'index'])->name('permissions.index');
     Route::post('/permissions/generate', [App\Http\Controllers\PermissionController::class, 'generate'])->name('permissions.generate');
     Route::resource('roles', App\Http\Controllers\RoleController::class);

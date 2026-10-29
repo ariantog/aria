@@ -4,6 +4,21 @@ This document is for an automated **Grok** agent that monitors **Aria Core** (La
 
 Human maintainers use Aria in a browser (Blade + Alpine.js). Grok should behave like a careful read-only operator with the same login.
 
+**Preferred bulk path:** use the **read-only export API** (`doc/grok-readonly-api.md`) — `GET /api/readonly/items`, `GET /exports/items.csv`, `GET /api/readonly/stock`. Do not scrape thousands of item show pages.
+
+---
+
+## Item catalog hierarchy (do not skip)
+
+Aria stores catalog and pricing at **parent group → colorway → SKU**. Reads resolve **SKU → parent** for **price / base cost (HPP)** via `ItemPricing` (`item_parent_prices` + per-SKU overrides). Colorway `item_group` legacy price columns are **ignored**.
+
+If Grok searches or exports using only raw `items.name` or `items.cost` without hierarchy resolution, results look **empty or wrong** (e.g. cost `0` on the SKU while parent group holds the real HPP). Always use:
+
+- Export API **`search=`** (matches code, pcode, alias, and display names through the hierarchy), or
+- UI list columns **Group** / **Colorway** and the item show **Base Cost** line (effective cost).
+
+Details: **`doc/item-catalog-hierarchy.md`**.
+
 ---
 
 ## What Aria is
@@ -137,6 +152,8 @@ Use a short structured summary:
 
 ## Related docs (humans / other agents)
 
+- **`doc/grok-readonly-api.md`** — Sanctum token, CSV/JSON export endpoints, permissions (`export-readonly`).
+- **`doc/item-catalog-hierarchy.md`** — parent / colorway / SKU; required for correct cost and title lookups.
 - **`AGENTS.md`** — full developer rules (stock, Jubelio, transactions); Grok does not need to implement code but should not contradict it.
 - **`doc/lark-aria-ops.md`** — Lark alerts for stock/Jubelio (cards are human-facing; Grok does not click **Terapkan restock** in Lark either unless maintainer says otherwise).
 
@@ -160,6 +177,9 @@ Use a short structured summary:
 | `/shopee-ads` | Ads automation status |
 | `/reports/inventory-health` | Inventory health report (filter via GET) |
 | `/reports/warehouse-item` | Warehouse item report |
+| `/api/readonly/items` | Item master JSON (token or session + `export-readonly`) |
+| `/exports/items.csv` | Full item CSV stream |
+| `/api/readonly/stock` | Warehouse qty JSON |
 
 Always confirm the deployed host name with the maintainer (staging vs production).
 
