@@ -8,7 +8,9 @@ use App\Http\Requests\StoreItemRequest;
 use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\ItemGroup;
+use App\Models\ReadonlyExport;
 use App\Models\Report;
+use App\Models\ShopeeStock;
 use App\Models\Tag;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
@@ -24,10 +26,9 @@ use App\Services\ItemStatsService;
 use App\Services\ItemTransactionQueryService;
 use App\Services\JubelioService;
 use App\Services\Shopee\WarehouseShopeeStockService;
-use App\Models\ShopeeStock;
 use App\Support\ItemInventorySettings;
-use App\Support\LikeSearch;
 use App\Support\ItemPricing;
+use App\Support\LikeSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 
@@ -1186,6 +1187,7 @@ class ItemsController extends Controller
             'edit_asset' => $u->can($p['asset-lancar-edit']),
             'delete' => $u->can($p['delete']),
             'delete_asset' => $u->can($p['asset-lancar-delete']),
+            'view_cost' => $u->can(ReadonlyExport::getPermissions()['cost-view']),
         ];
     }
 

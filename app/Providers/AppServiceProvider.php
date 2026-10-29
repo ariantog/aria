@@ -3,16 +3,19 @@
 namespace App\Providers;
 
 use App\Models\Addrbook;
-use App\Models\User;
 use App\Models\Transaction;
+use App\Models\User;
 use App\Observers\TransactionObserver;
 use App\Support\PermissionTableConfig;
 use App\View\Composers\AppComposer;
 use Carbon\CarbonImmutable;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
@@ -53,6 +56,10 @@ class AppServiceProvider extends ServiceProvider
             }
 
             return null;
+        });
+
+        RateLimiter::for('readonly-export', function (Request $request) {
+            return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
         });
 
         // Share sidebar data (user, permissions, roles, addrbook types, flash) with the Blade layout.
