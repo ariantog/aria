@@ -152,7 +152,7 @@ Use a short structured summary:
 
 ## Related docs (humans / other agents)
 
-- **`doc/grok-readonly-api.md`** — Sanctum token, CSV/JSON export endpoints, permissions (`export-readonly`).
+- **`doc/grok-readonly-api.md`** — bearer token + CSV/JSON export endpoints, permissions (`export-readonly`).
 - **`doc/item-catalog-hierarchy.md`** — parent / colorway / SKU; required for correct cost and title lookups.
 - **`AGENTS.md`** — full developer rules (stock, Jubelio, transactions); Grok does not need to implement code but should not contradict it.
 - **`doc/lark-aria-ops.md`** — Lark alerts for stock/Jubelio (cards are human-facing; Grok does not click **Terapkan restock** in Lark either unless maintainer says otherwise).

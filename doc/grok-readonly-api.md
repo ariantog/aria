@@ -35,22 +35,22 @@ Session cookie auth; CSRF not required for GET.
 
 ### API (JSON)
 
-**Laravel Sanctum** personal access token on user `grok`:
+Set a long random secret on the server (Grok bot vault — **never** in chat):
 
-```bash
-php artisan tinker --execute="
-\$u = \App\Models\User::where('username', 'grok')->firstOrFail();
-echo \$u->createToken('grok-bot', ['read-only'])->plainTextToken;
-"
+```env
+READONLY_EXPORT_BEARER_TOKEN=your-long-random-secret
+READONLY_EXPORT_USERNAME=grok
 ```
 
-Store the token in the Grok bot vault — **never** paste it in chat.
+The bearer token authenticates as that Aria user (must have `export-readonly` and must **not** be superadmin).
 
 Request header:
 
-`Authorization: Bearer <token>`
+`Authorization: Bearer <READONLY_EXPORT_BEARER_TOKEN>`
 
 Accept: `application/json`
+
+Session cookie auth also works if the bot logs in via the browser first.
 
 ---
 
@@ -118,10 +118,6 @@ curl -sS -b "aria_session=..." \
 
 ---
 
-## Production migration
+## Production setup
 
-Sanctum table (guarded):
-
-`php artisan migrate --path=database/migrations/2026_10_29_200827_create_personal_access_tokens_table.php`
-
-Also included in the production bootstrap bundle when that migration is wired into `2026_08_13_100000_production_database_bootstrap.php`.
+No extra database tables. After deploy, set `READONLY_EXPORT_BEARER_TOKEN` in `.env`, run permission generate, and assign `export-readonly` to user `grok`.

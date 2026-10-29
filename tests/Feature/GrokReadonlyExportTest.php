@@ -8,7 +8,6 @@ use App\Models\WarehouseItem;
 use App\Services\Items\ItemIdentityBuilder;
 use App\Support\ItemPricing;
 use Illuminate\Support\Facades\Route;
-use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\Models\Permission;
 
 beforeEach(function (): void {
@@ -67,7 +66,7 @@ it('registers readonly export routes as GET only', function (): void {
 
 it('returns hierarchy-aware base cost from parent group when SKU cost is unset', function (): void {
     $user = createGrokUser();
-    Sanctum::actingAs($user, ['read-only']);
+    $this->actingAs($user);
 
     $item = Item::factory()->create([
         'cost' => 0,
@@ -97,7 +96,7 @@ it('returns hierarchy-aware base cost from parent group when SKU cost is unset',
 
 it('does not mutate database when calling readonly export endpoints', function (): void {
     $user = createGrokUser();
-    Sanctum::actingAs($user, ['read-only']);
+    $this->actingAs($user);
 
     $item = Item::factory()->create();
     $before = snapshotWriteFingerprint();
@@ -123,7 +122,19 @@ it('forbids grok export user from POST mutations', function (): void {
 });
 
 it('returns 403 for readonly API without permission', function (): void {
-    Sanctum::actingAs(nonSuperadminUser());
+    $this->actingAs(nonSuperadminUser());
 
     $this->getJson('/api/readonly/items')->assertForbidden();
+});
+
+it('authenticates readonly API with bearer token', function (): void {
+    $user = createGrokUser();
+    config([
+        'readonly_export.bearer_token' => 'test-readonly-secret',
+        'readonly_export.username' => $user->username,
+    ]);
+
+    $this->withToken('test-readonly-secret')
+        ->getJson('/api/readonly/items?per_page=1')
+        ->assertSuccessful();
 });
