@@ -9,12 +9,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
-use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use FillsProductionColumnDefaults, HasApiTokens, HasFactory, Notifiable, TwoFactorAuthenticatable;
+    use FillsProductionColumnDefaults, HasFactory, Notifiable, TwoFactorAuthenticatable;
 
     use \Spatie\Permission\Traits\HasRoles {
         hasPermissionTo as protected spatieHasPermissionTo;

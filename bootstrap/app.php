@@ -36,6 +36,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'active' => \App\Http\Middleware\EnsureUserIsActive::class,
             'prevent.duplicate' => \App\Http\Middleware\PreventDuplicateSubmission::class,
             'enforce.readonly' => \App\Http\Middleware\EnforceReadonlyExportAccount::class,
+            'auth.readonly-export' => \App\Http\Middleware\AuthenticateReadonlyExport::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
