@@ -327,6 +327,7 @@ final class ItemCatalog
             'description' => 'item_description',
             'description2' => 'item_description2',
         ] as $field => $overrideKey) {
+            /** @var string $overrideKey */
             if (! isset($input->{$field}) && ! property_exists($input, $field)) {
                 continue;
             }
@@ -349,13 +350,17 @@ final class ItemCatalog
                 ->each(function (Item $item) use (
                     $field,
                     $override,
+                    $overrideKey,
+                    $input,
                     $editedItem,
                     $newGroupText,
                     $previousGroupTextValue,
                 ): void {
                     if ($item->id === $editedItem->id) {
-                        $item->{$field} = $override;
-                        $item->save();
+                        if (property_exists($input, $overrideKey) || isset($input->{$overrideKey})) {
+                            $item->{$field} = $override;
+                            $item->save();
+                        }
 
                         return;
                     }
@@ -397,6 +402,50 @@ final class ItemCatalog
         }
 
         Item::query()->where('group_id', $group->id)->update($updates);
+    }
+
+    /**
+     * After a colorway description save, clear only mirrored items.* copies. SKUs with
+     * empty text already inherit the group (protected). Real local overrides are kept.
+     *
+     * @param  array{description?: string, description2?: string}  $previousGroupText
+     */
+    public static function clearStaleDescriptionMirrorsForColorway(ItemGroup $group, array $previousGroupText): void
+    {
+        $group->refresh();
+
+        foreach (['description', 'description2'] as $field) {
+            if (! self::itemColumnExists($field)) {
+                continue;
+            }
+
+            $newGroupText = strtoupper(trim((string) ($group->{$field} ?? '')));
+            $previousGroupTextValue = strtoupper(trim((string) ($previousGroupText[$field] ?? '')));
+
+            Item::query()
+                ->where('group_id', $group->id)
+                ->get()
+                ->each(function (Item $item) use (
+                    $field,
+                    $newGroupText,
+                    $previousGroupTextValue,
+                ): void {
+                    $itemText = strtoupper(trim((string) ($item->{$field} ?? '')));
+
+                    if ($itemText === '') {
+                        return;
+                    }
+
+                    $isMirror = $previousGroupTextValue !== ''
+                        && $itemText === $previousGroupTextValue;
+                    $matchesNewGroup = $newGroupText !== '' && $itemText === $newGroupText;
+
+                    if ($isMirror || $matchesNewGroup) {
+                        $item->{$field} = '';
+                        $item->save();
+                    }
+                });
+        }
     }
 
     /**

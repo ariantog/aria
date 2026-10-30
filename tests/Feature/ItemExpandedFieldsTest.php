@@ -227,8 +227,9 @@ it('stores colorway descriptions on colorway edit and per-sku overrides on asset
         ->and((float) $item5->reseller_price)->toBe(95000.0)
         ->and($item5->catalogDescription())->toBe('5KG SPECIAL')
         ->and((float) $item5->catalogResellerPrice())->toBe(95000.0)
-        ->and(trim((string) ($item6->description ?? '')))->toBe('')
-        ->and($item6->catalogDescription())->toBe('UPDATED SHARED DESC')
+        ->and($item6->description)->toBe('6KG ONLY DESC')
+        ->and($item6->description2)->toBe('6KG NB')
+        ->and($item6->catalogDescription())->toBe('6KG ONLY DESC')
         ->and((float) $item6->catalogResellerPrice())->toBe(110000.0);
 });
 

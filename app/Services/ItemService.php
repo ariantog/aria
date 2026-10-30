@@ -236,6 +236,11 @@ class ItemService
                 'genre' => (int) ($group->genre ?? ($typeTag?->id ?? 0)),
             ];
 
+            $previousGroupText = [
+                'description' => trim((string) ($group->description ?? '')),
+                'description2' => trim((string) ($group->description2 ?? '')),
+            ];
+
             if ($this->inputIncludes($input, 'description')) {
                 $catalogAttributes['description'] = $input->description;
             }
@@ -251,7 +256,7 @@ class ItemService
             ItemCatalog::applyToGroup($group, $catalogAttributes);
 
             if ($this->inputIncludes($input, 'description') || $this->inputIncludes($input, 'description2')) {
-                ItemCatalog::resetDescriptionMirrorsForColorway($group);
+                ItemCatalog::clearStaleDescriptionMirrorsForColorway($group, $previousGroupText);
             }
 
             $mirror = [
