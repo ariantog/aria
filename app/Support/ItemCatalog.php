@@ -405,16 +405,24 @@ final class ItemCatalog
     }
 
     /**
-     * After a colorway description save, clear only mirrored items.* copies. SKUs with
-     * empty text already inherit the group (protected). Real local overrides are kept.
+     * After a colorway catalog save, clear only mirrored items.* copies for the fields
+     * that were submitted (description and/or NB / description2). SKUs with empty text
+     * already inherit the group (protected). Real local overrides are kept.
      *
      * @param  array{description?: string, description2?: string}  $previousGroupText
+     * @param  list<'description'|'description2'>  $fields
      */
-    public static function clearStaleDescriptionMirrorsForColorway(ItemGroup $group, array $previousGroupText): void
-    {
+    public static function clearStaleDescriptionMirrorsForColorway(
+        ItemGroup $group,
+        array $previousGroupText,
+        array $fields = ['description', 'description2'],
+    ): void {
         $group->refresh();
 
-        foreach (['description', 'description2'] as $field) {
+        foreach ($fields as $field) {
+            if (! in_array($field, ['description', 'description2'], true)) {
+                continue;
+            }
             if (! self::itemColumnExists($field)) {
                 continue;
             }

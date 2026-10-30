@@ -230,7 +230,49 @@ it('stores colorway descriptions on colorway edit and per-sku overrides on asset
         ->and($item6->description)->toBe('6KG ONLY DESC')
         ->and($item6->description2)->toBe('6KG NB')
         ->and($item6->catalogDescription())->toBe('6KG ONLY DESC')
+        ->and($item6->catalogDescription2())->toBe('6KG NB')
+        ->and($item5->catalogDescription2())->toBe('5KG NOTES')
         ->and((float) $item6->catalogResellerPrice())->toBe(110000.0);
+});
+
+it('keeps per-sku NB override when colorway description is updated without resubmitting NB', function () {
+    $sizeTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => '5KG', 'name' => '5KG']);
+    $warnaTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLACK', 'name' => 'BLACK']);
+    $group = ItemGroup::factory()->create([
+        'master' => 'DUMBBELL-05',
+        'variant' => 'BLACK',
+        'description' => 'SHARED DESC',
+        'description2' => 'SHARED NB',
+    ]);
+    $item = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'group_id' => $group->id,
+        'code' => 'DUMBBELL-05-BLACK-5KG',
+        'pcode' => 'DUMBBELL-05',
+        'description' => '',
+        'description2' => '5KG NB ONLY',
+    ]);
+    $item->tags()->attach([$sizeTag->id, $warnaTag->id]);
+
+    app(ItemService::class)->updateColorway(
+        $group,
+        (object) [
+            'pcode' => 'DUMBBELL-05',
+            'product_name' => 'Dumbbell',
+            'description' => 'UPDATED SHARED DESC',
+        ],
+        [
+            ['id' => $item->id, 'cost' => $item->cost],
+        ],
+    );
+
+    $item->refresh();
+    $group->refresh();
+
+    expect($group->description)->toBe('UPDATED SHARED DESC')
+        ->and($group->description2)->toBe('SHARED NB')
+        ->and($item->description2)->toBe('5KG NB ONLY')
+        ->and($item->catalogDescription2())->toBe('5KG NB ONLY');
 });
 
 it('shows separate global and per-sku description fields on asset lancar edit page', function () {
@@ -475,6 +517,7 @@ it('stores per-sku overrides when creating multiple asset lancar sizes', functio
                 'GLOVE-09-BLACK-S' => [
                     'price' => 110000,
                     'description' => 'SMALL ONLY',
+                    'description2' => 'SMALL NB',
                     'reseller_price' => 95000,
                 ],
             ],
@@ -488,6 +531,8 @@ it('stores per-sku overrides when creating multiple asset lancar sizes', functio
     expect($small)->not->toBeNull()
         ->and((float) $small->price)->toBe(110000.0)
         ->and($small->description)->toBe('SMALL ONLY')
+        ->and($small->description2)->toBe('SMALL NB')
+        ->and($small->catalogDescription2())->toBe('SMALL NB')
         ->and((float) $small->reseller_price)->toBe(95000.0)
         ->and($small->effectivePrice())->toBe(110000.0)
         ->and($medium->effectivePrice())->toBe(100000.0)

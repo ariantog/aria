@@ -255,8 +255,17 @@ class ItemService
 
             ItemCatalog::applyToGroup($group, $catalogAttributes);
 
-            if ($this->inputIncludes($input, 'description') || $this->inputIncludes($input, 'description2')) {
-                ItemCatalog::clearStaleDescriptionMirrorsForColorway($group, $previousGroupText);
+            $descriptionFieldsSaved = array_values(array_filter(
+                ['description', 'description2'],
+                fn (string $field): bool => $this->inputIncludes($input, $field),
+            ));
+
+            if ($descriptionFieldsSaved !== []) {
+                ItemCatalog::clearStaleDescriptionMirrorsForColorway(
+                    $group,
+                    $previousGroupText,
+                    $descriptionFieldsSaved,
+                );
             }
 
             $mirror = [
