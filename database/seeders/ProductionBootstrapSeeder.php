@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\User;
 use App\Services\PermissionGenerator;
+use App\Support\ObsoleteL10Permissions;
 use App\Support\ObsoleteReportPermissions;
 use App\Support\PermissionTableConfig;
 use Illuminate\Database\Seeder;
@@ -36,6 +37,7 @@ class ProductionBootstrapSeeder extends Seeder
         $this->migrateContributorPermission();
         $this->removeObsoleteAddrbookPermissions();
         $this->removeObsoleteReportPermissions();
+        $this->removeObsoleteL10Permissions();
         $this->syncSuperadminRolePermissions();
         $this->call(ScheduledTaskSeeder::class);
         $this->call(SettingSeeder::class);
@@ -117,6 +119,14 @@ class ProductionBootstrapSeeder extends Seeder
         $deleted = ObsoleteReportPermissions::remove();
         if ($deleted > 0) {
             $this->command?->info("Obsolete report permissions removed ({$deleted}).");
+        }
+    }
+
+    private function removeObsoleteL10Permissions(): void
+    {
+        $deleted = ObsoleteL10Permissions::remove();
+        if ($deleted > 0) {
+            $this->command?->info("Obsolete L10 permissions removed ({$deleted}).");
         }
     }
 

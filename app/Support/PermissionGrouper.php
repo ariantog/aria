@@ -5,21 +5,28 @@ namespace App\Support;
 use App\Models\Addrbook;
 use App\Models\Borongan;
 use App\Models\ChecklistTemplate;
+use App\Models\DataRetentionRun;
 use App\Models\Item;
 use App\Models\ItemGroup;
+use App\Models\ItemStockNotification;
 use App\Models\Jubelio;
 use App\Models\Karyawan;
+use App\Models\LarkOpsSettings;
 use App\Models\Location;
 use App\Models\Operation;
 use App\Models\Produksi;
+use App\Models\ReadonlyExport;
 use App\Models\Report;
 use App\Models\RestockSheet;
 use App\Models\ScheduledTask;
 use App\Models\Setting;
+use App\Models\ShopeeAds;
+use App\Models\ShopeeStock;
 use App\Models\StandaloneInvoice;
 use App\Models\Tag;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Models\UserActivityAudit;
 use App\Models\Worker;
 use Spatie\Permission\Models\Permission;
 
@@ -48,7 +55,13 @@ class PermissionGrouper
         'Transactions',
         'Invoice Maker',
         'Restock',
+        'Stock Notifications',
+        'Shopee Stock',
+        'Shopee Ads',
         'Reports',
+        'Archive',
+        'Read-only Export',
+        'User Activity',
         'Journals — Operations',
         'Journals — Accounts',
         'Production',
@@ -140,6 +153,13 @@ class PermissionGrouper
             [Setting::class, 'Settings'],
             [ScheduledTask::class, 'Cron Manager'],
             [Jubelio::class, 'Jubelio'],
+            [ItemStockNotification::class, 'Stock Notifications'],
+            [ShopeeStock::class, 'Shopee Stock'],
+            [ShopeeAds::class, 'Shopee Ads'],
+            [DataRetentionRun::class, 'Archive'],
+            [ReadonlyExport::class, 'Read-only Export'],
+            [UserActivityAudit::class, 'User Activity'],
+            [LarkOpsSettings::class, 'Settings'],
         ];
 
         foreach ($definitions as $definition) {

@@ -18,6 +18,11 @@ it('maps L12 permissions to model-aware groups', function () {
     expect(PermissionGrouper::resolveGroup('production-worker-list'))->toBe('Production — Workers');
     expect(PermissionGrouper::resolveGroup('invoice-maker-list'))->toBe('Invoice Maker');
     expect(PermissionGrouper::resolveGroup('transactions-edit-invoice'))->toBe('Transactions');
+    expect(PermissionGrouper::resolveGroup('export-readonly'))->toBe('Read-only Export');
+    expect(PermissionGrouper::resolveGroup('shopee-ads-view'))->toBe('Shopee Ads');
+    expect(PermissionGrouper::resolveGroup('stock-notification-list'))->toBe('Stock Notifications');
+    expect(PermissionGrouper::resolveGroup('archive-view'))->toBe('Archive');
+    expect(PermissionGrouper::resolveGroup('user-activity-audit-view'))->toBe('User Activity');
 });
 
 it('puts legacy orphan permission names in Other, not general', function () {
