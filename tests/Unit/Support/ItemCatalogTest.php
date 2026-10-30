@@ -231,6 +231,34 @@ test('syncDescriptionMirrorsForGroup clears mirrored sku text when override is c
         ->and($item->catalogDescription())->toBe('FLEECE DARK GREY');
 });
 
+test('clearStaleDescriptionMirrorsForColorway only processes fields included in the save', function () {
+    $group = ItemGroup::factory()->create([
+        'description' => 'SHARED DESC',
+        'description2' => 'SHARED NB',
+    ]);
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'description' => 'SHARED DESC',
+        'description2' => 'LOCAL NB',
+    ]);
+
+    ItemCatalog::applyToGroup($group, [
+        'description' => 'NEW SHARED DESC',
+    ]);
+
+    ItemCatalog::clearStaleDescriptionMirrorsForColorway($group, [
+        'description' => 'SHARED DESC',
+        'description2' => 'SHARED NB',
+    ], ['description']);
+
+    $item->refresh();
+
+    expect((string) $item->description)->toBe('')
+        ->and($item->description2)->toBe('LOCAL NB')
+        ->and(ItemCatalog::description($item))->toBe('NEW SHARED DESC')
+        ->and(ItemCatalog::description2($item))->toBe('LOCAL NB');
+});
+
 test('syncDescriptionMirrorsForGroup keeps local sku override when item_description is omitted', function () {
     $group = ItemGroup::factory()->create([
         'description' => 'FLEECE DARK GREY',
@@ -254,6 +282,34 @@ test('syncDescriptionMirrorsForGroup keeps local sku override when item_descript
     expect($item->description)->toBe('PS ABU')
         ->and($item->description2)->toBe('OLD NB')
         ->and(ItemCatalog::description($item))->toBe('PS ABU');
+});
+
+test('syncDescriptionMirrorsForGroup keeps local sku NB when item_description2 is omitted', function () {
+    $group = ItemGroup::factory()->create([
+        'description' => 'FLEECE DARK GREY',
+        'description2' => 'SHARED NB',
+    ]);
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'description' => '',
+        'description2' => 'SIZE NB',
+    ]);
+
+    $input = (object) [
+        'description' => 'FLEECE DARK GREY',
+        'description2' => 'UPDATED SHARED NB',
+    ];
+
+    ItemCatalog::applyToGroup($group, ['description2' => 'UPDATED SHARED NB']);
+    ItemCatalog::syncDescriptionMirrorsForGroup($group, $input, $item, [
+        'description' => 'FLEECE DARK GREY',
+        'description2' => 'SHARED NB',
+    ]);
+
+    $item->refresh();
+
+    expect($item->description2)->toBe('SIZE NB')
+        ->and(ItemCatalog::description2($item))->toBe('SIZE NB');
 });
 
 test('catalog description prefers group over mirrored duplicate item text', function () {
