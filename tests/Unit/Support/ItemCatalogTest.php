@@ -157,7 +157,81 @@ test('seedEmptyDescriptions fills blank group text and never overwrites catalog'
         ->and($emptyGroup->description2)->toBe('NOTE');
 });
 
-test('syncDescriptionMirrorsForGroup clears stale item text so catalog reads the group', function () {
+test('clearStaleDescriptionMirrorsForColorway clears mirrors but keeps empty and local sku text', function () {
+    $group = ItemGroup::factory()->create([
+        'description' => 'SHARED DESC',
+        'description2' => 'SHARED NB',
+    ]);
+    $mirrorItem = Item::factory()->create([
+        'group_id' => $group->id,
+        'description' => 'SHARED DESC',
+        'description2' => 'SHARED NB',
+    ]);
+    $inheritItem = Item::factory()->create([
+        'group_id' => $group->id,
+        'description' => '',
+        'description2' => '',
+    ]);
+    $localItem = Item::factory()->create([
+        'group_id' => $group->id,
+        'description' => 'LOCAL ONLY',
+        'description2' => 'LOCAL NB',
+    ]);
+
+    ItemCatalog::applyToGroup($group, [
+        'description' => 'UPDATED SHARED DESC',
+        'description2' => 'UPDATED SHARED NB',
+    ]);
+
+    ItemCatalog::clearStaleDescriptionMirrorsForColorway($group, [
+        'description' => 'SHARED DESC',
+        'description2' => 'SHARED NB',
+    ]);
+
+    $mirrorItem->refresh();
+    $inheritItem->refresh();
+    $localItem->refresh();
+    $group->refresh();
+
+    expect((string) $mirrorItem->description)->toBe('')
+        ->and((string) $mirrorItem->description2)->toBe('')
+        ->and(ItemCatalog::description($mirrorItem))->toBe('UPDATED SHARED DESC')
+        ->and((string) $inheritItem->description)->toBe('')
+        ->and(ItemCatalog::description($inheritItem))->toBe('UPDATED SHARED DESC')
+        ->and($localItem->description)->toBe('LOCAL ONLY')
+        ->and($localItem->description2)->toBe('LOCAL NB')
+        ->and(ItemCatalog::description($localItem))->toBe('LOCAL ONLY');
+});
+
+test('syncDescriptionMirrorsForGroup clears mirrored sku text when override is cleared on save', function () {
+    $group = ItemGroup::factory()->create([
+        'description' => 'FLEECE DARK GREY',
+        'description2' => '',
+    ]);
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'description' => 'FLEECE DARK GREY',
+        'description2' => 'OLD NB',
+    ]);
+
+    $input = (object) [
+        'description' => 'FLEECE DARK GREY',
+        'description2' => '',
+        'item_description' => '',
+        'item_description2' => '',
+    ];
+
+    ItemCatalog::syncDescriptionMirrorsForGroup($group, $input, $item);
+
+    $item->refresh();
+
+    expect((string) $item->description)->toBe('')
+        ->and((string) $item->description2)->toBe('')
+        ->and(ItemCatalog::description($item))->toBe('FLEECE DARK GREY')
+        ->and($item->catalogDescription())->toBe('FLEECE DARK GREY');
+});
+
+test('syncDescriptionMirrorsForGroup keeps local sku override when item_description is omitted', function () {
     $group = ItemGroup::factory()->create([
         'description' => 'FLEECE DARK GREY',
         'description2' => '',
@@ -168,8 +242,6 @@ test('syncDescriptionMirrorsForGroup clears stale item text so catalog reads the
         'description2' => 'OLD NB',
     ]);
 
-    expect(ItemCatalog::description($item))->toBe('PS ABU');
-
     $input = (object) [
         'description' => 'FLEECE DARK GREY',
         'description2' => '',
@@ -179,9 +251,9 @@ test('syncDescriptionMirrorsForGroup clears stale item text so catalog reads the
 
     $item->refresh();
 
-    expect((string) $item->description)->toBe('')
-        ->and(ItemCatalog::description($item))->toBe('FLEECE DARK GREY')
-        ->and($item->catalogDescription())->toBe('FLEECE DARK GREY');
+    expect($item->description)->toBe('PS ABU')
+        ->and($item->description2)->toBe('OLD NB')
+        ->and(ItemCatalog::description($item))->toBe('PS ABU');
 });
 
 test('catalog description prefers group over mirrored duplicate item text', function () {
