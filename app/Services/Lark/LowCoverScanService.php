@@ -5,6 +5,7 @@ namespace App\Services\Lark;
 use App\Enums\ItemType;
 use App\Models\Item;
 use App\Models\ItemInsightRanking;
+use App\Models\Jubeliosync;
 use App\Models\OperationalAlert;
 use App\Services\Restock\RestockRecommendationApplyService;
 use Illuminate\Support\Facades\DB;
@@ -99,7 +100,7 @@ class LowCoverScanService
                     'Nama' => $item->name,
                     'Cover Aria (hari)' => $ariaCover !== null ? round($ariaCover, 1) : '—',
                     'Cover Jubelio (hari)' => $jubCover !== null ? round($jubCover, 1) : '—',
-                    'Qty Aria' => $ariaQty,
+                    'Qty Aria (gudang online)' => $ariaQty,
                     'Jubelio avail' => $jubAvail ?? '—',
                     'Selisih qty' => $jubAvail !== null ? round($ariaQty - $jubAvail, 2) : '—',
                     'Mismatch' => $mismatch ? 'ya' : 'tidak',
@@ -114,7 +115,7 @@ class LowCoverScanService
                     'Selisih stok Aria vs Jubelio',
                     [
                         'SKU' => $item->code,
-                        'Qty Aria' => $ariaQty,
+                        'Qty Aria (gudang online)' => $ariaQty,
                         'Jubelio avail' => $jubAvail,
                     ],
                 );
@@ -185,14 +186,19 @@ class LowCoverScanService
         }
 
         $itemIds = $sales->pluck('item_id')->map(fn ($id) => (int) $id)->all();
-        $stockByItem = DB::table('warehouse_item')
-            ->join('customers as w', 'w.id', '=', 'warehouse_item.warehouse_id')
-            ->where('w.type', 2)
-            ->whereNull('w.deleted_at')
-            ->whereIn('warehouse_item.item_id', $itemIds)
-            ->groupBy('warehouse_item.item_id')
-            ->select('warehouse_item.item_id', DB::raw('SUM(warehouse_item.quantity) as qty'))
-            ->pluck('qty', 'item_id');
+        $mappedWarehouseIds = $this->mappedWarehouseIds();
+        $stockByItem = collect();
+        if ($mappedWarehouseIds !== []) {
+            $stockByItem = DB::table('warehouse_item')
+                ->join('customers as w', 'w.id', '=', 'warehouse_item.warehouse_id')
+                ->where('w.type', 2)
+                ->whereNull('w.deleted_at')
+                ->whereIn('warehouse_item.warehouse_id', $mappedWarehouseIds)
+                ->whereIn('warehouse_item.item_id', $itemIds)
+                ->groupBy('warehouse_item.item_id')
+                ->select('warehouse_item.item_id', DB::raw('SUM(warehouse_item.quantity) as qty'))
+                ->pluck('qty', 'item_id');
+        }
 
         $rows = [];
         foreach ($sales as $sale) {
@@ -232,14 +238,60 @@ class LowCoverScanService
     protected function fetchJubelioAvailableTotal(Item $item): ?float
     {
         try {
-            $service = app(\App\Services\Items\ItemJubelioStockService::class);
-            $warehouseItems = $item->warehouseItems()->with('warehouse')->get();
-            $detail = $service->detailStockForItem($item, $warehouseItems);
-            $available = $detail['total']['available'] ?? null;
+            $mappedIds = array_fill_keys($this->mappedWarehouseIds(), true);
+            if ($mappedIds === []) {
+                return null;
+            }
 
-            return $available !== null ? (float) $available : null;
+            $service = app(\App\Services\Items\ItemJubelioStockService::class);
+            $warehouseItems = $item->warehouseItems()
+                ->with('warehouse')
+                ->get()
+                ->filter(fn ($row) => isset($mappedIds[(int) $row->warehouse_id]));
+
+            if ($warehouseItems->isEmpty()) {
+                return null;
+            }
+
+            $detail = $service->detailStockForItem($item, $warehouseItems);
+            if (($detail['total']['fetch_failed'] ?? false) === true) {
+                return null;
+            }
+
+            $sum = 0.0;
+            $hasValue = false;
+            foreach ($detail['by_warehouse'] as $row) {
+                if (! is_array($row)) {
+                    continue;
+                }
+                $available = $row['available'] ?? null;
+                if ($available === null) {
+                    continue;
+                }
+                $sum += (float) $available;
+                $hasValue = true;
+            }
+
+            return $hasValue ? $sum : null;
         } catch (\Throwable) {
             return null;
         }
+    }
+
+    /**
+     * Aria warehouses that have a jubeliosync row (online / Jubelio channel stock).
+     *
+     * @return list<int>
+     */
+    protected function mappedWarehouseIds(): array
+    {
+        return Jubeliosync::query()
+            ->where('warehouse_id', '>', 0)
+            ->distinct()
+            ->pluck('warehouse_id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
     }
 }

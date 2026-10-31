@@ -9,7 +9,6 @@ $breadcrumbs = [
     ['title' => 'Lark Ops', 'href' => route('lark-settings.index')],
 ];
 $lc = $settings['low_cover'] ?? [];
-$jub = $settings['jubelio'] ?? [];
 $events = $settings['events'] ?? [];
 @endphp
 
@@ -93,14 +92,7 @@ $events = $settings['events'] ?? [];
             <div class="border-b border-gray-200 px-6 py-4">
                 <h3 class="text-lg font-semibold text-gray-900">Jubelio</h3>
             </div>
-            <div class="grid grid-cols-1 gap-4 p-6 lg:grid-cols-2">
-                <div>
-                    <label class="mb-1 block text-sm font-medium text-gray-700">Error backlog threshold</label>
-                    <input type="number" name="error_backlog_threshold" min="1" max="99999" required
-                           value="{{ old('error_backlog_threshold', $jub['error_backlog_threshold'] ?? 25) }}"
-                           class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" @disabled(! $canEdit)>
-                    @error('error_backlog_threshold')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
-                </div>
+            <div class="p-6">
                 <div>
                     <label class="mb-1 block text-sm font-medium text-gray-700">URL template order Jubelio</label>
                     <input type="text" name="jubelio_order_url_template" maxlength="500"

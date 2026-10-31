@@ -62,7 +62,6 @@ test('lark settings can be saved and read back', function () {
             'best_seller_cover_days' => 21,
             'rearm_buffer_days' => 3,
             'mismatch_qty_delta' => 5,
-            'error_backlog_threshold' => 40,
             'jubelio_order_url_template' => 'https://jub.example/{invoice}',
             'low_cover_alert_item_types' => [ItemType::ASSET_LANCAR->value],
             'events' => [
@@ -73,7 +72,6 @@ test('lark settings can be saved and read back', function () {
 
     $service = app(LarkSettingsService::class);
     expect($service->lowCover()['default_cover_days'])->toBe(10);
-    expect($service->jubelio()['error_backlog_threshold'])->toBe(40);
     expect($service->jubelioOrderUrlTemplate())->toBe('https://jub.example/{invoice}');
     expect($service->eventConfig('jubelio.oversell.webhook'))
         ->toMatchArray(['mention' => 'roster', 'roles' => ['gudang']]);

@@ -22,7 +22,6 @@ class LarkSettingsService
             'stock.low_cover.both' => 'Stok rendah — Aria & Jubelio',
             'stock.mismatch' => 'Selisih stok Aria vs Jubelio',
             'jubelio.oversell.blocked' => 'Jubelio oversell (posting blocked)',
-            'jubelio.error.backlog' => 'Backlog error Jubelio',
             'stock.restock.pending' => 'Restock approval (Lark card)',
         ];
     }
@@ -43,9 +42,6 @@ class LarkSettingsService
                 'alert_item_types' => $this->normalizeAlertItemTypes(
                     config('lark.low_cover.alert_item_types', [ItemType::ASSET_LANCAR->value]),
                 ),
-            ],
-            'jubelio' => [
-                'error_backlog_threshold' => (int) config('lark.jubelio.error_backlog_threshold', 25),
             ],
             'jubelio_order_url_template' => config('lark.jubelio_order_url_template'),
             'events' => config('lark.events', []),
@@ -105,14 +101,6 @@ class LarkSettingsService
             ItemType::ASSET_LANCAR->value => 'Asset lancar',
             ItemType::ASSET_TETAP->value => 'Asset tetap',
         ];
-    }
-
-    /**
-     * @return array{error_backlog_threshold: int}
-     */
-    public function jubelio(): array
-    {
-        return $this->all()['jubelio'];
     }
 
     public function jubelioOrderUrlTemplate(): ?string
@@ -183,9 +171,6 @@ class LarkSettingsService
                     $input['low_cover_alert_item_types'] ?? $defaults['low_cover']['alert_item_types'],
                 ),
             ],
-            'jubelio' => [
-                'error_backlog_threshold' => (int) ($input['error_backlog_threshold'] ?? $defaults['jubelio']['error_backlog_threshold']),
-            ],
             'jubelio_order_url_template' => $template !== '' ? $template : null,
             'events' => $events,
         ];
@@ -212,9 +197,6 @@ class LarkSettingsService
 
         if (is_array($stored['low_cover'] ?? null)) {
             $merged['low_cover'] = array_merge($defaults['low_cover'], $stored['low_cover']);
-        }
-        if (is_array($stored['jubelio'] ?? null)) {
-            $merged['jubelio'] = array_merge($defaults['jubelio'], $stored['jubelio']);
         }
         if (array_key_exists('jubelio_order_url_template', $stored)) {
             $merged['jubelio_order_url_template'] = $stored['jubelio_order_url_template'];

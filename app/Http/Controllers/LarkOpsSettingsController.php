@@ -39,7 +39,6 @@ class LarkOpsSettingsController extends Controller
             'mismatch_qty_delta' => 'required|integer|min:0|max:9999',
             'low_cover_alert_item_types' => 'required|array|min:1',
             'low_cover_alert_item_types.*' => 'integer|in:1,2,3',
-            'error_backlog_threshold' => 'required|integer|min:1|max:99999',
             'jubelio_order_url_template' => 'nullable|string|max:500',
             'events' => 'nullable|array',
             'events.*.mention' => 'nullable|in:none,roster',

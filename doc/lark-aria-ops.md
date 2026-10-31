@@ -123,8 +123,8 @@ A person can have **multiple** staff roles; they will match any event that check
 
 **System Settings → Lark Ops**
 
-- **Threshold stok:** cover days, re-arm buffer, Aria vs Jubelio mismatch delta.
-- **Jubelio:** backlog threshold (for future/scheduled backlog alert), order URL template for “Buka di Jubelio” buttons.
+- **Threshold stok:** cover days, re-arm buffer, Aria vs Jubelio mismatch delta. Low-cover **Qty Aria (gudang online)** sums only warehouses with a **`jubeliosyncs`** row (Jubelio channel stock), not all physical gudang.
+- **Jubelio:** order URL template for “Buka di Jubelio” buttons on oversell cards.
 - **Event → @ mention:** as in your screenshot — e.g. keep webhook oversell as **None** (silent card), use **Roster @** for blocked oversell and stock mismatch.
 
 ### Cron
@@ -142,7 +142,6 @@ Scheduler runs `lark:scan-low-cover` (see **Cron Manager**). Ensure Laravel sche
 | `stock.low_cover.both` | Aria & Jubelio both low | Roster: produk, gudang, penjualan_online |
 | `stock.mismatch` | Qty delta Aria vs Jubelio | Roster: penjualan_online, gudang |
 | `jubelio.oversell.blocked` | Post failed stock check | Roster: penjualan_online, gudang |
-| `jubelio.error.backlog` | Many Jubelio sync errors (when scanner enabled) | Roster: penjualan_online |
 | `stock.restock.pending` | Restock approval card | None |
 
 ---

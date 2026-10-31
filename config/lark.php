@@ -36,10 +36,6 @@ return [
         'alert_item_types' => array_map('intval', array_filter(explode(',', env('LARK_LOW_COVER_ITEM_TYPES', '2')))),
     ],
 
-    'jubelio' => [
-        'error_backlog_threshold' => (int) env('LARK_JUBELIO_ERROR_BACKLOG', 25),
-    ],
-
     /**
      * event_key => mention mode: none | roster, and staff role slugs for @ roster (Package 2).
      */
@@ -49,7 +45,6 @@ return [
         'stock.low_cover.both' => ['mention' => 'roster', 'roles' => ['produk', 'gudang', 'penjualan_online']],
         'stock.mismatch' => ['mention' => 'roster', 'roles' => ['penjualan_online', 'gudang']],
         'jubelio.oversell.blocked' => ['mention' => 'roster', 'roles' => ['penjualan_online', 'gudang']],
-        'jubelio.error.backlog' => ['mention' => 'roster', 'roles' => ['penjualan_online']],
         'stock.restock.pending' => ['mention' => 'none', 'roles' => []],
     ],
 
