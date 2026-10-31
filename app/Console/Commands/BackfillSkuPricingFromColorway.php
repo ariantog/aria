@@ -8,9 +8,10 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Temporary migration helper: copy colorway (item_group) pricing onto SKUs that still store 0.
+ * Temporary migration helper: copy colorway (item_group) pricing onto SKU columns that still store 0.
  *
- * Does not change item_group rows or parent pricing. Safe to re-run (skips SKUs that already have amount &gt; 0).
+ * Each field (price, reseller_price, cost, cost_cnh) is handled independently — a SKU with price &gt; 0
+ * can still receive cost from the colorway when items.cost is 0. Does not change item_group or parent rows.
  */
 class BackfillSkuPricingFromColorway extends Command
 {
@@ -19,7 +20,7 @@ class BackfillSkuPricingFromColorway extends Command
                             {--chunk=500 : Items per batch}
                             {--group= : Limit to one item_group id}';
 
-    protected $description = 'Copy item_group price/reseller/cost fields onto SKUs that still store 0 (temporary migration)';
+    protected $description = 'Copy each item_group pricing field onto the same SKU column only when that SKU column is still 0';
 
     public function handle(): int
     {
@@ -66,10 +67,12 @@ class BackfillSkuPricingFromColorway extends Command
 
                 $patch = [];
                 foreach ($fields as $field) {
-                    $skuValue = (float) ($item->{$field} ?? 0);
-                    $colorwayValue = (float) ($group->{$field} ?? 0);
+                    if (! $this->skuColumnIsEmpty($item, $field)) {
+                        continue;
+                    }
 
-                    if ($skuValue > 0 || $colorwayValue <= 0) {
+                    $colorwayValue = (float) ($group->{$field} ?? 0);
+                    if ($colorwayValue <= 0) {
                         continue;
                     }
 
@@ -102,5 +105,13 @@ class BackfillSkuPricingFromColorway extends Command
         ));
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Matches ItemPricing: stored 0 means inherit / empty for migration purposes.
+     */
+    private function skuColumnIsEmpty(Item $item, string $field): bool
+    {
+        return (float) ($item->{$field} ?? 0) <= 0;
     }
 }

@@ -34,7 +34,35 @@ it('copies colorway pricing onto skus that still store zero', function () {
         ->and((float) $zeroSku->reseller_price)->toBe(99000.0)
         ->and((float) $zeroSku->cost)->toBe(45000.0)
         ->and((float) $pricedSku->price)->toBe(88000.0)
+        ->and((float) $pricedSku->reseller_price)->toBe(99000.0)
+        ->and((float) $pricedSku->cost)->toBe(45000.0)
         ->and((float) $group->fresh()->price)->toBe(125000.0);
+});
+
+it('only backfills sku columns that are still zero per field', function () {
+    $group = ItemGroup::factory()->create([
+        'price' => 200000,
+        'reseller_price' => 150000,
+        'cost' => 80000,
+        'cost_cnh' => 5000,
+    ]);
+
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'price' => 175000,
+        'reseller_price' => 0,
+        'cost' => 12000,
+        'cost_cnh' => 0,
+    ]);
+
+    $this->artisan('app:backfill-sku-pricing-from-colorway')->assertSuccessful();
+
+    $item->refresh();
+
+    expect((float) $item->price)->toBe(175000.0)
+        ->and((float) $item->reseller_price)->toBe(150000.0)
+        ->and((float) $item->cost)->toBe(12000.0)
+        ->and((float) $item->cost_cnh)->toBe(5000.0);
 });
 
 it('dry run does not persist sku pricing', function () {

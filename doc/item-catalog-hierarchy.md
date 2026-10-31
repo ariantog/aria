@@ -87,6 +87,6 @@ Single-item **create/edit** uses a tabbed **Catalog & pricing** panel (`form-det
 
 ## Production notes
 
-- **Temporary migration:** when SKUs still show **0** after moving pricing to the colorway matrix, maintainer can copy colorway amounts onto empty SKU columns (does not clear `item_group`): `php artisan app:backfill-sku-pricing-from-colorway` (use `--dry-run` first; optional `--group=` for one colorway).
+- **Temporary migration:** copy colorway amounts onto **each SKU column only where that column is still 0** (price, reseller, cost, cost_cnh independently; does not overwrite non-zero SKU values or clear `item_group`): `php artisan app:backfill-sku-pricing-from-colorway` (use `--dry-run` first; optional `--group=` for one colorway).
 - Leftover `items.description`, `brand`, etc. may still exist for L10 parity; new shared attributes belong on `item_group` / `item_parent_prices`.
 - Do not drop or rename identity columns (`items.legacy_code`, `item_group.master`, etc.) — see AGENTS.md.
