@@ -127,17 +127,6 @@ $breadcrumbs = [
                         </div>
                     </div>
                 </div>
-            </div>
-
-            <div class="space-y-6">
-                @include('items.partials.form-attributes', [
-                    'attributesScope' => 'colorway-shared',
-                    'multiSize' => false,
-                    'curType' => $curType,
-                    'curJahit' => $curJahit,
-                    'curWarna' => $curWarna,
-                ])
-                @include('items.partials.form-image', ['imageUrl' => $group->image_url])
 
                 {{-- Live name preview --}}
                 <div class="rounded-xl border border-gray-200 bg-white shadow-sm" data-testid="colorway-name-preview">
@@ -154,6 +143,17 @@ $breadcrumbs = [
                         </template>
                     </div>
                 </div>
+            </div>
+
+            <div class="space-y-6">
+                @include('items.partials.form-attributes', [
+                    'attributesScope' => 'colorway-shared',
+                    'multiSize' => false,
+                    'curType' => $curType,
+                    'curJahit' => $curJahit,
+                    'curWarna' => $curWarna,
+                ])
+                @include('items.partials.form-image', ['imageUrl' => $group->image_url])
             </div>
         </div>
 
