@@ -75,6 +75,7 @@ it('includes reseller sell price with sku then group then price fallback', funct
     expect((float) $response->json('item.reseller_sell_price'))->toBe(120000.0);
 
     \App\Models\ItemParentPrice::query()->where('parent_key', $parentKey)->update(['reseller_price' => 0]);
+    $group->update(['reseller_price' => 0]);
     ItemPricing::flushRequestCache();
 
     $response = $this->actingAs($this->user)
@@ -205,7 +206,7 @@ it('items autocomplete json exposes warehouse_item for transaction stock display
         ->and((float) $match['warehouse_item'][0]['quantity'])->toBe(11.0);
 });
 
-it('items autocomplete json uses effective price and cost from parent group when sku columns are zero', function () {
+it('items autocomplete json uses effective price and cost from colorway when sku columns are zero', function () {
     $this->user->givePermissionTo('items-list');
 
     $group = \App\Models\ItemGroup::factory()->create([
@@ -223,13 +224,6 @@ it('items autocomplete json uses effective price and cost from parent group when
         'cost' => 0,
     ]);
 
-    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey($item);
-    \App\Models\ItemParentPrice::query()->create([
-        'parent_key' => $parentKey,
-        'price' => 185_000,
-        'cost' => 92_000,
-    ]);
-
     $match = collect($this->actingAs($this->user)
         ->getJson('/items?search=Cascade&json=1')
         ->assertSuccessful()
@@ -240,7 +234,7 @@ it('items autocomplete json uses effective price and cost from parent group when
         ->and((float) $match['cost'])->toBe(92_000.0);
 });
 
-it('transaction item lookup uses parent group price when type tag differs from sku prefix', function () {
+it('transaction item lookup uses colorway price when type tag differs from sku prefix', function () {
     Permission::firstOrCreate(['name' => 'transactions-type-move']);
     $this->user->givePermissionTo('transactions-type-move');
 
@@ -252,7 +246,7 @@ it('transaction item lookup uses parent group price when type tag differs from s
     $group = \App\Models\ItemGroup::factory()->create([
         'master' => 'CX90032-01',
         'variant' => '01',
-        'price' => 0,
+        'price' => 312_000,
     ]);
     $item = Item::factory()->create([
         'group_id' => $group->id,
@@ -262,14 +256,6 @@ it('transaction item lookup uses parent group price when type tag differs from s
         'price' => 0,
     ]);
     $item->tags()->attach($typeTag->id);
-
-    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey(
-        $item->fresh(['group', 'tags']),
-    );
-    \App\Models\ItemParentPrice::query()->create([
-        'parent_key' => $parentKey,
-        'price' => 312_000,
-    ]);
 
     $response = $this->actingAs($this->user)
         ->getJson(route('transactions.item-by-code', ['type' => 'move', 'code' => 'AJD-CX90032-01-S']));

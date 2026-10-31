@@ -272,11 +272,13 @@ test('colorway matrix prefills description from group when item column is empty'
         ->assertSee('name="items['.$item->id.'][description]"', false);
 });
 
-test('colorway edit matrix prefills price from parent when sku amount is unset', function () {
+test('colorway edit matrix prefills price from colorway when sku amount is unset', function () {
     $group = ItemGroup::factory()->create([
         'master' => 'CX90233-23',
         'variant' => '23',
         'name' => 'CX90233-23',
+        'price' => 275000,
+        'reseller_price' => 250000,
     ]);
 
     $item = Item::factory()->create([
@@ -288,13 +290,6 @@ test('colorway edit matrix prefills price from parent when sku amount is unset',
         'reseller_price' => 0,
     ]);
     $item->tags()->sync([$this->typeTag->id, $this->warnaTag->id, $this->sizeTag->id, $this->jahitTag->id]);
-
-    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey($item);
-    \App\Models\ItemParentPrice::query()->create([
-        'parent_key' => $parentKey,
-        'price' => 275000,
-        'reseller_price' => 250000,
-    ]);
 
     $this->actingAs($this->user)
         ->get(route('items.colorway-edit', $group))

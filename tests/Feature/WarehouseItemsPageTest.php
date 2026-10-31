@@ -508,7 +508,7 @@ it('renders sortable column headers on warehouse stock page', function () {
         ->assertSee('sort=qtyasc', false);
 });
 
-it('shows parent group price when type tag code differs from sku code prefix', function () {
+it('shows colorway group price when type tag code differs from sku code prefix', function () {
     User::factory()->create();
     $user = User::factory()->create();
     $user->givePermissionTo('addrbook-warehouse-items');
@@ -522,7 +522,7 @@ it('shows parent group price when type tag code differs from sku code prefix', f
     $group = \App\Models\ItemGroup::factory()->create([
         'master' => 'CX90032-01',
         'variant' => '01',
-        'price' => 0,
+        'price' => 312_000,
     ]);
     $item = Item::factory()->create([
         'group_id' => $group->id,
@@ -532,14 +532,6 @@ it('shows parent group price when type tag code differs from sku code prefix', f
         'price' => 0,
     ]);
     $item->tags()->attach($typeTag->id);
-
-    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey(
-        $item->fresh(['group', 'tags']),
-    );
-    \App\Models\ItemParentPrice::query()->create([
-        'parent_key' => $parentKey,
-        'price' => 312_000,
-    ]);
 
     WarehouseItem::create([
         'warehouse_id' => $warehouse->id,

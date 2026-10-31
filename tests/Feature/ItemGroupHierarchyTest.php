@@ -328,7 +328,7 @@ it('saves parent group descriptions from the parent detail page', function () {
 
     $group->refresh();
 
-    expect($group->description)->toBe('')
+    expect($group->description)->toBe('PARENT SHARED TEXT')
         ->and(\App\Support\ItemCatalog::description($item->fresh(['group'])))->toBe('PARENT SHARED TEXT');
 });
 
