@@ -64,7 +64,7 @@ it('registers readonly export routes as GET only', function (): void {
     }
 });
 
-it('returns hierarchy-aware base cost from parent group when SKU cost is unset', function (): void {
+it('returns hierarchy-aware base cost from colorway when SKU cost is unset', function (): void {
     $user = createGrokUser();
     $this->actingAs($user);
 
@@ -75,11 +75,7 @@ it('returns hierarchy-aware base cost from parent group when SKU cost is unset',
     ]);
     $item->load('group', 'tags');
     $parentKey = app(ItemIdentityBuilder::class)->itemParentKey($item);
-
-    ItemParentPrice::query()->updateOrCreate(
-        ['parent_key' => $parentKey],
-        ['cost' => 1000, 'price' => 0, 'reseller_price' => 0, 'cost_cnh' => 0],
-    );
+    $item->group?->update(['cost' => 1000]);
 
     ItemPricing::flushRequestCache();
 

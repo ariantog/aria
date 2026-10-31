@@ -55,7 +55,7 @@ test('sync writes the group and mirrors leftover item columns', function () {
         ->and($item->genre)->toBe(77);
 });
 
-test('catalog description inherits parent group when colorway text is empty', function () {
+test('catalog description does not inherit parent when colorway text is empty', function () {
     $group = ItemGroup::factory()->create([
         'master' => 'CX90001',
         'variant' => '01',
@@ -80,8 +80,8 @@ test('catalog description inherits parent group when colorway text is empty', fu
 
     $item = $item->fresh(['group']);
 
-    expect(ItemCatalog::description($item))->toBe('PARENT DESC')
-        ->and(ItemCatalog::description2($item))->toBe('PARENT NB');
+    expect(ItemCatalog::description($item))->toBe('')
+        ->and(ItemCatalog::description2($item))->toBe('');
 });
 
 test('catalog reads keep working when leftover item columns are empty', function () {
@@ -344,7 +344,7 @@ test('dedupeItemDescriptionsFromGroup clears mirrored text but keeps local overr
         ->and($item->description2)->toBe('LOCAL NB');
 });
 
-test('sellPriceForReseller falls back sku, parent group, then normal price', function () {
+test('sellPriceForReseller falls back sku, colorway, then normal price', function () {
     $typeTag = \App\Models\Tag::factory()->create([
         'type' => \App\Models\Tag::TYPE_TYPE,
         'code' => 'AJD',
@@ -367,22 +367,16 @@ test('sellPriceForReseller falls back sku, parent group, then normal price', fun
     expect(ItemCatalog::sellPriceForReseller($item))->toBe(95000.0);
 
     $item->update(['reseller_price' => 0]);
-    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey($item->fresh(['group', 'tags']));
-    \App\Models\ItemParentPrice::query()->create([
-        'parent_key' => $parentKey,
-        'reseller_price' => 120000,
-    ]);
-    \App\Support\ItemPricing::flushRequestCache();
 
     expect(ItemCatalog::sellPriceForReseller($item->fresh(['group', 'tags'])))->toBe(120000.0);
 
-    \App\Models\ItemParentPrice::query()->where('parent_key', $parentKey)->update(['reseller_price' => 0]);
+    $group->update(['reseller_price' => 0]);
     \App\Support\ItemPricing::flushRequestCache();
 
     expect(ItemCatalog::sellPriceForReseller($item->fresh(['group', 'tags'])))->toBe(150000.0);
 });
 
-test('resellerPrice prefers item override then parent group default', function () {
+test('resellerPrice prefers item override then colorway default', function () {
     $typeTag = \App\Models\Tag::factory()->create([
         'type' => \App\Models\Tag::TYPE_TYPE,
         'code' => 'AJD',
@@ -404,12 +398,6 @@ test('resellerPrice prefers item override then parent group default', function (
     expect(ItemCatalog::resellerPrice($item))->toBe(95000.0);
 
     $item->update(['reseller_price' => 0]);
-    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey($item->fresh(['group', 'tags']));
-    \App\Models\ItemParentPrice::query()->create([
-        'parent_key' => $parentKey,
-        'reseller_price' => 120000,
-    ]);
-    \App\Support\ItemPricing::flushRequestCache();
 
     expect(ItemCatalog::resellerPrice($item->fresh(['group', 'tags'])))->toBe(120000.0);
 });

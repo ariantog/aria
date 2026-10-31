@@ -74,7 +74,7 @@ it('shows master and color fields on manufactured create form', function () {
         ->assertSee('data-testid="item-form-pcode-hidden"', false);
 });
 
-it('first manufactured colorway create stores price on parent group', function () {
+it('first manufactured colorway create stores price on colorway group', function () {
     $typeTag = Tag::factory()->create([
         'type' => Tag::TYPE_TYPE,
         'item_type' => ItemType::ITEM->value,
@@ -101,15 +101,10 @@ it('first manufactured colorway create stores price on parent group', function (
         ->assertSessionHas('success');
 
     $item = \App\Models\Item::where('code', 'AJD-CX80023-01-S')->firstOrFail();
-    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey($item);
 
     expect((float) $item->price)->toBe(0.0)
-        ->and(\App\Support\ItemPricing::resolve($item, 'price'))->toBe(100000.0);
-
-    $this->assertDatabaseHas('item_parent_prices', [
-        'parent_key' => $parentKey,
-        'price' => 100000,
-    ]);
+        ->and(\App\Support\ItemPricing::resolve($item, 'price'))->toBe(100000.0)
+        ->and((float) $item->group->price)->toBe(100000.0);
 });
 
 it('second manufactured colorway create keeps parent price and stores sku override', function () {
@@ -156,13 +151,10 @@ it('second manufactured colorway create keeps parent price and stores sku overri
 
     expect((float) $first->price)->toBe(0.0)
         ->and(\App\Support\ItemPricing::resolve($first, 'price'))->toBe(100000.0)
-        ->and((float) $second->price)->toBe(120000.0)
-        ->and(\App\Support\ItemPricing::resolve($second, 'price'))->toBe(120000.0);
-
-    $this->assertDatabaseHas('item_parent_prices', [
-        'parent_key' => $parentKey,
-        'price' => 100000,
-    ]);
+        ->and((float) $first->group->price)->toBe(100000.0)
+        ->and((float) $second->price)->toBe(0.0)
+        ->and(\App\Support\ItemPricing::resolve($second, 'price'))->toBe(120000.0)
+        ->and((float) $second->group->price)->toBe(120000.0);
 });
 
 it('allows manufactured item create without product name', function () {

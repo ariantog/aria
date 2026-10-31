@@ -445,11 +445,13 @@ migration explicitly adds that cast.
 - **`items.legacy_code`:** see **Do NOT remove `items.legacy_code`** — snapshot old `code` on
   first identity change; converter tooling is temporary, the column is not.
 
-### Catalog hierarchy (parent → colorway → SKU)
+### Catalog hierarchy (colorway → SKU reads; parent storage for admin)
 
 Read/write rules for names, descriptions, prices, and related catalog fields live in
-**`doc/item-catalog-hierarchy.md`**. Resolve **SKU → colorway → parent**; writing at colorway
-or parent scope clears lower-level overrides for that field. Code map:
+**`doc/item-catalog-hierarchy.md`**. **Display and resolve** for description/NB and pricing on
+SKUs use **SKU → colorway (`item_group`) only** — not `item_parent_prices`. Parent group rows
+are still saved from the parent detail page (product name, descriptions, pricing) but do not
+fall through to SKU list/transaction lookup until copied onto the colorway or SKU. Code map:
 `ItemCatalogHierarchy`, `ItemPricing`, `ItemCatalog`, `ItemProductTitle`.
 
 ### Colorway-only edit page & per-item price
@@ -458,10 +460,9 @@ Route: `items-group/colorway/{group}/edit` (`ItemsController@colorwayEdit` /
 `colorwayUpdate`). View: `resources/views/items/colorway-edit.blade.php`.
 
 - **Read-only on this page:** pcode, tags, SKU `code` (identity block).
-- **Editable per colorway (stored on `item_group`):** product name → `name`, description,
-  description2, url, brand, genre, image.
-- **Editable per size (stored on each `items` row):** price, cost, restock urgent threshold.
-  Create forms set a default price; matrix edits happen here.
+- **Editable per colorway (stored on `item_group`):** product name → `name`, url, brand, genre, image.
+- **Editable per size (stored on each `items` row):** description, NB, price, cost, ongkir, restock;
+  full **SKU matrix** on colorway edit. Create forms set a default price; matrix edits happen here.
 
 Single-SKU create/edit forms mark shared fields with “Shared across this colorway”; price on
 create is a default for new sizes only.

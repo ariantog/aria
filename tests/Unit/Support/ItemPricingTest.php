@@ -9,7 +9,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(Tests\TestCase::class, RefreshDatabase::class);
 
-test('resolve falls back size then parent group and ignores colorway column', function () {
+test('resolve falls back size then colorway and ignores parent row', function () {
     $group = ItemGroup::query()->create([
         'master' => 'CX90233-23',
         'variant' => '23',
@@ -31,22 +31,19 @@ test('resolve falls back size then parent group and ignores colorway column', fu
         'cost_cnh' => 0,
     ]);
 
-    expect(ItemPricing::resolve($item, 'price'))->toBe(0.0);
+    expect(ItemPricing::resolve($item, 'price'))->toBe(90000.0)
+        ->and(ItemPricing::resolve($item, 'cost'))->toBe(45000.0)
+        ->and(ItemPricing::resolve($item, 'reseller_price'))->toBe(80000.0)
+        ->and(ItemPricing::resolve($item, 'cost_cnh'))->toBe(12.0);
 
     $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey($item);
     ItemParentPrice::query()->create([
         'parent_key' => $parentKey,
-        'price' => 90000,
-        'cost' => 45000,
-        'reseller_price' => 80000,
-        'cost_cnh' => 12,
+        'price' => 111111,
     ]);
     ItemPricing::flushRequestCache();
 
-    expect(ItemPricing::resolve($item->fresh(['group']), 'price'))->toBe(90000.0)
-        ->and(ItemPricing::resolve($item, 'cost'))->toBe(45000.0)
-        ->and(ItemPricing::resolve($item, 'reseller_price'))->toBe(80000.0)
-        ->and(ItemPricing::resolve($item, 'cost_cnh'))->toBe(12.0);
+    expect(ItemPricing::resolve($item->fresh(['group']), 'price'))->toBe(90000.0);
 
     $item->update(['price' => 95000]);
 
@@ -85,16 +82,18 @@ test('apply colorway scope clears size overrides in the colorway', function () {
     expect((float) $group->price)->toBe(120000.0)
         ->and((float) $first->price)->toBe(0.0)
         ->and((float) $second->price)->toBe(0.0)
-        ->and(ItemPricing::resolve($first->fresh(['group']), 'price'))->toBe(80000.0);
+        ->and(ItemPricing::resolve($first->fresh(['group']), 'price'))->toBe(120000.0);
 });
 
-test('formStateForSkuEdit prefills inherited parent amounts as sku scope values', function () {
+test('formStateForSkuEdit prefills inherited colorway amounts as sku scope values', function () {
     $group = ItemGroup::query()->create([
         'master' => 'CX90233-23',
         'variant' => '23',
         'name' => 'TEST',
         'description' => '',
         'description2' => '',
+        'price' => 275000,
+        'reseller_price' => 250000,
     ]);
 
     $item = Item::factory()->create([
@@ -103,14 +102,6 @@ test('formStateForSkuEdit prefills inherited parent amounts as sku scope values'
         'price' => 0,
         'reseller_price' => 0,
     ]);
-
-    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey($item);
-    ItemParentPrice::query()->create([
-        'parent_key' => $parentKey,
-        'price' => 275000,
-        'reseller_price' => 250000,
-    ]);
-    ItemPricing::flushRequestCache();
 
     $state = ItemPricing::formStateForSkuEdit($item->fresh(['group']));
 
@@ -139,7 +130,7 @@ test('parentGroupHasStoredPricing detects parent row amounts', function () {
     expect(ItemPricing::parentGroupHasStoredPricing($parentKey))->toBeTrue();
 });
 
-test('apply group scope clears colorway and size pricing under parent', function () {
+test('apply group scope clears colorway and size pricing under parent without affecting resolve', function () {
     $typeTag = \App\Models\Tag::factory()->create(['type' => \App\Models\Tag::TYPE_TYPE, 'code' => 'AJD', 'name' => 'Jacket']);
 
     $group = ItemGroup::query()->create([
@@ -165,5 +156,5 @@ test('apply group scope clears colorway and size pricing under parent', function
 
     expect((float) $group->price)->toBe(0.0)
         ->and((float) $item->price)->toBe(0.0)
-        ->and(ItemPricing::resolve($item, 'price'))->toBe(70000.0);
+        ->and(ItemPricing::resolve($item, 'price'))->toBe(0.0);
 });
