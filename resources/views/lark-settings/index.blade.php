@@ -95,10 +95,11 @@ $events = $settings['events'] ?? [];
             </div>
             <div class="grid grid-cols-1 gap-4 p-6 lg:grid-cols-2">
                 <div>
-                    <label class="mb-1 block text-sm font-medium text-gray-700">Error backlog threshold</label>
+                    <label class="mb-1 block text-sm font-medium text-gray-700">Error backlog threshold (opsional)</label>
                     <input type="number" name="error_backlog_threshold" min="1" max="99999" required
                            value="{{ old('error_backlog_threshold', $jub['error_backlog_threshold'] ?? 25) }}"
                            class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" @disabled(! $canEdit)>
+                    <p class="mt-1 text-xs text-gray-500">Hanya untuk artisan <span class="font-mono">lark:scan-jubelio-error-backlog</span> bila event <span class="font-mono">jubelio.error.backlog</span> Kirim Lark diaktifkan. Tidak dijadwalkan — tim biasanya cek <a href="{{ route('jubelio.index', ['status' => 'error']) }}" class="text-blue-700 hover:underline">Jubelio → Error</a> di Aria.</p>
                     @error('error_backlog_threshold')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
                 </div>
                 <div>

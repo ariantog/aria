@@ -49,7 +49,7 @@ return [
         'stock.low_cover.both' => ['send_enabled' => true, 'mention' => 'roster', 'roles' => ['produk', 'gudang', 'penjualan_online']],
         'stock.mismatch' => ['send_enabled' => true, 'mention' => 'roster', 'roles' => ['penjualan_online', 'gudang']],
         'jubelio.oversell.blocked' => ['send_enabled' => true, 'mention' => 'roster', 'roles' => ['penjualan_online', 'gudang']],
-        'jubelio.error.backlog' => ['send_enabled' => true, 'mention' => 'roster', 'roles' => ['penjualan_online']],
+        'jubelio.error.backlog' => ['send_enabled' => false, 'mention' => 'roster', 'roles' => ['penjualan_online']],
         'stock.restock.pending' => ['send_enabled' => true, 'mention' => 'none', 'roles' => []],
     ],
 
