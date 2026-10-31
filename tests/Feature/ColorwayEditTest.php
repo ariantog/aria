@@ -207,6 +207,8 @@ test('colorway edit page renders with size matrix and preview', function () {
         'code' => 'AJD-CX90233-23-S',
         'name' => 'CX90233-23 - BLUE - S',
         'price' => 100000,
+        'description' => '',
+        'description2' => '',
     ]);
     $item->tags()->sync([$this->typeTag->id, $this->warnaTag->id, $this->sizeTag->id, $this->jahitTag->id]);
 
@@ -215,6 +217,8 @@ test('colorway edit page renders with size matrix and preview', function () {
 
     $response->assertOk()
         ->assertSee('Edit colorway', false)
+        ->assertSee('data-testid="colorway-desc-'.$item->id.'"', false)
+        ->assertSee('Test colorway', false)
         ->assertSee('data-testid="colorway-size-matrix"', false)
         ->assertSee('data-testid="colorway-name-preview"', false)
         ->assertSee('data-testid="colorway-save"', false)
@@ -239,6 +243,33 @@ test('colorway edit page renders with size matrix and preview', function () {
         ->and($html)->toContain('value="CX90233-23"')
         ->and($html)->not->toContain("return confirm('Save this colorway")
         ->and($html)->not->toContain('id="colorwayApplyPricingForm"');
+});
+
+test('colorway matrix prefills description from group when item column is empty', function () {
+    $group = ItemGroup::factory()->create([
+        'master' => 'CX90233-24',
+        'variant' => '24',
+        'name' => 'CX90233-24',
+        'description' => 'LEGACY COLORWAY DESC',
+        'description2' => 'LEGACY NB',
+    ]);
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'group_id' => $group->id,
+        'pcode' => 'CX90233-24',
+        'code' => 'AJD-CX90233-24-S',
+        'description' => '',
+        'description2' => '',
+    ]);
+    $item->tags()->sync([$this->typeTag->id, $this->warnaTag->id, $this->sizeTag->id, $this->jahitTag->id]);
+
+    $this->actingAs($this->user)
+        ->get(route('items.colorway-edit', $group))
+        ->assertOk()
+        ->assertSee('LEGACY COLORWAY DESC', false)
+        ->assertSee('LEGACY NB', false)
+        ->assertSee('name="items['.$item->id.'][description]"', false);
 });
 
 test('colorway edit matrix prefills price from parent when sku amount is unset', function () {

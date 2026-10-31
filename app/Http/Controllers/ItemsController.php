@@ -741,6 +741,7 @@ class ItemsController extends Controller
         ) ?? $group->id;
 
         $identityBuilder = $this->identityBuilder;
+        $items->each(fn (Item $item) => $item->setRelation('group', $group));
         $sizeRows = $items->map(function (Item $item) use ($itemType, $typeTag, $identityBuilder) {
             $sizeTag = $item->tags->firstWhere('type', Tag::TYPE_SIZE);
             $warnaTag = $identityBuilder->warnaTagForItem($item);
@@ -762,8 +763,8 @@ class ItemsController extends Controller
                 'size_code' => $sizeTag?->code ?? '—',
                 'size_name' => $sizeTag?->name ?? '—',
                 'warna_code' => $warnaTag?->code ?? '',
-                'description' => old('items.'.$item->id.'.description', trim((string) ($item->description ?? ''))),
-                'description2' => old('items.'.$item->id.'.description2', trim((string) ($item->description2 ?? ''))),
+                'description' => old('items.'.$item->id.'.description', $item->catalogDescription()),
+                'description2' => old('items.'.$item->id.'.description2', $item->catalogDescription2()),
                 'ongkir' => old('items.'.$item->id.'.ongkir', (string) ($item->ongkir ?? 0)),
                 'pricing' => $pricing,
                 'effective_price' => $pricing['price']['effective'] ?? 0,
