@@ -12,14 +12,14 @@ Three levels describe how **catalog attributes** (names, descriptions, prices, b
 
 ## Read order (always)
 
-For catalog attributes that support overrides, resolve **SKU → colorway → parent**. Empty or “inherit” values at a level fall through to the next.
+For catalog attributes that support overrides, resolve **SKU → colorway** only. Empty or “inherit” values at a level fall through to the colorway row. Parent group rows (`item_parent_prices`) are still edited on the parent detail page but are **not** used when displaying or resolving SKU catalog/pricing.
 
-**Pricing (sell / reseller / cost / cost CNY)** resolves **SKU → parent group only** — legacy amounts on `item_group` are not used for reads.
+**Pricing (sell / reseller / cost / cost CNY)** resolves **SKU → colorway (`item_group`)**.
 
-| Attribute | SKU | Colorway | Parent |
-|-----------|-----|----------|--------|
-| Sell / reseller / cost / cost CNY | `items.*` | *(legacy column — ignored)* | `item_parent_prices.*` |
-| Description / description2 | `items.*` (only if different from colorway) | `item_group.*` | `item_parent_prices.description` / `description2` |
+| Attribute | SKU | Colorway | Parent (storage only) |
+|-----------|-----|----------|------------------------|
+| Sell / reseller / cost / cost CNY | `items.*` | `item_group.*` | `item_parent_prices.*` (not read on SKU) |
+| Description / description2 | `items.*` (override when different from colorway) | `item_group.*` | `item_parent_prices.description` / `description2` (not read on SKU) |
 | Bare product title | `items.alias` | `item_group.name` | `item_parent_prices.product_name` |
 | Brand / genre | `items.*` (legacy mirror) | `item_group.*` | — |
 | Full display `items.name` | Built from bare title + warna + size (`ItemProductTitle::buildDisplayName()`) | | |
@@ -33,7 +33,7 @@ For catalog attributes that support overrides, resolve **SKU → colorway → pa
 
 **Pricing:** numeric `0` means inherit (`ItemPricing::resolve()`).
 
-**Descriptions:** resolve SKU → colorway → parent (`ItemCatalog::description()`). Shared colorway text lives on `item_group`; parent defaults on `item_parent_prices`; leftover `items.description` is a per-SKU override only when it differs from the resolved colorway/parent text.
+**Descriptions:** resolve SKU → colorway (`ItemCatalog::description()`). Shared colorway text lives on `item_group`; leftover `items.description` is a per-SKU override when it differs from the colorway text.
 
 Implementation entry points:
 
@@ -65,12 +65,12 @@ Examples:
 Set the value on **`item_parent_prices`** for the parent key. **Product name** and **pricing** use separate save actions on the parent detail page.
 
 - **Product name:** optional checkbox to reset every colorway title to inherit the parent (clears SKU `alias`). Without it, only the parent row changes; colorways with their own title are kept. All SKUs get `items.name` rebuilt from current catalog resolution.
-- **Pricing:** parent **0** means “no group default” and does **not** change colorway/SKU columns. Values **> 0** update the parent; clearing lower overrides requires an explicit **cascade** checkbox.
+- **Pricing:** parent **0** means “no group default” and does **not** change colorway/SKU columns. Values **> 0** update the parent row; with **cascade**, the same amount is written to every colorway (`item_group`) and SKU overrides for that field are zeroed so reads resolve at colorway.
 
 Examples:
 
 - Group parent “Save product name” → `ItemService::applyParentGroupProductName()` (optional reset of colorway titles + SKU aliases).
-- Group parent “Save group descriptions” → `ItemService::applyParentGroupDescriptions()` (optional reset of colorway descriptions + SKU mirrors).
+- Group parent “Save group descriptions” → `ItemService::applyParentGroupDescriptions()` (optional reset copies parent text onto each colorway and clears SKU description mirrors).
 - Group parent “Save group pricing” → `ItemPricing::applyForParent()` with cascade only when amount > 0 and user opts in.
 
 **UI:** each submit shows a confirmation tailored to the selected options.

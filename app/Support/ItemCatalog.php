@@ -105,15 +105,6 @@ final class ItemCatalog
             return $groupText;
         }
 
-        $parentText = self::readParentCatalogText($item, $field);
-        if ($parentText !== '') {
-            if ($itemText !== '' && strtoupper($itemText) !== strtoupper($parentText)) {
-                return $itemText;
-            }
-
-            return $parentText;
-        }
-
         return $itemText;
     }
 

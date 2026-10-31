@@ -10,9 +10,9 @@ Human maintainers use Aria in a browser (Blade + Alpine.js). Grok should behave 
 
 ## Item catalog hierarchy (do not skip)
 
-Aria stores catalog and pricing at **parent group → colorway → SKU**. Reads resolve **SKU → parent** for **price / base cost (HPP)** via `ItemPricing` (`item_parent_prices` + per-SKU overrides). Colorway `item_group` legacy price columns are **ignored**.
+Aria stores catalog at **parent group → colorway → SKU**, but **SKU display** for **price / base cost (HPP)** and **description / NB** resolves **SKU → colorway (`item_group`)** via `ItemPricing` and `ItemCatalog`. Parent rows in `item_parent_prices` are admin defaults only — they are **not** used when resolving a SKU for lists, exports, or transaction lookup.
 
-If Grok searches or exports using only raw `items.name` or `items.cost` without hierarchy resolution, results look **empty or wrong** (e.g. cost `0` on the SKU while parent group holds the real HPP). Always use:
+If Grok searches or exports using only raw `items.name` or `items.cost` without hierarchy resolution, results look **empty or wrong** (e.g. cost `0` on the SKU while the colorway row holds the real HPP). Always use:
 
 - Export API **`search=`** (matches code, pcode, alias, and display names through the hierarchy), or
 - UI list columns **Group** / **Colorway** and the item show **Base Cost** line (effective cost).

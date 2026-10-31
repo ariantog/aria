@@ -444,8 +444,8 @@ class ItemService
                 }
 
                 ItemCatalog::applyToGroup($group, [
-                    'description' => '',
-                    'description2' => '',
+                    'description' => $description,
+                    'description2' => $description2,
                 ]);
                 ItemCatalog::resetDescriptionMirrorsForColorway($group);
             }
@@ -1899,7 +1899,7 @@ class ItemService
 
         return ItemPricing::parentGroupHasStoredPricing($parentKey)
             ? ItemPricing::SCOPE_SIZE
-            : ItemPricing::SCOPE_GROUP;
+            : ItemPricing::SCOPE_COLORWAY;
     }
 
     protected function persistItemLocalAttributes(Item $item, object $input): void

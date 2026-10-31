@@ -10,10 +10,10 @@ use App\Services\Items\ItemIdentityBuilder;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Item prices resolve in order: this SKU → parent group (item_parent_prices).
+ * Item prices resolve in order: this SKU → colorway (item_group).
  *
- * Legacy colorway amounts on item_group are ignored for reads. A stored value of 0 on the SKU
- * or parent row means "inherit from the next level" (SKU 0 → parent; parent 0 → unset).
+ * Parent group rows (item_parent_prices) are not used for reads. A stored value of 0 on the SKU
+ * or colorway row means "inherit from the next level" (SKU 0 → colorway; colorway 0 → unset).
  */
 final class ItemPricing
 {
@@ -74,9 +74,7 @@ final class ItemPricing
             return $sizeValue;
         }
 
-        $parent = self::parentRecord($item);
-
-        return $parent !== null ? self::readParentColumn($parent, $field) : 0.0;
+        return self::readGroupColumn($item->group, $field);
     }
 
     public static function detectScope(Item $item, string $field): string
@@ -88,9 +86,8 @@ final class ItemPricing
             return self::SCOPE_SIZE;
         }
 
-        $parent = self::parentRecord($item);
-        if ($parent !== null && self::isSet(self::readParentColumn($parent, $field))) {
-            return self::SCOPE_GROUP;
+        if ($item->hasCatalogGroup() && self::isSet(self::readGroupColumn($item->group, $field))) {
+            return self::SCOPE_COLORWAY;
         }
 
         return self::SCOPE_SIZE;
@@ -198,7 +195,7 @@ final class ItemPricing
 
     /**
      * @param  array<string, array{scope?: mixed, value?: mixed}>  $rows
-     * @param  bool  $cascadeOverrides  When true, fields saved with value &gt; 0 zero colorway/SKU overrides so reads inherit the parent amount.
+     * @param  bool  $cascadeOverrides  When true, fields saved with value &gt; 0 are copied to every colorway and SKU overrides are zeroed.
      */
     public static function applyForParent(string $parentKey, array $rows, bool $cascadeOverrides = false): void
     {
@@ -228,7 +225,7 @@ final class ItemPricing
             self::$parentRecordCache[$parentKey] = $record;
 
             if ($value > 0 && $cascadeOverrides && $groupIds !== []) {
-                ItemGroup::query()->whereIn('id', $groupIds)->update([$field => 0]);
+                ItemGroup::query()->whereIn('id', $groupIds)->update([$field => $value]);
                 Item::query()->whereIn('group_id', $groupIds)->update([$field => 0]);
             }
         }

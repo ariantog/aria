@@ -3,7 +3,7 @@
 namespace App\Support;
 
 /**
- * Catalog cascade: parent group → colorway (item_group) → SKU (items).
+ * Catalog cascade for reads: colorway (item_group) → SKU (items) for text and pricing.
  *
  * @see doc/item-catalog-hierarchy.md
  */
