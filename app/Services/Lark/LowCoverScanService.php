@@ -87,10 +87,6 @@ class LowCoverScanService
                 continue;
             }
 
-            if (! $larkSettings->eventSendEnabled($eventKey)) {
-                continue;
-            }
-
             $monthlyNet = (float) ($row['net_qty_30d'] ?? 0);
             $suggested = RestockRecommendationApplyService::suggestedQtyFromMonthlyRate($monthlyNet);
 
@@ -111,7 +107,7 @@ class LowCoverScanService
                 ],
             );
 
-            if ($mismatch && ! $bothLow && $larkSettings->eventSendEnabled('stock.mismatch')) {
+            if ($mismatch && ! $bothLow) {
                 $this->alerts->dispatch(
                     'stock.mismatch',
                     'mismatch:'.$itemId.':'.$band,

@@ -37,10 +37,6 @@ class JubelioWebhookOversellScanner
             return;
         }
 
-        if (! app(\App\Services\Lark\LarkSettingsService::class)->eventSendEnabled('jubelio.oversell.webhook')) {
-            return;
-        }
-
         $invoice = trim((string) ($payload['salesorder_no'] ?? ''));
         if ($invoice === '') {
             return;

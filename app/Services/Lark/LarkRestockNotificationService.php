@@ -21,10 +21,6 @@ class LarkRestockNotificationService
             return null;
         }
 
-        if (! app(LarkSettingsService::class)->eventSendEnabled('stock.restock.pending')) {
-            return null;
-        }
-
         $pending = LarkRestockRequest::query()
             ->where('item_id', $item->id)
             ->where('status', LarkRestockRequest::STATUS_PENDING)

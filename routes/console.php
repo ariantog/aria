@@ -47,4 +47,3 @@ Schedule::command('lark:scan-low-cover')
     ->withoutOverlapping(30)
     ->onOneServer()
     ->when(fn () => (bool) config('lark.enabled'));
-

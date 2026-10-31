@@ -22,7 +22,6 @@ class LarkSettingsService
             'stock.low_cover.both' => 'Stok rendah — Aria & Jubelio',
             'stock.mismatch' => 'Selisih stok Aria vs Jubelio',
             'jubelio.oversell.blocked' => 'Jubelio oversell (posting blocked)',
-            'jubelio.error.backlog' => 'Backlog error Jubelio',
             'stock.restock.pending' => 'Restock approval (Lark card)',
         ];
     }
@@ -43,9 +42,6 @@ class LarkSettingsService
                 'alert_item_types' => $this->normalizeAlertItemTypes(
                     config('lark.low_cover.alert_item_types', [ItemType::ASSET_LANCAR->value]),
                 ),
-            ],
-            'jubelio' => [
-                'error_backlog_threshold' => (int) config('lark.jubelio.error_backlog_threshold', 25),
             ],
             'jubelio_order_url_template' => config('lark.jubelio_order_url_template'),
             'events' => config('lark.events', []),
@@ -107,14 +103,6 @@ class LarkSettingsService
         ];
     }
 
-    /**
-     * @return array{error_backlog_threshold: int}
-     */
-    public function jubelio(): array
-    {
-        return $this->all()['jubelio'];
-    }
-
     public function jubelioOrderUrlTemplate(): ?string
     {
         $template = $this->all()['jubelio_order_url_template'] ?? null;
@@ -126,30 +114,15 @@ class LarkSettingsService
         return trim($template);
     }
 
-    public function eventSendEnabled(string $eventKey): bool
-    {
-        $events = $this->all()['events'] ?? [];
-        $config = $events[$eventKey] ?? null;
-        if (! is_array($config)) {
-            return true;
-        }
-
-        if (! array_key_exists('send_enabled', $config)) {
-            return true;
-        }
-
-        return (bool) $config['send_enabled'];
-    }
-
     /**
-     * @return array{send_enabled: bool, mention: string, roles: list<string>}
+     * @return array{mention: string, roles: list<string>}
      */
     public function eventConfig(string $eventKey): array
     {
         $events = $this->all()['events'] ?? [];
         $config = $events[$eventKey] ?? null;
         if (! is_array($config)) {
-            return ['send_enabled' => true, 'mention' => 'none', 'roles' => []];
+            return ['mention' => 'none', 'roles' => []];
         }
 
         $mention = ($config['mention'] ?? 'none') === 'roster' ? 'roster' : 'none';
@@ -158,11 +131,7 @@ class LarkSettingsService
             fn ($slug) => is_string($slug) && $slug !== '',
         ));
 
-        return [
-            'send_enabled' => $this->eventSendEnabled($eventKey),
-            'mention' => $mention,
-            'roles' => $roles,
-        ];
+        return ['mention' => $mention, 'roles' => $roles];
     }
 
     /**
@@ -172,7 +141,6 @@ class LarkSettingsService
     {
         $defaults = $this->defaults();
         $eventKeys = array_keys($defaults['events'] ?? $this->eventLabels());
-        $existingEvents = $this->all()['events'] ?? [];
 
         $events = [];
         foreach ($eventKeys as $key) {
@@ -188,16 +156,7 @@ class LarkSettingsService
                     }
                 }
             }
-            if (array_key_exists('send_enabled', $row)) {
-                $sendEnabled = ! empty($row['send_enabled']);
-            } else {
-                $sendEnabled = (bool) ($existingEvents[$key]['send_enabled'] ?? true);
-            }
-            $events[$key] = [
-                'send_enabled' => $sendEnabled,
-                'mention' => $mention,
-                'roles' => array_values(array_unique($roleSlugs)),
-            ];
+            $events[$key] = ['mention' => $mention, 'roles' => array_values(array_unique($roleSlugs))];
         }
 
         $template = isset($input['jubelio_order_url_template']) ? trim((string) $input['jubelio_order_url_template']) : '';
@@ -211,9 +170,6 @@ class LarkSettingsService
                 'alert_item_types' => $this->normalizeAlertItemTypes(
                     $input['low_cover_alert_item_types'] ?? $defaults['low_cover']['alert_item_types'],
                 ),
-            ],
-            'jubelio' => [
-                'error_backlog_threshold' => (int) ($input['error_backlog_threshold'] ?? $defaults['jubelio']['error_backlog_threshold']),
             ],
             'jubelio_order_url_template' => $template !== '' ? $template : null,
             'events' => $events,
@@ -242,9 +198,6 @@ class LarkSettingsService
         if (is_array($stored['low_cover'] ?? null)) {
             $merged['low_cover'] = array_merge($defaults['low_cover'], $stored['low_cover']);
         }
-        if (is_array($stored['jubelio'] ?? null)) {
-            $merged['jubelio'] = array_merge($defaults['jubelio'], $stored['jubelio']);
-        }
         if (array_key_exists('jubelio_order_url_template', $stored)) {
             $merged['jubelio_order_url_template'] = $stored['jubelio_order_url_template'];
         }
@@ -253,15 +206,9 @@ class LarkSettingsService
         $storedEvents = is_array($stored['events'] ?? null) ? $stored['events'] : [];
         $events = [];
         foreach (array_keys($this->eventLabels()) as $key) {
-            $base = is_array($defaultEvents[$key] ?? null) ? $defaultEvents[$key] : ['send_enabled' => true, 'mention' => 'none', 'roles' => []];
+            $base = is_array($defaultEvents[$key] ?? null) ? $defaultEvents[$key] : ['mention' => 'none', 'roles' => []];
             $over = is_array($storedEvents[$key] ?? null) ? $storedEvents[$key] : [];
-            $eventRow = array_merge($base, $over);
-            if (! array_key_exists('send_enabled', $eventRow)) {
-                $eventRow['send_enabled'] = true;
-            } else {
-                $eventRow['send_enabled'] = (bool) $eventRow['send_enabled'];
-            }
-            $events[$key] = $eventRow;
+            $events[$key] = array_merge($base, $over);
         }
         $merged['events'] = $events;
 

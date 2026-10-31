@@ -36,21 +36,16 @@ return [
         'alert_item_types' => array_map('intval', array_filter(explode(',', env('LARK_LOW_COVER_ITEM_TYPES', '2')))),
     ],
 
-    'jubelio' => [
-        'error_backlog_threshold' => (int) env('LARK_JUBELIO_ERROR_BACKLOG', 25),
-    ],
-
     /**
      * event_key => mention mode: none | roster, and staff role slugs for @ roster (Package 2).
      */
     'events' => [
-        'jubelio.oversell.webhook' => ['send_enabled' => true, 'mention' => 'none', 'roles' => []],
-        'stock.low_cover' => ['send_enabled' => true, 'mention' => 'none', 'roles' => []],
-        'stock.low_cover.both' => ['send_enabled' => true, 'mention' => 'roster', 'roles' => ['produk', 'gudang', 'penjualan_online']],
-        'stock.mismatch' => ['send_enabled' => true, 'mention' => 'roster', 'roles' => ['penjualan_online', 'gudang']],
-        'jubelio.oversell.blocked' => ['send_enabled' => true, 'mention' => 'roster', 'roles' => ['penjualan_online', 'gudang']],
-        'jubelio.error.backlog' => ['send_enabled' => false, 'mention' => 'roster', 'roles' => ['penjualan_online']],
-        'stock.restock.pending' => ['send_enabled' => true, 'mention' => 'none', 'roles' => []],
+        'jubelio.oversell.webhook' => ['mention' => 'none', 'roles' => []],
+        'stock.low_cover' => ['mention' => 'none', 'roles' => []],
+        'stock.low_cover.both' => ['mention' => 'roster', 'roles' => ['produk', 'gudang', 'penjualan_online']],
+        'stock.mismatch' => ['mention' => 'roster', 'roles' => ['penjualan_online', 'gudang']],
+        'jubelio.oversell.blocked' => ['mention' => 'roster', 'roles' => ['penjualan_online', 'gudang']],
+        'stock.restock.pending' => ['mention' => 'none', 'roles' => []],
     ],
 
 ];
