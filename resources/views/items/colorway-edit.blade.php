@@ -117,7 +117,7 @@ $breadcrumbs = [
                                    data-testid="colorway-product-name"
                                    @unless($isAsset) placeholder="Leave blank to inherit parent group name" @endunless
                                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                            <p class="mt-1 text-xs text-gray-500">Maps to <span class="font-mono">item_group.name</span> for this color only. Empty field = inherit parent; preview below uses the effective title.</p>
+                            <p class="mt-1 text-xs text-gray-500">Maps to <span class="font-mono">item_group.name</span> for this color only. Empty field = inherit parent; the SKU name preview uses the effective title.</p>
                         </div>
                         <div>
                             <label for="colorway-url" class="mb-1 block text-sm font-medium text-gray-700">URL</label>
@@ -125,22 +125,6 @@ $breadcrumbs = [
                                    value="{{ old('url', $group->url) }}"
                                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                         </div>
-                    </div>
-                </div>
-
-                {{-- Live name preview --}}
-                <div class="rounded-xl border border-gray-200 bg-white shadow-sm" data-testid="colorway-name-preview">
-                    <div class="border-b border-gray-100 px-5 py-4">
-                        <h3 class="text-lg font-semibold text-gray-900">SKU names (preview)</h3>
-                        <p class="text-sm text-gray-500">Updates as you type the product name.</p>
-                    </div>
-                    <div class="max-h-[420px] space-y-2 overflow-y-auto p-5">
-                        <template x-for="(row, idx) in previewNames" :key="idx">
-                            <div class="rounded-lg border border-gray-100 bg-gray-50/80 p-3">
-                                <p class="font-mono text-xs text-blue-600" x-text="row.code"></p>
-                                <p class="mt-1 text-sm font-medium text-gray-900" x-text="row.name"></p>
-                            </div>
-                        </template>
                     </div>
                 </div>
             </div>
@@ -153,7 +137,6 @@ $breadcrumbs = [
                     'curJahit' => $curJahit,
                     'curWarna' => $curWarna,
                 ])
-                @include('items.partials.form-image', ['imageUrl' => $group->image_url])
             </div>
         </div>
 
@@ -164,6 +147,25 @@ $breadcrumbs = [
             'parentDescription' => $parentDescription ?? '',
             'parentDescription2' => $parentDescription2 ?? '',
         ])
+
+        <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            @include('items.partials.form-image', ['imageUrl' => $group->image_url])
+
+            <div class="rounded-xl border border-gray-200 bg-white shadow-sm" data-testid="colorway-name-preview">
+                <div class="border-b border-gray-100 px-5 py-4">
+                    <h3 class="text-lg font-semibold text-gray-900">SKU names (preview)</h3>
+                    <p class="text-sm text-gray-500">Updates as you type the product name.</p>
+                </div>
+                <div class="max-h-[420px] space-y-2 overflow-y-auto p-5">
+                    <template x-for="(row, idx) in previewNames" :key="idx">
+                        <div class="rounded-lg border border-gray-100 bg-gray-50/80 p-3">
+                            <p class="font-mono text-xs text-blue-600" x-text="row.code"></p>
+                            <p class="mt-1 text-sm font-medium text-gray-900" x-text="row.name"></p>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
 
         <div class="sticky bottom-0 z-10 -mx-4 mt-8 flex justify-end gap-4 border-t border-gray-200 bg-white/95 px-4 py-4 shadow-[0_-4px_12px_rgba(0,0,0,0.06)] backdrop-blur-sm sm:-mx-6 sm:px-6">
             <a href="{{ route('items.group-parent-detail', $parentGroupId) }}" class="rounded-lg px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100">Cancel</a>
