@@ -16,8 +16,10 @@ beforeEach(function () {
     Config::set('lark.bot_webhook_url', 'https://open.larksuite.com/open-apis/bot/v2/hook/test-token');
 });
 
-test('jubelio error backlog scanner dispatches once when count meets threshold', function () {
-    Http::fake(['*' => Http::response(['StatusCode' => 0])]);
+function larkOpsWithBacklogSendEnabled(int $threshold = 2): void
+{
+    $events = app(LarkSettingsService::class)->defaults()['events'];
+    $events['jubelio.error.backlog']['send_enabled'] = true;
 
     Setting::query()->updateOrCreate(
         ['slug' => LarkSettingsService::SETTING_SLUG],
@@ -25,12 +27,18 @@ test('jubelio error backlog scanner dispatches once when count meets threshold',
             'name' => 'Lark Ops Settings',
             'group' => 'lark',
             'value' => [
-                'jubelio' => ['error_backlog_threshold' => 2],
-                'events' => [],
+                'jubelio' => ['error_backlog_threshold' => $threshold],
+                'events' => $events,
             ],
             'location_id' => 0,
         ],
     );
+}
+
+test('jubelio error backlog scanner dispatches once when count meets threshold', function () {
+    Http::fake(['*' => Http::response(['StatusCode' => 0])]);
+
+    larkOpsWithBacklogSendEnabled(2);
 
     foreach (['INV-ERR-1', 'INV-ERR-2'] as $invoice) {
         Jubelioorder::create([
@@ -57,18 +65,7 @@ test('jubelio error backlog scanner dispatches once when count meets threshold',
 test('jubelio error backlog re-arms when count drops below threshold', function () {
     Http::fake(['*' => Http::response(['StatusCode' => 0])]);
 
-    Setting::query()->updateOrCreate(
-        ['slug' => LarkSettingsService::SETTING_SLUG],
-        [
-            'name' => 'Lark Ops Settings',
-            'group' => 'lark',
-            'value' => [
-                'jubelio' => ['error_backlog_threshold' => 2],
-                'events' => [],
-            ],
-            'location_id' => 0,
-        ],
-    );
+    larkOpsWithBacklogSendEnabled(2);
 
     Jubelioorder::create([
         'jubelio_order_id' => 'err-only',
