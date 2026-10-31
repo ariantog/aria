@@ -110,12 +110,23 @@
         @endif
 
         @if($showSizeTags)
-        @if($attributesScope === 'size-only' && $colorwayEditUrl)
+        @if($attributesScope === 'size-only' && $colorwayEditUrl && ! ($isAsset ?? false))
         <p class="text-sm text-gray-600">
-            Type, warna, and jahit are edited on the
+            Type, warna, jahit, and size are edited on the
+            <a href="{{ $colorwayEditUrl }}" class="font-medium text-indigo-700 underline hover:text-indigo-900">colorway editor</a>
+            SKU matrix.
+        </p>
+        @if(! $multiSize && $curSizePicker)
+        <input type="hidden" name="tags[sizes][]" value="{{ is_array($curSizePicker) ? ($curSizePicker[0] ?? '') : $curSizePicker }}">
+        @endif
+        @elseif($attributesScope === 'size-only' && $colorwayEditUrl && ($isAsset ?? false))
+        <p class="text-sm text-gray-600">
+            Type and warna are edited on the
             <a href="{{ $colorwayEditUrl }}" class="font-medium text-indigo-700 underline hover:text-indigo-900">colorway editor</a>.
         </p>
         @endif
+        @if(! ($attributesScope === 'size-only' && $colorwayEditUrl && ! ($isAsset ?? false)))
+        {{-- Size (hidden for manufactured SKUs — matrix on colorway edit) --}}
         {{-- Size --}}
         <fieldset class="space-y-4 rounded-lg border border-gray-200 bg-gray-50/60 p-4" data-testid="item-form-sku-size">
             <legend class="px-1 text-xs font-semibold uppercase tracking-wide text-gray-700">This size only</legend>
@@ -145,6 +156,7 @@
             @endif
         </div>
         </fieldset>
+        @endif
         @endif
     </div>
 </div>

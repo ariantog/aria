@@ -176,9 +176,10 @@ class ItemService
         ItemGroup $group,
         object $input,
         array $itemRows,
+        array $newItemRows = [],
         ?UploadedFile $file = null,
     ): ItemGroup {
-        return DB::transaction(function () use ($group, $input, $itemRows, $file) {
+        return DB::transaction(function () use ($group, $input, $itemRows, $newItemRows, $file) {
             $items = Item::with('tags')->where('group_id', $group->id)->get();
             $sample = $items->first();
 
@@ -236,37 +237,11 @@ class ItemService
                 'genre' => (int) ($group->genre ?? ($typeTag?->id ?? 0)),
             ];
 
-            $previousGroupText = [
-                'description' => trim((string) ($group->description ?? '')),
-                'description2' => trim((string) ($group->description2 ?? '')),
-            ];
-
-            if ($this->inputIncludes($input, 'description')) {
-                $catalogAttributes['description'] = $input->description;
-            }
-
-            if ($this->inputIncludes($input, 'description2')) {
-                $catalogAttributes['description2'] = $input->description2;
-            }
-
             if (isset($input->url)) {
                 $catalogAttributes['url'] = $this->normalizeUrl($input->url);
             }
 
             ItemCatalog::applyToGroup($group, $catalogAttributes);
-
-            $descriptionFieldsSaved = array_values(array_filter(
-                ['description', 'description2'],
-                fn (string $field): bool => $this->inputIncludes($input, $field),
-            ));
-
-            if ($descriptionFieldsSaved !== []) {
-                ItemCatalog::clearStaleDescriptionMirrorsForColorway(
-                    $group,
-                    $previousGroupText,
-                    $descriptionFieldsSaved,
-                );
-            }
 
             $mirror = [
                 'brand' => $catalogAttributes['brand'],
@@ -281,6 +256,9 @@ class ItemService
             $this->syncItemNamesForGroup($group->fresh());
 
             $itemsById = $items->keyBy('id');
+            $groupName = trim((string) ($group->name ?? '')) !== ''
+                ? (string) $group->name
+                : $this->groupNameFromInput($input, $itemType, $pcode, $group, $sample);
 
             foreach ($itemRows as $row) {
                 $itemId = (int) ($row['id'] ?? 0);
@@ -290,53 +268,32 @@ class ItemService
                     continue;
                 }
 
-                if (array_key_exists('restock_urgent_threshold', $row)) {
-                    $item->restock_urgent_threshold = $this->normalizeRestockUrgentThreshold(
-                        $row['restock_urgent_threshold']
+                $this->applyColorwayMatrixRow(
+                    $item,
+                    $row,
+                    $itemType,
+                    $pcode,
+                    $group,
+                    $itemsById,
+                );
+            }
+
+            if ($newItemRows !== []) {
+                $this->assertUniqueColorwaySizeTags($itemsById, $newItemRows);
+
+                foreach ($newItemRows as $row) {
+                    $this->createColorwayMatrixItem(
+                        $group,
+                        $input,
+                        $itemType,
+                        $pcode,
+                        $groupName,
+                        $row,
+                        $itemsById,
                     );
-                    $item->save();
                 }
 
-                if (array_key_exists('price', $row)) {
-                    ItemPricing::apply($item, 'price', ItemPricing::SCOPE_SIZE, max(0, (float) ($row['price'] ?? 0)));
-                }
-
-                if (array_key_exists('cost', $row)) {
-                    ItemPricing::apply($item, 'cost', ItemPricing::SCOPE_SIZE, max(0, (float) ($row['cost'] ?? 0)));
-                }
-
-                if (array_key_exists('cost_cnh', $row)) {
-                    ItemPricing::apply($item, 'cost_cnh', ItemPricing::SCOPE_SIZE, max(0, (float) ($row['cost_cnh'] ?? 0)));
-                }
-
-                if (array_key_exists('reseller_price', $row)) {
-                    ItemPricing::apply($item, 'reseller_price', ItemPricing::SCOPE_SIZE, max(0, (float) ($row['reseller_price'] ?? 0)));
-                }
-
-                if (isset($row['pricing']) && is_array($row['pricing'])) {
-                    $pricingRows = [];
-                    foreach ($row['pricing'] as $field => $pricingRow) {
-                        if (! is_array($pricingRow)) {
-                            continue;
-                        }
-
-                        $scope = (string) ($pricingRow['scope'] ?? ItemPricing::SCOPE_SIZE);
-                        $value = max(0, (float) ($pricingRow['value'] ?? 0));
-
-                        if ($scope !== ItemPricing::SCOPE_SIZE && $value <= 0) {
-                            continue;
-                        }
-
-                        $pricingRows[$field] = [
-                            'scope' => $scope,
-                            'value' => $value,
-                        ];
-                    }
-
-                    if ($pricingRows !== []) {
-                        ItemPricing::applyFormRows($item, $pricingRows);
-                    }
-                }
+                $this->syncItemNamesForGroup($group->fresh());
             }
 
             if ($file) {
@@ -958,6 +915,7 @@ class ItemService
             $item->price = 0;
             $item->cost = 0;
             $item->cost_cnh = 0;
+            $item->ongkir = 0;
         }
         $item->restock_urgent_threshold = $this->normalizeRestockUrgentThreshold(
             $input->restock_urgent_threshold ?? $item->restock_urgent_threshold
@@ -2113,5 +2071,287 @@ class ItemService
         $threshold = (int) $value;
 
         return $threshold > 0 ? $threshold : null;
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, Item>  $siblingsById
+     */
+    protected function applyColorwayMatrixRow(
+        Item $item,
+        array $row,
+        ItemType $itemType,
+        string $pcode,
+        ItemGroup $group,
+        $siblingsById,
+    ): void {
+        if (array_key_exists('size_tag_id', $row)) {
+            $this->reassignColorwayItemSizeTag(
+                $item,
+                (int) $row['size_tag_id'],
+                $itemType,
+                $pcode,
+                $group,
+                $siblingsById,
+            );
+        }
+
+        if (array_key_exists('description', $row)) {
+            $item->description = strtoupper(trim((string) ($row['description'] ?? '')));
+        }
+
+        if (array_key_exists('description2', $row)) {
+            $item->description2 = strtoupper(trim((string) ($row['description2'] ?? '')));
+        }
+
+        if (array_key_exists('ongkir', $row)) {
+            $item->ongkir = max(0, (float) ($row['ongkir'] ?? 0));
+        }
+
+        if (array_key_exists('restock_urgent_threshold', $row)) {
+            $item->restock_urgent_threshold = $this->normalizeRestockUrgentThreshold(
+                $row['restock_urgent_threshold']
+            );
+        }
+
+        if (array_key_exists('price', $row)) {
+            ItemPricing::apply($item, 'price', ItemPricing::SCOPE_SIZE, max(0, (float) ($row['price'] ?? 0)));
+        }
+
+        if (array_key_exists('cost', $row)) {
+            ItemPricing::apply($item, 'cost', ItemPricing::SCOPE_SIZE, max(0, (float) ($row['cost'] ?? 0)));
+        }
+
+        if (array_key_exists('cost_cnh', $row)) {
+            ItemPricing::apply($item, 'cost_cnh', ItemPricing::SCOPE_SIZE, max(0, (float) ($row['cost_cnh'] ?? 0)));
+        }
+
+        if (array_key_exists('reseller_price', $row)) {
+            ItemPricing::apply($item, 'reseller_price', ItemPricing::SCOPE_SIZE, max(0, (float) ($row['reseller_price'] ?? 0)));
+        }
+
+        if (isset($row['pricing']) && is_array($row['pricing'])) {
+            $pricingRows = [];
+            foreach ($row['pricing'] as $field => $pricingRow) {
+                if (! is_array($pricingRow)) {
+                    continue;
+                }
+
+                $scope = (string) ($pricingRow['scope'] ?? ItemPricing::SCOPE_SIZE);
+                $value = max(0, (float) ($pricingRow['value'] ?? 0));
+
+                if ($scope !== ItemPricing::SCOPE_SIZE && $value <= 0) {
+                    continue;
+                }
+
+                $pricingRows[$field] = [
+                    'scope' => $scope,
+                    'value' => $value,
+                ];
+            }
+
+            if ($pricingRows !== []) {
+                ItemPricing::applyFormRows($item, $pricingRows);
+            }
+        }
+
+        $item->save();
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, Item>  $siblingsById
+     */
+    protected function createColorwayMatrixItem(
+        ItemGroup $group,
+        object $input,
+        ItemType $itemType,
+        string $pcode,
+        string $groupName,
+        array $row,
+        $siblingsById,
+    ): Item {
+        $sizeTagId = (int) ($row['size_tag_id'] ?? 0);
+        if ($sizeTagId <= 0) {
+            throw new Exception('Each new size row requires a size tag.');
+        }
+
+        $sizeTag = Tag::find($sizeTagId);
+        if (! $sizeTag || (int) $sizeTag->type !== Tag::TYPE_SIZE) {
+            throw new Exception('Invalid size tag.');
+        }
+
+        $this->assertSizeTagAvailableInColorway($siblingsById, $sizeTagId);
+
+        $sample = $siblingsById->first();
+        if (! $sample) {
+            throw new Exception('Colorway has no items.');
+        }
+
+        $tags = [
+            'types' => $sample->tags->where('type', Tag::TYPE_TYPE)->pluck('id')->all(),
+            'warna' => $sample->tags->where('type', Tag::TYPE_WARNA)->pluck('id')->all(),
+            'jahit' => $sample->tags->where('type', Tag::TYPE_JAHIT)->pluck('id')->all(),
+            'sizes' => [$sizeTagId],
+        ];
+
+        if (isset($input->tags) && is_array($input->tags)) {
+            $tags = $this->sortTags($input->tags, $itemType);
+            $tags['sizes'] = [$sizeTagId];
+        }
+
+        $typeId = (int) ($tags['types'][0] ?? 0);
+        $warnaId = (int) ($tags['warna'][0] ?? 0);
+        $typeTag = $typeId > 0 ? Tag::find($typeId) : null;
+        $warnaTag = $warnaId > 0 ? Tag::find($warnaId) : null;
+
+        $createInput = (object) [
+            'pcode' => $pcode,
+            'restock_urgent_threshold' => $row['restock_urgent_threshold'] ?? null,
+        ];
+
+        $item = $this->createSingleItem(
+            $group,
+            $createInput,
+            $itemType,
+            $typeTag,
+            $warnaTag,
+            $sizeTag,
+            $tags,
+            $typeId,
+            $sizeTagId,
+            $warnaId ?: null,
+            $groupName,
+        );
+
+        $siblingsById->put($item->id, $item->load('tags'));
+
+        $this->applyColorwayMatrixRow(
+            $item,
+            $row,
+            $itemType,
+            $pcode,
+            $group,
+            $siblingsById,
+        );
+
+        return $item;
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, Item>  $siblingsById
+     * @param  list<array<string, mixed>>  $newItemRows
+     */
+    protected function assertUniqueColorwaySizeTags($siblingsById, array $newItemRows): void
+    {
+        $seen = [];
+        foreach ($siblingsById as $item) {
+            $sizeId = (int) ($item->tags->firstWhere('type', Tag::TYPE_SIZE)?->id ?? 0);
+            if ($sizeId > 0) {
+                $seen[$sizeId] = true;
+            }
+        }
+
+        foreach ($newItemRows as $row) {
+            $sizeTagId = (int) ($row['size_tag_id'] ?? 0);
+            if ($sizeTagId <= 0) {
+                throw new Exception('Each new size row requires a size tag.');
+            }
+
+            if (isset($seen[$sizeTagId])) {
+                $tag = Tag::find($sizeTagId);
+                $label = $tag?->code ?? (string) $sizeTagId;
+                throw new Exception("Size {$label} is already used in this colorway.");
+            }
+
+            $seen[$sizeTagId] = true;
+        }
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, Item>  $siblingsById
+     */
+    protected function assertSizeTagAvailableInColorway($siblingsById, int $sizeTagId): void
+    {
+        foreach ($siblingsById as $existing) {
+            $existingSizeId = (int) ($existing->tags->firstWhere('type', Tag::TYPE_SIZE)?->id ?? 0);
+            if ($existingSizeId === $sizeTagId) {
+                $tag = Tag::find($sizeTagId);
+                $label = $tag?->code ?? (string) $sizeTagId;
+                throw new Exception("Size {$label} is already used in this colorway.");
+            }
+        }
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, Item>  $siblingsById
+     */
+    protected function reassignColorwayItemSizeTag(
+        Item $item,
+        int $sizeTagId,
+        ItemType $itemType,
+        string $pcode,
+        ItemGroup $group,
+        $siblingsById,
+    ): void {
+        if ($sizeTagId <= 0) {
+            throw new Exception('Size is required for every SKU.');
+        }
+
+        $item->loadMissing('tags');
+        $currentSizeId = (int) ($item->tags->firstWhere('type', Tag::TYPE_SIZE)?->id ?? 0);
+
+        if ($currentSizeId === $sizeTagId) {
+            return;
+        }
+
+        foreach ($siblingsById as $other) {
+            if ((int) $other->id === (int) $item->id) {
+                continue;
+            }
+
+            $otherSizeId = (int) ($other->tags->firstWhere('type', Tag::TYPE_SIZE)?->id ?? 0);
+            if ($otherSizeId === $sizeTagId) {
+                $tag = Tag::find($sizeTagId);
+                $label = $tag?->code ?? (string) $sizeTagId;
+                throw new Exception("Size {$label} is already used in this colorway.");
+            }
+        }
+
+        $sizeTag = Tag::find($sizeTagId);
+        if (! $sizeTag || (int) $sizeTag->type !== Tag::TYPE_SIZE) {
+            throw new Exception('Invalid size tag.');
+        }
+
+        $typeTag = $item->tags->firstWhere('type', Tag::TYPE_TYPE);
+        $warnaTag = $this->identityBuilder->warnaTagForItem($item);
+        $typeId = (int) ($typeTag?->id ?? 0);
+        $warnaId = (int) ($warnaTag?->id ?? 0);
+
+        $tagIds = $this->collectTagIds(
+            [
+                'types' => $typeId > 0 ? [$typeId] : [],
+                'warna' => $warnaId > 0 ? [$warnaId] : [],
+                'jahit' => $item->tags->where('type', Tag::TYPE_JAHIT)->pluck('id')->all(),
+                'sizes' => [$sizeTagId],
+            ],
+            $typeId,
+            $sizeTagId,
+            $warnaId ?: null,
+        );
+
+        $this->applyItemIdentity(
+            $item,
+            $itemType,
+            $pcode,
+            $group,
+            $typeTag,
+            $warnaTag,
+            $sizeTag,
+            (object) [],
+            isUpdate: true,
+        );
+
+        $item->tag_ids = implode(',', $tagIds);
+        $item->tags()->sync($tagIds);
+        $item->load('tags');
     }
 }

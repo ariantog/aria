@@ -62,6 +62,7 @@ class ProductionColumnDefaults
             'description' => '',
             'description2' => '',
             'reseller_price' => 0,
+            'ongkir' => 0,
             'variant' => '',
             'pcode' => '',
         ],

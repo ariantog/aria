@@ -653,7 +653,23 @@ test('items edit page can be rendered', function () {
 });
 
 test('item create and edit forms mark shared colorway attributes', function () {
-    $item = Item::factory()->create();
+    $typeTag = \App\Models\Tag::factory()->create([
+        'type' => \App\Models\Tag::TYPE_TYPE,
+        'item_type' => \App\Enums\ItemType::ITEM->value,
+        'code' => 'AJD',
+        'name' => 'Jacket',
+    ]);
+    $sizeTag = \App\Models\Tag::factory()->create(['type' => \App\Models\Tag::TYPE_SIZE, 'code' => 'S', 'name' => 'Small']);
+    $warnaTag = \App\Models\Tag::factory()->create(['type' => \App\Models\Tag::TYPE_WARNA, 'code' => 'BLUE', 'name' => 'BLUE']);
+    $jahitTag = \App\Models\Tag::factory()->create(['type' => \App\Models\Tag::TYPE_JAHIT, 'code' => 'J1', 'name' => 'Jahit1']);
+    $group = \App\Models\ItemGroup::factory()->create(['master' => 'CX90001-01', 'variant' => '01', 'name' => 'CX90001-01']);
+    $item = Item::factory()->create([
+        'type' => \App\Enums\ItemType::ITEM,
+        'group_id' => $group->id,
+        'pcode' => 'CX90001-01',
+        'code' => 'AJD-CX90001-01-S',
+    ]);
+    $item->tags()->attach([$typeTag->id, $sizeTag->id, $warnaTag->id, $jahitTag->id]);
 
     $this->actingAs($this->user)
         ->get(route('items.create'))
@@ -672,10 +688,11 @@ test('item create and edit forms mark shared colorway attributes', function () {
         ->assertOk()
         ->assertSee('data-testid="item-catalog-panel"', false)
         ->assertSee('data-testid="item-form-catalog-links"', false)
-        ->assertSee('data-testid="item-pricing-scopes"', false)
+        ->assertSee('data-testid="item-form-pricing-colorway-hint"', false)
         ->assertSee('Colorway editor', false)
         ->assertDontSee('data-testid="item-catalog-tab-colorway"', false)
-        ->assertDontSee('data-testid="item-pricing-create"', false);
+        ->assertDontSee('data-testid="item-pricing-create"', false)
+        ->assertDontSee('data-testid="item-form-pricing-price-value"', false);
 });
 
 test('item edit leaves stored colorway product name empty when inheriting parent title', function () {
@@ -810,9 +827,7 @@ test('manufactured item edit form pins size tag and links shared tags to colorwa
     $this->actingAs($this->user)
         ->get(route('items.edit', $item))
         ->assertOk()
-        ->assertSee('data-testid="tag-filter-size"', false)
-        ->assertSee('data-testid="tag-picker-size"', false)
-        ->assertSee('data-tag-selected="1"', false)
+        ->assertDontSee('data-testid="item-form-sku-size"', false)
         ->assertSee('name="tags[sizes][]"', false)
         ->assertDontSee('data-testid="tag-filter-jahit"', false)
         ->assertDontSee('data-testid="item-form-shared-tags"', false)

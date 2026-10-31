@@ -758,9 +758,13 @@ class ItemsController extends Controller
                 'id' => $item->id,
                 'code' => $canonicalCode,
                 'name' => $item->name,
+                'size_tag_id' => $sizeTag?->id,
                 'size_code' => $sizeTag?->code ?? '—',
                 'size_name' => $sizeTag?->name ?? '—',
                 'warna_code' => $warnaTag?->code ?? '',
+                'description' => old('items.'.$item->id.'.description', trim((string) ($item->description ?? ''))),
+                'description2' => old('items.'.$item->id.'.description2', trim((string) ($item->description2 ?? ''))),
+                'ongkir' => old('items.'.$item->id.'.ongkir', (string) ($item->ongkir ?? 0)),
                 'pricing' => $pricing,
                 'effective_price' => $pricing['price']['effective'] ?? 0,
                 'effective_reseller_price' => $pricing['reseller_price']['effective'] ?? 0,
@@ -822,18 +826,34 @@ class ItemsController extends Controller
         $rules = [
             'pcode' => ['required', 'string', 'max:255'],
             'product_name' => ['nullable', 'string', 'max:255'],
-            'description' => ['nullable', 'string'],
-            'description2' => ['nullable', 'string'],
             'url' => ['nullable', 'string', 'max:255'],
             'image' => ['nullable', 'image', 'max:5120'],
             'items' => ['required', 'array'],
+            'new_items' => ['nullable', 'array'],
         ];
 
         foreach ($itemIds as $itemId) {
+            $rules["items.{$itemId}.size_tag_id"] = ['required', 'integer'];
+            $rules["items.{$itemId}.description"] = ['nullable', 'string'];
+            $rules["items.{$itemId}.description2"] = ['nullable', 'string'];
+            $rules["items.{$itemId}.ongkir"] = ['nullable', 'numeric', 'min:0'];
             $rules["items.{$itemId}.restock_urgent_threshold"] = ['nullable', 'integer', 'min:1'];
             foreach (ItemPricing::FIELDS as $field) {
                 $rules["items.{$itemId}.pricing.{$field}.scope"] = ['nullable', 'in:size,colorway,group'];
                 $rules["items.{$itemId}.pricing.{$field}.value"] = ['nullable', 'numeric', 'min:0'];
+            }
+        }
+
+        $newItemKeys = array_keys($request->input('new_items', []));
+        foreach ($newItemKeys as $newKey) {
+            $rules["new_items.{$newKey}.size_tag_id"] = ['required', 'integer'];
+            $rules["new_items.{$newKey}.description"] = ['nullable', 'string'];
+            $rules["new_items.{$newKey}.description2"] = ['nullable', 'string'];
+            $rules["new_items.{$newKey}.ongkir"] = ['nullable', 'numeric', 'min:0'];
+            $rules["new_items.{$newKey}.restock_urgent_threshold"] = ['nullable', 'integer', 'min:1'];
+            foreach (ItemPricing::FIELDS as $field) {
+                $rules["new_items.{$newKey}.pricing.{$field}.scope"] = ['nullable', 'in:size,colorway,group'];
+                $rules["new_items.{$newKey}.pricing.{$field}.value"] = ['nullable', 'numeric', 'min:0'];
             }
         }
 
@@ -853,23 +873,21 @@ class ItemsController extends Controller
         $itemRows = [];
         foreach ($itemIds as $itemId) {
             $row = $request->input("items.{$itemId}", []);
-            $itemRows[] = [
-                'id' => (int) $itemId,
-                'price' => $row['price'] ?? null,
-                'reseller_price' => $row['reseller_price'] ?? null,
-                'cost' => $row['cost'] ?? null,
-                'cost_cnh' => $row['cost_cnh'] ?? null,
-                'restock_urgent_threshold' => $row['restock_urgent_threshold'] ?? null,
-                'pricing' => $row['pricing'] ?? null,
-            ];
+            $itemRows[] = $this->colorwayMatrixRowFromRequest($row, (int) $itemId);
+        }
+
+        $newItemRows = [];
+        foreach ($request->input('new_items', []) as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $newItemRows[] = $this->colorwayMatrixRowFromRequest($row);
         }
 
         try {
             $payload = $request->only([
                 'pcode',
                 'product_name',
-                'description',
-                'description2',
                 'url',
             ]);
             $payload['tags'] = $request->input('tags', []);
@@ -878,6 +896,7 @@ class ItemsController extends Controller
                 $group,
                 (object) $payload,
                 $itemRows,
+                $newItemRows,
                 $request->file('image'),
             );
 
@@ -1130,6 +1149,27 @@ class ItemsController extends Controller
             'curWarna' => optional($item->tags->firstWhere('type', Tag::TYPE_WARNA))->id,
             'duplicateFrom' => $item,
         ]));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function colorwayMatrixRowFromRequest(array $row, ?int $id = null): array
+    {
+        $normalized = [
+            'size_tag_id' => isset($row['size_tag_id']) ? (int) $row['size_tag_id'] : null,
+            'description' => array_key_exists('description', $row) ? (string) ($row['description'] ?? '') : null,
+            'description2' => array_key_exists('description2', $row) ? (string) ($row['description2'] ?? '') : null,
+            'ongkir' => array_key_exists('ongkir', $row) ? $row['ongkir'] : null,
+            'restock_urgent_threshold' => $row['restock_urgent_threshold'] ?? null,
+            'pricing' => $row['pricing'] ?? null,
+        ];
+
+        if ($id !== null) {
+            $normalized['id'] = $id;
+        }
+
+        return $normalized;
     }
 
     private function formProps(ItemType $t): array

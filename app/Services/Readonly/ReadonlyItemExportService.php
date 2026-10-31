@@ -92,6 +92,7 @@ class ReadonlyItemExportService
             'colorway' => $item->listColorwayLabel(),
             'parent_group' => $item->listParentGroupLabel(),
             'price' => $price,
+            'ongkir' => (float) ($item->ongkir ?? 0),
             'base_cost' => $baseCost,
             'cost_updated_at' => $item->updated_at?->toIso8601String(),
             'cost_updated_at_source' => 'items.updated_at',
