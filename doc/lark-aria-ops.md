@@ -123,7 +123,7 @@ A person can have **multiple** staff roles; they will match any event that check
 
 **System Settings → Lark Ops**
 
-- **Threshold stok:** cover days, re-arm buffer, Aria vs Jubelio mismatch delta.
+- **Threshold stok:** cover days, re-arm buffer, Aria vs Jubelio mismatch delta. Low-cover **Qty Aria** sums only **Jubelio-mapped (online) warehouses** (`jubeliosyncs`), not all physical gudang — so cards match Jubelio channel stock.
 - **Jubelio:** backlog threshold for `lark:scan-jubelio-error-backlog`, order URL template for “Buka di Jubelio” buttons.
 - **Event → @ mention:** per event, toggle **Kirim Lark** (disable cards without stopping scanners), mention mode, and staff roles — e.g. keep webhook oversell as **None** (silent card), use **Roster @** for blocked oversell and stock mismatch.
 
