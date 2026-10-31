@@ -129,7 +129,12 @@ it('updates group url on colorway edit and restock threshold on item edit', func
                 'jahit' => $jahitTag->id,
             ],
             'items' => [
-                $item->id => ['price' => $item->price],
+                $item->id => [
+                    'size_tag_id' => $sizeTag->id,
+                    'pricing' => [
+                        'price' => ['scope' => 'size', 'value' => $item->price],
+                    ],
+                ],
             ],
         ])
         ->assertRedirect(route('items.colorway-edit', $group));
@@ -152,7 +157,7 @@ it('updates group url on colorway edit and restock threshold on item edit', func
         ->and($item->restock_urgent_threshold)->toBe(8);
 });
 
-it('stores colorway descriptions on colorway edit and per-sku overrides on asset lancar edit', function () {
+it('stores per-sku descriptions on colorway matrix and per-sku overrides on asset lancar edit', function () {
     $size5 = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => '5KG', 'name' => '5KG']);
     $size6 = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => '6KG', 'name' => '6KG']);
     $warnaTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLACK', 'name' => 'BLACK']);
@@ -191,12 +196,10 @@ it('stores colorway descriptions on colorway edit and per-sku overrides on asset
         (object) [
             'pcode' => 'DUMBBELL-04',
             'product_name' => 'Dumbbell',
-            'description' => 'UPDATED SHARED DESC',
-            'description2' => 'UPDATED SHARED NB',
         ],
         [
-            ['id' => $item5->id, 'cost' => 50000],
-            ['id' => $item6->id, 'cost' => 55000, 'pricing' => ['reseller_price' => ['scope' => 'size', 'value' => 110000]]],
+            ['id' => $item5->id, 'cost' => 50000, 'description' => 'UPDATED 5KG DESC', 'description2' => 'UPDATED 5KG NB'],
+            ['id' => $item6->id, 'cost' => 55000, 'description' => 'UPDATED 6KG DESC', 'description2' => 'UPDATED 6KG NB', 'pricing' => ['reseller_price' => ['scope' => 'size', 'value' => 110000]]],
         ],
     );
 
@@ -219,23 +222,23 @@ it('stores colorway descriptions on colorway edit and per-sku overrides on asset
     $item6->refresh();
     $group->refresh();
 
-    expect($group->description)->toBe('UPDATED SHARED DESC')
-        ->and($group->description2)->toBe('UPDATED SHARED NB')
+    expect($group->description)->toBe('SHARED DESC')
+        ->and($group->description2)->toBe('SHARED NB')
         ->and((float) $group->reseller_price)->toBe(100000.0)
         ->and($item5->description)->toBe('5KG SPECIAL')
         ->and($item5->description2)->toBe('5KG NOTES')
         ->and((float) $item5->reseller_price)->toBe(95000.0)
         ->and($item5->catalogDescription())->toBe('5KG SPECIAL')
         ->and((float) $item5->catalogResellerPrice())->toBe(95000.0)
-        ->and($item6->description)->toBe('6KG ONLY DESC')
-        ->and($item6->description2)->toBe('6KG NB')
-        ->and($item6->catalogDescription())->toBe('6KG ONLY DESC')
-        ->and($item6->catalogDescription2())->toBe('6KG NB')
+        ->and($item6->description)->toBe('UPDATED 6KG DESC')
+        ->and($item6->description2)->toBe('UPDATED 6KG NB')
+        ->and($item6->catalogDescription())->toBe('UPDATED 6KG DESC')
+        ->and($item6->catalogDescription2())->toBe('UPDATED 6KG NB')
         ->and($item5->catalogDescription2())->toBe('5KG NOTES')
         ->and((float) $item6->catalogResellerPrice())->toBe(110000.0);
 });
 
-it('keeps per-sku NB override when colorway description is updated without resubmitting NB', function () {
+it('keeps per-sku NB when another sku description is updated on the colorway matrix', function () {
     $sizeTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => '5KG', 'name' => '5KG']);
     $warnaTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLACK', 'name' => 'BLACK']);
     $group = ItemGroup::factory()->create([
@@ -259,18 +262,18 @@ it('keeps per-sku NB override when colorway description is updated without resub
         (object) [
             'pcode' => 'DUMBBELL-05',
             'product_name' => 'Dumbbell',
-            'description' => 'UPDATED SHARED DESC',
         ],
         [
-            ['id' => $item->id, 'cost' => $item->cost],
+            ['id' => $item->id, 'cost' => $item->cost, 'description' => 'UPDATED SKU DESC'],
         ],
     );
 
     $item->refresh();
     $group->refresh();
 
-    expect($group->description)->toBe('UPDATED SHARED DESC')
+    expect($group->description)->toBe('SHARED DESC')
         ->and($group->description2)->toBe('SHARED NB')
+        ->and($item->description)->toBe('UPDATED SKU DESC')
         ->and($item->description2)->toBe('5KG NB ONLY')
         ->and($item->catalogDescription2())->toBe('5KG NB ONLY');
 });
@@ -587,19 +590,25 @@ it('allows item create and colorway update without description2', function () {
         ->put(route('items.colorway-update', $group), [
             'pcode' => 'CX94001-01',
             'product_name' => 'Test shirt',
-            'description' => 'Still no NB',
-            'description2' => '',
             'tags' => [
                 'types' => $typeTag->id,
                 'warna' => $warnaTag->id,
                 'jahit' => $jahitTag->id,
             ],
             'items' => [
-                $item->id => ['price' => $item->price],
+                $item->id => [
+                    'size_tag_id' => $sizeTag->id,
+                    'description' => 'Still no NB',
+                    'description2' => '',
+                    'pricing' => [
+                        'price' => ['scope' => 'size', 'value' => $item->price],
+                    ],
+                ],
             ],
         ])
         ->assertRedirect(route('items.colorway-edit', $group))
         ->assertSessionHas('success');
 
-    expect($group->fresh()->description2)->toBe('');
+    expect($group->fresh()->description2)->toBe('OLD NB')
+        ->and($item->fresh()->description)->toBe('STILL NO NB');
 });

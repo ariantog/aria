@@ -81,10 +81,9 @@ test('updateColorway renames group and regenerates item display names', function
         (object) [
             'pcode' => 'CX90233-23',
             'product_name' => 'Slash Running Shirt',
-            'description' => 'New desc',
         ],
         [
-            ['id' => $small->id, 'price' => 100000],
+            ['id' => $small->id, 'price' => 100000, 'description' => 'New desc'],
             ['id' => $medium->id, 'price' => 100000],
         ],
     );
@@ -94,9 +93,35 @@ test('updateColorway renames group and regenerates item display names', function
     $medium->refresh();
 
     expect($group->name)->toBe('SLASH RUNNING SHIRT')
-        ->and($group->description)->toBe('NEW DESC')
+        ->and($small->description)->toBe('NEW DESC')
         ->and($small->name)->toBe('SLASH RUNNING SHIRT - BLUE - S')
         ->and($medium->name)->toBe('SLASH RUNNING SHIRT - BLUE - M');
+});
+
+test('updateColorway persists per-sku ongkir from matrix row', function () {
+    $this->itemService->create((object) [
+        'pcode' => 'CX90233-23',
+        'type' => ItemType::ITEM->value,
+        'price' => 100000,
+    ], [
+        'types' => [$this->typeTag->id],
+        'sizes' => [$this->sizeTag->id],
+        'warna' => [$this->warnaTag->id],
+        'jahit' => [$this->jahitTag->id],
+    ]);
+
+    $small = Item::where('code', 'AJD-CX90233-23-S')->firstOrFail();
+    $group = $small->group()->firstOrFail();
+
+    $this->itemService->updateColorway(
+        $group,
+        (object) ['pcode' => 'CX90233-23', 'product_name' => 'CX90233-23'],
+        [
+            ['id' => $small->id, 'price' => 100000, 'ongkir' => 12500.50],
+        ],
+    );
+
+    expect((float) $small->fresh()->ongkir)->toBe(12500.5);
 });
 
 test('updateColorway changes price on one size without affecting siblings', function () {
@@ -203,8 +228,10 @@ test('colorway edit page renders with size matrix and preview', function () {
         ->assertDontSee('Size override', false)
         ->assertDontSee('Sell (eff.)', false)
         ->assertSee('AJD-CX90233-23-S', false)
-        ->assertSee('data-testid="colorway-description"', false)
-        ->assertSee('<textarea id="colorway-description"', false);
+        ->assertSee('data-testid="colorway-mass-description"', false)
+        ->assertSee('data-testid="colorway-add-size-row"', false)
+        ->assertSee('data-testid="colorway-mass-ongkir"', false)
+        ->assertDontSee('id="colorway-description"', false);
 
     $html = $response->getContent();
 
@@ -305,10 +332,8 @@ test('manufactured sku edit prefills pricing from parent and hides scope radios'
     $this->actingAs($this->user)
         ->get(route('items.edit', $item))
         ->assertOk()
-        ->assertSee('data-testid="item-form-pricing-price-scope-size"', false)
-        ->assertSee('data-testid="item-form-pricing-price-value"', false)
-        ->assertSee('value="275000"', false)
-        ->assertSee('value="250000"', false)
+        ->assertSee('data-testid="item-form-pricing-colorway-hint"', false)
+        ->assertDontSee('data-testid="item-form-pricing-price-value"', false)
         ->assertDontSee('data-testid="item-scope-all-colorway"', false)
         ->assertDontSee('data-testid="item-form-pricing-cost-value"', false);
 });
@@ -330,7 +355,7 @@ test('manufactured item edit shows size attributes only with colorway link', fun
     $this->actingAs($this->user)
         ->get(route('items.edit', $small))
         ->assertOk()
-        ->assertSee('data-testid="item-form-sku-size"', false)
+        ->assertDontSee('data-testid="item-form-sku-size"', false)
         ->assertDontSee('data-testid="item-form-shared-tags"', false)
         ->assertSee(route('items.colorway-edit', $small->group_id), false);
 });
@@ -455,6 +480,7 @@ test('colorway update redirects to canonical group when items move off stale gro
             ],
             'items' => [
                 $item->id => [
+                    'size_tag_id' => $this->sizeTag->id,
                     'pricing' => [
                         'price' => ['scope' => 'size', 'value' => 100000],
                     ],
@@ -503,7 +529,6 @@ test('colorway update via HTTP persists per-size price and reseller', function (
         ->put(route('items.colorway-update', $group), [
             'pcode' => 'CX90233-23',
             'product_name' => 'Renamed Shirt',
-            'description' => 'Via form',
             'tags' => [
                 'types' => $this->typeTag->id,
                 'warna' => $this->warnaTag->id,
@@ -511,12 +536,15 @@ test('colorway update via HTTP persists per-size price and reseller', function (
             ],
             'items' => [
                 $small->id => [
+                    'size_tag_id' => $this->sizeTag->id,
+                    'description' => 'Via form',
                     'pricing' => [
                         'price' => ['scope' => 'size', 'value' => 150000],
                         'reseller_price' => ['scope' => 'size', 'value' => 140000],
                     ],
                 ],
                 $medium->id => [
+                    'size_tag_id' => $this->mediumTag->id,
                     'pricing' => [
                         'price' => ['scope' => 'size', 'value' => 120000],
                         'reseller_price' => ['scope' => 'size', 'value' => 110000],
@@ -531,7 +559,7 @@ test('colorway update via HTTP persists per-size price and reseller', function (
     $medium->refresh();
 
     expect($group->name)->toBe('RENAMED SHIRT')
-        ->and($group->description)->toBe('VIA FORM')
+        ->and($small->description)->toBe('VIA FORM')
         ->and((float) $small->price)->toBe(150000.0)
         ->and((float) $medium->price)->toBe(120000.0)
         ->and((float) $small->reseller_price)->toBe(140000.0)

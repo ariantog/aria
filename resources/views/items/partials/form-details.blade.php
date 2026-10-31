@@ -63,7 +63,7 @@
                 @if($colorwayEditUrl)
                 <li>
                     <a href="{{ $colorwayEditUrl }}" class="font-medium underline hover:text-indigo-700">Colorway editor</a>
-                    — pcode, colorway product name, descriptions, image, colorway pricing matrix
+                    — pcode, colorway product name, SKU matrix (size, pricing, description, ongkir), image
                 </li>
                 @endif
             </ul>
@@ -159,19 +159,23 @@
         @include('items.partials.form-pricing-create', ['formItem' => $fi])
         @endif
 
-        @if($skuOnlyCatalog)
+        @if($skuOnlyCatalog && ($isAsset ?? false))
         @include('items.partials.form-pricing-scopes', [
             'pricingState' => $pricingState ?? [],
             'pricingPrefix' => 'pricing',
             'pricingIdPrefix' => 'item-form-pricing',
             'showEffective' => false,
             'pricingFixedScope' => \App\Support\ItemPricing::SCOPE_SIZE,
-            'pricingFieldKeys' => ! ($isAsset ?? false)
-                ? ['price', 'reseller_price']
-                : null,
+            'pricingFieldKeys' => null,
             'pricingIntro' => 'Amounts are stored on this SKU only. Fields show the effective value (parent default when this SKU has no override).',
             'embeddedInCatalog' => true,
         ])
+        @elseif($skuOnlyCatalog && ! ($isAsset ?? false) && ($colorwayEditUrl ?? null))
+        <p class="text-sm text-gray-600" data-testid="item-form-pricing-colorway-hint">
+            Price and reseller amounts for manufactured SKUs are edited in the
+            <a href="{{ $colorwayEditUrl }}" class="font-medium text-indigo-700 underline hover:text-indigo-900">colorway editor</a>
+            SKU matrix.
+        </p>
         @endif
     </div>
 </div>
