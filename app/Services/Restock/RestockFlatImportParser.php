@@ -33,19 +33,62 @@ class RestockFlatImportParser
     {
         $reader = IOFactory::createReaderForFile($path);
         $reader->setReadDataOnly(true);
-        $sheet = $reader->load($path)->getActiveSheet();
-        $matrix = $sheet->toArray(null, true, true, false);
+        $workbook = $reader->load($path);
 
-        if ($matrix === []) {
-            throw new RuntimeException('Spreadsheet is empty.');
+        $flatSheet = $workbook->getSheetByName('Flat');
+        if ($flatSheet !== null) {
+            $parsed = $this->parseWorksheetMatrix($flatSheet->toArray(null, true, true, false));
+            if ($parsed !== null) {
+                return $parsed;
+            }
+        }
+
+        $fallbackHeadersOnly = null;
+
+        foreach ($workbook->getAllSheets() as $worksheet) {
+            if ($flatSheet !== null && $worksheet->getTitle() === $flatSheet->getTitle()) {
+                continue;
+            }
+
+            $parsed = $this->parseWorksheetMatrix($worksheet->toArray(null, true, true, false));
+            if ($parsed === null) {
+                continue;
+            }
+
+            if ($parsed !== []) {
+                return $parsed;
+            }
+
+            $fallbackHeadersOnly ??= $parsed;
+        }
+
+        if ($fallbackHeadersOnly !== null) {
+            return $fallbackHeadersOnly;
+        }
+
+        throw new RuntimeException('Required columns: sku and quantity.');
+    }
+
+    /**
+     * @param  array<int, array<int, mixed>>|null  $matrix
+     * @return list<array{line: int, sku: string, qty: int}>|null null when the sheet lacks sku/qty headers
+     */
+    private function parseWorksheetMatrix(?array $matrix): ?array
+    {
+        if ($matrix === null || $matrix === []) {
+            return null;
         }
 
         $headerRow = array_shift($matrix);
         if (! is_array($headerRow)) {
-            throw new RuntimeException('Header row not found.');
+            return null;
         }
 
-        $columns = $this->mapHeaders($headerRow);
+        try {
+            $columns = $this->mapHeaders($headerRow);
+        } catch (RuntimeException) {
+            return null;
+        }
 
         return $this->buildRows($matrix, $columns, startLine: 2);
     }
@@ -163,6 +206,7 @@ class RestockFlatImportParser
     private function normalizeHeader(string $value): string
     {
         $normalized = strtolower(trim($value));
+        $normalized = preg_replace('/^\x{FEFF}/u', '', $normalized) ?? $normalized;
         $normalized = preg_replace('/[\s\-_]+/', '', $normalized) ?? '';
 
         return $normalized;
