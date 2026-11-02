@@ -85,6 +85,44 @@ test('flat import preview and apply moves restock to production', function () {
     @unlink($path);
 });
 
+test('flat import apply moves only selected preview line numbers', function () {
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $cells = $sheet->cells()->with('item')->get();
+    expect($cells)->toHaveCount(1);
+
+    $cell = $cells->first();
+    $cell->update(['qty_restock' => 20]);
+    $sku = $cell->item->code;
+
+    $csv = "sku,quantity\n{$sku},20\nBAD-SKU,5\n";
+    $path = sys_get_temp_dir().'/restock-flat-partial-'.uniqid().'.csv';
+    file_put_contents($path, $csv);
+
+    $parsed = app(RestockFlatImportParser::class)->parse($path);
+    $preview = app(RestockFlatImportService::class)->preview('to_production', $parsed);
+
+    expect($preview['can_apply'])->toBeFalse();
+    expect($preview['has_ok_lines'])->toBeTrue();
+
+    $okLine = collect($preview['lines'])->firstWhere('status', 'ok');
+    expect($okLine)->not->toBeNull();
+
+    $result = app(RestockFlatImportService::class)->apply(
+        'to_production',
+        $parsed,
+        $this->user,
+        [(int) $okLine['line']],
+    );
+
+    expect($result['moved'])->toBe(20);
+
+    $cell->refresh();
+    expect($cell->qty_restock)->toBe(0);
+    expect($cell->qty_production)->toBe(20);
+
+    @unlink($path);
+});
+
 test('flat import rejects quantity above available restock', function () {
     $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
     $cell = $sheet->cells()->first();
@@ -195,6 +233,44 @@ test('flat import preview accepts utf-8 bom csv', function () {
 
     expect($preview['can_apply'])->toBeTrue();
     expect($preview['summary']['moving'])->toBe(3);
+
+    @unlink($path);
+});
+
+test('flat import uses sheet grid row qty when legacy sku shares a color slot', function () {
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $primaryCell = $sheet->cells()->first();
+    $primaryCell->update(['qty_restock' => 200]);
+    $primaryItem = $primaryCell->item;
+    $primarySku = $primaryItem->code;
+
+    $legacyItem = $primaryItem->replicate();
+    $legacyItem->code = 'LEGACY-SLOT-SKU';
+    $legacyItem->legacy_code = 'LEGACY-SLOT-SKU';
+    $legacyItem->save();
+    $legacyItem->tags()->sync($primaryItem->tags->pluck('id'));
+
+    $legacyCell = $sheet->cells()->create([
+        'restock_sheet_id' => $sheet->id,
+        'item_id' => $legacyItem->id,
+        'color_id' => $primaryCell->color_id,
+        'size_id' => $primaryCell->size_id,
+        'qty_restock' => 58,
+    ]);
+
+    expect($legacyCell->qty_restock)->toBe(58);
+
+    $csv = "sku,quantity\nLEGACY-SLOT-SKU,200\n";
+    $path = sys_get_temp_dir().'/restock-flat-legacy-slot-'.uniqid().'.csv';
+    file_put_contents($path, $csv);
+
+    $parsed = app(RestockFlatImportParser::class)->parse($path);
+    $preview = app(RestockFlatImportService::class)->preview('to_production', $parsed);
+
+    expect($preview['can_apply'])->toBeTrue();
+    expect($preview['summary']['moving'])->toBe(200);
+    expect($preview['lines'][0]['cell_id'])->toBe($primaryCell->id);
+    expect($preview['lines'][0]['message'])->toContain($primarySku);
 
     @unlink($path);
 });

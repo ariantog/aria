@@ -12,6 +12,7 @@ class RestockFlatImportService
 {
     public function __construct(
         protected RestockMoveService $moveService,
+        protected RestockGridBuilder $gridBuilder,
     ) {}
 
     /**
@@ -30,6 +31,8 @@ class RestockFlatImportService
 
         $lines = [];
         $seenSkus = [];
+        /** @var array<string, int> $seenImportSlots line number of first use per sheet color/size row */
+        $seenImportSlots = [];
         $moving = 0;
         $skipped = 0;
         $errors = 0;
@@ -84,33 +87,66 @@ class RestockFlatImportService
 
             /** @var RestockCell $cell */
             $cell = $cells->first();
-            $available = (int) $cell->{$sourceField};
+            $displayCell = $this->gridBuilder->displayCellForCell($cell);
+            $slotKey = $this->gridBuilder->importSlotKey($displayCell);
 
-            if ($qty > $available) {
+            if (isset($seenImportSlots[$slotKey])) {
                 $lines[] = $this->line(
                     $lineNo,
                     $sku,
                     $qty,
                     'error',
-                    "Quantity {$qty} exceeds available {$available} on sheet «{$cell->sheet?->name}».",
-                    $cell->id,
+                    'Duplicate color/size row on this sheet (first on line '.$seenImportSlots[$slotKey].'). Use one SKU per row — prefer the code from flat export.',
+                );
+                $errors++;
+
+                continue;
+            }
+            $seenImportSlots[$slotKey] = $lineNo;
+
+            $available = (int) $displayCell->{$sourceField};
+            $sheetName = $displayCell->sheet?->name;
+            $gridSku = strtoupper(trim((string) ($displayCell->item?->code ?? '')));
+            $fileSku = strtoupper(trim($sku));
+
+            if ($qty > $available) {
+                $detail = "Quantity {$qty} exceeds available {$available} on sheet «{$sheetName}».";
+                if ($gridSku !== '' && $gridSku !== $fileSku) {
+                    $detail .= " File SKU {$sku} maps to catalog row «{$gridSku}» (what the sheet grid shows for this color).";
+                } elseif ($displayCell->id !== $cell->id) {
+                    $detail .= ' Another catalog SKU shares this color row; the grid shows the row with the highest pipeline qty.';
+                }
+
+                $lines[] = $this->line(
+                    $lineNo,
+                    $sku,
+                    $qty,
+                    'error',
+                    $detail,
+                    $displayCell->id,
                     $available,
-                    $cell->sheet?->name,
+                    $sheetName,
                 );
                 $errors++;
 
                 continue;
             }
 
+            $okMessage = "Move {$qty} on «{$sheetName}» (available {$available}";
+            if ($gridSku !== '' && $gridSku !== $fileSku) {
+                $okMessage .= ", sheet row SKU «{$gridSku}»";
+            }
+            $okMessage .= ').';
+
             $lines[] = $this->line(
                 $lineNo,
                 $sku,
                 $qty,
                 'ok',
-                "Move {$qty} on «{$cell->sheet?->name}» (available {$available}).",
-                $cell->id,
+                $okMessage,
+                $displayCell->id,
                 $available,
-                $cell->sheet?->name,
+                $sheetName,
             );
             $moving += $qty;
         }
@@ -123,18 +159,26 @@ class RestockFlatImportService
                 'errors' => $errors,
             ],
             'can_apply' => $errors === 0 && $moving > 0,
+            'has_ok_lines' => collect($lines)->contains(fn (array $line) => ($line['status'] ?? '') === 'ok'),
             'direction_label' => $meta['label'],
         ];
     }
 
     /**
      * @param  list<array{line: int, sku: string, qty: int}>  $parsedRows
+     * @param  list<int>|null  $includeLineNumbers  Preview line numbers to move; null = all OK lines (full apply).
      * @return array{moved: int, sheets: int, message: string}
      */
-    public function apply(string $direction, array $parsedRows, User $user): array
+    public function apply(string $direction, array $parsedRows, User $user, ?array $includeLineNumbers = null): array
     {
         $preview = $this->preview($direction, $parsedRows);
-        if (! $preview['can_apply']) {
+        $linesToApply = $this->filterApplyLines($preview['lines'], $includeLineNumbers);
+
+        if ($linesToApply === []) {
+            throw new InvalidArgumentException('No lines selected to apply.');
+        }
+
+        if ($includeLineNumbers === null && ! $preview['can_apply']) {
             throw new InvalidArgumentException('Import cannot be applied — fix errors in preview first.');
         }
 
@@ -144,11 +188,7 @@ class RestockFlatImportService
         /** @var array<int, list<array{id: int, qty: int}>> $bySheet */
         $bySheet = [];
 
-        foreach ($preview['lines'] as $line) {
-            if (($line['status'] ?? '') !== 'ok') {
-                continue;
-            }
-
+        foreach ($linesToApply as $line) {
             $cellId = (int) $line['cell_id'];
             $cell = RestockCell::query()->find($cellId);
             if (! $cell) {
@@ -189,6 +229,29 @@ class RestockFlatImportService
                 ? "Moved {$totalMoved} unit(s) across {$sheetCount} sheet(s)."
                 : 'Nothing to move.',
         ];
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $lines
+     * @param  list<int>|null  $includeLineNumbers
+     * @return list<array<string, mixed>>
+     */
+    private function filterApplyLines(array $lines, ?array $includeLineNumbers): array
+    {
+        if ($includeLineNumbers === null) {
+            return array_values(array_filter(
+                $lines,
+                fn (array $line) => ($line['status'] ?? '') === 'ok',
+            ));
+        }
+
+        $include = array_flip(array_map('intval', $includeLineNumbers));
+
+        return array_values(array_filter(
+            $lines,
+            fn (array $line) => ($line['status'] ?? '') === 'ok'
+                && isset($include[(int) ($line['line'] ?? 0)]),
+        ));
     }
 
     /**

@@ -643,4 +643,63 @@ class RestockGridBuilder
 
         return '1_'.$upper;
     }
+
+    /**
+     * The restock cell the sheet grid displays for this item's color/size slot
+     * (when several catalog SKUs share the row, the highest pipeline qty wins).
+     */
+    public function displayCellForCell(RestockCell $cell): RestockCell
+    {
+        $cell->loadMissing([
+            'sheet.cells.color',
+            'sheet.cells.size',
+            'sheet.cells.item.group',
+            'sheet.cells.item.tags',
+            'item.group',
+            'item.tags',
+            'color',
+            'size',
+        ]);
+
+        if ($cell->sheet === null || $cell->item === null) {
+            return $cell;
+        }
+
+        $parentPcode = $this->identityBuilder->assetLancarParentPcode($cell->item);
+        $parentCells = $cell->sheet->cells->filter(
+            fn (RestockCell $candidate) => $candidate->item !== null
+                && $this->identityBuilder->assetLancarParentPcode($candidate->item) === $parentPcode,
+        );
+
+        $colorKey = $this->colorGroupKey($cell);
+        $sizeCode = $this->cellSizeCode($cell) ?? '—';
+
+        $display = $parentCells
+            ->filter(fn (RestockCell $candidate) => $this->colorGroupKey($candidate) === $colorKey)
+            ->filter(fn (RestockCell $candidate) => $this->cellMatchesSize($candidate, $sizeCode))
+            ->sortByDesc(fn (RestockCell $candidate) => (int) $candidate->qty_restock
+                + (int) $candidate->qty_production
+                + (int) $candidate->qty_shipped)
+            ->first();
+
+        return $display ?? $cell;
+    }
+
+    /**
+     * Stable key for the color/size row on a sheet (flat import de-duplication).
+     */
+    public function importSlotKey(RestockCell $cell): string
+    {
+        $cell->loadMissing(['item', 'sheet']);
+
+        if ($cell->item === null) {
+            return 'cell:'.$cell->id;
+        }
+
+        $parentPcode = $this->identityBuilder->assetLancarParentPcode($cell->item);
+        $colorKey = $this->colorGroupKey($cell);
+        $sizeCode = $this->cellSizeCode($cell) ?? '—';
+
+        return (int) $cell->restock_sheet_id.':'.$parentPcode.':'.$colorKey.':'.$sizeCode;
+    }
 }
