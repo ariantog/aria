@@ -170,7 +170,8 @@ $stageLabels = [
                         <div class="min-w-[12rem] flex-1">
                             <label class="mb-1 block text-xs font-medium text-gray-700" for="restock-flat-file">File (CSV or Excel)</label>
                             <input type="file" id="restock-flat-file" accept=".csv,.txt,.xlsx,.xls"
-                                   @change="flatFile = $event.target.files[0] || null"
+                                   @click="$event.target.value = ''"
+                                   @change="flatFile = $event.target.files[0] || null; flatPreviewData = null; flatCanApply = false; flatError = ''; flatFlash = '';"
                                    data-testid="restock-flat-file"
                                    class="block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-blue-800 hover:file:bg-blue-100">
                         </div>
@@ -201,6 +202,13 @@ $stageLabels = [
                                 <span x-text="flatPreviewData.summary.skipped"></span> skipped,
                                 <span x-text="flatPreviewData.summary.errors"></span> error(s).
                             </p>
+                            <template x-if="!flatCanApply">
+                                <p class="border-b border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+                                   data-testid="restock-flat-apply-blocked-hint">
+                                    Apply is disabled until every line is OK and at least one quantity will move.
+                                    Match the Move direction to the file you exported (restock qty → Restock → Production; production qty → Production → Shipping).
+                                </p>
+                            </template>
                             <table class="min-w-full divide-y divide-gray-200 text-sm">
                                 <thead class="bg-gray-50">
                                     <tr>
@@ -319,6 +327,14 @@ function restockIndexPage(config) {
         flatCanApply: false,
         flatPreviewUrl: config.flatPreviewUrl,
         flatApplyUrl: config.flatApplyUrl,
+        init() {
+            this.$watch('flatDirection', () => {
+                this.flatPreviewData = null;
+                this.flatCanApply = false;
+                this.flatError = '';
+                this.flatFlash = '';
+            });
+        },
         allSheetsSelected() {
             return this.allSheetIds.length > 0
                 && this.selectedSheetIds.length === this.allSheetIds.length;
@@ -361,7 +377,7 @@ function restockIndexPage(config) {
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.message || 'Preview failed');
                 this.flatPreviewData = data;
-                this.flatCanApply = data.can_apply === true;
+                this.flatCanApply = Boolean(data.can_apply);
             } catch (e) {
                 this.flatError = e.message || 'Preview failed';
             } finally {

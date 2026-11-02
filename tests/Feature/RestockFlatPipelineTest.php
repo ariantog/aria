@@ -9,6 +9,7 @@ use App\Services\Restock\RestockFlatImportParser;
 use App\Services\Restock\RestockFlatImportService;
 use App\Services\Restock\RestockSheetService;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use Spatie\Permission\Models\Permission;
 
 beforeEach(function () {
@@ -148,4 +149,83 @@ test('flat import preview endpoint accepts uploaded xlsx', function () {
         ->assertJsonPath('summary.moving', 10);
 
     @unlink($exportPath);
+});
+
+test('flat import reads Flat worksheet when another empty sheet is active', function () {
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $cell = $sheet->cells()->first();
+    $cell->update(['qty_restock' => 6]);
+    $sku = $cell->item->code;
+
+    $path = sys_get_temp_dir().'/restock-flat-multi-'.uniqid().'.xlsx';
+    $workbook = new Spreadsheet;
+    $flat = $workbook->getActiveSheet();
+    $flat->setTitle('Flat');
+    $flat->fromArray(['sku', 'quantity'], null, 'A1');
+    $flat->setCellValue('A2', $sku);
+    $flat->setCellValue('B2', 4);
+
+    $empty = $workbook->createSheet(0);
+    $empty->setTitle('Sheet1');
+    $empty->setCellValue('A1', 'notes');
+    $workbook->setActiveSheetIndex(0);
+
+    IOFactory::createWriter($workbook, 'Xlsx')->save($path);
+
+    $parsed = app(RestockFlatImportParser::class)->parse($path);
+    $preview = app(RestockFlatImportService::class)->preview('to_production', $parsed);
+
+    expect($preview['can_apply'])->toBeTrue();
+    expect($preview['summary']['moving'])->toBe(4);
+
+    @unlink($path);
+});
+
+test('flat import preview accepts utf-8 bom csv', function () {
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $cell = $sheet->cells()->first();
+    $cell->update(['qty_restock' => 3]);
+    $sku = $cell->item->code;
+
+    $path = sys_get_temp_dir().'/restock-flat-bom-'.uniqid().'.csv';
+    file_put_contents($path, "\xEF\xBB\xBFsku,quantity\n{$sku},3\n");
+
+    $parsed = app(RestockFlatImportParser::class)->parse($path);
+    $preview = app(RestockFlatImportService::class)->preview('to_production', $parsed);
+
+    expect($preview['can_apply'])->toBeTrue();
+    expect($preview['summary']['moving'])->toBe(3);
+
+    @unlink($path);
+});
+
+test('flat import preview after removing rows from exported xlsx', function () {
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $cell = $sheet->cells()->first();
+    $cell->update(['qty_restock' => 10]);
+    $sku = $cell->item->code;
+
+    $exportPath = sys_get_temp_dir().'/restock-flat-trim-'.uniqid().'.xlsx';
+    $response = app(RestockFlatExportService::class)->downloadAll('restock');
+    ob_start();
+    $response->sendContent();
+    file_put_contents($exportPath, ob_get_clean());
+
+    $workbook = IOFactory::load($exportPath);
+    $worksheet = $workbook->getActiveSheet();
+    $worksheet->setCellValue('B2', 7);
+    $editedPath = sys_get_temp_dir().'/restock-flat-trim-edited-'.uniqid().'.xlsx';
+    IOFactory::createWriter($workbook, 'Xlsx')->save($editedPath);
+
+    $this->actingAs($this->user)
+        ->post(route('restock.import-flat.preview'), [
+            'direction' => 'to_production',
+            'file' => new Illuminate\Http\UploadedFile($editedPath, 'flat-edited.xlsx', null, null, true),
+        ])
+        ->assertSuccessful()
+        ->assertJsonPath('can_apply', true)
+        ->assertJsonPath('summary.moving', 7);
+
+    @unlink($exportPath);
+    @unlink($editedPath);
 });
