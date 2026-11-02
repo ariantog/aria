@@ -292,30 +292,30 @@ class ShopeeAdsApiService
     /**
      * Live GMV-Max daily budget from Shopee.
      *
-     * Shop GMV Max is a dedicated GMS campaign — its budget is often absent from
-     * get_product_level_campaign_setting_info for the performance campaign_id, so
-     * we try get_gms_campaign_performance first, then setting info, then list scan.
+     * Reads performance, campaign setting info, and (if needed) list scan, then
+     * returns the **maximum** positive budget seen. Performance alone can lag after
+     * a manual Seller Centre edit while setting info already shows the new cap.
      */
     public function getGmsLiveBudget(string $campaignId): ?int
     {
         $fromPerformance = $this->getGmsBudgetFromPerformanceResponse($campaignId);
-        if ($fromPerformance !== null) {
-            Log::info('GMV-Max live budget from get_gms_campaign_performance', [
-                'campaign_id' => $campaignId,
-                'live' => $fromPerformance,
-            ]);
-
-            return $fromPerformance;
-        }
-
         $fromSetting = $this->getGmsBudgetFromCampaignSettingInfo($campaignId);
-        if ($fromSetting !== null) {
-            Log::info('GMV-Max live budget from campaign setting info', [
+
+        $candidates = array_values(array_filter(
+            [$fromPerformance, $fromSetting],
+            static fn (?int $value): bool => $value !== null && $value > 0,
+        ));
+
+        if ($candidates !== []) {
+            $live = max($candidates);
+            Log::info('GMV-Max live budget resolved from Shopee sources', [
                 'campaign_id' => $campaignId,
-                'live' => $fromSetting,
+                'live' => $live,
+                'from_performance' => $fromPerformance,
+                'from_setting' => $fromSetting,
             ]);
 
-            return $fromSetting;
+            return $live;
         }
 
         $fromScan = $this->scanGmsBudgetFromCampaignLists($campaignId);

@@ -384,11 +384,11 @@ class ShopeeAdsEngineService
             : max(0, (int) $settings->gms_current_spend);
         $tracked = (int) $settings->gms_current_budget;
 
-        $base = max(
-            ($liveBudget !== null && $liveBudget > 0) ? $liveBudget : 0,
-            $spendToday,
-            $tracked,
-        );
+        if ($liveBudget !== null && $liveBudget > 0) {
+            $base = max($liveBudget, $spendToday);
+        } else {
+            $base = max($spendToday, $tracked);
+        }
 
         if ($base <= 0) {
             Log::error('GMV-Max increment skipped: could not resolve a budget base', [

@@ -86,6 +86,47 @@ it('syncs live GMV budget to DB before increment when manual edit drifted', func
     expect($settings->fresh()->gms_current_budget)->toBe(1_100_000);
 });
 
+it('increments on top of manual Seller Centre budget when performance still shows tracked value', function () {
+    $settings = ShopeeAdsSetting::current();
+    $settings->update([
+        'starting_budget_gmv_max' => 100_000,
+        'daily_max_budget' => 5_000_000,
+        'gms_campaign_id' => 'gmv-manual',
+        'gms_current_budget' => 1_000_000,
+        'status' => 'active',
+    ]);
+
+    $api = Mockery::mock(ShopeeAdsApiService::class);
+    $api->shouldReceive('getGmsLiveBudget')
+        ->once()
+        ->with('gmv-manual')
+        ->andReturn(2_000_000);
+    $api->shouldReceive('getGmsCampaign')
+        ->once()
+        ->andReturn([
+            'campaign_id' => 'gmv-manual',
+            'roas' => 5.0,
+            'expense' => 150_000.0,
+        ]);
+    $api->shouldReceive('addGmsBudget')
+        ->once()
+        ->with('gmv-manual', 2_000_000, 50_000, Mockery::type('int'), 2_000_000)
+        ->andReturn([
+            'before' => 2_000_000,
+            'after' => 2_050_000,
+            'applied_increment' => 50_000,
+        ]);
+
+    $engine = new ShopeeAdsEngineService(
+        $api,
+        app(\App\Services\ShopeeAds\ShopeeAdsSpecialRulesService::class),
+        Mockery::mock(\App\Services\ShopeeAds\ShopeeAdsTelegramNotifier::class)->shouldIgnoreMissing(),
+    );
+
+    expect($engine->applyGmvMaxIncrement($settings, 50_000))->toBeTrue();
+    expect($settings->fresh()->gms_current_budget)->toBe(2_050_000);
+});
+
 it('uses today spend as increment base when tracked budget lags behind', function () {
     $settings = ShopeeAdsSetting::current();
     $settings->update([

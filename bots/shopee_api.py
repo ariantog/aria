@@ -736,13 +736,12 @@ class ShopeeAdsClient:
 
     async def get_gms_live_budget(self, campaign_id: str) -> Optional[float]:
         """
-        Live GMV-Max daily budget — try GMS performance, setting info, then list scan.
-        """
-        live = await self._gms_budget_from_performance(campaign_id)
-        if live is not None:
-            logger.info("[gmv_max] live budget %.0f from get_gms_campaign_performance", live)
-            return live
+        Live GMV-Max daily budget — merge performance + setting info (max), then list scan.
 
+        Performance can lag after a manual Seller Centre edit; setting info is often current.
+        """
+        from_performance = await self._gms_budget_from_performance(campaign_id)
+        from_setting: Optional[float] = None
         try:
             infos = await self._campaign_setting_info([int(campaign_id)])
         except ShopeeAPIError as exc:
@@ -750,10 +749,18 @@ class ShopeeAdsClient:
             infos = []
         if infos:
             raw = infos[0].get("raw", {}) or {}
-            budget = self._extract_campaign_budget_from_setting_row(raw)
-            if budget is not None:
-                logger.info("[gmv_max] live budget %.0f from campaign setting info", budget)
-                return budget
+            from_setting = self._extract_campaign_budget_from_setting_row(raw)
+
+        candidates = [b for b in (from_performance, from_setting) if b is not None and b > 0]
+        if candidates:
+            live = max(candidates)
+            logger.info(
+                "[gmv_max] live budget %.0f (performance=%s, setting=%s)",
+                live,
+                from_performance,
+                from_setting,
+            )
+            return live
 
         live = await self._scan_gms_budget_from_campaign_lists(campaign_id)
         if live is not None:
