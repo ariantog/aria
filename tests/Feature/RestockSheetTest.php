@@ -18,7 +18,11 @@ use App\Support\ItemImageResolver;
 use Spatie\Permission\Models\Permission;
 
 beforeEach(function () {
+    User::query()->find(User::SUPERADMIN_ID) ?? User::factory()->create(['id' => User::SUPERADMIN_ID]);
+
     $this->user = User::factory()->create();
+    expect($this->user->id)->not->toBe(User::SUPERADMIN_ID);
+
     foreach (['restock-list', 'restock-create', 'restock-edit'] as $perm) {
         Permission::firstOrCreate(['name' => $perm]);
     }
@@ -1071,8 +1075,8 @@ test('asset lancar create requires type tag', function () {
 });
 
 test('archiving asset lancar item removes its restock sheet cells', function () {
-    Permission::firstOrCreate(['name' => 'asset-lancar-delete']);
-    $this->user->givePermissionTo('asset-lancar-delete');
+    Permission::firstOrCreate(['name' => 'assetLancar-delete']);
+    $this->user->givePermissionTo('assetLancar-delete');
 
     createAssetLancarSkus($this);
     $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
