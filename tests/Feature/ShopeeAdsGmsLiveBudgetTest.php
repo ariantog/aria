@@ -79,6 +79,39 @@ it('falls back to campaign setting info when performance has no budget', functio
     expect($api->getGmsLiveBudget('777'))->toBe(850_000);
 });
 
+it('uses the higher budget when performance lags behind a manual Seller Centre edit', function () {
+    Http::fake(function (\Illuminate\Http\Client\Request $request) {
+        if (str_contains($request->url(), 'get_gms_campaign_performance')) {
+            return Http::response([
+                'error' => '',
+                'response' => [
+                    'campaign_id' => 9001,
+                    'daily_budget' => 1_000_000,
+                    'report' => ['expense' => 100_000],
+                ],
+            ]);
+        }
+
+        if (str_contains($request->url(), 'get_product_level_campaign_setting_info')) {
+            return Http::response([
+                'error' => '',
+                'response' => [
+                    'campaign_list' => [[
+                        'campaign_id' => 9001,
+                        'gms_info' => ['daily_budget' => 2_000_000],
+                    ]],
+                ],
+            ]);
+        }
+
+        return Http::response(['error' => '', 'response' => []]);
+    });
+
+    $api = app(ShopeeAdsApiService::class);
+
+    expect($api->getGmsLiveBudget('9001'))->toBe(2_000_000);
+});
+
 it('reads nested GMV Max budget from performance gms_info block', function () {
     Http::fake(function (\Illuminate\Http\Client\Request $request) {
         if (str_contains($request->url(), 'get_gms_campaign_performance')) {
