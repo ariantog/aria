@@ -53,6 +53,7 @@ class RestockCellHistoryRecorder
         array $fields,
         ?User $user = null,
         ?string $note = null,
+        ?string $source = null,
     ): void {
         foreach ($fields as $field) {
             $column = match ($field) {
@@ -79,7 +80,7 @@ class RestockCellHistoryRecorder
                 0,
                 'sync_remove',
                 $user,
-                RestockCellHistoryLabels::SOURCE_SYNC_SKUS,
+                $source ?? RestockCellHistoryLabels::SOURCE_SYNC_SKUS,
                 RestockCellHistoryLabels::ACTOR_USER,
                 null,
                 $note,

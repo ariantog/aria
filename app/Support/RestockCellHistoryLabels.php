@@ -26,6 +26,8 @@ final class RestockCellHistoryLabels
 
     public const SOURCE_SYNC_SKUS = 'sync_skus';
 
+    public const SOURCE_ITEM_ARCHIVED = 'item_archived';
+
     /**
      * @return array<string, string>
      */
@@ -55,6 +57,7 @@ final class RestockCellHistoryLabels
             self::SOURCE_RECOMMENDATIONS_APPLY => 'Recommendations (apply)',
             self::SOURCE_RECOMMENDATIONS_SAVE => 'Recommendations (save)',
             self::SOURCE_SYNC_SKUS => 'Sync SKUs',
+            self::SOURCE_ITEM_ARCHIVED => 'Item archived',
         ];
     }
 

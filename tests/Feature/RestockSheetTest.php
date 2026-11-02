@@ -1069,3 +1069,24 @@ test('asset lancar create requires type tag', function () {
         ])
         ->assertSessionHasErrors('tags.types');
 });
+
+test('archiving asset lancar item removes its restock sheet cells', function () {
+    Permission::firstOrCreate(['name' => 'asset-lancar-delete']);
+    $this->user->givePermissionTo('asset-lancar-delete');
+
+    createAssetLancarSkus($this);
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $cell = $sheet->cells()->first();
+    $cell->update(['qty_restock' => 53]);
+    $item = $cell->item;
+    $this->actingAs($this->user)
+        ->delete(route('assetlancar.destroy', $item))
+        ->assertRedirect(route('assetlancar.index'));
+
+    expect($item->fresh()->trashed())->toBeTrue();
+    expect(RestockCell::query()->where('item_id', $item->id)->count())->toBe(0);
+    expect(RestockCellHistory::query()->where('item_id', $item->id)->where('source', 'item_archived')->exists())->toBeTrue();
+
+    $totals = app(RestockGridBuilder::class)->pipelineTotalsForSheet($sheet->fresh());
+    expect($totals['restock'])->toBe(0);
+});
