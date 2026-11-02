@@ -60,11 +60,19 @@ class RestockFlatController extends Controller
         $validated = $request->validate([
             'direction' => ['required', 'string', 'in:'.RestockFlatPipeline::DIRECTION_TO_PRODUCTION.','.RestockFlatPipeline::DIRECTION_TO_SHIPPED],
             'file' => ['required', 'file', 'max:10240', 'mimes:csv,txt,xlsx,xls'],
+            'lines' => ['sometimes', 'array'],
+            'lines.*' => ['integer', 'min:1'],
         ]);
 
         try {
             $parsed = $this->importParser->parse($validated['file']->getRealPath());
-            $result = $this->importService->apply($validated['direction'], $parsed, $request->user());
+            $lineNumbers = isset($validated['lines']) ? array_values(array_map('intval', $validated['lines'])) : null;
+            $result = $this->importService->apply(
+                $validated['direction'],
+                $parsed,
+                $request->user(),
+                $lineNumbers,
+            );
         } catch (RuntimeException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         } catch (\InvalidArgumentException $e) {

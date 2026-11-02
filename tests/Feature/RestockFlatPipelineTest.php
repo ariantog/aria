@@ -85,6 +85,44 @@ test('flat import preview and apply moves restock to production', function () {
     @unlink($path);
 });
 
+test('flat import apply moves only selected preview line numbers', function () {
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $cells = $sheet->cells()->with('item')->get();
+    expect($cells)->toHaveCount(1);
+
+    $cell = $cells->first();
+    $cell->update(['qty_restock' => 20]);
+    $sku = $cell->item->code;
+
+    $csv = "sku,quantity\n{$sku},20\nBAD-SKU,5\n";
+    $path = sys_get_temp_dir().'/restock-flat-partial-'.uniqid().'.csv';
+    file_put_contents($path, $csv);
+
+    $parsed = app(RestockFlatImportParser::class)->parse($path);
+    $preview = app(RestockFlatImportService::class)->preview('to_production', $parsed);
+
+    expect($preview['can_apply'])->toBeFalse();
+    expect($preview['has_ok_lines'])->toBeTrue();
+
+    $okLine = collect($preview['lines'])->firstWhere('status', 'ok');
+    expect($okLine)->not->toBeNull();
+
+    $result = app(RestockFlatImportService::class)->apply(
+        'to_production',
+        $parsed,
+        $this->user,
+        [(int) $okLine['line']],
+    );
+
+    expect($result['moved'])->toBe(20);
+
+    $cell->refresh();
+    expect($cell->qty_restock)->toBe(0);
+    expect($cell->qty_production)->toBe(20);
+
+    @unlink($path);
+});
+
 test('flat import rejects quantity above available restock', function () {
     $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
     $cell = $sheet->cells()->first();

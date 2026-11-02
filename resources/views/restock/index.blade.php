@@ -180,7 +180,7 @@ $stageLabels = [
                                 class="inline-flex items-center justify-center rounded-lg bg-gray-800 px-4 py-2 text-sm font-medium text-white hover:bg-gray-900 disabled:cursor-not-allowed disabled:opacity-50">
                             Preview
                         </button>
-                        <button type="button" @click="flatApply()" :disabled="flatBusy || !flatCanApply || !flatFile"
+                        <button type="button" @click="flatApply()" :disabled="flatBusy || !flatCanSubmitApply() || !flatFile"
                                 data-testid="restock-flat-apply"
                                 class="inline-flex items-center justify-center rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50">
                             Apply move
@@ -202,16 +202,47 @@ $stageLabels = [
                                 <span x-text="flatPreviewData.summary.skipped"></span> skipped,
                                 <span x-text="flatPreviewData.summary.errors"></span> error(s).
                             </p>
-                            <template x-if="!flatCanApply">
+                            <div class="flex flex-col gap-2 border-b border-gray-100 bg-gray-50 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                                <label class="inline-flex items-center gap-2 text-xs text-gray-700">
+                                    <span class="font-medium">Apply</span>
+                                    <select x-model="flatApplyMode"
+                                            data-testid="restock-flat-apply-mode"
+                                            class="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-800">
+                                        <option value="checked">checked rows only</option>
+                                        <option value="unchecked">unchecked rows only</option>
+                                    </select>
+                                </label>
+                                <p class="text-xs text-gray-600" data-testid="restock-flat-apply-selection-summary">
+                                    Selected for move:
+                                    <span class="font-semibold tabular-nums" x-text="flatSelectedApplySummary().units"></span> unit(s),
+                                    <span class="font-semibold tabular-nums" x-text="flatSelectedApplySummary().lines"></span> line(s).
+                                </p>
+                            </div>
+                            <template x-if="!flatCanSubmitApply() && flatPreviewData && flatPreviewData.has_ok_lines">
                                 <p class="border-b border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-900"
                                    data-testid="restock-flat-apply-blocked-hint">
-                                    Apply is disabled until every line is OK and at least one quantity will move.
+                                    Select at least one OK row to move (use checkboxes). Error rows are never applied.
                                     Match the Move direction to the file you exported (restock qty → Restock → Production; production qty → Production → Shipping).
+                                </p>
+                            </template>
+                            <template x-if="flatPreviewData && !flatPreviewData.has_ok_lines">
+                                <p class="border-b border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+                                   data-testid="restock-flat-apply-no-ok-hint">
+                                    No OK lines to move. Fix errors or upload a different file.
                                 </p>
                             </template>
                             <table class="min-w-full divide-y divide-gray-200 text-sm">
                                 <thead class="bg-gray-50">
                                     <tr>
+                                        <th class="w-10 px-3 py-2 text-left font-medium text-gray-600">
+                                            <input type="checkbox"
+                                                   data-testid="restock-flat-select-all-ok"
+                                                   :checked="flatAllOkLinesSelected()"
+                                                   :indeterminate.prop="flatSomeOkLinesSelected() && !flatAllOkLinesSelected()"
+                                                   @change="flatToggleAllOkLines($event.target.checked)"
+                                                   class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                   aria-label="Toggle all OK rows">
+                                        </th>
                                         <th class="px-3 py-2 text-left font-medium text-gray-600">Line</th>
                                         <th class="px-3 py-2 text-left font-medium text-gray-600">SKU</th>
                                         <th class="px-3 py-2 text-right font-medium text-gray-600">Qty</th>
@@ -222,6 +253,14 @@ $stageLabels = [
                                 <tbody class="divide-y divide-gray-100">
                                     <template x-for="line in flatPreviewData.lines" :key="'flat-'+line.line+'-'+line.sku">
                                         <tr :class="line.status === 'error' ? 'bg-red-50' : (line.status === 'ok' ? '' : 'bg-gray-50')">
+                                            <td class="px-3 py-2">
+                                                <input type="checkbox"
+                                                       x-show="line.status === 'ok'"
+                                                       x-model="line.apply_checked"
+                                                       :data-testid="'restock-flat-line-check-'+line.line"
+                                                       class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                       :aria-label="'Include line '+line.line">
+                                            </td>
                                             <td class="px-3 py-2 tabular-nums text-gray-500" x-text="line.line"></td>
                                             <td class="px-3 py-2 font-mono text-xs" x-text="line.sku"></td>
                                             <td class="px-3 py-2 text-right tabular-nums" x-text="line.qty"></td>
@@ -325,6 +364,7 @@ function restockIndexPage(config) {
         flatFlash: '',
         flatPreviewData: null,
         flatCanApply: false,
+        flatApplyMode: 'checked',
         flatPreviewUrl: config.flatPreviewUrl,
         flatApplyUrl: config.flatApplyUrl,
         init() {
@@ -334,6 +374,55 @@ function restockIndexPage(config) {
                 this.flatError = '';
                 this.flatFlash = '';
             });
+        },
+        flatOkLines() {
+            if (!this.flatPreviewData?.lines) {
+                return [];
+            }
+
+            return this.flatPreviewData.lines.filter((line) => line.status === 'ok');
+        },
+        flatLineIncludedForApply(line) {
+            if (!line || line.status !== 'ok') {
+                return false;
+            }
+
+            const checked = line.apply_checked === true;
+
+            return this.flatApplyMode === 'checked' ? checked : !checked;
+        },
+        flatAllOkLinesSelected() {
+            const okLines = this.flatOkLines();
+
+            return okLines.length > 0 && okLines.every((line) => line.apply_checked === true);
+        },
+        flatSomeOkLinesSelected() {
+            return this.flatOkLines().some((line) => line.apply_checked === true);
+        },
+        flatToggleAllOkLines(checked) {
+            this.flatOkLines().forEach((line) => {
+                line.apply_checked = checked;
+            });
+        },
+        flatSelectedApplySummary() {
+            const selected = this.flatPreviewData?.lines?.filter((line) => this.flatLineIncludedForApply(line)) ?? [];
+
+            return {
+                lines: selected.length,
+                units: selected.reduce((sum, line) => sum + (parseInt(line.qty, 10) || 0), 0),
+            };
+        },
+        flatSelectedLineNumbers() {
+            return (this.flatPreviewData?.lines ?? [])
+                .filter((line) => this.flatLineIncludedForApply(line))
+                .map((line) => line.line);
+        },
+        flatCanSubmitApply() {
+            if (!this.flatFile || !this.flatPreviewData) {
+                return false;
+            }
+
+            return this.flatSelectedLineNumbers().length > 0;
         },
         allSheetsSelected() {
             return this.allSheetIds.length > 0
@@ -376,16 +465,29 @@ function restockIndexPage(config) {
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.message || 'Preview failed');
+                data.lines = (data.lines || []).map((line) => ({
+                    ...line,
+                    apply_checked: line.status === 'ok',
+                }));
                 this.flatPreviewData = data;
                 this.flatCanApply = Boolean(data.can_apply);
+                this.flatApplyMode = 'checked';
             } catch (e) {
                 this.flatError = e.message || 'Preview failed';
             } finally {
                 this.flatBusy = false;
             }
         },
+        flatApplyFormData() {
+            const fd = this.flatFormData();
+            this.flatSelectedLineNumbers().forEach((lineNo) => {
+                fd.append('lines[]', lineNo);
+            });
+
+            return fd;
+        },
         async flatApply() {
-            if (!this.flatFile || !this.flatCanApply) return;
+            if (!this.flatFile || !this.flatCanSubmitApply()) return;
             this.flatBusy = true;
             this.flatError = '';
             this.flatFlash = '';
@@ -397,7 +499,7 @@ function restockIndexPage(config) {
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
                         'X-Requested-With': 'XMLHttpRequest',
                     },
-                    body: this.flatFormData(),
+                    body: this.flatApplyFormData(),
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.message || 'Apply failed');
