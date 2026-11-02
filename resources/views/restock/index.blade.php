@@ -171,7 +171,7 @@ $stageLabels = [
                             <label class="mb-1 block text-xs font-medium text-gray-700" for="restock-flat-file">File (CSV or Excel)</label>
                             <input type="file" id="restock-flat-file" accept=".csv,.txt,.xlsx,.xls"
                                    @click="$event.target.value = ''"
-                                   @change="flatFile = $event.target.files[0] || null; flatPreviewData = null; flatCanApply = false; flatError = ''; flatFlash = '';"
+                                   @change="flatFile = $event.target.files[0] || null; flatPreviewData = null; flatPreviewLines = []; flatCanApply = false; flatError = ''; flatFlash = '';"
                                    data-testid="restock-flat-file"
                                    class="block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-blue-800 hover:file:bg-blue-100">
                         </div>
@@ -218,14 +218,14 @@ $stageLabels = [
                                     <span class="font-semibold tabular-nums" x-text="flatSelectedApplySummary().lines"></span> line(s).
                                 </p>
                             </div>
-                            <template x-if="!flatCanSubmitApply() && flatPreviewData && flatPreviewData.has_ok_lines">
+                            <template x-if="!flatCanSubmitApply() && flatPreviewData && flatOkLines().length > 0">
                                 <p class="border-b border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-900"
                                    data-testid="restock-flat-apply-blocked-hint">
                                     Select at least one OK row to move (use checkboxes). Error rows are never applied.
                                     Match the Move direction to the file you exported (restock qty → Restock → Production; production qty → Production → Shipping).
                                 </p>
                             </template>
-                            <template x-if="flatPreviewData && !flatPreviewData.has_ok_lines">
+                            <template x-if="flatPreviewData && flatOkLines().length === 0">
                                 <p class="border-b border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-900"
                                    data-testid="restock-flat-apply-no-ok-hint">
                                     No OK lines to move. Fix errors or upload a different file.
@@ -235,12 +235,13 @@ $stageLabels = [
                                 <thead class="bg-gray-50">
                                     <tr>
                                         <th class="w-10 px-3 py-2 text-left font-medium text-gray-600">
+                                            <span class="sr-only">Include in move</span>
                                             <input type="checkbox"
                                                    data-testid="restock-flat-select-all-ok"
                                                    :checked="flatAllOkLinesSelected()"
-                                                   :indeterminate.prop="flatSomeOkLinesSelected() && !flatAllOkLinesSelected()"
                                                    @change="flatToggleAllOkLines($event.target.checked)"
-                                                   class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                   :disabled="flatOkLines().length === 0"
+                                                   class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-40"
                                                    aria-label="Toggle all OK rows">
                                         </th>
                                         <th class="px-3 py-2 text-left font-medium text-gray-600">Line</th>
@@ -251,14 +252,14 @@ $stageLabels = [
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-gray-100">
-                                    <template x-for="line in flatPreviewData.lines" :key="'flat-'+line.line+'-'+line.sku">
+                                    <template x-for="(line, idx) in flatPreviewLines" :key="'flat-'+line.line+'-'+line.sku">
                                         <tr :class="line.status === 'error' ? 'bg-red-50' : (line.status === 'ok' ? '' : 'bg-gray-50')">
                                             <td class="px-3 py-2">
                                                 <input type="checkbox"
-                                                       x-show="line.status === 'ok'"
-                                                       x-model="line.apply_checked"
+                                                       x-model="flatPreviewLines[idx].apply_checked"
+                                                       :disabled="flatLineCheckboxDisabled(line)"
                                                        :data-testid="'restock-flat-line-check-'+line.line"
-                                                       class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                       class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-40"
                                                        :aria-label="'Include line '+line.line">
                                             </td>
                                             <td class="px-3 py-2 tabular-nums text-gray-500" x-text="line.line"></td>
@@ -363,6 +364,7 @@ function restockIndexPage(config) {
         flatError: '',
         flatFlash: '',
         flatPreviewData: null,
+        flatPreviewLines: [],
         flatCanApply: false,
         flatApplyMode: 'checked',
         flatPreviewUrl: config.flatPreviewUrl,
@@ -370,20 +372,23 @@ function restockIndexPage(config) {
         init() {
             this.$watch('flatDirection', () => {
                 this.flatPreviewData = null;
+                this.flatPreviewLines = [];
                 this.flatCanApply = false;
                 this.flatError = '';
                 this.flatFlash = '';
             });
         },
+        flatLineIsOk(line) {
+            return String(line?.status ?? '').toLowerCase() === 'ok';
+        },
+        flatLineCheckboxDisabled(line) {
+            return !this.flatLineIsOk(line);
+        },
         flatOkLines() {
-            if (!this.flatPreviewData?.lines) {
-                return [];
-            }
-
-            return this.flatPreviewData.lines.filter((line) => line.status === 'ok');
+            return this.flatPreviewLines.filter((line) => this.flatLineIsOk(line));
         },
         flatLineIncludedForApply(line) {
-            if (!line || line.status !== 'ok') {
+            if (!this.flatLineIsOk(line)) {
                 return false;
             }
 
@@ -396,16 +401,15 @@ function restockIndexPage(config) {
 
             return okLines.length > 0 && okLines.every((line) => line.apply_checked === true);
         },
-        flatSomeOkLinesSelected() {
-            return this.flatOkLines().some((line) => line.apply_checked === true);
-        },
         flatToggleAllOkLines(checked) {
-            this.flatOkLines().forEach((line) => {
-                line.apply_checked = checked;
+            this.flatPreviewLines.forEach((line, idx) => {
+                if (this.flatLineIsOk(line)) {
+                    this.flatPreviewLines[idx].apply_checked = checked;
+                }
             });
         },
         flatSelectedApplySummary() {
-            const selected = this.flatPreviewData?.lines?.filter((line) => this.flatLineIncludedForApply(line)) ?? [];
+            const selected = this.flatPreviewLines.filter((line) => this.flatLineIncludedForApply(line));
 
             return {
                 lines: selected.length,
@@ -413,7 +417,7 @@ function restockIndexPage(config) {
             };
         },
         flatSelectedLineNumbers() {
-            return (this.flatPreviewData?.lines ?? [])
+            return this.flatPreviewLines
                 .filter((line) => this.flatLineIncludedForApply(line))
                 .map((line) => line.line);
         },
@@ -452,6 +456,7 @@ function restockIndexPage(config) {
             this.flatError = '';
             this.flatFlash = '';
             this.flatPreviewData = null;
+            this.flatPreviewLines = [];
             this.flatCanApply = false;
             try {
                 const res = await fetch(this.flatPreviewUrl, {
@@ -465,11 +470,11 @@ function restockIndexPage(config) {
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.message || 'Preview failed');
-                data.lines = (data.lines || []).map((line) => ({
-                    ...line,
-                    apply_checked: line.status === 'ok',
-                }));
                 this.flatPreviewData = data;
+                this.flatPreviewLines = (data.lines || []).map((line) => ({
+                    ...line,
+                    apply_checked: String(line.status ?? '').toLowerCase() === 'ok',
+                }));
                 this.flatCanApply = Boolean(data.can_apply);
                 this.flatApplyMode = 'checked';
             } catch (e) {
@@ -505,6 +510,7 @@ function restockIndexPage(config) {
                 if (!res.ok) throw new Error(data.message || 'Apply failed');
                 this.flatFlash = data.message || 'Applied.';
                 this.flatPreviewData = null;
+                this.flatPreviewLines = [];
                 this.flatCanApply = false;
             } catch (e) {
                 this.flatError = e.message || 'Apply failed';

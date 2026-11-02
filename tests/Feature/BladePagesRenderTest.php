@@ -34,6 +34,15 @@ beforeEach(function () {
     ]);
 });
 
+it('renders the restock index flat import selection logic in the page script', function () {
+    $this->actingAs($this->user)
+        ->get(route('restock.index'))
+        ->assertOk()
+        ->assertSee('flatPreviewLines', false)
+        ->assertSee('flatLineCheckboxDisabled', false)
+        ->assertSee('flatPreviewLines[idx].apply_checked', false);
+});
+
 it('renders the dashboard', function () {
     $this->actingAs($this->user)
         ->get('/dashboard')
