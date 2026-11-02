@@ -9,6 +9,7 @@ use App\Models\RestockSheet;
 use App\Models\Tag;
 use App\Models\User;
 use App\Services\Items\ItemIdentityBuilder;
+use App\Support\RestockCellHistoryLabels;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -208,16 +209,12 @@ class RestockSheetService
     $removed = 0;
     if ($staleItemIds->isNotEmpty()) {
       $staleCells = $sheet->cells()->whereIn('item_id', $staleItemIds->all())->get();
-      foreach ($staleCells as $cell) {
-        $this->history->recordCellRemovalSnapshot(
-          $cell,
-          ['restock', 'production', 'shipped', 'missing'],
-          $user,
-          'Removed from sheet during SKU sync',
-        );
-      }
-
-      $removed = $sheet->cells()->whereIn('item_id', $staleItemIds->all())->delete();
+      $removed = $this->deleteCells(
+        $staleCells,
+        $user,
+        'Removed from sheet during SKU sync',
+        RestockCellHistoryLabels::SOURCE_SYNC_SKUS,
+      );
     }
 
     $this->refreshCellMetadata($sheet, $items);
@@ -233,6 +230,51 @@ class RestockSheetService
       'added' => $newItems->count(),
       'removed' => $removed,
     ];
+  }
+
+  /**
+   * Drop every restock cell for an archived SKU (all TYPE sheets).
+   */
+  public function removeCellsForArchivedItem(int $itemId, ?User $user = null): int
+  {
+    if ($itemId <= 0) {
+      return 0;
+    }
+
+    $cells = RestockCell::query()->where('item_id', $itemId)->get();
+
+    return $this->deleteCells(
+      $cells,
+      $user,
+      'Removed from restock sheets — item archived',
+      RestockCellHistoryLabels::SOURCE_ITEM_ARCHIVED,
+    );
+  }
+
+  /**
+   * @param  Collection<int, RestockCell>  $cells
+   */
+  protected function deleteCells(
+    Collection $cells,
+    ?User $user,
+    string $historyNote,
+    string $historySource,
+  ): int {
+    if ($cells->isEmpty()) {
+      return 0;
+    }
+
+    foreach ($cells as $cell) {
+      $this->history->recordCellRemovalSnapshot(
+        $cell,
+        ['restock', 'production', 'shipped', 'missing'],
+        $user,
+        $historyNote,
+        $historySource,
+      );
+    }
+
+    return (int) RestockCell::query()->whereIn('id', $cells->pluck('id')->all())->delete();
   }
 
   /**
@@ -307,6 +349,9 @@ class RestockSheetService
     return $groupId > 0 ? $groupId : null;
   }
 
+  /**
+   * Active (non–soft-deleted) asset lancar SKUs for a TYPE tag — restock catalog source.
+   */
   protected function assetLancarItemsForType(Tag $typeTag)
   {
     return Item::query()

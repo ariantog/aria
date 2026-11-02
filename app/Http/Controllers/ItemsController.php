@@ -25,6 +25,7 @@ use App\Services\ItemService;
 use App\Services\ItemStatsService;
 use App\Services\ItemTransactionQueryService;
 use App\Services\JubelioService;
+use App\Services\Restock\RestockSheetService;
 use App\Services\Shopee\WarehouseShopeeStockService;
 use App\Support\ItemInventorySettings;
 use App\Support\ItemPricing;
@@ -427,11 +428,25 @@ class ItemsController extends Controller
     {
         $p = Item::getPermissions();
         Gate::authorize($item->type === ItemType::ASSET_LANCAR ? $p['asset-lancar-delete'] : $p['delete']);
+
+        $restockCellsRemoved = 0;
+        if (ItemType::coerce($item->type) === ItemType::ASSET_LANCAR) {
+            $restockCellsRemoved = app(RestockSheetService::class)->removeCellsForArchivedItem(
+                (int) $item->id,
+                auth()->user(),
+            );
+        }
+
         $item->delete();
 
         $route = $item->type === ItemType::ASSET_LANCAR ? 'assetlancar.index' : 'items.index';
 
-        return redirect()->route($route)->with('success', 'Item archived (hidden from lists; historical transactions and reports are unchanged).');
+        $message = 'Item archived (hidden from lists; historical transactions and reports are unchanged).';
+        if ($restockCellsRemoved > 0) {
+            $message .= ' Removed '.$restockCellsRemoved.' restock sheet row(s).';
+        }
+
+        return redirect()->route($route)->with('success', $message);
     }
 
     public function jubelio(Item $item, JubelioService $s)

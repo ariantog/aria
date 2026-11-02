@@ -9,11 +9,15 @@ use Spatie\Permission\Models\Permission;
 uses(Illuminate\Foundation\Testing\RefreshDatabase::class);
 
 beforeEach(function () {
+    User::query()->find(User::SUPERADMIN_ID) ?? User::factory()->create(['id' => User::SUPERADMIN_ID]);
+
     foreach (['items-list', 'items-delete', 'assetLancar-list', 'assetLancar-delete'] as $name) {
         Permission::findOrCreate($name, 'web');
     }
 
     $this->user = User::factory()->create();
+    expect($this->user->id)->not->toBe(User::SUPERADMIN_ID);
+
     $this->user->givePermissionTo([
         'items-list',
         'items-delete',
@@ -86,4 +90,48 @@ it('shows archive action on item detail when delete permission is granted', func
         ->get(route('assetlancar.show', $item))
         ->assertOk()
         ->assertSee('data-testid="archive-item"', false);
+});
+
+it('forbids archiving manufactured items without items-delete permission', function () {
+    $this->user->revokePermissionTo('items-delete');
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'code' => 'NO-DEL-TEE-01',
+    ]);
+
+    $this->actingAs($this->user)
+        ->delete(route('items.destroy', $item))
+        ->assertForbidden();
+
+    expect($item->fresh()->trashed())->toBeFalse();
+});
+
+it('forbids archiving asset lancar without assetLancar-delete permission', function () {
+    $this->user->revokePermissionTo('assetLancar-delete');
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'code' => 'NO-DEL-BAND-01',
+    ]);
+
+    $this->actingAs($this->user)
+        ->delete(route('assetlancar.destroy', $item))
+        ->assertForbidden();
+
+    expect($item->fresh()->trashed())->toBeFalse();
+});
+
+it('hides archive action when delete permission is missing', function () {
+    $this->user->revokePermissionTo('assetLancar-delete');
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'code' => 'NO-ARCH-UI-01',
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('assetlancar.show', $item))
+        ->assertOk()
+        ->assertDontSee('data-testid="archive-item"', false);
 });

@@ -18,7 +18,11 @@ use App\Support\ItemImageResolver;
 use Spatie\Permission\Models\Permission;
 
 beforeEach(function () {
+    User::query()->find(User::SUPERADMIN_ID) ?? User::factory()->create(['id' => User::SUPERADMIN_ID]);
+
     $this->user = User::factory()->create();
+    expect($this->user->id)->not->toBe(User::SUPERADMIN_ID);
+
     foreach (['restock-list', 'restock-create', 'restock-edit'] as $perm) {
         Permission::firstOrCreate(['name' => $perm]);
     }
@@ -1068,4 +1072,25 @@ test('asset lancar create requires type tag', function () {
             ],
         ])
         ->assertSessionHasErrors('tags.types');
+});
+
+test('archiving asset lancar item removes its restock sheet cells', function () {
+    Permission::firstOrCreate(['name' => 'assetLancar-delete']);
+    $this->user->givePermissionTo('assetLancar-delete');
+
+    createAssetLancarSkus($this);
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $cell = $sheet->cells()->first();
+    $cell->update(['qty_restock' => 53]);
+    $item = $cell->item;
+    $this->actingAs($this->user)
+        ->delete(route('assetlancar.destroy', $item))
+        ->assertRedirect(route('assetlancar.index'));
+
+    expect($item->fresh()->trashed())->toBeTrue();
+    expect(RestockCell::query()->where('item_id', $item->id)->count())->toBe(0);
+    expect(RestockCellHistory::query()->where('item_id', $item->id)->where('source', 'item_archived')->exists())->toBeTrue();
+
+    $totals = app(RestockGridBuilder::class)->pipelineTotalsForSheet($sheet->fresh());
+    expect($totals['restock'])->toBe(0);
 });
