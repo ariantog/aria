@@ -4,6 +4,7 @@ use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\Transaction;
 use App\Models\User;
+use Carbon\Carbon;
 
 function postItemTransaction(User $user, array $payload)
 {
@@ -215,6 +216,9 @@ it('stores sell total after header discount and adjustment', function () {
 
 it('stores prod sell 618383 net payable on total not line subtotal', function () {
     // One line Rp 135,000, invoice disc 5%, adj −250 → net Rp 128,000 (not Rp 135,000).
+    // Production row 618383 was dated 2026-09-01; freeze "now" in that month so book-closing allows it.
+    Carbon::setTestNow(Carbon::parse('2026-09-15 10:00:00', 'Asia/Jakarta'));
+
     $user = User::factory()->create();
     $warehouse = Addrbook::factory()->warehouse()->create();
     $customer = Addrbook::factory()->customer()->create(['ppn' => false]);
@@ -234,7 +238,9 @@ it('stores prod sell 618383 net payable on total not line subtotal', function ()
             'price' => 135_000,
             'discount' => 0,
         ]],
-    ])->assertRedirect();
+    ])->assertSessionHasNoErrors()->assertRedirect();
+
+    Carbon::setTestNow();
 
     $transaction = Transaction::query()
         ->where('type', Transaction::TYPE_SELL)
