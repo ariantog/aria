@@ -12,6 +12,7 @@ class RestockFlatImportService
 {
     public function __construct(
         protected RestockMoveService $moveService,
+        protected RestockGridBuilder $gridBuilder,
     ) {}
 
     /**
@@ -30,6 +31,8 @@ class RestockFlatImportService
 
         $lines = [];
         $seenSkus = [];
+        /** @var array<string, int> $seenImportSlots line number of first use per sheet color/size row */
+        $seenImportSlots = [];
         $moving = 0;
         $skipped = 0;
         $errors = 0;
@@ -84,33 +87,66 @@ class RestockFlatImportService
 
             /** @var RestockCell $cell */
             $cell = $cells->first();
-            $available = (int) $cell->{$sourceField};
+            $displayCell = $this->gridBuilder->displayCellForCell($cell);
+            $slotKey = $this->gridBuilder->importSlotKey($displayCell);
 
-            if ($qty > $available) {
+            if (isset($seenImportSlots[$slotKey])) {
                 $lines[] = $this->line(
                     $lineNo,
                     $sku,
                     $qty,
                     'error',
-                    "Quantity {$qty} exceeds available {$available} on sheet «{$cell->sheet?->name}».",
-                    $cell->id,
+                    'Duplicate color/size row on this sheet (first on line '.$seenImportSlots[$slotKey].'). Use one SKU per row — prefer the code from flat export.',
+                );
+                $errors++;
+
+                continue;
+            }
+            $seenImportSlots[$slotKey] = $lineNo;
+
+            $available = (int) $displayCell->{$sourceField};
+            $sheetName = $displayCell->sheet?->name;
+            $gridSku = strtoupper(trim((string) ($displayCell->item?->code ?? '')));
+            $fileSku = strtoupper(trim($sku));
+
+            if ($qty > $available) {
+                $detail = "Quantity {$qty} exceeds available {$available} on sheet «{$sheetName}».";
+                if ($gridSku !== '' && $gridSku !== $fileSku) {
+                    $detail .= " File SKU {$sku} maps to catalog row «{$gridSku}» (what the sheet grid shows for this color).";
+                } elseif ($displayCell->id !== $cell->id) {
+                    $detail .= ' Another catalog SKU shares this color row; the grid shows the row with the highest pipeline qty.';
+                }
+
+                $lines[] = $this->line(
+                    $lineNo,
+                    $sku,
+                    $qty,
+                    'error',
+                    $detail,
+                    $displayCell->id,
                     $available,
-                    $cell->sheet?->name,
+                    $sheetName,
                 );
                 $errors++;
 
                 continue;
             }
 
+            $okMessage = "Move {$qty} on «{$sheetName}» (available {$available}";
+            if ($gridSku !== '' && $gridSku !== $fileSku) {
+                $okMessage .= ", sheet row SKU «{$gridSku}»";
+            }
+            $okMessage .= ').';
+
             $lines[] = $this->line(
                 $lineNo,
                 $sku,
                 $qty,
                 'ok',
-                "Move {$qty} on «{$cell->sheet?->name}» (available {$available}).",
-                $cell->id,
+                $okMessage,
+                $displayCell->id,
                 $available,
-                $cell->sheet?->name,
+                $sheetName,
             );
             $moving += $qty;
         }

@@ -199,6 +199,44 @@ test('flat import preview accepts utf-8 bom csv', function () {
     @unlink($path);
 });
 
+test('flat import uses sheet grid row qty when legacy sku shares a color slot', function () {
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $primaryCell = $sheet->cells()->first();
+    $primaryCell->update(['qty_restock' => 200]);
+    $primaryItem = $primaryCell->item;
+    $primarySku = $primaryItem->code;
+
+    $legacyItem = $primaryItem->replicate();
+    $legacyItem->code = 'LEGACY-SLOT-SKU';
+    $legacyItem->legacy_code = 'LEGACY-SLOT-SKU';
+    $legacyItem->save();
+    $legacyItem->tags()->sync($primaryItem->tags->pluck('id'));
+
+    $legacyCell = $sheet->cells()->create([
+        'restock_sheet_id' => $sheet->id,
+        'item_id' => $legacyItem->id,
+        'color_id' => $primaryCell->color_id,
+        'size_id' => $primaryCell->size_id,
+        'qty_restock' => 58,
+    ]);
+
+    expect($legacyCell->qty_restock)->toBe(58);
+
+    $csv = "sku,quantity\nLEGACY-SLOT-SKU,200\n";
+    $path = sys_get_temp_dir().'/restock-flat-legacy-slot-'.uniqid().'.csv';
+    file_put_contents($path, $csv);
+
+    $parsed = app(RestockFlatImportParser::class)->parse($path);
+    $preview = app(RestockFlatImportService::class)->preview('to_production', $parsed);
+
+    expect($preview['can_apply'])->toBeTrue();
+    expect($preview['summary']['moving'])->toBe(200);
+    expect($preview['lines'][0]['cell_id'])->toBe($primaryCell->id);
+    expect($preview['lines'][0]['message'])->toContain($primarySku);
+
+    @unlink($path);
+});
+
 test('flat import preview after removing rows from exported xlsx', function () {
     $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
     $cell = $sheet->cells()->first();
