@@ -18,6 +18,7 @@ class RestockRecommendationApplyService
     public function __construct(
         private readonly RestockSheetService $sheetService,
         private readonly RestockCellService $cellService,
+        private readonly RestockSheetParentTotalsSync $parentTotalsSync,
     ) {}
 
     public static function suggestedQtyFromMonthlyRate(float $monthlyNet): int
@@ -78,6 +79,8 @@ class RestockRecommendationApplyService
 
         $applied = [];
         $skipped = [];
+        /** @var array<int, RestockSheet> $sheetsToSync */
+        $sheetsToSync = [];
 
         foreach ($itemIds as $itemId) {
             $item = $items->get($itemId);
@@ -100,6 +103,7 @@ class RestockRecommendationApplyService
                 $user,
                 replace: true,
                 source: \App\Support\RestockCellHistoryLabels::SOURCE_RECOMMENDATIONS_APPLY,
+                sheetsToSync: $sheetsToSync,
             );
             if ($result['ok']) {
                 $applied[] = [
@@ -113,6 +117,8 @@ class RestockRecommendationApplyService
                 $skipped[] = ['item_id' => $itemId, 'reason' => $result['reason']];
             }
         }
+
+        $this->parentTotalsSync->syncSheets(array_values($sheetsToSync));
 
         return ['applied' => $applied, 'skipped' => $skipped];
     }
@@ -128,6 +134,8 @@ class RestockRecommendationApplyService
     {
         $applied = [];
         $skipped = [];
+        /** @var array<int, RestockSheet> $sheetsToSync */
+        $sheetsToSync = [];
 
         $itemIds = array_values(array_unique(array_map(
             fn (array $row) => (int) ($row['item_id'] ?? 0),
@@ -165,6 +173,7 @@ class RestockRecommendationApplyService
                 $user,
                 replace: true,
                 source: \App\Support\RestockCellHistoryLabels::SOURCE_RECOMMENDATIONS_SAVE,
+                sheetsToSync: $sheetsToSync,
             );
             if ($result['ok']) {
                 $applied[] = [
@@ -179,6 +188,8 @@ class RestockRecommendationApplyService
             }
         }
 
+        $this->parentTotalsSync->syncSheets(array_values($sheetsToSync));
+
         return ['applied' => $applied, 'skipped' => $skipped];
     }
 
@@ -191,6 +202,7 @@ class RestockRecommendationApplyService
         User $user,
         bool $replace,
         string $source,
+        array &$sheetsToSync = [],
     ): array {
         if (ItemType::coerce($item->type) !== ItemType::ASSET_LANCAR) {
             return ['ok' => false, 'reason' => 'Only asset lancar SKUs use restock sheets.'];
@@ -227,7 +239,9 @@ class RestockRecommendationApplyService
         $targetQty = $replace ? $qty : max((int) $cell->qty_restock, $qty);
         $this->cellService->saveQuantities($sheet, [
             ['id' => $cell->id, 'qty_restock' => $targetQty],
-        ], $user, $source);
+        ], $user, $source, syncParentTotals: false);
+
+        $sheetsToSync[$sheet->id] = $sheet;
 
         return [
             'ok' => true,

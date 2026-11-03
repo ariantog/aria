@@ -54,6 +54,11 @@ class RestockSheet extends Model
         return $this->hasMany(RestockCell::class);
     }
 
+    public function parentTotals(): HasMany
+    {
+        return $this->hasMany(RestockSheetParentTotal::class);
+    }
+
     public function getImageUrlAttribute(): string
     {
         return $this->representativeGroup?->image_url ?? asset('images/default-item.svg');
