@@ -286,6 +286,8 @@ class JubelioGetOrdersService
 
             $existing[$invoice] = true;
 
+            $warehouseColumns = $this->warehouseResolver->sellWarehouseColumnsFromPayload($row, $syncIndex);
+
             $batch[] = [
                 'jubelio_order_id' => $row['salesorder_id'] ?? null,
                 'source' => 2,
@@ -293,13 +295,9 @@ class JubelioGetOrdersService
                 'type' => 'SELL',
                 'order_status' => $row['internal_status'] ?? 'SHIPPED',
                 'run_count' => 0,
-                'warehouse_id' => $this->warehouseResolver->warehouseIdFromStoreLocation(
-                    (int) ($row['store_id'] ?? 0),
-                    (int) ($row['location_id'] ?? 0),
-                    $syncIndex,
-                ),
-                'jubelio_store_id' => (int) ($row['store_id'] ?? 0),
-                'jubelio_location_id' => (int) ($row['location_id'] ?? 0),
+                'warehouse_id' => $warehouseColumns['warehouse_id'],
+                'jubelio_store_id' => $warehouseColumns['jubelio_store_id'],
+                'jubelio_location_id' => $warehouseColumns['jubelio_location_id'],
                 'status' => 0,
                 'created_at' => $now,
                 'updated_at' => $now,
@@ -442,6 +440,8 @@ class JubelioGetOrdersService
             ];
         }
 
+        $warehouseColumns = $this->warehouseResolver->sellWarehouseColumnsFromPayload($apiData);
+
         $order = Jubelioorder::create([
             'jubelio_order_id' => $inspection['order_id'],
             'source' => 2,
@@ -449,12 +449,9 @@ class JubelioGetOrdersService
             'type' => 'SELL',
             'order_status' => $inspection['status'] ?: 'SHIPPED',
             'run_count' => 0,
-            'warehouse_id' => $this->warehouseResolver->warehouseIdFromStoreLocation(
-                (int) ($apiData['store_id'] ?? 0),
-                (int) ($apiData['location_id'] ?? 0),
-            ),
-            'jubelio_store_id' => (int) ($apiData['store_id'] ?? 0),
-            'jubelio_location_id' => (int) ($apiData['location_id'] ?? 0),
+            'warehouse_id' => $warehouseColumns['warehouse_id'],
+            'jubelio_store_id' => $warehouseColumns['jubelio_store_id'],
+            'jubelio_location_id' => $warehouseColumns['jubelio_location_id'],
             'status' => 0,
         ]);
 

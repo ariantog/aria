@@ -182,6 +182,98 @@ it('fills warehouse columns from jubelio api when webhook body lacks store locat
         ->and($order->warehouse_id)->toBe($warehouse->id);
 });
 
+it('fills warehouse columns from invoice store suffix when jubelio api lacks store location ids', function () {
+    config(['services.jubelio.webhook_secret' => 'test-secret']);
+
+    $warehouse = \App\Models\Addrbook::factory()->warehouse()->create(['name' => 'Gudang TikTok Pusat']);
+
+    \App\Models\Jubeliosync::create([
+        'jubelio_store_id' => 32327,
+        'jubelio_store_name' => 'TIKTOK - TIKTOK',
+        'jubelio_location_id' => -1,
+        'jubelio_location_name' => 'Pusat',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => 0,
+        'bin_id' => 0,
+    ]);
+
+    mockJubelioSalesOrder('wh-suffix-only', [
+        'salesorder_no' => 'TT-586928090015303551-32327',
+    ]);
+
+    $body = json_encode([
+        'status' => 'SHIPPED',
+        'salesorder_id' => 'wh-suffix-only',
+        'salesorder_no' => 'TT-586928090015303551-32327',
+        'transaction_date' => jubelioRecentTransactionDateOnly(),
+    ]);
+
+    $sign = jubelioWebhookSign($body, 'test-secret');
+
+    $this->call(
+        'POST',
+        route('jubelio.webhook.order'),
+        [],
+        [],
+        [],
+        ['HTTP_SIGN' => $sign, 'CONTENT_TYPE' => 'application/json'],
+        $body,
+    )->assertSuccessful();
+
+    $order = Jubelioorder::where('invoice', 'TT-586928090015303551-32327')->first();
+    expect($order)->not->toBeNull()
+        ->and($order->jubelio_store_id)->toBe(32327)
+        ->and($order->jubelio_location_id)->toBe(-1)
+        ->and($order->warehouse_id)->toBe($warehouse->id);
+});
+
+it('fills warehouse columns from jubelio sync map when api only has store and location names', function () {
+    config(['services.jubelio.webhook_secret' => 'test-secret']);
+
+    $warehouse = \App\Models\Addrbook::factory()->warehouse()->create(['name' => 'Gudang Name Map']);
+
+    \App\Models\Jubeliosync::create([
+        'jubelio_store_id' => 551,
+        'jubelio_store_name' => 'Tokopedia Channel',
+        'jubelio_location_id' => 552,
+        'jubelio_location_name' => 'BSD - ONLINE',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => 0,
+        'bin_id' => 0,
+    ]);
+
+    mockJubelioSalesOrder('wh-name-map', [
+        'salesorder_no' => 'INV-NAME-MAP',
+        'source_name' => 'Tokopedia Channel',
+        'location_name' => 'BSD - ONLINE',
+    ]);
+
+    $body = json_encode([
+        'status' => 'SHIPPED',
+        'salesorder_id' => 'wh-name-map',
+        'salesorder_no' => 'INV-NAME-MAP',
+        'transaction_date' => jubelioRecentTransactionDateOnly(),
+    ]);
+
+    $sign = jubelioWebhookSign($body, 'test-secret');
+
+    $this->call(
+        'POST',
+        route('jubelio.webhook.order'),
+        [],
+        [],
+        [],
+        ['HTTP_SIGN' => $sign, 'CONTENT_TYPE' => 'application/json'],
+        $body,
+    )->assertSuccessful();
+
+    $order = Jubelioorder::where('invoice', 'INV-NAME-MAP')->first();
+    expect($order)->not->toBeNull()
+        ->and($order->jubelio_store_id)->toBe(551)
+        ->and($order->jubelio_location_id)->toBe(552)
+        ->and($order->warehouse_id)->toBe($warehouse->id);
+});
+
 it('leaves shipped webhook orders pending for cron processing', function () {
     config(['services.jubelio.webhook_secret' => 'test-secret']);
 

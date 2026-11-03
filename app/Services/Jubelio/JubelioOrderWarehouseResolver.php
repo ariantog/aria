@@ -78,6 +78,15 @@ class JubelioOrderWarehouseResolver
                 $storeId = $resolved['store_id'];
                 $locationId = $resolved['location_id'];
             }
+        } elseif ($sync === null && ! Jubeliosync::hasMappedStoreLocationPair($storeId, $locationId)) {
+            $resolved = $this->resolveSellSync(['salesorder_no' => $order->invoice], $order, $syncIndex);
+            if ($sync === null) {
+                $sync = $resolved['sync'];
+            }
+            if (! Jubeliosync::hasMappedStoreLocationPair($storeId, $locationId)) {
+                $storeId = $resolved['store_id'];
+                $locationId = $resolved['location_id'];
+            }
         }
 
         if ($sync === null && (int) $order->warehouse_id > 0) {
@@ -186,8 +195,9 @@ class JubelioOrderWarehouseResolver
             return;
         }
 
-        $storeId = (int) ($payload['store_id'] ?? 0);
-        $locationId = (int) ($payload['location_id'] ?? 0);
+        $resolved = $this->resolveSellSync($payload, $order, $syncIndex);
+        $storeId = $resolved['store_id'];
+        $locationId = $resolved['location_id'];
 
         if (! Jubeliosync::hasMappedStoreLocationPair($storeId, $locationId)) {
             return;
@@ -394,6 +404,127 @@ class JubelioOrderWarehouseResolver
     /**
      * @return array{store_id: int, location_id: int}
      */
+    /**
+     * SELL payloads (webhook, list API, sales order fetch) may omit store_id/location_id.
+     * Resolve via denormalized columns, location/store names, or invoice suffix → jubeliosync.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array{store_id: int, location_id: int, sync: ?Jubeliosync}
+     */
+    public function resolveSellSync(
+        array $payload,
+        ?Jubelioorder $order = null,
+        ?Collection $syncIndex = null,
+    ): array {
+        [$storeId, $locationId] = $this->storeLocationIdsFromPayload($payload);
+
+        if ($order !== null && ! Jubeliosync::hasMappedStoreLocationPair($storeId, $locationId)) {
+            $storedStore = (int) $order->jubelio_store_id;
+            $storedLocation = (int) $order->jubelio_location_id;
+            if (Jubeliosync::hasMappedStoreLocationPair($storedStore, $storedLocation)) {
+                $storeId = $storedStore;
+                $locationId = $storedLocation;
+            }
+        }
+
+        $locationName = isset($payload['location_name']) && is_string($payload['location_name'])
+            ? $payload['location_name']
+            : null;
+        $storeName = $this->payloadStoreName($payload);
+        $warehouseHint = (int) ($order?->warehouse_id ?? 0);
+
+        $index = $syncIndex ?? $this->syncIndex();
+        $sync = null;
+        if (Jubeliosync::hasMappedStoreLocationPair($storeId, $locationId)) {
+            $sync = $index->get($this->key($storeId, $locationId));
+        }
+
+        if ($sync === null && $locationName !== null) {
+            $sync = $this->findSyncByLocationName($locationName, null, $storeName);
+            if ($sync !== null) {
+                $storeId = (int) $sync->jubelio_store_id;
+                $locationId = (int) $sync->jubelio_location_id;
+            }
+        }
+
+        if ($sync === null && $locationName !== null && $warehouseHint > 0) {
+            $sync = $this->findSyncByLocationName($locationName, $warehouseHint, $storeName);
+            if ($sync !== null) {
+                $storeId = (int) $sync->jubelio_store_id;
+                $locationId = (int) $sync->jubelio_location_id;
+            }
+        }
+
+        if ($sync === null && $warehouseHint > 0) {
+            $sync = $this->findSyncForWarehouse($warehouseHint, $locationName, $storeName);
+            if ($sync !== null) {
+                $storeId = (int) $sync->jubelio_store_id;
+                $locationId = (int) $sync->jubelio_location_id;
+            }
+        }
+
+        if ($sync === null) {
+            $invoice = (string) ($payload['salesorder_no'] ?? $order?->invoice ?? '');
+            $suffixKeys = $this->storeLocationIdsFromInvoiceSuffix($invoice, $index);
+            if (Jubeliosync::hasMappedStoreLocationPair($suffixKeys['store_id'], $suffixKeys['location_id'])) {
+                $storeId = $suffixKeys['store_id'];
+                $locationId = $suffixKeys['location_id'];
+                $sync = $index->get($this->key($storeId, $locationId));
+            }
+        }
+
+        return [
+            'store_id' => $storeId,
+            'location_id' => $locationId,
+            'sync' => $sync,
+        ];
+    }
+
+    /**
+     * TikTok (and some channels) encode jubelio store_id as the last `-{digits}` segment of the invoice.
+     *
+     * @return array{store_id: int, location_id: int}
+     */
+    public function storeLocationIdsFromInvoiceSuffix(string $invoice, ?Collection $syncIndex = null): array
+    {
+        if ($invoice === '' || ! preg_match('/-(\d+)$/', $invoice, $matches)) {
+            return ['store_id' => 0, 'location_id' => 0];
+        }
+
+        $storeId = (int) $matches[1];
+        if (! Jubeliosync::isMappedStoreId($storeId)) {
+            return ['store_id' => 0, 'location_id' => 0];
+        }
+
+        $rows = $syncIndex !== null
+            ? $syncIndex->filter(fn (Jubeliosync $sync) => (int) $sync->jubelio_store_id === $storeId)->values()
+            : Jubeliosync::query()
+                ->where('jubelio_store_id', $storeId)
+                ->where('jubelio_location_id', '!=', 0)
+                ->get();
+
+        if ($rows->isEmpty()) {
+            return ['store_id' => 0, 'location_id' => 0];
+        }
+
+        if ($rows->count() === 1) {
+            /** @var Jubeliosync $only */
+            $only = $rows->first();
+
+            return [
+                'store_id' => $storeId,
+                'location_id' => (int) $only->jubelio_location_id,
+            ];
+        }
+
+        $pusat = $rows->first(fn (Jubeliosync $sync) => (int) $sync->jubelio_location_id === -1);
+        if ($pusat !== null) {
+            return ['store_id' => $storeId, 'location_id' => -1];
+        }
+
+        return ['store_id' => 0, 'location_id' => 0];
+    }
+
     public function storeLocationIdsFromSellJubelioApi(string $salesInvoice): array
     {
         if ($salesInvoice === '') {
@@ -557,10 +688,14 @@ class JubelioOrderWarehouseResolver
      * @param  array<string, mixed>  $payload
      * @return array{jubelio_store_id: int, jubelio_location_id: int, warehouse_id: int}
      */
-    public function sellWarehouseColumnsFromPayload(array $payload, ?Collection $syncIndex = null): array
-    {
-        $storeId = (int) ($payload['store_id'] ?? 0);
-        $locationId = (int) ($payload['location_id'] ?? 0);
+    public function sellWarehouseColumnsFromPayload(
+        array $payload,
+        ?Collection $syncIndex = null,
+        ?Jubelioorder $order = null,
+    ): array {
+        $resolved = $this->resolveSellSync($payload, $order, $syncIndex);
+        $storeId = $resolved['store_id'];
+        $locationId = $resolved['location_id'];
 
         return [
             'jubelio_store_id' => $storeId,
