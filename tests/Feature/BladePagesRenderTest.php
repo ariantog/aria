@@ -131,7 +131,9 @@ it('renders the adjust page', function () {
     $this->actingAs($this->user)
         ->get('/transactions/adjust')
         ->assertOk()
-        ->assertSee('New Adjust', false);
+        ->assertSee('New Adjust', false)
+        ->assertSeeInOrder(['Sender (debit)', 'Receiver (credit)'], false)
+        ->assertSeeInOrder(['id="date"', 'name="sender"', 'id="invoice"', 'name="receiver"'], false);
 });
 
 it('renders the transaction show page', function () {
