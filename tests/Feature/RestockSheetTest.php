@@ -13,9 +13,18 @@ use App\Models\User;
 use App\Models\WarehouseItem;
 use App\Services\ItemService;
 use App\Services\Restock\RestockGridBuilder;
+use App\Services\Restock\RestockSheetParentTotalsSync;
 use App\Services\Restock\RestockSheetService;
 use App\Support\ItemImageResolver;
 use Spatie\Permission\Models\Permission;
+
+function syncRestockSheetParentTotals(RestockSheet ...$sheets): void
+{
+    $sync = app(RestockSheetParentTotalsSync::class);
+    foreach ($sheets as $sheet) {
+        $sync->syncSheet($sheet->fresh());
+    }
+}
 
 beforeEach(function () {
     User::query()->find(User::SUPERADMIN_ID) ?? User::factory()->create(['id' => User::SUPERADMIN_ID]);
@@ -128,6 +137,8 @@ test('restock index lists sheets with pipeline totals', function () {
         'qty_shipped' => 300,
     ]);
 
+    syncRestockSheetParentTotals($elbowSheet->fresh(), $kneeSheet->fresh());
+
     $this->actingAs($this->user)
         ->get('/restock')
         ->assertOk()
@@ -184,6 +195,8 @@ test('front page restock totals match the sheet grid when two skus share a color
     ]);
 
     $primary->update(['qty_restock' => 2000]);
+
+    syncRestockSheetParentTotals($sheet->fresh());
 
     expect($sheet->cells()->sum('qty_restock'))->toBe(2500);
 

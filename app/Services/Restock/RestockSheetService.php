@@ -6,6 +6,7 @@ use App\Enums\ItemType;
 use App\Models\Item;
 use App\Models\RestockCell;
 use App\Models\RestockSheet;
+use App\Models\RestockSheetParentTotal;
 use App\Models\Tag;
 use App\Models\User;
 use App\Services\Items\ItemIdentityBuilder;
@@ -22,7 +23,7 @@ class RestockSheetService
   public function __construct(
     protected ItemIdentityBuilder $identityBuilder,
     protected RestockCellHistoryRecorder $history,
-    protected RestockGridBuilder $gridBuilder,
+    protected RestockSheetParentTotalsSync $parentTotalsSync,
   ) {}
 
   public static function isAssetLancarTypeTag(Tag $tag): bool
@@ -50,21 +51,32 @@ class RestockSheetService
    */
   public function sheetSummaries(): Collection
   {
-    return RestockSheet::query()
+    $sheets = RestockSheet::query()
       ->orderBy('name')
-      ->get()
-      ->map(function (RestockSheet $sheet) {
-        $totals = $this->gridBuilder->pipelineTotalsForSheet($sheet);
+      ->get();
 
-        return [
-          'id' => $sheet->id,
-          'name' => $sheet->name,
-          'qty_restock' => $totals['restock'],
-          'qty_production' => $totals['production'],
-          'qty_shipped' => $totals['shipped'],
-        ];
-      })
-      ->values();
+    if ($sheets->isEmpty()) {
+      return collect();
+    }
+
+    $totalsBySheet = RestockSheetParentTotal::query()
+      ->whereIn('restock_sheet_id', $sheets->pluck('id'))
+      ->selectRaw('restock_sheet_id, COALESCE(SUM(qty_restock), 0) as qty_restock, COALESCE(SUM(qty_production), 0) as qty_production, COALESCE(SUM(qty_shipped), 0) as qty_shipped')
+      ->groupBy('restock_sheet_id')
+      ->get()
+      ->keyBy('restock_sheet_id');
+
+    return $sheets->map(function (RestockSheet $sheet) use ($totalsBySheet) {
+      $row = $totalsBySheet->get($sheet->id);
+
+      return [
+        'id' => $sheet->id,
+        'name' => $sheet->name,
+        'qty_restock' => (int) ($row->qty_restock ?? 0),
+        'qty_production' => (int) ($row->qty_production ?? 0),
+        'qty_shipped' => (int) ($row->qty_shipped ?? 0),
+      ];
+    })->values();
   }
 
   /**
@@ -76,7 +88,6 @@ class RestockSheetService
   {
     $sheet = RestockSheet::query()
       ->where('type_tag_id', $typeTag->id)
-      ->with(['cells.item.group'])
       ->first();
 
     $itemsByParent = $this->assetLancarItemsForType($typeTag)
@@ -84,23 +95,20 @@ class RestockSheetService
       ->get()
       ->groupBy(fn (Item $item) => $this->identityBuilder->assetLancarParentPcode($item));
 
-    $pipelineTotalsByParent = $sheet
-      ? $this->gridBuilder->pipelineTotalsByParentPcode($sheet)
-      : [];
-
-    $cellsByParent = $sheet
-      ? $sheet->cells
-        ->filter(fn (RestockCell $cell) => $cell->item !== null)
-        ->groupBy(fn (RestockCell $cell) => $this->identityBuilder->assetLancarParentPcode($cell->item))
+    $parentTotalsByPcode = $sheet
+      ? RestockSheetParentTotal::query()
+        ->where('restock_sheet_id', $sheet->id)
+        ->get()
+        ->keyBy('parent_pcode')
       : collect();
 
     return $itemsByParent
-      ->map(function (Collection $items, string $parentPcode) use ($cellsByParent, $pipelineTotalsByParent) {
-        $cells = $cellsByParent->get($parentPcode, collect());
-        $pipelineTotals = $pipelineTotalsByParent[$parentPcode] ?? [
-          'restock' => 0,
-          'production' => 0,
-          'shipped' => 0,
+      ->map(function (Collection $items, string $parentPcode) use ($parentTotalsByPcode) {
+        $parentTotals = $parentTotalsByPcode->get($parentPcode);
+        $pipelineTotals = [
+          'restock' => (int) ($parentTotals->qty_restock ?? 0),
+          'production' => (int) ($parentTotals->qty_production ?? 0),
+          'shipped' => (int) ($parentTotals->qty_shipped ?? 0),
         ];
         $group = $items->first()?->group;
         $name = $items->pluck('group.name')
@@ -124,9 +132,9 @@ class RestockSheetService
             'restock' => $pipelineTotals['restock'],
             'production' => $pipelineTotals['production'],
             'shipped' => $pipelineTotals['shipped'],
-            'missing' => (int) $cells->sum('qty_missing'),
+            'missing' => (int) ($parentTotals->qty_missing ?? 0),
           ],
-          'urgent_count' => (int) $cells->where('is_urgent', true)->count(),
+          'urgent_count' => (int) ($parentTotals->urgent_count ?? 0),
         ];
       })
       ->sortBy('pcode')
@@ -179,6 +187,7 @@ class RestockSheetService
       ]);
 
       $this->seedCells($sheet, $items);
+      $this->parentTotalsSync->syncSheet($sheet->fresh(['cells.color', 'cells.size', 'cells.item.group', 'cells.item.tags']));
 
       return $sheet->fresh(['cells.item.tags', 'typeTag', 'representativeGroup']);
     });
@@ -226,6 +235,10 @@ class RestockSheetService
       ]);
     }
 
+    if ($newItems->isNotEmpty() || $removed > 0) {
+      $this->parentTotalsSync->syncSheet($sheet->fresh(['cells.color', 'cells.size', 'cells.item.group', 'cells.item.tags']));
+    }
+
     return [
       'added' => $newItems->count(),
       'removed' => $removed,
@@ -264,6 +277,8 @@ class RestockSheetService
       return 0;
     }
 
+    $sheetIds = $cells->pluck('restock_sheet_id')->unique()->values()->all();
+
     foreach ($cells as $cell) {
       $this->history->recordCellRemovalSnapshot(
         $cell,
@@ -274,7 +289,11 @@ class RestockSheetService
       );
     }
 
-    return (int) RestockCell::query()->whereIn('id', $cells->pluck('id')->all())->delete();
+    $deleted = (int) RestockCell::query()->whereIn('id', $cells->pluck('id')->all())->delete();
+
+    $this->parentTotalsSync->syncSheets($sheetIds);
+
+    return $deleted;
   }
 
   /**

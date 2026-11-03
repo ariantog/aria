@@ -13,6 +13,7 @@ class RestockMoveService
 {
     public function __construct(
         protected RestockCellHistoryRecorder $history,
+        protected RestockSheetParentTotalsSync $parentTotalsSync,
     ) {}
 
     private const MOVES = [
@@ -108,6 +109,10 @@ class RestockMoveService
                 ]);
             }
         });
+
+        if ($moved > 0) {
+            $this->parentTotalsSync->syncSheet($sheet->fresh());
+        }
 
         return $moved;
     }

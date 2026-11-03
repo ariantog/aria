@@ -13,6 +13,7 @@ class RestockCellService
 {
   public function __construct(
     protected RestockCellHistoryRecorder $history,
+    protected RestockSheetParentTotalsSync $parentTotalsSync,
   ) {}
 
   /**
@@ -23,6 +24,7 @@ class RestockCellService
     array $cells,
     User $user,
     string $source = RestockCellHistoryLabels::SOURCE_SHEET_SAVE,
+    bool $syncParentTotals = true,
   ): int
   {
     if ($cells === []) {
@@ -88,6 +90,10 @@ class RestockCellService
         'last_saved_by' => $user->id,
       ]);
     });
+
+    if ($syncParentTotals && $changes > 0) {
+      $this->parentTotalsSync->syncSheet($sheet->fresh());
+    }
 
     return $changes;
   }

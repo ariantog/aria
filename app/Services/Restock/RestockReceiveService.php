@@ -23,6 +23,7 @@ class RestockReceiveService
         protected TransactionService $transactionService,
         protected BookClosingService $bookClosingService,
         protected RestockCellHistoryRecorder $history,
+        protected RestockSheetParentTotalsSync $parentTotalsSync,
     ) {}
 
     /**
@@ -194,6 +195,8 @@ class RestockReceiveService
                 'last_saved_at' => now(),
                 'last_saved_by' => $user->id,
             ]);
+
+            $this->parentTotalsSync->syncSheet($sheet->fresh());
 
             return $transaction->fresh(['details', 'sender', 'receiver']);
         });

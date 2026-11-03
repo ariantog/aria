@@ -543,6 +543,23 @@ return new class extends Migration
             });
         }
 
+        if (! Schema::hasTable('restock_sheet_parent_totals')) {
+            Schema::create('restock_sheet_parent_totals', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('restock_sheet_id')->constrained('restock_sheets')->cascadeOnDelete();
+                $table->string('parent_pcode', 64);
+                $table->unsignedInteger('qty_restock')->default(0);
+                $table->unsignedInteger('qty_production')->default(0);
+                $table->unsignedInteger('qty_shipped')->default(0);
+                $table->unsignedInteger('qty_missing')->default(0);
+                $table->unsignedInteger('urgent_count')->default(0);
+                $table->timestamps();
+
+                $table->unique(['restock_sheet_id', 'parent_pcode'], 'restock_parent_totals_sheet_pcode_uniq');
+                $table->index('restock_sheet_id', 'restock_parent_totals_sheet_idx');
+            });
+        }
+
         if (! Schema::hasTable('restock_cell_histories')) {
             Schema::create('restock_cell_histories', function (Blueprint $table) {
                 $table->id();

@@ -15,6 +15,7 @@ class RestockMissingService
 {
     public function __construct(
         protected RestockCellHistoryRecorder $history,
+        protected RestockSheetParentTotalsSync $parentTotalsSync,
     ) {}
 
     /**
@@ -90,6 +91,10 @@ class RestockMissingService
                 'last_saved_at' => now(),
                 'last_saved_by' => $user->id,
             ]);
+
+            if ($locked->sheet !== null) {
+                $this->parentTotalsSync->syncSheet($locked->sheet->fresh());
+            }
         });
     }
 }
