@@ -12,6 +12,47 @@ use App\Services\Jubelio\JubelioOrderSyncStatus;
 use App\Services\JubelioService;
 use Mockery\MockInterface;
 
+it('shows mapped warehouse on index from invoice store suffix without stored jubelio keys', function () {
+    $user = User::factory()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang TikTok Index']);
+    $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER, 'name' => 'TikTok Customer']);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 32327,
+        'jubelio_store_name' => 'TIKTOK - TIKTOK',
+        'jubelio_location_id' => -1,
+        'jubelio_location_name' => 'Pusat',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => $customer->id,
+        'bin_id' => 0,
+    ]);
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'index-suffix',
+        'source' => 1,
+        'invoice' => 'TT-586928090015303551-32327',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 0,
+        'jubelio_store_id' => 0,
+        'jubelio_location_id' => 0,
+        'warehouse_id' => 0,
+        'status' => 0,
+    ]);
+
+    test()->mock(JubelioService::class, function (MockInterface $mock) {
+        $mock->shouldNotReceive('fetchSalesOrder');
+        $mock->shouldNotReceive('fetchSalesReturn');
+    });
+
+    $this->actingAs($user)
+        ->get(route('jubelio.index', ['invoice' => 'TT-586928090015303551-32327']))
+        ->assertSuccessful()
+        ->assertSee('Gudang TikTok Index')
+        ->assertSee('TIKTOK - TIKTOK')
+        ->assertDontSee('store/loc kosong di payload Jubelio');
+});
+
 it('does not call jubelio api when rendering orders index', function () {
     $user = User::factory()->create();
     $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Index Tanpa API']);

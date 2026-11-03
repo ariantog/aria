@@ -113,9 +113,17 @@ class ProcessJubelioOrder
      */
     protected function processSell(Jubelioorder $order, array $dataApi, int $runCount, ?int $executedByUserId): array
     {
-        $jubelioSync = Jubeliosync::where('jubelio_store_id', $dataApi['store_id'])
-            ->where('jubelio_location_id', $dataApi['location_id'])
-            ->first();
+        $this->warehouseResolver->persistWarehouseKeysFromPayload($order, $dataApi);
+
+        $resolved = $this->warehouseResolver->resolveSellSync($dataApi, $order);
+        $storeId = $resolved['store_id'];
+        $locationId = $resolved['location_id'];
+
+        $jubelioSync = $resolved['sync']
+            ?? Jubeliosync::query()
+                ->where('jubelio_store_id', $storeId)
+                ->where('jubelio_location_id', $locationId)
+                ->first();
 
         if (! $jubelioSync) {
             $order->update([

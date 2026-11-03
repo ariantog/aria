@@ -450,6 +450,41 @@ it('does not queue shipped rows without a transaction date', function () {
         ->and(Jubelioorder::where('invoice', 'INV-NO-DATE')->exists())->toBeFalse();
 });
 
+it('queues list rows using jubelio sync map when store location ids are missing', function () {
+    config(['services.jubelio.order_queue_max_age_days' => 30]);
+
+    $warehouse = \App\Models\Addrbook::factory()->warehouse()->create(['name' => 'Gudang Poll Name Map']);
+
+    \App\Models\Jubeliosync::create([
+        'jubelio_store_id' => 661,
+        'jubelio_store_name' => 'Shopee Poll',
+        'jubelio_location_id' => 662,
+        'jubelio_location_name' => 'Pusat',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => 0,
+        'bin_id' => 0,
+    ]);
+
+    $service = app(\App\Services\JubelioGetOrdersService::class);
+
+    $queued = $service->queueEligibleRows([
+        jubelioEligibleListRow([
+            'salesorder_id' => 'so-name-only',
+            'salesorder_no' => 'SP-NAME-ONLY-MAP',
+            'source_name' => 'Shopee Poll',
+            'location_name' => 'Pusat',
+        ]),
+    ]);
+
+    expect($queued)->toBe(1);
+
+    $order = \App\Models\Jubelioorder::where('invoice', 'SP-NAME-ONLY-MAP')->first();
+    expect($order)->not->toBeNull()
+        ->and($order->jubelio_store_id)->toBe(661)
+        ->and($order->jubelio_location_id)->toBe(662)
+        ->and($order->warehouse_id)->toBe($warehouse->id);
+});
+
 it('queues shipped orders within the max age window', function () {
     config(['services.jubelio.order_queue_max_age_days' => 30]);
 
