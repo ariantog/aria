@@ -25,115 +25,112 @@
         @csrf
 
         <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
-            <div class="p-6 grid grid-cols-1 gap-8 md:grid-cols-2">
+            <div class="p-6 grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-x-8 md:items-start">
 
-                {{-- Left: General info --}}
-                <div class="space-y-5">
-                    <div class="space-y-1.5">
-                        <label for="date" class="flex items-center gap-2 text-sm font-medium text-gray-700">
-                            <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                            Date
-                        </label>
-                        <input type="date" id="date" name="date"
-                               min="{{ $min_date ?? '' }}"
-                               value="{{ old('date', \Carbon\Carbon::today()->toDateString()) }}"
-                               class="w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('date') border-red-500 @else border-gray-300 @enderror">
-                        @error('date')<p class="text-xs text-red-500">{{ $message }}</p>@enderror
-                    </div>
-                    <div class="space-y-1.5">
-                        <label for="invoice" class="flex items-center gap-2 text-sm font-medium text-gray-700">
-                            <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                            Invoice Number
-                        </label>
-                        <input type="text" id="invoice" name="invoice" value="{{ old('invoice') }}" placeholder="Optional"
-                               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                        @error('invoice')<p class="text-xs text-red-500">{{ $message }}</p>@enderror
-                    </div>
+                {{-- Row 1: Date | Sender --}}
+                <div class="space-y-1.5">
+                    <label for="date" class="flex min-h-5 items-center gap-2 text-sm font-medium text-gray-700">
+                        <svg class="h-4 w-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                        Date
+                    </label>
+                    <input type="date" id="date" name="date"
+                           min="{{ $min_date ?? '' }}"
+                           value="{{ old('date', \Carbon\Carbon::today()->toDateString()) }}"
+                           class="box-border h-10 w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('date') border-red-500 @else border-gray-300 @enderror">
+                    @error('date')<p class="text-xs text-red-500">{{ $message }}</p>@enderror
                 </div>
 
-                {{-- Right: Entities --}}
-                <div class="space-y-5">
-                    {{-- Receiver: balance increases when amount is positive --}}
-                    <div class="space-y-1.5">
-                        <label class="flex flex-col gap-0.5 text-sm font-semibold text-emerald-600">
-                            <span>Receiver (credit)</span>
-                            <span class="text-xs font-normal text-emerald-600/80">Balance increases by the amount</span>
-                        </label>
-                        <input type="hidden" name="receiver" :value="receiverId">
-                        <div x-data="asyncCombobox({
-                            endpoint: '{{ route('transactions.lookup', ['type' => 'adjust', 'role' => 'receiver']) }}',
-                            placeholder: 'Search Account / Contact…',
-                            onSelect: (item) => {
-                                receiverId = item ? String(item.id) : '';
-                                receiverBalance = item ? Number(item.balance || 0) : null;
-                            }
-                        })" class="relative">
-                            <div class="relative flex h-10 overflow-hidden rounded-lg border focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 @error('receiver') border-red-500 @else border-gray-300 @enderror">
-                                <input type="text" x-model="query" @input="handleInput()" @focus="handleFocus()" @keydown="handleKeydown($event)"
-                                       :placeholder="placeholder" class="flex-1 border-none bg-transparent px-3 text-sm outline-none" autocomplete="off">
-                                <span x-show="loading" class="flex items-center pr-2"><svg class="h-4 w-4 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg></span>
-                                <button type="button" @click="open=!open;if(!items.length)doSearch(query)" class="pr-2 text-gray-400">
-                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4"/></svg>
-                                </button>
-                            </div>
-                            <div x-show="open" @click.away="open=false" class="combobox-options" x-ref="optionsList">
-                                <div x-show="!loading && items.length===0" class="px-3 py-2 text-sm text-gray-400" x-text="emptyMessage()"></div>
-                                <template x-for="(item, idx) in items" :key="item.id">
-                                    <div @click="selectItem(item)" @mouseenter="activeIndex=idx" class="combobox-option" :class="{'active':activeIndex===idx}">
-                                        <span x-text="item.name"></span>
-                                        <span class="ml-auto text-xs opacity-60" x-text="item.balance !== undefined ? 'Rp '+formatAmountId(item.balance || 0) : ''"></span>
-                                    </div>
-                                </template>
-                            </div>
+                <div class="space-y-1.5">
+                    <label class="flex min-h-5 items-center gap-2 text-sm font-medium text-rose-600">
+                        <svg class="h-4 w-4 shrink-0 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                        Sender (debit)
+                    </label>
+                    <input type="hidden" name="sender" :value="senderId">
+                    <div x-data="asyncCombobox({
+                        endpoint: '{{ route('transactions.lookup', ['type' => 'adjust', 'role' => 'sender']) }}',
+                        placeholder: 'Search Account / Contact…',
+                        onSelect: (item) => {
+                            senderId = item ? String(item.id) : '';
+                            senderBalance = item ? Number(item.balance || 0) : null;
+                        }
+                    })" class="relative">
+                        <div class="relative box-border flex h-10 overflow-hidden rounded-lg border focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 @error('sender') border-red-500 @else border-gray-300 @enderror">
+                            <input type="text" x-model="query" @input="handleInput()" @focus="handleFocus()" @keydown="handleKeydown($event)"
+                                   :placeholder="placeholder" class="flex-1 border-none bg-transparent px-3 text-sm outline-none" autocomplete="off">
+                            <span x-show="loading" class="flex items-center pr-2"><svg class="h-4 w-4 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg></span>
+                            <button type="button" @click="open=!open;if(!items.length)doSearch(query)" class="pr-2 text-gray-400">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4"/></svg>
+                            </button>
                         </div>
-                        <div x-show="receiverBalance !== null"
-                             class="flex items-center gap-2 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-1.5">
-                            <span class="text-xs font-bold uppercase tracking-wider text-emerald-600">Current Balance</span>
-                            <span class="font-mono text-sm font-bold text-emerald-700" x-text="'Rp ' + formatAmountId(receiverBalance||0)"></span>
+                        <div x-show="open" @click.away="open=false" class="combobox-options" x-ref="optionsList">
+                            <div x-show="!loading && items.length===0" class="px-3 py-2 text-sm text-gray-400" x-text="emptyMessage()"></div>
+                            <template x-for="(item, idx) in items" :key="item.id">
+                                <div @click="selectItem(item)" @mouseenter="activeIndex=idx" class="combobox-option" :class="{'active':activeIndex===idx}">
+                                    <span x-text="item.name"></span>
+                                    <span class="ml-auto text-xs opacity-60" x-text="item.balance !== undefined ? 'Rp '+formatAmountId(item.balance || 0) : ''"></span>
+                                </div>
+                            </template>
                         </div>
-                        @error('receiver')<p class="text-xs text-red-500">{{ $message }}</p>@enderror
                     </div>
+                    <p class="text-xs text-rose-600/80">Balance decreases by the amount.</p>
+                    <div x-show="senderBalance !== null"
+                         class="flex items-center gap-2 rounded-lg border border-rose-100 bg-rose-50 px-3 py-1.5">
+                        <span class="text-xs font-bold uppercase tracking-wider text-rose-600">Current Balance</span>
+                        <span class="font-mono text-sm font-bold text-rose-700" x-text="'Rp ' + formatAmountId(senderBalance||0)"></span>
+                    </div>
+                    @error('sender')<p class="text-xs text-red-500">{{ $message }}</p>@enderror
+                </div>
 
-                    {{-- Sender: balance decreases when amount is positive --}}
-                    <div class="space-y-1.5">
-                        <label class="flex flex-col gap-0.5 text-sm font-semibold text-rose-600">
-                            <span>Sender (debit)</span>
-                            <span class="text-xs font-normal text-rose-600/80">Balance decreases by the amount</span>
-                        </label>
-                        <input type="hidden" name="sender" :value="senderId">
-                        <div x-data="asyncCombobox({
-                            endpoint: '{{ route('transactions.lookup', ['type' => 'adjust', 'role' => 'sender']) }}',
-                            placeholder: 'Search Account / Contact…',
-                            onSelect: (item) => {
-                                senderId = item ? String(item.id) : '';
-                                senderBalance = item ? Number(item.balance || 0) : null;
-                            }
-                        })" class="relative">
-                            <div class="relative flex h-10 overflow-hidden rounded-lg border focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 @error('sender') border-red-500 @else border-gray-300 @enderror">
-                                <input type="text" x-model="query" @input="handleInput()" @focus="handleFocus()" @keydown="handleKeydown($event)"
-                                       :placeholder="placeholder" class="flex-1 border-none bg-transparent px-3 text-sm outline-none" autocomplete="off">
-                                <span x-show="loading" class="flex items-center pr-2"><svg class="h-4 w-4 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg></span>
-                                <button type="button" @click="open=!open;if(!items.length)doSearch(query)" class="pr-2 text-gray-400">
-                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4"/></svg>
-                                </button>
-                            </div>
-                            <div x-show="open" @click.away="open=false" class="combobox-options" x-ref="optionsList">
-                                <div x-show="!loading && items.length===0" class="px-3 py-2 text-sm text-gray-400" x-text="emptyMessage()"></div>
-                                <template x-for="(item, idx) in items" :key="item.id">
-                                    <div @click="selectItem(item)" @mouseenter="activeIndex=idx" class="combobox-option" :class="{'active':activeIndex===idx}">
-                                        <span x-text="item.name"></span>
-                                        <span class="ml-auto text-xs opacity-60" x-text="item.balance !== undefined ? 'Rp '+formatAmountId(item.balance || 0) : ''"></span>
-                                    </div>
-                                </template>
-                            </div>
+                {{-- Row 2: Invoice | Receiver --}}
+                <div class="space-y-1.5">
+                    <label for="invoice" class="flex min-h-5 items-center gap-2 text-sm font-medium text-gray-700">
+                        <svg class="h-4 w-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                        Invoice Number
+                    </label>
+                    <input type="text" id="invoice" name="invoice" value="{{ old('invoice') }}" placeholder="Optional"
+                           class="box-border h-10 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                    @error('invoice')<p class="text-xs text-red-500">{{ $message }}</p>@enderror
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="flex min-h-5 items-center gap-2 text-sm font-medium text-emerald-600">
+                        <svg class="h-4 w-4 shrink-0 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                        Receiver (credit)
+                    </label>
+                    <input type="hidden" name="receiver" :value="receiverId">
+                    <div x-data="asyncCombobox({
+                        endpoint: '{{ route('transactions.lookup', ['type' => 'adjust', 'role' => 'receiver']) }}',
+                        placeholder: 'Search Account / Contact…',
+                        onSelect: (item) => {
+                            receiverId = item ? String(item.id) : '';
+                            receiverBalance = item ? Number(item.balance || 0) : null;
+                        }
+                    })" class="relative">
+                        <div class="relative box-border flex h-10 overflow-hidden rounded-lg border focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 @error('receiver') border-red-500 @else border-gray-300 @enderror">
+                            <input type="text" x-model="query" @input="handleInput()" @focus="handleFocus()" @keydown="handleKeydown($event)"
+                                   :placeholder="placeholder" class="flex-1 border-none bg-transparent px-3 text-sm outline-none" autocomplete="off">
+                            <span x-show="loading" class="flex items-center pr-2"><svg class="h-4 w-4 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg></span>
+                            <button type="button" @click="open=!open;if(!items.length)doSearch(query)" class="pr-2 text-gray-400">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4"/></svg>
+                            </button>
                         </div>
-                        <div x-show="senderBalance !== null"
-                             class="flex items-center gap-2 rounded-lg border border-rose-100 bg-rose-50 px-3 py-1.5">
-                            <span class="text-xs font-bold uppercase tracking-wider text-rose-600">Current Balance</span>
-                            <span class="font-mono text-sm font-bold text-rose-700" x-text="'Rp ' + formatAmountId(senderBalance||0)"></span>
+                        <div x-show="open" @click.away="open=false" class="combobox-options" x-ref="optionsList">
+                            <div x-show="!loading && items.length===0" class="px-3 py-2 text-sm text-gray-400" x-text="emptyMessage()"></div>
+                            <template x-for="(item, idx) in items" :key="item.id">
+                                <div @click="selectItem(item)" @mouseenter="activeIndex=idx" class="combobox-option" :class="{'active':activeIndex===idx}">
+                                    <span x-text="item.name"></span>
+                                    <span class="ml-auto text-xs opacity-60" x-text="item.balance !== undefined ? 'Rp '+formatAmountId(item.balance || 0) : ''"></span>
+                                </div>
+                            </template>
                         </div>
-                        @error('sender')<p class="text-xs text-red-500">{{ $message }}</p>@enderror
                     </div>
+                    <p class="text-xs text-emerald-600/80">Balance increases by the amount.</p>
+                    <div x-show="receiverBalance !== null"
+                         class="flex items-center gap-2 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-1.5">
+                        <span class="text-xs font-bold uppercase tracking-wider text-emerald-600">Current Balance</span>
+                        <span class="font-mono text-sm font-bold text-emerald-700" x-text="'Rp ' + formatAmountId(receiverBalance||0)"></span>
+                    </div>
+                    @error('receiver')<p class="text-xs text-red-500">{{ $message }}</p>@enderror
                 </div>
             </div>
 
