@@ -71,7 +71,7 @@ it('rebuilds name from parent title when items.alias column does not exist and t
     @unlink($path);
 });
 
-it('rebuilds name when items.alias column does not exist and warna is tagged', function () {
+it('rebuilds name with parent title and warna when items.alias column does not exist', function () {
     $item = Item::factory()->create([
         'group_id' => $this->group->id,
         'type' => ItemType::ITEM,

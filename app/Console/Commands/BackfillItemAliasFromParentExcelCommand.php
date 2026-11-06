@@ -14,11 +14,11 @@ use Throwable;
 /**
  * Batch-apply parent catalog titles from item_parent_prices.product_name for item ids in Excel.
  *
- * When `items.alias` exists: no warna → set alias to parent title; warna → clear alias.
- * Rebuilds `items.name` from catalog rules in all cases.
+ * Always rebuilds `items.name` as parent `product_name` + warna tag (manufactured) + size when
+ * tags allow (`ItemProductTitle::buildDisplayNameWithBareTitle`), ignoring colorway `item_group.name`.
  *
- * When `items.alias` is absent (legacy DB): only updates `items.name` — no warna → built with
- * explicit parent bare title + size; warna → standard `buildDisplayName()` resolution.
+ * When `items.alias` exists: set it to the parent title for every row so other reads resolve the
+ * parent bare title instead of stale colorway names.
  *
  * @see doc/item-catalog-hierarchy.md (bare product title resolution)
  */
@@ -30,7 +30,7 @@ class BackfillItemAliasFromParentExcelCommand extends Command
                             {--column=A : Column letter for item id}
                             {--dry-run : Show planned changes without saving}';
 
-    protected $description = 'Apply parent product title from ids in a spreadsheet (sets items.alias when column exists; always rebuilds items.name)';
+    protected $description = 'Set items.name from parent product_name + color/size tags; optional items.alias = parent title when column exists';
 
     public function handle(ItemIdentityBuilder $identityBuilder): int
     {
@@ -134,20 +134,14 @@ class BackfillItemAliasFromParentExcelCommand extends Command
             $aliasChanged = false;
 
             if ($hasAliasColumn) {
-                $desiredAlias = $warnaTag !== null ? '' : $parentTitle;
+                $desiredAlias = $parentTitle;
                 $currentAlias = strtoupper(trim((string) ($item->alias ?? '')));
                 $normalizedDesired = strtoupper(trim($desiredAlias));
                 $item->alias = $desiredAlias;
                 $aliasChanged = $currentAlias !== $normalizedDesired;
             }
 
-            $newName = $hasAliasColumn
-                ? ItemProductTitle::buildDisplayName($item)
-                : (
-                    $warnaTag !== null
-                        ? ItemProductTitle::buildDisplayName($item)
-                        : ItemProductTitle::buildDisplayNameWithBareTitle($item, $parentTitle)
-                );
+            $newName = ItemProductTitle::buildDisplayNameWithBareTitle($item, $parentTitle);
 
             $nameChanged = strtoupper(trim((string) $item->name)) !== strtoupper(trim($newName));
 
@@ -157,13 +151,9 @@ class BackfillItemAliasFromParentExcelCommand extends Command
 
             $updated++;
             if ($hasAliasColumn) {
-                $action = $warnaTag !== null
-                    ? 'clear alias (warna tagged), rebuild name'
-                    : "alias ← parent title ({$parentTitle})";
+                $action = "name ← parent + tags; alias ← {$parentTitle}";
             } else {
-                $action = $warnaTag !== null
-                    ? 'rebuild name (warna tagged, no alias column)'
-                    : "rebuild name from parent title ({$parentTitle}, no alias column)";
+                $action = "name ← parent + tags ({$parentTitle}, no alias column)";
             }
 
             $this->line("  Item #{$id}: {$action}");

@@ -68,13 +68,13 @@ it('sets alias from parent when item has no warna tag', function () {
     @unlink($path);
 });
 
-it('clears alias when warna is tagged and rebuilds name from catalog', function () {
+it('sets alias to parent title when warna is tagged and rebuilds name with color', function () {
     $item = Item::factory()->create([
         'group_id' => $this->group->id,
         'type' => ItemType::ITEM,
         'pcode' => 'CX90032-01',
         'code' => 'AJD-CX90032-01-M',
-        'alias' => 'SHOULD CLEAR',
+        'alias' => 'OLD ALIAS',
         'name' => 'OLD',
     ]);
     $item->tags()->sync([$this->typeTag->id, $this->sizeTag->id, $this->warnaTag->id]);
@@ -90,7 +90,7 @@ it('clears alias when warna is tagged and rebuilds name from catalog', function 
         ->assertSuccessful();
 
     $item->refresh();
-    expect(trim((string) $item->alias))->toBe('')
+    expect(strtoupper(trim((string) $item->alias)))->toBe('RUNNING SHIRT')
         ->and(strtoupper($item->name))->toContain('RUNNING SHIRT')
         ->and(strtoupper($item->name))->toContain('BLACK')
         ->and(strtoupper($item->name))->toContain('M');
