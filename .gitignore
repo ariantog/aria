@@ -22,3 +22,15 @@ Homestead.yaml
 /.vscode
 /.zed
 public/asset/invoice-logos/*
+
+# Flutter (generate android/ios locally with `flutter create`)
+/apps/aria_mobile/.dart_tool/
+/apps/aria_mobile/build/
+/apps/aria_mobile/android/
+/apps/aria_mobile/ios/
+/apps/aria_mobile/linux/
+/apps/aria_mobile/macos/
+/apps/aria_mobile/windows/
+/apps/aria_mobile/web/
+*.apk
+*.aab
