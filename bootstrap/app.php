@@ -35,6 +35,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'active' => \App\Http\Middleware\EnsureUserIsActive::class,
+            'active.api' => \App\Http\Middleware\EnsureApiUserIsActive::class,
             'prevent.duplicate' => \App\Http\Middleware\PreventDuplicateSubmission::class,
             'enforce.readonly' => \App\Http\Middleware\EnforceReadonlyExportAccount::class,
             'auth.readonly-export' => \App\Http\Middleware\AuthenticateReadonlyExport::class,
