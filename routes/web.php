@@ -54,6 +54,19 @@ Route::get('shopee-ads/oauth/callback', [App\Http\Controllers\ShopeeAdsControlle
 Route::get('shopee-stock/oauth/callback', [App\Http\Controllers\ShopeeSyncController::class, 'oauthCallback'])
     ->name('shopee-stock.oauth.callback');
 
+Route::prefix('tiktok-shop/mock/open_api/v'.config('tiktok_shop.api_version', '202309').'/customer_service')
+    ->middleware('tiktok.mock-api')
+    ->group(function (): void {
+        Route::get('conversations', [App\Http\Controllers\TikTokShopMockApiController::class, 'listConversations'])
+            ->name('tiktok-shop.mock.conversations');
+        Route::get('conversations/{conversationId}/messages', [App\Http\Controllers\TikTokShopMockApiController::class, 'listMessages'])
+            ->name('tiktok-shop.mock.messages');
+        Route::post('conversations/{conversationId}/messages', [App\Http\Controllers\TikTokShopMockApiController::class, 'sendMessage'])
+            ->name('tiktok-shop.mock.send');
+        Route::post('conversations/{conversationId}/simulate_buyer', [App\Http\Controllers\TikTokShopMockApiController::class, 'simulateBuyerMessage'])
+            ->name('tiktok-shop.mock.simulate-buyer');
+    });
+
 Route::middleware(['auth', 'verified', 'active', 'enforce.readonly'])->group(function () {
     Route::get('/permissions', [App\Http\Controllers\PermissionController::class, 'index'])->name('permissions.index');
     Route::post('/permissions/generate', [App\Http\Controllers\PermissionController::class, 'generate'])->name('permissions.generate');
@@ -233,6 +246,11 @@ Route::middleware(['auth', 'verified', 'active', 'enforce.readonly'])->group(fun
     Route::post('shopee-ads/daily-reset', [App\Http\Controllers\ShopeeAdsController::class, 'dailyReset'])->name('shopee-ads.daily-reset');
     Route::post('shopee-ads/boost-budget', [App\Http\Controllers\ShopeeAdsController::class, 'boostBudget'])->name('shopee-ads.boost');
     Route::post('shopee-ads/suggest-group-ads', [App\Http\Controllers\ShopeeAdsController::class, 'suggestGroupAds'])->name('shopee-ads.suggest-group-ads');
+
+    Route::get('tiktok-shop/chats', [App\Http\Controllers\TikTokShopChatController::class, 'index'])->name('tiktok-shop.chats.index');
+    Route::post('tiktok-shop/chats/reset-mock', [App\Http\Controllers\TikTokShopChatController::class, 'resetMock'])->name('tiktok-shop.chats.reset-mock');
+    Route::post('tiktok-shop/chats/{conversationId}/reply', [App\Http\Controllers\TikTokShopChatController::class, 'reply'])->name('tiktok-shop.chats.reply');
+    Route::post('tiktok-shop/chats/{conversationId}/simulate-buyer', [App\Http\Controllers\TikTokShopChatController::class, 'simulateBuyer'])->name('tiktok-shop.chats.simulate-buyer');
 
     // Dynamic Addrbook Type Routes (e.g., /customer, /supplier)
     $addrbookTypes = implode('|', array_column(\App\Models\Addrbook::getTypes(), 'slug'));

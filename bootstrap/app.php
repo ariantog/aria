@@ -24,6 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'jubelio/webhook/order',
             'jubelio/webhook/return',
             'webhooks/lark/events',
+            'tiktok-shop/mock/*',
         ]);
 
         $middleware->web(append: [
@@ -37,6 +38,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'prevent.duplicate' => \App\Http\Middleware\PreventDuplicateSubmission::class,
             'enforce.readonly' => \App\Http\Middleware\EnforceReadonlyExportAccount::class,
             'auth.readonly-export' => \App\Http\Middleware\AuthenticateReadonlyExport::class,
+            'tiktok.mock-api' => \App\Http\Middleware\VerifyTikTokShopMockApiToken::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

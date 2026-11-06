@@ -2,9 +2,12 @@
 
 namespace App\Providers;
 
+use App\Contracts\TikTokShop\TikTokShopChatClient;
 use App\Models\Addrbook;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\TikTokShop\LiveTikTokShopChatClient;
+use App\Services\TikTokShop\MockTikTokShopChatClient;
 use App\Observers\TransactionObserver;
 use App\Support\PermissionTableConfig;
 use App\View\Composers\AppComposer;
@@ -25,6 +28,14 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         require_once app_path('Support/helpers.php');
+
+        $this->app->bind(TikTokShopChatClient::class, function ($app) {
+            $driver = (string) config('tiktok_shop.driver', 'mock');
+
+            return $driver === 'live'
+                ? $app->make(LiveTikTokShopChatClient::class)
+                : $app->make(MockTikTokShopChatClient::class);
+        });
     }
 
     public function boot(): void
