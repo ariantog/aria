@@ -7,6 +7,7 @@ use App\Models\ItemGroup;
 use App\Services\Items\ItemGroupHierarchyService;
 use App\Services\Items\ItemIdentityBuilder;
 use App\Support\ItemParentDisplayNameBackfill;
+use App\Support\ItemParentTitleEligibility;
 use App\Support\ItemProductTitle;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Schema;
@@ -16,8 +17,8 @@ use Throwable;
 /**
  * For each `item_group` id in a spreadsheet, resolve the parent key from a sample SKU, then rebuild
  * every SKU under that parent family (`ItemGroupHierarchyService::groupIdsForParentKey`) from
- * `item_parent_prices.product_name`, else `item_group.name` when non-empty and contains no `-` or `/`
- * (otherwise the value is treated as pcode-like and the group is skipped). Fallback may sync parent row.
+ * `item_parent_prices.product_name` when non-empty and contains no `-` or `/` (otherwise skip);
+ * else `item_group.name` when non-empty and contains no `-` or `/`; else skip.
  */
 class BackfillItemNamesFromParentByGroupExcelCommand extends Command
 {
@@ -97,6 +98,7 @@ class BackfillItemNamesFromParentByGroupExcelCommand extends Command
         $noParentTitle = 0;
         $syncedParentFromGroupName = 0;
         $skippedGroupNameLooksLikeCode = 0;
+        $skippedParentProductNameLooksLikeCode = 0;
 
         foreach ($groupIds as $groupId) {
             $group = ItemGroup::query()->find($groupId);
@@ -125,10 +127,17 @@ class BackfillItemNamesFromParentByGroupExcelCommand extends Command
             ItemProductTitle::forgetParentProductNameCache($parentKey);
             $parentTitle = ItemProductTitle::parentProductNameForKey($parentKey);
 
+            if ($parentTitle !== '' && ItemParentTitleEligibility::looksLikePcodeOrSegment($parentTitle)) {
+                $skippedParentProductNameLooksLikeCode++;
+                $this->line("  [skip] Group #{$groupId} — item_parent_prices.product_name looks like pcode (contains - or /): {$parentTitle}");
+
+                continue;
+            }
+
             if ($parentTitle === '') {
                 $fallback = $this->marketingTitleFromGroupName((string) ($group->name ?? ''));
                 if ($fallback === null) {
-                    if (trim((string) ($group->name ?? '')) !== '' && $this->groupNameLooksLikePcode((string) $group->name)) {
+                    if (trim((string) ($group->name ?? '')) !== '' && ItemParentTitleEligibility::looksLikePcodeOrSegment((string) $group->name)) {
                         $skippedGroupNameLooksLikeCode++;
                         $this->line("  [skip] Group #{$groupId} — item_group.name looks like pcode (contains - or /)");
                     } else {
@@ -204,6 +213,9 @@ class BackfillItemNamesFromParentByGroupExcelCommand extends Command
         if ($syncedParentFromGroupName > 0) {
             $this->info("Parent rows synced from item_group.name: {$syncedParentFromGroupName}");
         }
+        if ($skippedParentProductNameLooksLikeCode > 0) {
+            $this->warn("Skipped groups (product_name contains - or /): {$skippedParentProductNameLooksLikeCode}");
+        }
         if ($skippedGroupNameLooksLikeCode > 0) {
             $this->warn("Skipped groups (item_group.name contains - or /): {$skippedGroupNameLooksLikeCode}");
         }
@@ -255,11 +267,6 @@ class BackfillItemNamesFromParentByGroupExcelCommand extends Command
         return $ids;
     }
 
-    private function groupNameLooksLikePcode(string $raw): bool
-    {
-        return str_contains($raw, '-') || str_contains($raw, '/');
-    }
-
     /**
      * Use `item_group.name` as a marketing title only when non-empty and not pcode-like (- or /).
      */
@@ -270,7 +277,7 @@ class BackfillItemNamesFromParentByGroupExcelCommand extends Command
             return null;
         }
 
-        if ($this->groupNameLooksLikePcode($raw)) {
+        if (ItemParentTitleEligibility::looksLikePcodeOrSegment($raw)) {
             return null;
         }
 

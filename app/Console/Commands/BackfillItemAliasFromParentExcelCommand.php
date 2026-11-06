@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\Item;
 use App\Services\Items\ItemIdentityBuilder;
 use App\Support\ItemParentDisplayNameBackfill;
+use App\Support\ItemParentTitleEligibility;
 use App\Support\ItemProductTitle;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Schema;
@@ -98,6 +99,7 @@ class BackfillItemAliasFromParentExcelCommand extends Command
         $skipped = 0;
         $missing = 0;
         $noParentTitle = 0;
+        $skippedProductNameLooksLikeCode = 0;
 
         foreach ($ids as $id) {
             $item = Item::query()
@@ -120,6 +122,12 @@ class BackfillItemAliasFromParentExcelCommand extends Command
 
             $parentKey = $identityBuilder->itemParentKey($item);
             $parentTitle = ItemProductTitle::parentProductNameForKey($parentKey);
+            if ($parentTitle !== '' && ItemParentTitleEligibility::looksLikePcodeOrSegment($parentTitle)) {
+                $skippedProductNameLooksLikeCode++;
+                $this->line("  [skip] Item #{$id} — product_name looks like pcode (contains - or /): {$parentTitle}");
+
+                continue;
+            }
             if ($parentTitle === '') {
                 $noParentTitle++;
                 $this->line("  [skip] Item #{$id} — no product_name for parent key {$parentKey}");
@@ -161,6 +169,9 @@ class BackfillItemAliasFromParentExcelCommand extends Command
         $this->info("Would update / updated: {$updated}");
         if ($missing > 0) {
             $this->warn("Missing items: {$missing}");
+        }
+        if ($skippedProductNameLooksLikeCode > 0) {
+            $this->warn("Skipped (product_name contains - or /): {$skippedProductNameLooksLikeCode}");
         }
         if ($noParentTitle > 0) {
             $this->warn("Skipped (no parent product_name): {$noParentTitle}");

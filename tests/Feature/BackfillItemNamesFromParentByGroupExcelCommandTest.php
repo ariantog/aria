@@ -141,6 +141,34 @@ it('syncs parent product_name from item_group.name when parent row is empty and 
     @unlink($path);
 });
 
+it('skips when product_name is non-empty but contains hyphen or slash', function () {
+    ItemParentPrice::query()->where('parent_key', $this->parentKey)->update(['product_name' => 'TITLE-WITH-HYPHEN']);
+
+    $itemA = Item::factory()->create([
+        'group_id' => $this->group->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CX90032-01',
+        'code' => 'AJD-CX90032-01-M',
+        'name' => 'OLD A',
+    ]);
+    $itemA->tags()->sync([$this->typeTag->id, $this->sizeTag->id]);
+
+    $path = base_path('tests/Fixtures/backfill-by-group-skip-bad-parent-pn.xlsx');
+    $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet;
+    $sheet = $spreadsheet->getActiveSheet();
+    $sheet->setCellValue('A1', (string) $this->group->id);
+    $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+    $writer->save($path);
+
+    $this->artisan('items:backfill-names-from-parent-by-group-excel', ['file' => $path])
+        ->assertSuccessful();
+
+    $itemA->refresh();
+    expect($itemA->name)->toBe('OLD A');
+
+    @unlink($path);
+});
+
 it('skips when product_name is empty and item_group.name contains hyphen or slash', function () {
     ItemParentPrice::query()->where('parent_key', $this->parentKey)->update(['product_name' => '']);
 
