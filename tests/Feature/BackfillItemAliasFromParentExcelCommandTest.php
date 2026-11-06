@@ -45,7 +45,7 @@ it('sets alias from parent when item has no warna tag', function () {
         'pcode' => 'CX90032-01',
         'code' => 'AJD-CX90032-01-M',
         'alias' => '',
-        'name' => 'OLD',
+        'name' => 'CX90032-01 - M',
     ]);
     $item->tags()->sync([$this->typeTag->id, $this->sizeTag->id]);
 
@@ -76,7 +76,7 @@ it('sets alias to parent title when warna is tagged and rebuilds name with color
         'pcode' => 'CX90032-01',
         'code' => 'AJD-CX90032-01-M',
         'alias' => 'OLD ALIAS',
-        'name' => 'OLD',
+        'name' => 'CX90032-01 - M',
     ]);
     $item->tags()->sync([$this->typeTag->id, $this->sizeTag->id, $this->warnaTag->id]);
 
@@ -99,6 +99,34 @@ it('sets alias to parent title when warna is tagged and rebuilds name with color
     @unlink($path);
 });
 
+it('does not replace a custom marketing display name but still updates alias', function () {
+    $item = Item::factory()->create([
+        'group_id' => $this->group->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CX90032-01',
+        'code' => 'AJD-CX90032-01-M',
+        'alias' => '',
+        'name' => 'CUSTOM TITLE - M',
+    ]);
+    $item->tags()->sync([$this->typeTag->id, $this->sizeTag->id]);
+
+    $path = base_path('tests/Fixtures/backfill-alias-custom-name.xlsx');
+    $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet;
+    $sheet = $spreadsheet->getActiveSheet();
+    $sheet->setCellValue('A1', (string) $item->id);
+    $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+    $writer->save($path);
+
+    $this->artisan('items:backfill-alias-from-parent-excel', ['file' => $path])
+        ->assertSuccessful();
+
+    $item->refresh();
+    expect(strtoupper(trim((string) $item->alias)))->toBe('RUNNING SHIRT');
+    expect(strtoupper(trim((string) $item->name)))->toBe('CUSTOM TITLE - M');
+
+    @unlink($path);
+});
+
 it('uses item_group.alias segment when parent product_name is empty and group name is pcode like', function () {
     if (! Schema::hasColumn('item_group', 'alias')) {
         $this->markTestSkipped('item_group.alias column is not present');
@@ -116,7 +144,7 @@ it('uses item_group.alias segment when parent product_name is empty and group na
         'pcode' => 'CX90032-01',
         'code' => 'AJD-CX90032-01-M',
         'alias' => '',
-        'name' => 'OLD',
+        'name' => 'CX90032-01 - M',
     ]);
     $item->tags()->sync([$this->typeTag->id, $this->sizeTag->id]);
 

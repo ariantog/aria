@@ -22,6 +22,9 @@ use Throwable;
  * When `items.alias` exists: set it to the parent title for every row so other reads resolve the
  * parent bare title instead of stale colorway names.
  *
+ * `items.name` is updated only when empty or still pcode-like in the first ` - ` segment
+ * (`ItemBackfillSkuDisplayNameSafety`); custom marketing titles are preserved.
+ *
  * @see doc/item-catalog-hierarchy.md (bare product title resolution)
  */
 class BackfillItemAliasFromParentExcelCommand extends Command

@@ -39,7 +39,7 @@ it('updates all SKUs in listed groups from parent product_name', function () {
         'type' => ItemType::ITEM,
         'pcode' => 'CX90032-01',
         'code' => 'AJD-CX90032-01-M',
-        'name' => 'OLD A',
+        'name' => 'CX90032-01 - M',
     ]);
     $itemA->tags()->sync([$this->typeTag->id, $this->sizeTag->id]);
 
@@ -75,7 +75,7 @@ it('updates SKUs in sibling colorway groups under the same parent when only one 
         'type' => ItemType::ITEM,
         'pcode' => 'CX90032-01',
         'code' => 'AJD-CX90032-01-M',
-        'name' => 'OLD A',
+        'name' => 'CX90032-01 - M',
     ]);
     $itemA->tags()->sync([$this->typeTag->id, $this->sizeTag->id]);
     $itemB = Item::factory()->create([
@@ -83,7 +83,7 @@ it('updates SKUs in sibling colorway groups under the same parent when only one 
         'type' => ItemType::ITEM,
         'pcode' => 'CX90032-02',
         'code' => 'AJD-CX90032-02-M',
-        'name' => 'OLD B',
+        'name' => 'CX90032-02 - M',
     ]);
     $itemB->tags()->sync([$this->typeTag->id, $this->sizeTag->id]);
 
@@ -115,7 +115,7 @@ it('syncs parent product_name from item_group.name when parent row is empty and 
         'type' => ItemType::ITEM,
         'pcode' => 'CX90032-01',
         'code' => 'AJD-CX90032-01-M',
-        'name' => 'OLD A',
+        'name' => 'CX90032-01 - M',
     ]);
     $itemA->tags()->sync([$this->typeTag->id, $this->sizeTag->id]);
 
@@ -149,7 +149,7 @@ it('skips when product_name is non-empty but contains hyphen or slash', function
         'type' => ItemType::ITEM,
         'pcode' => 'CX90032-01',
         'code' => 'AJD-CX90032-01-M',
-        'name' => 'OLD A',
+        'name' => 'CX90032-01 - M',
     ]);
     $itemA->tags()->sync([$this->typeTag->id, $this->sizeTag->id]);
 
@@ -164,7 +164,7 @@ it('skips when product_name is non-empty but contains hyphen or slash', function
         ->assertSuccessful();
 
     $itemA->refresh();
-    expect($itemA->name)->toBe('OLD A');
+    expect($itemA->name)->toBe('CX90032-01 - M');
 
     @unlink($path);
 });
@@ -186,7 +186,7 @@ it('uses first segment of item_group.alias when product_name is empty and name i
         'type' => ItemType::ITEM,
         'pcode' => 'CX90032-01',
         'code' => 'AJD-CX90032-01-M',
-        'name' => 'OLD A',
+        'name' => 'CX90032-01 - M',
     ]);
     $itemA->tags()->sync([$this->typeTag->id, $this->sizeTag->id]);
 
@@ -226,7 +226,7 @@ it('skips when only fallback is alias with a digit in the first segment', functi
         'type' => ItemType::ITEM,
         'pcode' => 'CX90032-01',
         'code' => 'AJD-CX90032-01-M',
-        'name' => 'OLD A',
+        'name' => 'CX90032-01 - M',
     ]);
     $itemA->tags()->sync([$this->typeTag->id, $this->sizeTag->id]);
 
@@ -241,7 +241,7 @@ it('skips when only fallback is alias with a digit in the first segment', functi
         ->assertSuccessful();
 
     $itemA->refresh();
-    expect($itemA->name)->toBe('OLD A');
+    expect($itemA->name)->toBe('CX90032-01 - M');
 
     @unlink($path);
 });
@@ -256,7 +256,7 @@ it('skips when product_name is empty and item_group.name contains hyphen or slas
         'type' => ItemType::ITEM,
         'pcode' => 'CX90032-01',
         'code' => 'AJD-CX90032-01-M',
-        'name' => 'OLD A',
+        'name' => 'CX90032-01 - M',
     ]);
     $itemA->tags()->sync([$this->typeTag->id, $this->sizeTag->id]);
 
@@ -271,7 +271,7 @@ it('skips when product_name is empty and item_group.name contains hyphen or slas
         ->assertSuccessful();
 
     $itemA->refresh();
-    expect($itemA->name)->toBe('OLD A');
+    expect($itemA->name)->toBe('CX90032-01 - M');
 
     @unlink($path);
 });

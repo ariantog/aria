@@ -20,6 +20,10 @@ use Throwable;
  * `item_parent_prices.product_name` when non-empty and contains no `-` or `/` (otherwise skip);
  * else `item_group.name` when non-empty and contains no `-` or `/`;
  * else first segment of `item_group.alias` (before `-`/`/`, no digits in segment); else skip.
+ *
+ * Each SKU’s `items.name` is only replaced when empty or the leading display segment (before ` - `)
+ * still looks pcode-like (see `ItemBackfillSkuDisplayNameSafety`); otherwise alias/parent sync may run
+ * but the existing marketing title is kept.
  */
 class BackfillItemNamesFromParentByGroupExcelCommand extends Command
 {

@@ -50,7 +50,7 @@ it('rebuilds name from parent title when items.alias column does not exist and t
         'type' => ItemType::ITEM,
         'pcode' => 'CX90032-01',
         'code' => 'AJD-CX90032-01-M',
-        'name' => 'OLD',
+        'name' => 'CX90032-01 - M',
     ]);
     $item->tags()->sync([$this->typeTag->id, $this->sizeTag->id]);
 
@@ -77,7 +77,7 @@ it('rebuilds name with parent title and warna when items.alias column does not e
         'type' => ItemType::ITEM,
         'pcode' => 'CX90032-01',
         'code' => 'AJD-CX90032-01-M',
-        'name' => 'OLD',
+        'name' => 'CX90032-01 - M',
     ]);
     $item->tags()->sync([$this->typeTag->id, $this->sizeTag->id, $this->warnaTag->id]);
 
