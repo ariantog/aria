@@ -8,9 +8,10 @@ use App\Services\Items\ItemIdentityBuilder;
 use InvalidArgumentException;
 
 /**
- * Backfill commands may only replace **manufactured** `items.name` when the current display name is
- * empty or still pcode-like in the leading segment (before the first " - "), so custom marketing titles
- * are not overwritten. **Asset lancar** is excluded: renaming is always allowed (backfill is manufactured-focused).
+ * Manufactured backfill only: replace `items.name` when the current display name is empty or still
+ * pcode-like in the leading segment (before the first " - "), so custom marketing titles are not overwritten.
+ * Non-manufactured items should be skipped by the artisan commands; if this helper is invoked for them,
+ * it does not allow overwrite (except empty name).
  */
 final class ItemBackfillSkuDisplayNameSafety
 {
@@ -33,22 +34,20 @@ final class ItemBackfillSkuDisplayNameSafety
             ? $item->type
             : ItemType::coerce($item->type) ?? ItemType::ITEM;
 
-        if ($type === ItemType::ASSET_LANCAR) {
-            return true;
+        if ($type !== ItemType::ITEM) {
+            return false;
         }
 
         $builder = app(ItemIdentityBuilder::class);
 
-        $candidates = $type === ItemType::ITEM
-            ? array_values(array_unique([$first, $builder->normalizeManufacturedPcode($first)]))
-            : [strtoupper(trim($first))];
+        $candidates = array_values(array_unique([$first, $builder->normalizeManufacturedPcode($first)]));
 
         foreach ($candidates as $candidate) {
             if ($candidate === '') {
                 continue;
             }
             try {
-                $builder->validatePcode($type, $candidate);
+                $builder->validatePcode(ItemType::ITEM, $candidate);
 
                 return true;
             } catch (InvalidArgumentException) {
@@ -59,7 +58,7 @@ final class ItemBackfillSkuDisplayNameSafety
         $upper = strtoupper($first);
 
         // Manufactured master-only head (e.g. CX90032) when full colorway is not in the leading segment.
-        if ($type === ItemType::ITEM && preg_match('/^[A-Z]{2,3}[0-9]{4,6}$/', $upper) === 1) {
+        if (preg_match('/^[A-Z]{2,3}[0-9]{4,6}$/', $upper) === 1) {
             return true;
         }
 
@@ -69,8 +68,7 @@ final class ItemBackfillSkuDisplayNameSafety
         }
 
         // TYPE + full manufactured colorway in one segment (e.g. AJD-CX90032-01).
-        if ($type === ItemType::ITEM
-            && preg_match('/^[A-Z]{2,3}-[A-Z]{2,3}[0-9]{5}-[0-9]{2,3}$/', $upper) === 1) {
+        if (preg_match('/^[A-Z]{2,3}-[A-Z]{2,3}[0-9]{5}-[0-9]{2,3}$/', $upper) === 1) {
             return true;
         }
 

@@ -246,6 +246,34 @@ it('skips when only fallback is alias with a digit in the first segment', functi
     @unlink($path);
 });
 
+it('skips groups whose sample item is not manufactured', function () {
+    $this->group->items()->delete();
+
+    $itemA = Item::factory()->create([
+        'group_id' => $this->group->id,
+        'type' => ItemType::ASSET_LANCAR,
+        'pcode' => 'GLOVE-01',
+        'code' => 'GLOVE-01-BLACK-M',
+        'name' => 'ASSET NAME',
+    ]);
+    $itemA->tags()->sync([$this->typeTag->id, $this->sizeTag->id]);
+
+    $path = base_path('tests/Fixtures/backfill-by-group-non-mfg.xlsx');
+    $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet;
+    $sheet = $spreadsheet->getActiveSheet();
+    $sheet->setCellValue('A1', (string) $this->group->id);
+    $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+    $writer->save($path);
+
+    $this->artisan('items:backfill-names-from-parent-by-group-excel', ['file' => $path])
+        ->assertSuccessful();
+
+    $itemA->refresh();
+    expect($itemA->name)->toBe('ASSET NAME');
+
+    @unlink($path);
+});
+
 it('skips when product_name is empty and item_group.name contains hyphen or slash', function () {
     ItemParentPrice::query()->where('parent_key', $this->parentKey)->update(['product_name' => '']);
 

@@ -99,6 +99,36 @@ it('sets alias to parent title when warna is tagged and rebuilds name with color
     @unlink($path);
 });
 
+it('skips asset lancar rows', function () {
+    $item = Item::factory()->create([
+        'group_id' => $this->group->id,
+        'type' => ItemType::ASSET_LANCAR,
+        'pcode' => 'GLOVE-01',
+        'code' => 'GLOVE-01-BLACK-M',
+        'alias' => '',
+        'name' => 'UNCHANGED',
+    ]);
+    $item->tags()->sync([$this->typeTag->id, $this->sizeTag->id]);
+
+    $path = base_path('tests/Fixtures/backfill-alias-asset-skip.xlsx');
+    $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet;
+    $sheet = $spreadsheet->getActiveSheet();
+    $sheet->setCellValue('A1', (string) $item->id);
+    $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+    $writer->save($path);
+
+    $this->artisan('items:backfill-alias-from-parent-excel', ['file' => $path])
+        ->assertSuccessful();
+
+    $item->refresh();
+    expect($item->name)->toBe('UNCHANGED');
+    if (Schema::hasColumn('items', 'alias')) {
+        expect(trim((string) $item->alias))->toBe('');
+    }
+
+    @unlink($path);
+});
+
 it('does not replace a custom marketing display name but still updates alias', function () {
     $item = Item::factory()->create([
         'group_id' => $this->group->id,

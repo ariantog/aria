@@ -31,14 +31,9 @@ it('allows overwrite when leading segment is TYPE plus full colorway pcode', fun
     expect(ItemBackfillSkuDisplayNameSafety::mayOverwriteDisplayName($item, $item->name))->toBeTrue();
 });
 
-it('always allows overwrite for asset lancar (gate skipped)', function () {
+it('does not apply pcode gate to non-manufactured types when name is non-empty', function () {
     $item = new Item(['type' => ItemType::ASSET_LANCAR, 'name' => 'GLOVE-01 - BLACK']);
-    expect(ItemBackfillSkuDisplayNameSafety::mayOverwriteDisplayName($item, $item->name))->toBeTrue();
-});
-
-it('allows asset lancar overwrite even when the first segment looks like a marketing title', function () {
-    $item = new Item(['type' => ItemType::ASSET_LANCAR, 'name' => 'CUSTOM TITLE - BLACK']);
-    expect(ItemBackfillSkuDisplayNameSafety::mayOverwriteDisplayName($item, $item->name))->toBeTrue();
+    expect(ItemBackfillSkuDisplayNameSafety::mayOverwriteDisplayName($item, $item->name))->toBeFalse();
 });
 
 it('blocks overwrite when the first segment is a custom marketing title', function () {

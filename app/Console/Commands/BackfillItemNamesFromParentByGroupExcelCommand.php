@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\ItemType;
 use App\Models\Item;
 use App\Models\ItemGroup;
 use App\Services\Items\ItemGroupHierarchyService;
@@ -21,9 +22,11 @@ use Throwable;
  * else `item_group.name` when non-empty and contains no `-` or `/`;
  * else first segment of `item_group.alias` (before `-`/`/`, no digits in segment); else skip.
  *
- * Each **manufactured** SKU’s `items.name` is only replaced when empty or the leading display segment
- * (before ` - `) still looks pcode-like (see `ItemBackfillSkuDisplayNameSafety`). **Asset lancar** SKUs
- * skip that gate. Otherwise alias/parent sync may run but the existing marketing title is kept.
+ * **Manufactured items only** (`ItemType::ITEM`). Groups whose sample SKU is not manufactured are skipped.
+ *
+ * Each manufactured SKU’s `items.name` is only replaced when empty or the leading display segment
+ * (before ` - `) still looks pcode-like (see `ItemBackfillSkuDisplayNameSafety`). Otherwise alias/parent
+ * sync may run but the existing marketing title is kept.
  */
 class BackfillItemNamesFromParentByGroupExcelCommand extends Command
 {
@@ -33,7 +36,7 @@ class BackfillItemNamesFromParentByGroupExcelCommand extends Command
                             {--column=A : Column letter for group id}
                             {--dry-run : Show planned changes without saving}';
 
-    protected $description = 'Rebuild items.name from parent product_name + tags for every SKU under each listed group\'s parent family';
+    protected $description = 'Rebuild items.name for manufactured SKUs from parent title + tags under each listed group\'s parent family';
 
     public function handle(ItemIdentityBuilder $identityBuilder, ItemGroupHierarchyService $groupHierarchy): int
     {
@@ -100,6 +103,7 @@ class BackfillItemNamesFromParentByGroupExcelCommand extends Command
         $itemsUpdated = 0;
         $missingGroup = 0;
         $emptyGroup = 0;
+        $skippedNonManufacturedGroup = 0;
         $noParentTitle = 0;
         $syncedParentFromFallback = 0;
         $skippedParentProductNameLooksLikeCode = 0;
@@ -123,6 +127,15 @@ class BackfillItemNamesFromParentByGroupExcelCommand extends Command
             if ($sample === null) {
                 $emptyGroup++;
                 $this->line("  [skip] Group #{$groupId} — no items");
+
+                continue;
+            }
+
+            $sampleType = $sample->type instanceof ItemType ? $sample->type : ItemType::coerce($sample->type);
+            if ($sampleType !== ItemType::ITEM) {
+                $skippedNonManufacturedGroup++;
+                $typeHint = $sampleType !== null ? (string) $sampleType->value : 'null';
+                $this->line("  [skip] Group #{$groupId} — sample item #{$sample->id} not manufactured (type {$typeHint})");
 
                 continue;
             }
@@ -170,6 +183,7 @@ class BackfillItemNamesFromParentByGroupExcelCommand extends Command
             Item::query()
                 ->with(['group', 'tags'])
                 ->whereIn('group_id', $familyGroupIds)
+                ->where('type', ItemType::ITEM->value)
                 ->whereNull('deleted_at')
                 ->orderBy('id')
                 ->chunkById(100, function ($items) use (
@@ -224,6 +238,9 @@ class BackfillItemNamesFromParentByGroupExcelCommand extends Command
         }
         if ($emptyGroup > 0) {
             $this->warn("Groups with no items: {$emptyGroup}");
+        }
+        if ($skippedNonManufacturedGroup > 0) {
+            $this->warn("Skipped groups (sample item not manufactured): {$skippedNonManufacturedGroup}");
         }
         if ($noParentTitle > 0) {
             $this->warn("Skipped groups (no resolvable marketing title): {$noParentTitle}");
