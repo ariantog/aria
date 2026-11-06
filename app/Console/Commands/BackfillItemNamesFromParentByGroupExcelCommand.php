@@ -4,8 +4,10 @@ namespace App\Console\Commands;
 
 use App\Models\Item;
 use App\Models\ItemGroup;
+use App\Services\Items\ItemGroupHierarchyService;
 use App\Services\Items\ItemIdentityBuilder;
 use App\Support\ItemParentDisplayNameBackfill;
+use App\Support\ItemParentTitleEligibility;
 use App\Support\ItemProductTitle;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Schema;
@@ -13,9 +15,10 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 use Throwable;
 
 /**
- * For each colorway group id in a spreadsheet, resolve `item_parent_prices.product_name` from any
- * SKU in that group, then rebuild every SKU's `items.name` (and optional `items.alias`) like
- * `items:backfill-alias-from-parent-excel`.
+ * For each `item_group` id in a spreadsheet, resolve the parent key from a sample SKU, then rebuild
+ * every SKU under that parent family (`ItemGroupHierarchyService::groupIdsForParentKey`) from
+ * `item_parent_prices.product_name` when non-empty and contains no `-` or `/` (otherwise skip);
+ * else `item_group.name` when non-empty and contains no `-` or `/`; else skip.
  */
 class BackfillItemNamesFromParentByGroupExcelCommand extends Command
 {
@@ -25,9 +28,9 @@ class BackfillItemNamesFromParentByGroupExcelCommand extends Command
                             {--column=A : Column letter for group id}
                             {--dry-run : Show planned changes without saving}';
 
-    protected $description = 'Rebuild items.name from parent product_name + tags for every SKU in listed item_group ids';
+    protected $description = 'Rebuild items.name from parent product_name + tags for every SKU under each listed group\'s parent family';
 
-    public function handle(ItemIdentityBuilder $identityBuilder): int
+    public function handle(ItemIdentityBuilder $identityBuilder, ItemGroupHierarchyService $groupHierarchy): int
     {
         $path = (string) $this->argument('file');
         if (! is_readable($path)) {
@@ -93,6 +96,9 @@ class BackfillItemNamesFromParentByGroupExcelCommand extends Command
         $missingGroup = 0;
         $emptyGroup = 0;
         $noParentTitle = 0;
+        $syncedParentFromGroupName = 0;
+        $skippedGroupNameLooksLikeCode = 0;
+        $skippedParentProductNameLooksLikeCode = 0;
 
         foreach ($groupIds as $groupId) {
             $group = ItemGroup::query()->find($groupId);
@@ -106,6 +112,7 @@ class BackfillItemNamesFromParentByGroupExcelCommand extends Command
             $sample = Item::query()
                 ->with(['group', 'tags'])
                 ->where('group_id', $groupId)
+                ->whereNull('deleted_at')
                 ->orderBy('id')
                 ->first();
 
@@ -117,19 +124,50 @@ class BackfillItemNamesFromParentByGroupExcelCommand extends Command
             }
 
             $parentKey = $identityBuilder->itemParentKey($sample);
+            ItemProductTitle::forgetParentProductNameCache($parentKey);
             $parentTitle = ItemProductTitle::parentProductNameForKey($parentKey);
-            if ($parentTitle === '') {
-                $noParentTitle++;
-                $this->line("  [skip] Group #{$groupId} — no product_name for parent key {$parentKey}");
+
+            if ($parentTitle !== '' && ItemParentTitleEligibility::looksLikePcodeOrSegment($parentTitle)) {
+                $skippedParentProductNameLooksLikeCode++;
+                $this->line("  [skip] Group #{$groupId} — item_parent_prices.product_name looks like pcode (contains - or /): {$parentTitle}");
 
                 continue;
             }
 
-            $this->line("  Group #{$groupId}: parent {$parentTitle} (key {$parentKey})");
+            if ($parentTitle === '') {
+                $fallback = $this->marketingTitleFromGroupName((string) ($group->name ?? ''));
+                if ($fallback === null) {
+                    if (trim((string) ($group->name ?? '')) !== '' && ItemParentTitleEligibility::looksLikePcodeOrSegment((string) $group->name)) {
+                        $skippedGroupNameLooksLikeCode++;
+                        $this->line("  [skip] Group #{$groupId} — item_group.name looks like pcode (contains - or /)");
+                    } else {
+                        $noParentTitle++;
+                        $this->line("  [skip] Group #{$groupId} — no product_name and no item_group.name for parent key {$parentKey}");
+                    }
+
+                    continue;
+                }
+
+                $parentTitle = $fallback;
+                $this->line("  Group #{$groupId}: parent title from item_group.name → {$parentTitle} (key {$parentKey})");
+
+                if (! $dryRun) {
+                    ItemProductTitle::syncParentProductName($parentKey, $parentTitle);
+                    $syncedParentFromGroupName++;
+                }
+            } else {
+                $this->line("  Group #{$groupId}: parent {$parentTitle} (key {$parentKey})");
+            }
+
+            $familyGroupIds = $groupHierarchy->groupIdsForParentKey($parentKey);
+            if ($familyGroupIds === []) {
+                $familyGroupIds = [$groupId];
+            }
 
             Item::query()
                 ->with(['group', 'tags'])
-                ->where('group_id', $groupId)
+                ->whereIn('group_id', $familyGroupIds)
+                ->whereNull('deleted_at')
                 ->orderBy('id')
                 ->chunkById(100, function ($items) use (
                     $dryRun,
@@ -166,12 +204,21 @@ class BackfillItemNamesFromParentByGroupExcelCommand extends Command
                             $item->save();
                         }
                     }
-                });
+                }, 'id');
         }
 
         $this->newLine();
         $this->info('Groups in file: '.count($groupIds));
         $this->info("Items would update / updated: {$itemsUpdated}");
+        if ($syncedParentFromGroupName > 0) {
+            $this->info("Parent rows synced from item_group.name: {$syncedParentFromGroupName}");
+        }
+        if ($skippedParentProductNameLooksLikeCode > 0) {
+            $this->warn("Skipped groups (product_name contains - or /): {$skippedParentProductNameLooksLikeCode}");
+        }
+        if ($skippedGroupNameLooksLikeCode > 0) {
+            $this->warn("Skipped groups (item_group.name contains - or /): {$skippedGroupNameLooksLikeCode}");
+        }
         if ($missingGroup > 0) {
             $this->warn("Missing groups: {$missingGroup}");
         }
@@ -179,7 +226,7 @@ class BackfillItemNamesFromParentByGroupExcelCommand extends Command
             $this->warn("Groups with no items: {$emptyGroup}");
         }
         if ($noParentTitle > 0) {
-            $this->warn("Skipped groups (no parent product_name): {$noParentTitle}");
+            $this->warn("Skipped groups (empty product_name and empty item_group.name): {$noParentTitle}");
         }
         if ($dryRun && $itemsUpdated > 0) {
             $this->warn('Re-run without --dry-run to apply.');
@@ -218,5 +265,22 @@ class BackfillItemNamesFromParentByGroupExcelCommand extends Command
         }
 
         return $ids;
+    }
+
+    /**
+     * Use `item_group.name` as a marketing title only when non-empty and not pcode-like (- or /).
+     */
+    private function marketingTitleFromGroupName(string $raw): ?string
+    {
+        $raw = trim($raw);
+        if ($raw === '') {
+            return null;
+        }
+
+        if (ItemParentTitleEligibility::looksLikePcodeOrSegment($raw)) {
+            return null;
+        }
+
+        return strtoupper($raw);
     }
 }
