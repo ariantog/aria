@@ -12,12 +12,13 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 use Throwable;
 
 /**
- * Batch-set SKU bare titles (items.alias) from parent catalog (item_parent_prices.product_name)
- * for a list of item ids in an Excel file.
+ * Batch-apply parent catalog titles from item_parent_prices.product_name for item ids in Excel.
  *
- * When a SKU has no warna tag: alias = parent's product name; display name follows usual rules
- * (manufactured: parent title + warna from tag if any + size).
- * When warna is tagged: alias is cleared so display names use colorway/parent resolution ("like usual").
+ * When `items.alias` exists: no warna → set alias to parent title; warna → clear alias.
+ * Rebuilds `items.name` from catalog rules in all cases.
+ *
+ * When `items.alias` is absent (legacy DB): only updates `items.name` — no warna → built with
+ * explicit parent bare title + size; warna → standard `buildDisplayName()` resolution.
  *
  * @see doc/item-catalog-hierarchy.md (bare product title resolution)
  */
@@ -29,19 +30,13 @@ class BackfillItemAliasFromParentExcelCommand extends Command
                             {--column=A : Column letter for item id}
                             {--dry-run : Show planned changes without saving}';
 
-    protected $description = 'Set items.alias from parent product name for ids listed in a spreadsheet (no warna → copy parent title; warna tagged → clear alias, rebuild name)';
+    protected $description = 'Apply parent product title from ids in a spreadsheet (sets items.alias when column exists; always rebuilds items.name)';
 
     public function handle(ItemIdentityBuilder $identityBuilder): int
     {
         $path = (string) $this->argument('file');
         if (! is_readable($path)) {
             $this->error("File not readable: {$path}");
-
-            return self::FAILURE;
-        }
-
-        if (! Schema::hasColumn('items', 'alias')) {
-            $this->error('The items.alias column is missing; run migrations first.');
 
             return self::FAILURE;
         }
@@ -92,6 +87,11 @@ class BackfillItemAliasFromParentExcelCommand extends Command
             return self::SUCCESS;
         }
 
+        $hasAliasColumn = Schema::hasColumn((new Item)->getTable(), 'alias');
+        if (! $hasAliasColumn) {
+            $this->warn('items.alias is missing — only items.name will be updated (no per-SKU bare-title column).');
+        }
+
         $this->info('Found '.count($ids).' id(s). Processing...');
 
         $updated = 0;
@@ -128,28 +128,46 @@ class BackfillItemAliasFromParentExcelCommand extends Command
             }
 
             $warnaTag = $item->tags->firstWhere('type', Tag::TYPE_WARNA);
-            $desiredAlias = $warnaTag !== null ? '' : $parentTitle;
 
-            $currentAlias = strtoupper(trim((string) ($item->alias ?? '')));
-            $normalizedDesired = strtoupper(trim($desiredAlias));
+            $currentAlias = '';
+            $normalizedDesired = '';
+            $aliasChanged = false;
 
-            $item->alias = $desiredAlias;
-            $newName = ItemProductTitle::buildDisplayName($item);
+            if ($hasAliasColumn) {
+                $desiredAlias = $warnaTag !== null ? '' : $parentTitle;
+                $currentAlias = strtoupper(trim((string) ($item->alias ?? '')));
+                $normalizedDesired = strtoupper(trim($desiredAlias));
+                $item->alias = $desiredAlias;
+                $aliasChanged = $currentAlias !== $normalizedDesired;
+            }
+
+            $newName = $hasAliasColumn
+                ? ItemProductTitle::buildDisplayName($item)
+                : (
+                    $warnaTag !== null
+                        ? ItemProductTitle::buildDisplayName($item)
+                        : ItemProductTitle::buildDisplayNameWithBareTitle($item, $parentTitle)
+                );
 
             $nameChanged = strtoupper(trim((string) $item->name)) !== strtoupper(trim($newName));
-            $aliasChanged = $currentAlias !== $normalizedDesired;
 
             if (! $aliasChanged && ! $nameChanged) {
                 continue;
             }
 
             $updated++;
-            $action = $warnaTag !== null
-                ? 'clear alias (warna tagged), rebuild name'
-                : "alias ← parent title ({$parentTitle})";
+            if ($hasAliasColumn) {
+                $action = $warnaTag !== null
+                    ? 'clear alias (warna tagged), rebuild name'
+                    : "alias ← parent title ({$parentTitle})";
+            } else {
+                $action = $warnaTag !== null
+                    ? 'rebuild name (warna tagged, no alias column)'
+                    : "rebuild name from parent title ({$parentTitle}, no alias column)";
+            }
 
             $this->line("  Item #{$id}: {$action}");
-            if ($aliasChanged) {
+            if ($hasAliasColumn && $aliasChanged) {
                 $this->line('    alias: '.($currentAlias === '' ? '(empty)' : $currentAlias).' → '.($normalizedDesired === '' ? '(empty)' : $normalizedDesired));
             }
             if ($nameChanged) {
