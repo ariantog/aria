@@ -16,7 +16,8 @@ use Throwable;
 /**
  * For each `item_group` id in a spreadsheet, resolve the parent key from a sample SKU, then rebuild
  * every SKU under that parent family (`ItemGroupHierarchyService::groupIdsForParentKey`) from
- * `item_parent_prices.product_name` (or fallback: sanitized `item_group.name` + sync parent row).
+ * `item_parent_prices.product_name`, else `item_group.name` when non-empty and contains no `-` or `/`
+ * (otherwise the value is treated as pcode-like and the group is skipped). Fallback may sync parent row.
  */
 class BackfillItemNamesFromParentByGroupExcelCommand extends Command
 {
@@ -95,7 +96,7 @@ class BackfillItemNamesFromParentByGroupExcelCommand extends Command
         $emptyGroup = 0;
         $noParentTitle = 0;
         $syncedParentFromGroupName = 0;
-        $groupNameRowsUpdated = 0;
+        $skippedGroupNameLooksLikeCode = 0;
 
         foreach ($groupIds as $groupId) {
             $group = ItemGroup::query()->find($groupId);
@@ -123,21 +124,22 @@ class BackfillItemNamesFromParentByGroupExcelCommand extends Command
             $parentKey = $identityBuilder->itemParentKey($sample);
             ItemProductTitle::forgetParentProductNameCache($parentKey);
             $parentTitle = ItemProductTitle::parentProductNameForKey($parentKey);
-            $titleFromFallback = false;
 
             if ($parentTitle === '') {
-                $rawGroupName = trim((string) ($group->name ?? ''));
-                $candidate = $this->sanitizeMarketingTitle($rawGroupName);
-
-                if ($candidate === '') {
-                    $noParentTitle++;
-                    $this->line("  [skip] Group #{$groupId} — no product_name for parent key {$parentKey} and no usable item_group.name");
+                $fallback = $this->marketingTitleFromGroupName((string) ($group->name ?? ''));
+                if ($fallback === null) {
+                    if (trim((string) ($group->name ?? '')) !== '' && $this->groupNameLooksLikePcode((string) $group->name)) {
+                        $skippedGroupNameLooksLikeCode++;
+                        $this->line("  [skip] Group #{$groupId} — item_group.name looks like pcode (contains - or /)");
+                    } else {
+                        $noParentTitle++;
+                        $this->line("  [skip] Group #{$groupId} — no product_name and no item_group.name for parent key {$parentKey}");
+                    }
 
                     continue;
                 }
 
-                $parentTitle = $candidate;
-                $titleFromFallback = true;
+                $parentTitle = $fallback;
                 $this->line("  Group #{$groupId}: parent title from item_group.name → {$parentTitle} (key {$parentKey})");
 
                 if (! $dryRun) {
@@ -151,13 +153,6 @@ class BackfillItemNamesFromParentByGroupExcelCommand extends Command
             $familyGroupIds = $groupHierarchy->groupIdsForParentKey($parentKey);
             if ($familyGroupIds === []) {
                 $familyGroupIds = [$groupId];
-            }
-
-            if ($titleFromFallback && ! $dryRun) {
-                foreach ($familyGroupIds as $gid) {
-                    ItemGroup::query()->where('id', $gid)->update(['name' => $parentTitle]);
-                    $groupNameRowsUpdated++;
-                }
             }
 
             Item::query()
@@ -209,8 +204,8 @@ class BackfillItemNamesFromParentByGroupExcelCommand extends Command
         if ($syncedParentFromGroupName > 0) {
             $this->info("Parent rows synced from item_group.name: {$syncedParentFromGroupName}");
         }
-        if ($groupNameRowsUpdated > 0) {
-            $this->info("item_group.name rows normalized (no - or /): {$groupNameRowsUpdated}");
+        if ($skippedGroupNameLooksLikeCode > 0) {
+            $this->warn("Skipped groups (item_group.name contains - or /): {$skippedGroupNameLooksLikeCode}");
         }
         if ($missingGroup > 0) {
             $this->warn("Missing groups: {$missingGroup}");
@@ -219,7 +214,7 @@ class BackfillItemNamesFromParentByGroupExcelCommand extends Command
             $this->warn("Groups with no items: {$emptyGroup}");
         }
         if ($noParentTitle > 0) {
-            $this->warn("Skipped groups (no parent title and no fallback): {$noParentTitle}");
+            $this->warn("Skipped groups (empty product_name and empty item_group.name): {$noParentTitle}");
         }
         if ($dryRun && $itemsUpdated > 0) {
             $this->warn('Re-run without --dry-run to apply.');
@@ -260,14 +255,25 @@ class BackfillItemNamesFromParentByGroupExcelCommand extends Command
         return $ids;
     }
 
-    /**
-     * Strip hyphen and slash from legacy marketing titles (replace with spaces; uppercase trim).
-     */
-    private function sanitizeMarketingTitle(string $raw): string
+    private function groupNameLooksLikePcode(string $raw): bool
     {
-        $raw = str_replace(['-', '/'], ' ', $raw);
-        $raw = preg_replace('/\s+/u', ' ', $raw) ?? $raw;
+        return str_contains($raw, '-') || str_contains($raw, '/');
+    }
 
-        return strtoupper(trim($raw));
+    /**
+     * Use `item_group.name` as a marketing title only when non-empty and not pcode-like (- or /).
+     */
+    private function marketingTitleFromGroupName(string $raw): ?string
+    {
+        $raw = trim($raw);
+        if ($raw === '') {
+            return null;
+        }
+
+        if ($this->groupNameLooksLikePcode($raw)) {
+            return null;
+        }
+
+        return strtoupper($raw);
     }
 }
