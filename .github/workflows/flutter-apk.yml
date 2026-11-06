@@ -1,0 +1,43 @@
+name: Flutter debug APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - develop
+      - master
+    paths:
+      - 'apps/aria_mobile/**'
+      - '.github/workflows/flutter-apk.yml'
+
+# Building a signed release APK needs keystore secrets; this workflow builds a debug APK for sideloading.
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/cirruslabs/flutter:stable
+
+    defaults:
+      run:
+        working-directory: apps/aria_mobile
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Generate Android project
+        run: flutter create --platforms=android .
+
+      - name: Build debug APK
+        run: flutter build apk --debug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: aria-mobile-debug-apk
+          path: apps/aria_mobile/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error

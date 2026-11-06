@@ -32,6 +32,17 @@ flutter build apk --release   # needs signing for Play/internal distribution
 
 Release signing: set up `key.properties` and Gradle signing config per [Flutter Android deployment](https://docs.flutter.dev/deployment/android).
 
+## GitHub Actions (no local Flutter)
+
+The workflow **Flutter debug APK** (`.github/workflows/flutter-apk.yml`) builds a **debug** APK on GitHub and uploads it as an artifact named `aria-mobile-debug-apk`.
+
+- **Manual run:** repo → **Actions** → **Flutter debug APK** → **Run workflow**.
+- **Automatic run:** pushes to `main` / `develop` / `master` that touch `apps/aria_mobile/**`.
+
+Download the artifact from the finished run’s **Summary** page. Install with `adb install app-debug.apk` or share the file; debug builds are for testing, not Play Store.
+
+For a **signed release** APK/AAB, add keystore secrets and a separate job (Gradle signing or `flutter build apk --release` with env vars) — ask the maintainer before storing signing keys in GitHub.
+
 ## Authentication
 
 Uses username + password (same as web Fortify). If the account has two-factor authentication enabled, the app prompts for a TOTP code or a recovery code.
