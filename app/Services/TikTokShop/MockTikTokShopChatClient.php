@@ -3,17 +3,14 @@
 namespace App\Services\TikTokShop;
 
 use App\Contracts\TikTokShop\TikTokShopChatClient;
-use App\Models\TikTokShopConversation;
-use App\Models\TikTokShopMessage;
 use App\Models\User;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Str;
 use RuntimeException;
 
 class MockTikTokShopChatClient implements TikTokShopChatClient
 {
     public function __construct(
-        private TikTokShopMockChatSeeder $seeder,
+        private TikTokShopMockDataStore $store,
         private TikTokShopChatPayloadBuilder $payload,
     ) {}
 
@@ -24,22 +21,18 @@ class MockTikTokShopChatClient implements TikTokShopChatClient
 
     public function listConversations(int $pageSize = 20, ?string $pageToken = null): array
     {
-        $this->seeder->seedIfEmpty();
+        $state = $this->store->state();
+        $rows = collect($state['conversations'])
+            ->sortByDesc(fn (array $c) => $c['last_message_at'] ?? 0)
+            ->values();
 
         $offset = max(0, (int) $pageToken);
-        $query = TikTokShopConversation::query()
-            ->orderByDesc('last_message_at')
-            ->orderByDesc('id');
-
-        $total = (clone $query)->count();
-        $rows = $query->offset($offset)->limit($pageSize)->get();
-
-        $next = $offset + $rows->count() < $total
-            ? (string) ($offset + $pageSize)
-            : null;
+        $page = $rows->slice($offset, $pageSize)->values();
+        $total = $rows->count();
+        $next = $offset + $page->count() < $total ? (string) ($offset + $pageSize) : null;
 
         return [
-            'conversations' => $rows->map(fn (TikTokShopConversation $c) => $this->payload->conversation($c))->values()->all(),
+            'conversations' => $page->map(fn (array $c) => $this->payload->conversation($c))->all(),
             'total' => $total,
             'next_page_token' => $next,
         ];
@@ -47,35 +40,27 @@ class MockTikTokShopChatClient implements TikTokShopChatClient
 
     public function getConversation(string $externalConversationId): ?array
     {
-        $this->seeder->seedIfEmpty();
-
-        $row = TikTokShopConversation::query()
-            ->where('external_conversation_id', $externalConversationId)
-            ->first();
+        $state = $this->store->state();
+        $row = $state['conversations'][$externalConversationId] ?? null;
 
         return $row ? $this->payload->conversation($row) : null;
     }
 
     public function listMessages(string $externalConversationId, int $pageSize = 50, ?string $pageToken = null): array
     {
-        $conversation = $this->findConversationOrFail($externalConversationId);
+        $this->findConversationOrFail($externalConversationId);
+        $state = $this->store->state();
+        $rows = collect($state['messages'][$externalConversationId] ?? [])
+            ->sortBy('create_time')
+            ->values();
 
         $offset = max(0, (int) $pageToken);
-        $query = TikTokShopMessage::query()
-            ->where('tiktok_shop_conversation_id', $conversation->id)
-            ->with('conversation')
-            ->orderBy('sent_at')
-            ->orderBy('id');
-
-        $total = (clone $query)->count();
-        $rows = $query->offset($offset)->limit($pageSize)->get();
-
-        $next = $offset + $rows->count() < $total
-            ? (string) ($offset + $pageSize)
-            : null;
+        $page = $rows->slice($offset, $pageSize)->values();
+        $total = $rows->count();
+        $next = $offset + $page->count() < $total ? (string) ($offset + $pageSize) : null;
 
         return [
-            'messages' => $rows->map(fn (TikTokShopMessage $m) => $this->payload->message($m))->values()->all(),
+            'messages' => $page->map(fn (array $m) => $this->payload->message($m))->all(),
             'total' => $total,
             'next_page_token' => $next,
         ];
@@ -83,82 +68,100 @@ class MockTikTokShopChatClient implements TikTokShopChatClient
 
     public function sendSellerMessage(string $externalConversationId, string $content, ?User $sender): array
     {
-        $conversation = $this->findConversationOrFail($externalConversationId);
         $trimmed = trim($content);
-
         if ($trimmed === '') {
             throw new RuntimeException('Pesan tidak boleh kosong.');
         }
 
         $sentAt = Carbon::now();
-        $message = TikTokShopMessage::query()->create([
-            'tiktok_shop_conversation_id' => $conversation->id,
-            'external_message_id' => 'msg_'.Str::lower(Str::random(16)),
-            'sender_role' => TikTokShopMessage::SENDER_SELLER,
-            'content' => $trimmed,
-            'aria_user_id' => $sender?->id,
-            'sent_at' => $sentAt,
-        ]);
+        $message = $this->store->messageRow(
+            $externalConversationId,
+            $this->store->newMessageId(),
+            TikTokShopMockDataStore::SENDER_SELLER,
+            $trimmed,
+            $sentAt,
+            $sender?->id,
+        );
 
-        $conversation->forceFill([
-            'last_message_text' => mb_substr($trimmed, 0, 500),
-            'last_message_at' => $sentAt,
-            'unread_count' => 0,
-        ])->save();
-
-        $message->setRelation('conversation', $conversation);
+        $this->appendMessage($externalConversationId, $message, unreadAfter: 0);
 
         return $this->payload->message($message);
     }
 
     /**
-     * Mock-only: simulate an inbound buyer message (webhook / polling substitute).
-     *
      * @return array<string, mixed>
      */
     public function simulateBuyerMessage(string $externalConversationId, string $content): array
     {
-        $conversation = $this->findConversationOrFail($externalConversationId);
         $trimmed = trim($content);
-
         if ($trimmed === '') {
             throw new RuntimeException('Pesan buyer simulasi tidak boleh kosong.');
         }
 
+        $conversation = $this->findConversationOrFail($externalConversationId);
+        $unread = (int) ($conversation['unread_count'] ?? 0) + 1;
+
         $sentAt = Carbon::now();
-        $message = TikTokShopMessage::query()->create([
-            'tiktok_shop_conversation_id' => $conversation->id,
-            'external_message_id' => 'msg_'.Str::lower(Str::random(16)),
-            'sender_role' => TikTokShopMessage::SENDER_BUYER,
-            'content' => $trimmed,
-            'aria_user_id' => null,
-            'sent_at' => $sentAt,
-        ]);
+        $message = $this->store->messageRow(
+            $externalConversationId,
+            $this->store->newMessageId(),
+            TikTokShopMockDataStore::SENDER_BUYER,
+            $trimmed,
+            $sentAt,
+            null,
+        );
 
-        $conversation->forceFill([
-            'last_message_text' => mb_substr($trimmed, 0, 500),
-            'last_message_at' => $sentAt,
-            'unread_count' => (int) $conversation->unread_count + 1,
-        ])->save();
-
-        $message->setRelation('conversation', $conversation);
+        $this->appendMessage($externalConversationId, $message, unreadAfter: $unread);
 
         return $this->payload->message($message);
     }
 
     public function markConversationRead(string $externalConversationId): void
     {
-        $conversation = $this->findConversationOrFail($externalConversationId);
-        $conversation->forceFill(['unread_count' => 0])->save();
+        $state = $this->store->state();
+        if (! isset($state['conversations'][$externalConversationId])) {
+            return;
+        }
+
+        $state['conversations'][$externalConversationId]['unread_count'] = 0;
+        $this->store->save($state);
     }
 
-    private function findConversationOrFail(string $externalConversationId): TikTokShopConversation
+    public function resetDemo(): void
     {
-        $this->seeder->seedIfEmpty();
+        $this->store->reset();
+    }
 
-        $conversation = TikTokShopConversation::query()
-            ->where('external_conversation_id', $externalConversationId)
-            ->first();
+    /**
+     * @param  array<string, mixed>  $message
+     */
+    private function appendMessage(string $externalConversationId, array $message, int $unreadAfter): void
+    {
+        $state = $this->store->state();
+        $conversation = $state['conversations'][$externalConversationId] ?? null;
+
+        if ($conversation === null) {
+            throw new RuntimeException('Conversation TikTok tidak ditemukan.');
+        }
+
+        $state['messages'][$externalConversationId] ??= [];
+        $state['messages'][$externalConversationId][] = $message;
+
+        $conversation['last_message_text'] = mb_substr((string) $message['content'], 0, 500);
+        $conversation['last_message_at'] = $message['create_time'];
+        $conversation['unread_count'] = $unreadAfter;
+        $state['conversations'][$externalConversationId] = $conversation;
+
+        $this->store->save($state);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function findConversationOrFail(string $externalConversationId): array
+    {
+        $state = $this->store->state();
+        $conversation = $state['conversations'][$externalConversationId] ?? null;
 
         if ($conversation === null) {
             throw new RuntimeException('Conversation TikTok tidak ditemukan.');
