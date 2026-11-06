@@ -8,8 +8,9 @@ use App\Services\Items\ItemIdentityBuilder;
 use InvalidArgumentException;
 
 /**
- * Backfill commands may only replace `items.name` when the current display name is empty or still
- * pcode-like in the leading segment (before the first " - "), so custom marketing titles are not overwritten.
+ * Backfill commands may only replace **manufactured** `items.name` when the current display name is
+ * empty or still pcode-like in the leading segment (before the first " - "), so custom marketing titles
+ * are not overwritten. **Asset lancar** is excluded: renaming is always allowed (backfill is manufactured-focused).
  */
 final class ItemBackfillSkuDisplayNameSafety
 {
@@ -31,6 +32,10 @@ final class ItemBackfillSkuDisplayNameSafety
         $type = $item->type instanceof ItemType
             ? $item->type
             : ItemType::coerce($item->type) ?? ItemType::ITEM;
+
+        if ($type === ItemType::ASSET_LANCAR) {
+            return true;
+        }
 
         $builder = app(ItemIdentityBuilder::class);
 
