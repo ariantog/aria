@@ -7,9 +7,10 @@ import '../api/aria_api.dart';
 import '../widgets/addrbook_picker_field.dart';
 
 class TransferFormScreen extends StatefulWidget {
-  const TransferFormScreen({super.key, required this.api});
+  const TransferFormScreen({super.key, required this.api, this.preferences});
 
   final AriaApi api;
+  final Map<String, dynamic>? preferences;
 
   @override
   State<TransferFormScreen> createState() => _TransferFormScreenState();
@@ -29,6 +30,41 @@ class _TransferFormScreenState extends State<TransferFormScreen> {
   bool _submitting = false;
   String? _error;
   String? _success;
+
+  @override
+  void initState() {
+    super.initState();
+    _applyDefaults();
+  }
+
+  void _applyDefaults() {
+    final p = widget.preferences;
+    if (p == null) {
+      return;
+    }
+    final t = p['transfer'];
+    if (t is! Map) {
+      return;
+    }
+    final sid = t['sender_id'];
+    final rid = t['receiver_id'];
+    final sParty = t['sender'];
+    final rParty = t['receiver'];
+    setState(() {
+      if (sid != null) {
+        _senderId = int.tryParse(sid.toString());
+      }
+      if (rid != null) {
+        _receiverId = int.tryParse(rid.toString());
+      }
+      if (sParty is Map && sParty['name'] != null) {
+        _senderName = sParty['name'].toString();
+      }
+      if (rParty is Map && rParty['name'] != null) {
+        _receiverName = rParty['name'].toString();
+      }
+    });
+  }
 
   Future<void> _submit() async {
     setState(() {

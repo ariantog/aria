@@ -7,10 +7,11 @@ import '../api/aria_api.dart';
 import '../widgets/addrbook_picker_field.dart';
 
 class CashFormScreen extends StatefulWidget {
-  const CashFormScreen({super.key, required this.api, required this.cashIn});
+  const CashFormScreen({super.key, required this.api, required this.cashIn, this.preferences});
 
   final AriaApi api;
   final bool cashIn;
+  final Map<String, dynamic>? preferences;
 
   @override
   State<CashFormScreen> createState() => _CashFormScreenState();
@@ -30,6 +31,27 @@ class _CashFormScreenState extends State<CashFormScreen> {
   bool _submitting = false;
   String? _error;
   String? _success;
+
+  @override
+  void initState() {
+    super.initState();
+    _applyDefaultBank();
+  }
+
+  void _applyDefaultBank() {
+    final p = widget.preferences;
+    if (p == null) {
+      return;
+    }
+    final key = widget.cashIn ? 'cash_in_bank' : 'cash_out_bank';
+    final bank = p[key];
+    if (bank is Map && bank['id'] != null) {
+      setState(() {
+        _bankId = int.tryParse(bank['id'].toString());
+        _bankName = bank['name']?.toString();
+      });
+    }
+  }
 
   Future<void> _submit() async {
     setState(() {

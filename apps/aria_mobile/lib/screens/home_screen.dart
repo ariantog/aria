@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../api/aria_api.dart';
+import 'buy_form_screen.dart';
 import 'cash_form_screen.dart';
 import 'move_form_screen.dart';
 import 'sell_form_screen.dart';
@@ -12,11 +13,13 @@ class HomeScreen extends StatefulWidget {
     required this.baseUrl,
     required this.token,
     required this.onLogout,
+    required this.onServerAppearance,
   });
 
   final String baseUrl;
   final String token;
   final Future<void> Function() onLogout;
+  final void Function(String? appearance) onServerAppearance;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -40,8 +43,30 @@ class _HomeScreenState extends State<HomeScreen> {
       final api = AriaApi(baseUrl: widget.baseUrl, token: widget.token);
       final j = await api.getMe();
       setState(() => _me = j);
+      final prefs = j['preferences'];
+      if (prefs is Map && prefs['appearance'] != null) {
+        widget.onServerAppearance(prefs['appearance'].toString());
+      }
     } catch (e) {
       setState(() => _error = e.toString());
+    }
+  }
+
+  Map<String, dynamic>? _prefs() {
+    final p = _me?['preferences'];
+    return p is Map<String, dynamic> ? p : (p is Map ? Map<String, dynamic>.from(p) : null);
+  }
+
+  Future<void> _setAppearance(String value) async {
+    try {
+      final api = AriaApi(baseUrl: widget.baseUrl, token: widget.token);
+      await api.patchAppearance(value);
+      widget.onServerAppearance(value);
+      await _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
     }
   }
 
@@ -58,10 +83,42 @@ class _HomeScreenState extends State<HomeScreen> {
     final user = _me?['user'];
     final name = user is Map ? (user['name'] ?? user['username'] ?? '?').toString() : '…';
 
+    final currentAppearance = (_prefs()?['appearance'] ?? 'system').toString();
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Aria'),
         actions: [
+          PopupMenuButton<String>(
+            tooltip: 'Theme',
+            icon: const Icon(Icons.palette_outlined),
+            onSelected: (v) {
+              if (v == 'light') {
+                _setAppearance('light');
+              } else if (v == 'dark') {
+                _setAppearance('dark');
+              } else {
+                _setAppearance('system');
+              }
+            },
+            itemBuilder: (c) => [
+              CheckedPopupMenuItem(
+                value: 'system',
+                checked: currentAppearance == 'system',
+                child: const Text('Match system'),
+              ),
+              CheckedPopupMenuItem(
+                value: 'light',
+                checked: currentAppearance == 'light',
+                child: const Text('Light'),
+              ),
+              CheckedPopupMenuItem(
+                value: 'dark',
+                checked: currentAppearance == 'dark',
+                child: const Text('Dark'),
+              ),
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
@@ -97,7 +154,24 @@ class _HomeScreenState extends State<HomeScreen> {
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute<void>(
-                    builder: (c) => SellFormScreen(api: AriaApi(baseUrl: widget.baseUrl, token: widget.token)),
+                    builder: (c) => SellFormScreen(
+                      api: AriaApi(baseUrl: widget.baseUrl, token: widget.token),
+                      preferences: _prefs(),
+                    ),
+                  ),
+                ),
+              ),
+            if (_actions().contains('buy'))
+              ListTile(
+                leading: const Icon(Icons.shopping_cart_outlined),
+                title: const Text('Buy'),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (c) => BuyFormScreen(
+                      api: AriaApi(baseUrl: widget.baseUrl, token: widget.token),
+                      preferences: _prefs(),
+                    ),
                   ),
                 ),
               ),
@@ -108,7 +182,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute<void>(
-                    builder: (c) => MoveFormScreen(api: AriaApi(baseUrl: widget.baseUrl, token: widget.token)),
+                    builder: (c) => MoveFormScreen(
+                      api: AriaApi(baseUrl: widget.baseUrl, token: widget.token),
+                      preferences: _prefs(),
+                    ),
                   ),
                 ),
               ),
@@ -122,6 +199,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     builder: (c) => CashFormScreen(
                       api: AriaApi(baseUrl: widget.baseUrl, token: widget.token),
                       cashIn: true,
+                      preferences: _prefs(),
                     ),
                   ),
                 ),
@@ -136,6 +214,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     builder: (c) => CashFormScreen(
                       api: AriaApi(baseUrl: widget.baseUrl, token: widget.token),
                       cashIn: false,
+                      preferences: _prefs(),
                     ),
                   ),
                 ),
@@ -147,7 +226,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute<void>(
-                    builder: (c) => TransferFormScreen(api: AriaApi(baseUrl: widget.baseUrl, token: widget.token)),
+                    builder: (c) => TransferFormScreen(
+                      api: AriaApi(baseUrl: widget.baseUrl, token: widget.token),
+                      preferences: _prefs(),
+                    ),
                   ),
                 ),
               ),

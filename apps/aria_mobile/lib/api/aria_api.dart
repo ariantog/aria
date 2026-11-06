@@ -60,18 +60,12 @@ class AriaApi {
     return [];
   }
 
+  Future<Map<String, dynamic>> postItemTransaction(Map<String, dynamic> body, {String? idempotencyKey}) async {
+    return _postItemTransaction(body, idempotencyKey: idempotencyKey);
+  }
+
   Future<Map<String, dynamic>> postSell(Map<String, dynamic> body, {String? idempotencyKey}) async {
-    final headers = Map<String, String>.from(_headers);
-    headers['Content-Type'] = 'application/json';
-    if (idempotencyKey != null && idempotencyKey.isNotEmpty) {
-      headers['X-Idempotency-Key'] = idempotencyKey;
-    }
-    final r = await http.post(
-      _u('/transactions/item'),
-      headers: headers,
-      body: jsonEncode(body),
-    );
-    return _decodeObject(r);
+    return postItemTransaction(body, idempotencyKey: idempotencyKey);
   }
 
   Future<Map<String, dynamic>> postMove(Map<String, dynamic> body, {String? idempotencyKey}) async {
@@ -132,6 +126,17 @@ class AriaApi {
 
   Future<void> logout() async {
     await http.post(_u('/auth/logout'), headers: _headers);
+  }
+
+  Future<Map<String, dynamic>> patchAppearance(String appearance) async {
+    final headers = Map<String, String>.from(_headers);
+    headers['Content-Type'] = 'application/json';
+    final r = await http.patch(
+      _u('/preferences/appearance'),
+      headers: headers,
+      body: jsonEncode({'appearance': appearance}),
+    );
+    return _decodeObject(r);
   }
 
   static dynamic _decodeJson(http.Response r) {
