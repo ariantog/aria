@@ -288,3 +288,10 @@ it('does not expose the removed warehouse compare report', function () {
         ->get('/reports/compare')
         ->assertNotFound();
 });
+
+it('renders the tiktok shop customer chat page', function () {
+    $this->actingAs($this->user)
+        ->get(route('tiktok-shop.chats.index'))
+        ->assertOk()
+        ->assertSee('Customer Chat', false);
+});
