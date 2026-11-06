@@ -40,8 +40,13 @@ final class ItemParentDisplayNameBackfill
             $aliasChanged = $currentAlias !== $normalizedDesired;
         }
 
-        $newName = ItemProductTitle::buildDisplayNameWithBareTitle($item, $parentTitle);
-        $nameChanged = $oldNameUpper !== strtoupper(trim($newName));
+        $computedName = ItemProductTitle::buildDisplayNameWithBareTitle($item, $parentTitle);
+
+        $currentDisplay = trim((string) $item->name);
+        $mayReplaceName = ItemBackfillSkuDisplayNameSafety::mayOverwriteDisplayName($item, $currentDisplay);
+
+        $newName = $mayReplaceName ? $computedName : $currentDisplay;
+        $nameChanged = $mayReplaceName && $oldNameUpper !== strtoupper(trim($newName));
 
         return [
             'newName' => $newName,

@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\ItemType;
 use App\Models\Item;
 use App\Services\Items\ItemIdentityBuilder;
 use App\Support\ItemBackfillParentTitleResolver;
@@ -22,6 +23,11 @@ use Throwable;
  * When `items.alias` exists: set it to the parent title for every row so other reads resolve the
  * parent bare title instead of stale colorway names.
  *
+ * **Manufactured items only** (`type` = item / `ItemType::ITEM`). Asset lancar and other types are skipped.
+ *
+ * **Manufactured** `items.name` is updated only when empty or still pcode-like in the first ` - ` segment
+ * (`ItemBackfillSkuDisplayNameSafety`). Custom marketing titles are preserved when the gate blocks rename.
+ *
  * @see doc/item-catalog-hierarchy.md (bare product title resolution)
  */
 class BackfillItemAliasFromParentExcelCommand extends Command
@@ -32,7 +38,7 @@ class BackfillItemAliasFromParentExcelCommand extends Command
                             {--column=A : Column letter for item id}
                             {--dry-run : Show planned changes without saving}';
 
-    protected $description = 'Set items.name from parent product_name + color/size tags; optional items.alias = parent title when column exists';
+    protected $description = 'Manufactured items only: set items.name from parent + tags; optional items.alias = parent title when column exists';
 
     public function handle(ItemIdentityBuilder $identityBuilder): int
     {
@@ -98,6 +104,7 @@ class BackfillItemAliasFromParentExcelCommand extends Command
 
         $updated = 0;
         $skipped = 0;
+        $skippedNonManufactured = 0;
         $missing = 0;
         $noParentTitle = 0;
         $skippedProductNameLooksLikeCode = 0;
@@ -118,6 +125,15 @@ class BackfillItemAliasFromParentExcelCommand extends Command
             if (! $item->group_id || $item->group === null) {
                 $skipped++;
                 $this->line("  [skip] Item #{$id} — no item group");
+
+                continue;
+            }
+
+            $itemType = $item->type instanceof ItemType ? $item->type : ItemType::coerce($item->type);
+            if ($itemType !== ItemType::ITEM) {
+                $skippedNonManufactured++;
+                $typeHint = $itemType !== null ? (string) $itemType->value : 'null';
+                $this->line("  [skip] Item #{$id} — not manufactured (type {$typeHint})");
 
                 continue;
             }
@@ -194,6 +210,9 @@ class BackfillItemAliasFromParentExcelCommand extends Command
         }
         if ($skipped > 0) {
             $this->warn("Skipped (no group): {$skipped}");
+        }
+        if ($skippedNonManufactured > 0) {
+            $this->warn("Skipped (not manufactured): {$skippedNonManufactured}");
         }
         if ($dryRun && $updated > 0) {
             $this->warn('Re-run without --dry-run to apply.');
