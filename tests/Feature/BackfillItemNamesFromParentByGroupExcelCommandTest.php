@@ -169,6 +169,83 @@ it('skips when product_name is non-empty but contains hyphen or slash', function
     @unlink($path);
 });
 
+it('uses first segment of item_group.alias when product_name is empty and name is pcode-like', function () {
+    if (! Schema::hasColumn('item_group', 'alias')) {
+        $this->markTestSkipped('item_group.alias column is not present');
+    }
+
+    ItemParentPrice::query()->where('parent_key', $this->parentKey)->update(['product_name' => '']);
+
+    $this->group->update([
+        'name' => 'CX90032-01',
+        'alias' => 'STRAIGHT LOOSE PANTS - MISTY GREY',
+    ]);
+
+    $itemA = Item::factory()->create([
+        'group_id' => $this->group->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CX90032-01',
+        'code' => 'AJD-CX90032-01-M',
+        'name' => 'OLD A',
+    ]);
+    $itemA->tags()->sync([$this->typeTag->id, $this->sizeTag->id]);
+
+    $path = base_path('tests/Fixtures/backfill-by-group-alias-fallback.xlsx');
+    $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet;
+    $sheet = $spreadsheet->getActiveSheet();
+    $sheet->setCellValue('A1', (string) $this->group->id);
+    $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+    $writer->save($path);
+
+    $this->artisan('items:backfill-names-from-parent-by-group-excel', ['file' => $path])
+        ->assertSuccessful();
+
+    $itemA->refresh();
+
+    $row = ItemParentPrice::query()->where('parent_key', $this->parentKey)->first();
+    expect(strtoupper(trim((string) $row->product_name)))->toBe('STRAIGHT LOOSE PANTS');
+    expect(strtoupper($itemA->name))->toContain('STRAIGHT LOOSE PANTS');
+
+    @unlink($path);
+});
+
+it('skips when only fallback is alias with a digit in the first segment', function () {
+    if (! Schema::hasColumn('item_group', 'alias')) {
+        $this->markTestSkipped('item_group.alias column is not present');
+    }
+
+    ItemParentPrice::query()->where('parent_key', $this->parentKey)->update(['product_name' => '']);
+
+    $this->group->update([
+        'name' => 'CX90032-01',
+        'alias' => 'CX90032/01',
+    ]);
+
+    $itemA = Item::factory()->create([
+        'group_id' => $this->group->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CX90032-01',
+        'code' => 'AJD-CX90032-01-M',
+        'name' => 'OLD A',
+    ]);
+    $itemA->tags()->sync([$this->typeTag->id, $this->sizeTag->id]);
+
+    $path = base_path('tests/Fixtures/backfill-by-group-alias-skip-digits.xlsx');
+    $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet;
+    $sheet = $spreadsheet->getActiveSheet();
+    $sheet->setCellValue('A1', (string) $this->group->id);
+    $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+    $writer->save($path);
+
+    $this->artisan('items:backfill-names-from-parent-by-group-excel', ['file' => $path])
+        ->assertSuccessful();
+
+    $itemA->refresh();
+    expect($itemA->name)->toBe('OLD A');
+
+    @unlink($path);
+});
+
 it('skips when product_name is empty and item_group.name contains hyphen or slash', function () {
     ItemParentPrice::query()->where('parent_key', $this->parentKey)->update(['product_name' => '']);
 

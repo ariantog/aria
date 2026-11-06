@@ -5,6 +5,7 @@ use App\Models\Item;
 use App\Models\ItemGroup;
 use App\Models\ItemParentPrice;
 use App\Models\Tag;
+use Illuminate\Support\Facades\Schema;
 
 beforeEach(function () {
     $this->typeTag = Tag::factory()->create([
@@ -93,6 +94,48 @@ it('sets alias to parent title when warna is tagged and rebuilds name with color
     expect(strtoupper(trim((string) $item->alias)))->toBe('RUNNING SHIRT')
         ->and(strtoupper($item->name))->toContain('RUNNING SHIRT')
         ->and(strtoupper($item->name))->toContain('BLACK')
+        ->and(strtoupper($item->name))->toContain('M');
+
+    @unlink($path);
+});
+
+it('uses item_group.alias segment when parent product_name is empty and group name is pcode like', function () {
+    if (! Schema::hasColumn('item_group', 'alias')) {
+        $this->markTestSkipped('item_group.alias column is not present');
+    }
+
+    ItemParentPrice::query()->where('parent_key', $this->parentKey)->update(['product_name' => '']);
+    $this->group->update([
+        'name' => 'CX90032-01',
+        'alias' => 'STRAIGHT LOOSE PANTS - MISTY GREY',
+    ]);
+
+    $item = Item::factory()->create([
+        'group_id' => $this->group->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CX90032-01',
+        'code' => 'AJD-CX90032-01-M',
+        'alias' => '',
+        'name' => 'OLD',
+    ]);
+    $item->tags()->sync([$this->typeTag->id, $this->sizeTag->id]);
+
+    $path = base_path('tests/Fixtures/backfill-alias-from-group-alias.xlsx');
+    $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet;
+    $sheet = $spreadsheet->getActiveSheet();
+    $sheet->setCellValue('A1', (string) $item->id);
+    $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+    $writer->save($path);
+
+    $this->artisan('items:backfill-alias-from-parent-excel', ['file' => $path])
+        ->assertSuccessful();
+
+    $item->refresh();
+    $row = ItemParentPrice::query()->where('parent_key', $this->parentKey)->first();
+
+    expect(strtoupper(trim((string) $row->product_name)))->toBe('STRAIGHT LOOSE PANTS');
+    expect(strtoupper(trim((string) $item->alias)))->toBe('STRAIGHT LOOSE PANTS');
+    expect(strtoupper($item->name))->toContain('STRAIGHT LOOSE PANTS')
         ->and(strtoupper($item->name))->toContain('M');
 
     @unlink($path);
