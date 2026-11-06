@@ -32,6 +32,9 @@ jobs:
       - name: Generate Android project
         run: flutter create --platforms=android .
 
+      - name: Apply Android manifest (camera permission)
+        run: cp android_manifests/main/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
+
       - name: Build debug APK
         run: flutter build apk --debug
 
