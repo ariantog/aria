@@ -4,8 +4,8 @@ namespace App\Console\Commands;
 
 use App\Models\Item;
 use App\Services\Items\ItemIdentityBuilder;
+use App\Support\ItemBackfillParentTitleResolver;
 use App\Support\ItemParentDisplayNameBackfill;
-use App\Support\ItemParentTitleEligibility;
 use App\Support\ItemProductTitle;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Schema;
@@ -15,8 +15,9 @@ use Throwable;
 /**
  * Batch-apply parent catalog titles from item_parent_prices.product_name for item ids in Excel.
  *
- * Always rebuilds `items.name` as parent `product_name` + warna tag (manufactured) + size when
- * tags allow (`ItemProductTitle::buildDisplayNameWithBareTitle`), ignoring colorway `item_group.name`.
+ * Resolves parent marketing title (see `ItemBackfillParentTitleResolver`), then rebuilds `items.name`
+ * as that title + warna tag (manufactured) + size when tags allow
+ * (`ItemProductTitle::buildDisplayNameWithBareTitle`), ignoring colorway `item_group.name` for naming.
  *
  * When `items.alias` exists: set it to the parent title for every row so other reads resolve the
  * parent bare title instead of stale colorway names.
@@ -100,6 +101,7 @@ class BackfillItemAliasFromParentExcelCommand extends Command
         $missing = 0;
         $noParentTitle = 0;
         $skippedProductNameLooksLikeCode = 0;
+        $syncedParentFromFallback = 0;
 
         foreach ($ids as $id) {
             $item = Item::query()
@@ -121,18 +123,29 @@ class BackfillItemAliasFromParentExcelCommand extends Command
             }
 
             $parentKey = $identityBuilder->itemParentKey($item);
-            $parentTitle = ItemProductTitle::parentProductNameForKey($parentKey);
-            if ($parentTitle !== '' && ItemParentTitleEligibility::looksLikePcodeOrSegment($parentTitle)) {
+            $resolved = ItemBackfillParentTitleResolver::resolve($parentKey, $item->group);
+
+            if ($resolved['source'] === 'skip_product_pcode') {
                 $skippedProductNameLooksLikeCode++;
-                $this->line("  [skip] Item #{$id} — product_name looks like pcode (contains - or /): {$parentTitle}");
+                $detail = (string) ($resolved['detail'] ?? '');
+                $this->line("  [skip] Item #{$id} — product_name looks like pcode (contains - or /): {$detail}");
 
                 continue;
             }
-            if ($parentTitle === '') {
+
+            $parentTitle = $resolved['title'];
+            if ($parentTitle === null || $parentTitle === '') {
                 $noParentTitle++;
-                $this->line("  [skip] Item #{$id} — no product_name for parent key {$parentKey}");
+                $this->line("  [skip] Item #{$id} — no resolvable marketing title for parent key {$parentKey}");
 
                 continue;
+            }
+
+            if ($resolved['source'] === 'group_name' || $resolved['source'] === 'group_alias') {
+                if (! $dryRun) {
+                    ItemProductTitle::syncParentProductName($parentKey, $parentTitle);
+                    $syncedParentFromFallback++;
+                }
             }
 
             $result = ItemParentDisplayNameBackfill::compute($item, $parentTitle, $hasAliasColumn);
@@ -174,7 +187,10 @@ class BackfillItemAliasFromParentExcelCommand extends Command
             $this->warn("Skipped (product_name contains - or /): {$skippedProductNameLooksLikeCode}");
         }
         if ($noParentTitle > 0) {
-            $this->warn("Skipped (no parent product_name): {$noParentTitle}");
+            $this->warn("Skipped (no resolvable marketing title): {$noParentTitle}");
+        }
+        if ($syncedParentFromFallback > 0) {
+            $this->info("Parent rows synced from group name or alias: {$syncedParentFromFallback}");
         }
         if ($skipped > 0) {
             $this->warn("Skipped (no group): {$skipped}");

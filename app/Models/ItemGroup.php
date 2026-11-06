@@ -21,6 +21,7 @@ class ItemGroup extends Model
 
     protected $fillable = [
         'name',
+        'alias',
         'description',
         'description2',
         'reseller_price',
