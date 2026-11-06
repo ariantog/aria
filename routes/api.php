@@ -3,6 +3,7 @@
 use App\Http\Controllers\Mobile\MobileAddrbookController;
 use App\Http\Controllers\Mobile\MobileAuthController;
 use App\Http\Controllers\Mobile\MobileItemController;
+use App\Http\Controllers\Mobile\MobilePreferencesController;
 use App\Http\Controllers\Mobile\MobileTransactionController;
 use App\Http\Controllers\Mobile\MobileUserController;
 use App\Http\Controllers\Readonly\ReadonlyItemExportController;
@@ -26,6 +27,7 @@ Route::prefix('mobile/v1')->group(function (): void {
     Route::middleware(['auth:sanctum', 'active.api'])->group(function (): void {
         Route::post('auth/logout', [MobileAuthController::class, 'logout']);
         Route::get('me', [MobileUserController::class, 'show']);
+        Route::patch('preferences/appearance', [MobilePreferencesController::class, 'updateAppearance']);
 
         Route::get('items/by-code', [MobileItemController::class, 'byCode']);
         Route::get('items/by-id', [MobileItemController::class, 'byId']);
