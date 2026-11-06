@@ -3,8 +3,8 @@
 namespace App\Console\Commands;
 
 use App\Models\Item;
-use App\Models\Tag;
 use App\Services\Items\ItemIdentityBuilder;
+use App\Support\ItemParentDisplayNameBackfill;
 use App\Support\ItemProductTitle;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Schema;
@@ -127,25 +127,9 @@ class BackfillItemAliasFromParentExcelCommand extends Command
                 continue;
             }
 
-            $warnaTag = $item->tags->firstWhere('type', Tag::TYPE_WARNA);
+            $result = ItemParentDisplayNameBackfill::compute($item, $parentTitle, $hasAliasColumn);
 
-            $currentAlias = '';
-            $normalizedDesired = '';
-            $aliasChanged = false;
-
-            if ($hasAliasColumn) {
-                $desiredAlias = $parentTitle;
-                $currentAlias = strtoupper(trim((string) ($item->alias ?? '')));
-                $normalizedDesired = strtoupper(trim($desiredAlias));
-                $item->alias = $desiredAlias;
-                $aliasChanged = $currentAlias !== $normalizedDesired;
-            }
-
-            $newName = ItemProductTitle::buildDisplayNameWithBareTitle($item, $parentTitle);
-
-            $nameChanged = strtoupper(trim((string) $item->name)) !== strtoupper(trim($newName));
-
-            if (! $aliasChanged && ! $nameChanged) {
+            if (! $result['aliasChanged'] && ! $result['nameChanged']) {
                 continue;
             }
 
@@ -157,15 +141,17 @@ class BackfillItemAliasFromParentExcelCommand extends Command
             }
 
             $this->line("  Item #{$id}: {$action}");
-            if ($hasAliasColumn && $aliasChanged) {
-                $this->line('    alias: '.($currentAlias === '' ? '(empty)' : $currentAlias).' → '.($normalizedDesired === '' ? '(empty)' : $normalizedDesired));
+            if ($hasAliasColumn && $result['aliasChanged']) {
+                $cur = $result['currentAlias'] === '' ? '(empty)' : $result['currentAlias'];
+                $nxt = $result['normalizedDesiredAlias'] === '' ? '(empty)' : $result['normalizedDesiredAlias'];
+                $this->line("    alias: {$cur} → {$nxt}");
             }
-            if ($nameChanged) {
-                $this->line('    name: '.$item->name.' → '.$newName);
+            if ($result['nameChanged']) {
+                $this->line('    name: '.$item->name.' → '.$result['newName']);
             }
 
             if (! $dryRun) {
-                $item->name = $newName;
+                $item->name = $result['newName'];
                 $item->save();
             }
         }
