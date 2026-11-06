@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/aria_api.dart';
+import '../config/app_config.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, required this.onLoggedIn});
@@ -42,8 +43,11 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _hydrate() async {
     final p = await SharedPreferences.getInstance();
     final saved = p.getString('aria_base_url');
-    if (saved != null) {
+    final fromDefine = AppConfig.defaultBaseUrl.trim();
+    if (saved != null && saved.isNotEmpty) {
       _baseUrl.text = saved;
+    } else if (fromDefine.isNotEmpty) {
+      _baseUrl.text = fromDefine;
     }
   }
 

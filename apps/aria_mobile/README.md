@@ -9,8 +9,9 @@ Install [Flutter](https://docs.flutter.dev/get-started/install) and Android SDK 
 ```bash
 cd apps/aria_mobile
 flutter pub get
-# iOS: generate the runner if missing (Android project is tracked in-repo for CAMERA manifest)
-flutter create --platforms=ios .
+flutter create --platforms=android,ios .
+# Merge camera permission into the generated Android manifest (tracked copy under android_manifests/)
+cp android_manifests/main/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
 ```
 
 Use **Theme** (palette icon on home) to set light / dark / system; it calls `PATCH /api/mobile/v1/preferences/appearance` so it stays in sync with web settings.
@@ -23,6 +24,16 @@ On first launch, enter your Aria base URL (no trailing slash), for example:
 - Production: `https://your-aria-domain.example`
 
 The app calls `{baseUrl}/api/mobile/v1/...`.
+
+**Optional compile-time default (not in AndroidManifest):** Flutter does not read HTTP URLs from the manifest unless you add native code. For an internal build you can bake a default in at compile time:
+
+```bash
+flutter run --dart-define=ARIA_DEFAULT_BASE_URL=https://your-aria-host.example
+```
+
+That fills the base URL field when no value is saved yet; the user can still change it (stored in SharedPreferences).
+
+**Why `android_manifests/`:** `android/` is gitignored so clones stay small. Only the manifest snippet (camera) lives in the repo; CI runs `flutter create` then copies this file over the generated manifest (see `.github/workflows/flutter-apk.yml`).
 
 ## Build APK
 
