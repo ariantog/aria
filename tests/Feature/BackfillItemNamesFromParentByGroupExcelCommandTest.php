@@ -63,3 +63,80 @@ it('updates all SKUs in listed groups from parent product_name', function () {
 
     @unlink($path);
 });
+
+it('updates SKUs in sibling colorway groups under the same parent when only one group id is listed', function () {
+    $group02 = ItemGroup::factory()->create([
+        'name' => 'CX90032-02',
+        'master' => 'CX90032-02',
+        'variant' => '02',
+    ]);
+    $itemA = Item::factory()->create([
+        'group_id' => $this->group->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CX90032-01',
+        'code' => 'AJD-CX90032-01-M',
+        'name' => 'OLD A',
+    ]);
+    $itemA->tags()->sync([$this->typeTag->id, $this->sizeTag->id]);
+    $itemB = Item::factory()->create([
+        'group_id' => $group02->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CX90032-02',
+        'code' => 'AJD-CX90032-02-M',
+        'name' => 'OLD B',
+    ]);
+    $itemB->tags()->sync([$this->typeTag->id, $this->sizeTag->id]);
+
+    $path = base_path('tests/Fixtures/backfill-by-group-sibling.xlsx');
+    $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet;
+    $sheet = $spreadsheet->getActiveSheet();
+    $sheet->setCellValue('A1', (string) $this->group->id);
+    $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+    $writer->save($path);
+
+    $this->artisan('items:backfill-names-from-parent-by-group-excel', ['file' => $path])
+        ->assertSuccessful();
+
+    $itemA->refresh();
+    $itemB->refresh();
+    expect(strtoupper($itemA->name))->toContain('RUNNING SHIRT')
+        ->and(strtoupper($itemB->name))->toContain('RUNNING SHIRT');
+
+    @unlink($path);
+});
+
+it('syncs parent product_name from sanitized item_group.name when parent row is empty', function () {
+    ItemParentPrice::query()->where('parent_key', $this->parentKey)->update(['product_name' => '']);
+
+    $this->group->update(['name' => 'OLD-TITLE/LEGACY']);
+
+    $itemA = Item::factory()->create([
+        'group_id' => $this->group->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CX90032-01',
+        'code' => 'AJD-CX90032-01-M',
+        'name' => 'OLD A',
+    ]);
+    $itemA->tags()->sync([$this->typeTag->id, $this->sizeTag->id]);
+
+    $path = base_path('tests/Fixtures/backfill-by-group-fallback.xlsx');
+    $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet;
+    $sheet = $spreadsheet->getActiveSheet();
+    $sheet->setCellValue('A1', (string) $this->group->id);
+    $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+    $writer->save($path);
+
+    $this->artisan('items:backfill-names-from-parent-by-group-excel', ['file' => $path])
+        ->assertSuccessful();
+
+    $this->group->refresh();
+    $itemA->refresh();
+
+    expect($this->group->name)->toBe('OLD TITLE LEGACY');
+
+    $row = ItemParentPrice::query()->where('parent_key', $this->parentKey)->first();
+    expect(strtoupper(trim((string) $row->product_name)))->toBe('OLD TITLE LEGACY');
+    expect(strtoupper($itemA->name))->toContain('OLD TITLE LEGACY');
+
+    @unlink($path);
+});
