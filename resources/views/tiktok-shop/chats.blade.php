@@ -18,7 +18,8 @@ $breadcrumbs = [
                 TikTok Shop — Customer Chat
             </h1>
             <p class="mt-1 max-w-2xl text-sm text-gray-600">
-                Balas chat buyer dari Aria. Saat partner TikTok disetujui, ganti <code class="rounded bg-gray-100 px-1 text-xs">TIKTOK_SHOP_DRIVER=live</code> dan isi kredensial Open Platform.
+                Mockup UI — data demo disimpan di cache aplikasi (bukan tabel DB). Saat partner TikTok disetujui, ganti
+                <code class="rounded bg-gray-100 px-1 text-xs">TIKTOK_SHOP_DRIVER=live</code> dan isi kredensial Open Platform.
             </p>
         </div>
         <div class="flex flex-wrap items-center gap-2">

@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Contracts\TikTokShop\TikTokShopChatClient;
 use App\Models\TikTokShop;
 use App\Services\TikTokShop\MockTikTokShopChatClient;
-use App\Services\TikTokShop\TikTokShopMockChatSeeder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -115,15 +114,15 @@ class TikTokShopChatController extends Controller
             ->with('successMessage', 'Pesan buyer simulasi ditambahkan.');
     }
 
-    public function resetMock(TikTokShopMockChatSeeder $seeder, TikTokShopChatClient $client): RedirectResponse
+    public function resetMock(TikTokShopChatClient $client): RedirectResponse
     {
         Gate::authorize(TikTokShop::getPermissions()['view']);
 
-        if (! $client->isMock()) {
+        if (! $client instanceof MockTikTokShopChatClient) {
             abort(404);
         }
 
-        $seeder->resetAndSeed();
+        $client->resetDemo();
 
         return redirect()
             ->route('tiktok-shop.chats.index')

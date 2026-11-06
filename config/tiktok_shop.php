@@ -7,7 +7,7 @@ return [
     | TikTok Shop API driver
     |--------------------------------------------------------------------------
     |
-    | mock — local DB + in-app mock Open API routes (while partner app is pending).
+    | mock — in-app cache-backed demo + mock Open API routes (no extra DB tables).
     | live — real TikTok Shop Open Platform (requires approved partner credentials).
     |
     */

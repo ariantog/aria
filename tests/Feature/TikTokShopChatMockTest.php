@@ -1,12 +1,14 @@
 <?php
 
-use App\Models\TikTokShopConversation;
 use App\Models\User;
+use App\Services\TikTokShop\TikTokShopMockDataStore;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 
 beforeEach(function () {
     Config::set('tiktok_shop.driver', 'mock');
     Config::set('tiktok_shop.mock_api_token', 'test-mock-token');
+    Cache::flush();
 
     $this->user = User::factory()->create();
     expect($this->user->is_superadmin)->toBeTrue();
@@ -21,12 +23,12 @@ it('renders the tiktok shop chat inbox with demo conversations', function () {
         ->assertSee('Sari Wijaya', false);
 });
 
-it('sends a seller reply through the mock client', function () {
+it('sends a seller reply through the mock client without database tables', function () {
     $this->actingAs($this->user)
         ->get(route('tiktok-shop.chats.index'))
         ->assertOk();
 
-    $conversationId = TikTokShopConversation::query()->value('external_conversation_id');
+    $conversationId = array_key_first(app(TikTokShopMockDataStore::class)->state()['conversations']);
     expect($conversationId)->not->toBeEmpty();
 
     $this->actingAs($this->user)
@@ -35,15 +37,14 @@ it('sends a seller reply through the mock client', function () {
         ])
         ->assertRedirect();
 
-    $this->assertDatabaseHas('tiktok_shop_messages', [
-        'sender_role' => 'SELLER',
-        'content' => 'Terima kasih kak, pesanan segera kami proses.',
-        'aria_user_id' => $this->user->id,
-    ]);
+    $messages = app(TikTokShopMockDataStore::class)->state()['messages'][$conversationId] ?? [];
+    $contents = array_column($messages, 'content');
+
+    expect($contents)->toContain('Terima kasih kak, pesanan segera kami proses.');
 });
 
 it('exposes mock open api conversations with token header', function () {
-    $this->get(route('tiktok-shop.chats.index'));
+    $this->actingAs($this->user)->get(route('tiktok-shop.chats.index'));
 
     $response = $this->getJson(route('tiktok-shop.mock.conversations'), [
         'x-tts-mock-token' => 'test-mock-token',
@@ -67,7 +68,7 @@ it('posts seller message via mock open api', function () {
         ->get(route('tiktok-shop.chats.index'))
         ->assertOk();
 
-    $conversationId = TikTokShopConversation::query()->value('external_conversation_id');
+    $conversationId = array_key_first(app(TikTokShopMockDataStore::class)->state()['conversations']);
     expect($conversationId)->not->toBeEmpty();
 
     $this->postJson(

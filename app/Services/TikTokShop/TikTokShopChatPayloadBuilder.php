@@ -2,48 +2,43 @@
 
 namespace App\Services\TikTokShop;
 
-use App\Models\TikTokShopConversation;
-use App\Models\TikTokShopMessage;
-use Carbon\CarbonInterface;
-
 class TikTokShopChatPayloadBuilder
 {
     /**
+     * @param  array<string, mixed>  $row
      * @return array<string, mixed>
      */
-    public function conversation(TikTokShopConversation $row): array
+    public function conversation(array $row): array
     {
+        $lastAt = $row['last_message_at'] ?? null;
+
         return [
-            'conversation_id' => $row->external_conversation_id,
-            'buyer_nickname' => $row->buyer_nickname,
-            'buyer_avatar_url' => $row->buyer_avatar_url,
-            'order_id' => $row->order_id,
-            'unread_count' => (int) $row->unread_count,
+            'conversation_id' => $row['conversation_id'],
+            'buyer_nickname' => $row['buyer_nickname'],
+            'buyer_avatar_url' => $row['buyer_avatar_url'] ?? null,
+            'order_id' => $row['order_id'] ?? null,
+            'unread_count' => (int) ($row['unread_count'] ?? 0),
             'latest_message' => [
-                'content' => $row->last_message_text,
-                'create_time' => $this->epoch($row->last_message_at),
+                'content' => $row['last_message_text'] ?? null,
+                'create_time' => is_int($lastAt) ? $lastAt : null,
             ],
-            'update_time' => $this->epoch($row->updated_at),
+            'update_time' => is_int($lastAt) ? $lastAt : null,
         ];
     }
 
     /**
+     * @param  array<string, mixed>  $row
      * @return array<string, mixed>
      */
-    public function message(TikTokShopMessage $row): array
+    public function message(array $row): array
     {
         return [
-            'message_id' => $row->external_message_id,
-            'conversation_id' => $row->conversation?->external_conversation_id,
-            'sender_role' => $row->sender_role,
-            'content' => $row->content,
-            'create_time' => $this->epoch($row->sent_at),
-            'aria_user_id' => $row->aria_user_id,
+            'message_id' => $row['message_id'],
+            'conversation_id' => $row['conversation_id'] ?? null,
+            'sender_role' => $row['sender_role'],
+            'content' => $row['content'],
+            'create_time' => $row['create_time'] ?? null,
+            'aria_user_id' => $row['aria_user_id'] ?? null,
         ];
-    }
-
-    public function epoch(?CarbonInterface $at): ?int
-    {
-        return $at?->getTimestamp();
     }
 }
