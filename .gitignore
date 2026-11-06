@@ -23,10 +23,9 @@ Homestead.yaml
 /.zed
 public/asset/invoice-logos/*
 
-# Flutter (generate android/ios locally with `flutter create`)
+# Flutter (generate ios locally with `flutter create`; android/ is tracked for camera manifest)
 /apps/aria_mobile/.dart_tool/
 /apps/aria_mobile/build/
-/apps/aria_mobile/android/
 /apps/aria_mobile/ios/
 /apps/aria_mobile/linux/
 /apps/aria_mobile/macos/

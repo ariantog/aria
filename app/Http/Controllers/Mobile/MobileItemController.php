@@ -12,7 +12,7 @@ class MobileItemController extends Controller
 {
     public function byCode(Request $request): JsonResponse
     {
-        Transaction::authorizeTypeAccess('sell');
+        $this->authorizeBarcodeLookup($request);
 
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:255'],
@@ -30,7 +30,7 @@ class MobileItemController extends Controller
 
     public function byId(Request $request): JsonResponse
     {
-        Transaction::authorizeTypeAccess('sell');
+        $this->authorizeBarcodeLookup($request);
 
         $validated = $request->validate([
             'id' => ['required', 'integer', 'min:1'],
@@ -45,7 +45,7 @@ class MobileItemController extends Controller
 
     public function barcodeLookup(Request $request): JsonResponse
     {
-        Transaction::authorizeTypeAccess('sell');
+        $this->authorizeBarcodeLookup($request);
 
         $validated = $request->validate([
             'barcode' => ['required', 'string', 'max:255'],
@@ -94,5 +94,15 @@ class MobileItemController extends Controller
                 'quantity' => (float) $wi->quantity,
             ])->values()->all(),
         ];
+    }
+
+    private function authorizeBarcodeLookup(Request $request): void
+    {
+        $user = $request->user();
+        if (Transaction::userCanAccessType($user, 'sell') || Transaction::userCanAccessType($user, 'buy')) {
+            return;
+        }
+
+        Transaction::authorizeTypeAccess('sell');
     }
 }

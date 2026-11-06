@@ -8,11 +8,12 @@ Install [Flutter](https://docs.flutter.dev/get-started/install) and Android SDK 
 
 ```bash
 cd apps/aria_mobile
-flutter create --platforms=android,ios .
 flutter pub get
+# iOS: generate the runner if missing (Android project is tracked in-repo for CAMERA manifest)
+flutter create --platforms=ios .
 ```
 
-The `flutter create` step adds the `android/` and `ios/` runners that are gitignored until generated locally.
+Use **Theme** (palette icon on home) to set light / dark / system; it calls `PATCH /api/mobile/v1/preferences/appearance` so it stays in sync with web settings.
 
 ## Configure API base URL
 

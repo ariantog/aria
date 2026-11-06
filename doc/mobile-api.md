@@ -21,7 +21,8 @@ If the user has Fortify 2FA enabled, a first response may be `428` with `{ "two_
 | Method | Path | Auth |
 |--------|------|------|
 | POST | `/auth/logout` | Bearer |
-| GET | `/me` | Bearer — returns user, roles, permissions, and `mobile_actions` |
+| GET | `/me` | Bearer — returns user, roles, permissions, `mobile_actions`, and `preferences` (transaction defaults + `appearance`) |
+| PATCH | `/preferences/appearance` | Bearer — body: `appearance`: `light` \| `dark` \| `system` (same as web settings) |
 
 ## Lookups
 
@@ -40,7 +41,7 @@ Optional header: `X-Idempotency-Key` (reuses the web duplicate-submit middleware
 
 | Method | Path | Body |
 |--------|------|------|
-| POST | `/transactions/item` | Same as `StoreItemTransactionRequest` (`type`: `sell` or `move`, …) |
+| POST | `/transactions/item` | Same as `StoreItemTransactionRequest` (`type`: `sell`, `move`, `buy`, …) |
 | POST | `/transactions/cash-in` | `StoreCashTransactionRequest` |
 | POST | `/transactions/cash-out` | `StoreCashTransactionRequest` |
 | POST | `/transactions/transfer` | `StoreTransferRequest` |

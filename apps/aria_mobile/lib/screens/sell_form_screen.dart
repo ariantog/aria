@@ -17,9 +17,10 @@ class _Line {
 }
 
 class SellFormScreen extends StatefulWidget {
-  const SellFormScreen({super.key, required this.api});
+  const SellFormScreen({super.key, required this.api, this.preferences});
 
   final AriaApi api;
+  final Map<String, dynamic>? preferences;
 
   @override
   State<SellFormScreen> createState() => _SellFormScreenState();
@@ -41,6 +42,45 @@ class _SellFormScreenState extends State<SellFormScreen> {
   bool _submitting = false;
   String? _error;
   String? _success;
+
+  @override
+  void initState() {
+    super.initState();
+    _applyPrefill();
+  }
+
+  void _applyPrefill() {
+    final p = widget.preferences;
+    if (p == null) {
+      return;
+    }
+    final prefill = p['prefill'];
+    if (prefill is! Map) {
+      return;
+    }
+    final sell = prefill['sell'];
+    if (sell is! Map) {
+      return;
+    }
+    final sid = sell['sender_id'];
+    final rid = sell['receiver_id'];
+    final sName = sell['sender'];
+    final rName = sell['receiver'];
+    setState(() {
+      if (sid != null) {
+        _senderId = int.tryParse(sid.toString());
+      }
+      if (rid != null) {
+        _receiverId = int.tryParse(rid.toString());
+      }
+      if (sName is Map && sName['name'] != null) {
+        _senderName = sName['name'].toString();
+      }
+      if (rName is Map && rName['name'] != null) {
+        _receiverName = rName['name'].toString();
+      }
+    });
+  }
 
   Future<void> _scanAddLine() async {
     final code = await Navigator.push<String>(

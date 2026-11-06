@@ -4,12 +4,13 @@ namespace App\Http\Controllers\Mobile;
 
 use App\Http\Controllers\Controller;
 use App\Models\Transaction;
+use App\Services\UserPreferenceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class MobileUserController extends Controller
 {
-    public function show(Request $request): JsonResponse
+    public function show(Request $request, UserPreferenceService $preferences): JsonResponse
     {
         $user = $request->user();
         $user->loadMissing(['roles', 'permissions', 'location']);
@@ -27,6 +28,7 @@ class MobileUserController extends Controller
                 'permissions' => $user->getAllPermissions()->pluck('name')->values()->all(),
             ],
             'mobile_actions' => $this->mobileActions($user),
+            'preferences' => MobilePreferencesController::preferencePayload($user, $preferences),
         ]);
     }
 
@@ -40,6 +42,9 @@ class MobileUserController extends Controller
 
         if ($user->can($perms['type-sell']) || $user->can($perms['create'])) {
             $actions[] = 'sell';
+        }
+        if ($user->can($perms['type-buy']) || $user->can($perms['create'])) {
+            $actions[] = 'buy';
         }
         if ($user->can($perms['type-cash-in'])) {
             $actions[] = 'cash_in';

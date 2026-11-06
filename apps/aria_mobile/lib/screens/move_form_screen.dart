@@ -16,9 +16,10 @@ class _Line {
 }
 
 class MoveFormScreen extends StatefulWidget {
-  const MoveFormScreen({super.key, required this.api});
+  const MoveFormScreen({super.key, required this.api, this.preferences});
 
   final AriaApi api;
+  final Map<String, dynamic>? preferences;
 
   @override
   State<MoveFormScreen> createState() => _MoveFormScreenState();
@@ -38,6 +39,45 @@ class _MoveFormScreenState extends State<MoveFormScreen> {
   bool _submitting = false;
   String? _error;
   String? _success;
+
+  @override
+  void initState() {
+    super.initState();
+    _applyPrefill();
+  }
+
+  void _applyPrefill() {
+    final p = widget.preferences;
+    if (p == null) {
+      return;
+    }
+    final prefill = p['prefill'];
+    if (prefill is! Map) {
+      return;
+    }
+    final move = prefill['move'];
+    if (move is! Map) {
+      return;
+    }
+    final sid = move['sender_id'];
+    final rid = move['receiver_id'];
+    final sName = move['sender'];
+    final rName = move['receiver'];
+    setState(() {
+      if (sid != null) {
+        _senderId = int.tryParse(sid.toString());
+      }
+      if (rid != null) {
+        _receiverId = int.tryParse(rid.toString());
+      }
+      if (sName is Map && sName['name'] != null) {
+        _senderName = sName['name'].toString();
+      }
+      if (rName is Map && rName['name'] != null) {
+        _receiverName = rName['name'].toString();
+      }
+    });
+  }
 
   Future<void> _scanAddLine() async {
     final code = await Navigator.push<String>(
