@@ -1,8 +1,27 @@
 # AGENTS.md
 
-Aria Core — a Laravel 12 inventory / accounting / transaction ERP, server-rendered with
+Aria Core — a Laravel inventory / accounting / transaction ERP, server-rendered with
 **Blade + Alpine.js** (Tailwind + Alpine load from CDN; the old React/Inertia SPA has been
 removed). Indonesian domain terms throughout.
+
+## Laravel version (branch policy)
+
+| Branch | Laravel | PHP (composer) | Notes |
+|--------|---------|----------------|-------|
+| **`main`** (and all feature branches cut from it) | **12.x** (`^12.0`) | `^8.2` | Default for day-to-day work. **Do not** bump `laravel/framework` to 13 on these branches. |
+| **`cursor/laravel-13-upgrade-3be5`** only | **13.x** (`^13.0`) | `^8.3` | Long-lived framework upgrade. Pest 4, Tinker 3, Boost 2. Merge `main` into this branch regularly; open the L13 PR only from here. |
+
+When the L13 PR merges to `main`, update this table so `main` reflects 13.x and delete the upgrade-branch row.
+
+Upgrade checklist: [Laravel 13 upgrade guide](https://laravel.com/docs/13.x/upgrade). Production: keep `SESSION_SERIALIZATION=php` until you accept a logout window; see `config/session.php`.
+
+## UI / UX reference
+
+Known pain points: body type feels small; data tables are hard to scan (column widths fight content).
+
+**Canonical doc:** `doc/ux-guidelines.md` — type scale (16px root), one Inter stack via `layouts/app.blade.php`, shared list-table classes, and external references (Refactoring UI, Tailwind UI tables, GOV.UK table guidance).
+
+Do not drive a repo-wide typography/table refactor in the same PR as unrelated backend work; use a dedicated UX branch after L13 stabilizes unless the task explicitly requests UI changes.
 
 ## Project state — already done (do NOT redo or worry about)
 
