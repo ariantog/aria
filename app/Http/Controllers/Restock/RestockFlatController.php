@@ -38,7 +38,7 @@ class RestockFlatController extends Controller
         Gate::authorize(RestockSheet::getPermissions()['edit']);
 
         $validated = $request->validate([
-            'direction' => ['required', 'string', 'in:'.RestockFlatPipeline::DIRECTION_TO_PRODUCTION.','.RestockFlatPipeline::DIRECTION_TO_SHIPPED],
+            'direction' => ['required', 'string', 'in:'.self::flatImportDirections()],
             'file' => ['required', 'file', 'max:10240', 'mimes:csv,txt,xlsx,xls'],
         ]);
 
@@ -58,7 +58,7 @@ class RestockFlatController extends Controller
         Gate::authorize(RestockSheet::getPermissions()['edit']);
 
         $validated = $request->validate([
-            'direction' => ['required', 'string', 'in:'.RestockFlatPipeline::DIRECTION_TO_PRODUCTION.','.RestockFlatPipeline::DIRECTION_TO_SHIPPED],
+            'direction' => ['required', 'string', 'in:'.self::flatImportDirections()],
             'file' => ['required', 'file', 'max:10240', 'mimes:csv,txt,xlsx,xls'],
             'lines' => ['sometimes', 'array'],
             'lines.*' => ['integer', 'min:1'],
@@ -80,5 +80,14 @@ class RestockFlatController extends Controller
         }
 
         return response()->json($result);
+    }
+
+    private static function flatImportDirections(): string
+    {
+        return implode(',', [
+            RestockFlatPipeline::DIRECTION_TO_PRODUCTION,
+            RestockFlatPipeline::DIRECTION_TO_SHIPPED,
+            RestockFlatPipeline::DIRECTION_SET_RESTOCK,
+        ]);
     }
 }
