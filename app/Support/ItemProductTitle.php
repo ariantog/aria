@@ -186,14 +186,6 @@ final class ItemProductTitle
         self::$parentRecordCache[$parentKey] = $record->fresh();
     }
 
-    /**
-     * Drop cache for one parent key after external `item_parent_prices` writes.
-     */
-    public static function forgetParentProductNameCache(string $parentKey): void
-    {
-        unset(self::$parentRecordCache[trim($parentKey)]);
-    }
-
     private static function normalizeBareTitle(
         ItemType $type,
         string $title,
