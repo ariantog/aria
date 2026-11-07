@@ -789,6 +789,14 @@ class ItemGroupHierarchyService
     /**
      * @param  Collection<int, ItemGroup>  $groups
      */
+    public function legacyParentProductName(Collection $groups, string $parentKey, ItemType $itemType): string
+    {
+        return $this->resolveProductName($groups, $parentKey, $itemType);
+    }
+
+    /**
+     * @param  Collection<int, ItemGroup>  $groups
+     */
     protected function resolveProductName(Collection $groups, string $parentKey, ItemType $itemType): string
     {
         $parentTitle = ItemProductTitle::parentProductNameForKey($parentKey);

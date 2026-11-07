@@ -315,6 +315,7 @@ final class ItemCatalog
      *     cost?: mixed,
      *     cost_cnh?: mixed,
      *     url?: mixed,
+     *     product_name?: mixed,
      *     brand?: ItemBrand|int|null,
      *     genre?: int|null
      * }  $attributes
@@ -350,6 +351,11 @@ final class ItemCatalog
 
         if (array_key_exists('url', $attributes)) {
             $record->url = trim((string) ($attributes['url'] ?? ''));
+            $dirty = true;
+        }
+
+        if (array_key_exists('product_name', $attributes) && self::parentColumnExists('product_name')) {
+            $record->product_name = strtoupper(trim((string) ($attributes['product_name'] ?? '')));
             $dirty = true;
         }
 

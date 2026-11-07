@@ -20,6 +20,7 @@ it('copies legacy group catalog when parent_id is already linked', function () {
     $group = ItemGroup::factory()->create([
         'master' => 'CX93249-03',
         'variant' => '03',
+        'name' => 'Legacy Product Title',
         'description' => 'Legacy group desc',
         'url' => 'https://legacy.example/item',
     ]);
@@ -35,15 +36,17 @@ it('copies legacy group catalog when parent_id is already linked', function () {
 
     $parent->description = '';
     $parent->url = '';
+    $parent->product_name = '';
     $parent->save();
 
     $this->artisan('items:backfill-group-parent-id', ['--copy-catalog' => true])
         ->assertSuccessful()
-        ->expectsOutputToContain('catalog copy updates: 1');
+        ->expectsOutputToContain('catalog parents updated: 1');
 
     $parent->refresh();
     expect($parent->description)->toBe('LEGACY GROUP DESC');
     expect($parent->url)->toBe('https://legacy.example/item');
+    expect($parent->product_name)->toBe('LEGACY PRODUCT TITLE');
 });
 
 it('reports already-linked groups when nothing needs parent_id', function () {
