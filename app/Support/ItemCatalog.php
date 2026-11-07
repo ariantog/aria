@@ -356,12 +356,12 @@ final class ItemCatalog
         $dirty = false;
 
         if (array_key_exists('description', $attributes)) {
-            $parent->description = strtoupper((string) ($attributes['description'] ?? ''));
+            $parent->description = self::formatParentDescription('description', $attributes['description']);
             $dirty = true;
         }
 
         if (array_key_exists('description2', $attributes)) {
-            $parent->description2 = strtoupper((string) ($attributes['description2'] ?? ''));
+            $parent->description2 = self::formatParentDescription('description2', $attributes['description2']);
             $dirty = true;
         }
 
@@ -371,7 +371,11 @@ final class ItemCatalog
         }
 
         if (array_key_exists('product_name', $attributes) && self::parentColumnExists('product_name')) {
-            $parent->product_name = strtoupper(trim((string) ($attributes['product_name'] ?? '')));
+            $parent->product_name = self::clipParentColumnText(
+                'item_parents',
+                'product_name',
+                strtoupper(trim((string) ($attributes['product_name'] ?? ''))),
+            );
             $dirty = true;
         }
 
@@ -406,6 +410,71 @@ final class ItemCatalog
     {
         ItemPricing::flushRequestCache();
         self::$parentRecordCache = [];
+    }
+
+    private static function formatParentDescription(string $column, mixed $value): string
+    {
+        $text = strtoupper(trim((string) $value));
+
+        return self::clipParentColumnText('item_parents', $column, $text);
+    }
+
+    private static function clipParentColumnText(string $table, string $column, string $text): string
+    {
+        $max = self::stringColumnMaxLength($table, $column);
+        if ($max === null || strlen($text) <= $max) {
+            return $text;
+        }
+
+        return substr($text, 0, $max);
+    }
+
+    private static function stringColumnMaxLength(string $table, string $column): ?int
+    {
+        static $cache = [];
+
+        $cacheKey = $table.'.'.$column;
+        if (array_key_exists($cacheKey, $cache)) {
+            return $cache[$cacheKey];
+        }
+
+        if (! self::hasColumn($table, $column)) {
+            $cache[$cacheKey] = null;
+
+            return null;
+        }
+
+        try {
+            $type = Schema::getColumnType($table, $column);
+        } catch (\Throwable) {
+            $type = 'string';
+        }
+
+        $cache[$cacheKey] = match ($type) {
+            'text', 'mediumText', 'longText' => null,
+            default => match ($column) {
+                'description' => 200,
+                'description2' => 250,
+                'product_name' => 255,
+                'url' => 500,
+                default => 255,
+            },
+        };
+
+        return $cache[$cacheKey];
+    }
+
+    public static function parentDescriptionsUseTextColumn(): bool
+    {
+        if (! self::hasColumn('item_parents', 'description')) {
+            return false;
+        }
+
+        try {
+            return Schema::getColumnType('item_parents', 'description') === 'text';
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     /**

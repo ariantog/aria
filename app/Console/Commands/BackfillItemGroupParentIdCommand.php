@@ -12,6 +12,7 @@ use App\Services\Items\ItemIdentityBuilder;
 use App\Support\ItemCatalog;
 use App\Support\ItemPricing;
 use Illuminate\Console\Command;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -23,6 +24,7 @@ class BackfillItemGroupParentIdCommand extends Command
                             {--limit=0 : Max parents (copy-catalog) or colorway groups (link pass) to process (0 = all)}
                             {--parent-id= : With --copy-catalog, only this item_parents.id (verify parent_key in output)}
                             {--parent-key= : With --copy-catalog, target this item_parents.parent_key (e.g. 2:KNEESUPPORT-05)}
+                            {--continue-on-error : With --copy-catalog, keep going after a save failure}
                             {--copy-catalog : Copy empty parent catalog fields from item_group legacy columns}';
 
     protected $description = 'Repair item_group.parent_id from SKU parent_key, then optionally copy legacy catalog onto item_parents.';
@@ -54,6 +56,8 @@ class BackfillItemGroupParentIdCommand extends Command
         $catalogCopied = 0;
 
         if ($copyCatalog) {
+            $this->warnIfParentDescriptionsNotWidened();
+
             $relinked = $this->consolidateDuplicateParentKeys($dryRun);
             if ($relinked > 0) {
                 $this->line("Consolidated colorway links onto canonical parent ids: {$relinked} group row(s)".($dryRun ? ' (dry-run)' : ''));
@@ -230,10 +234,34 @@ class BackfillItemGroupParentIdCommand extends Command
                 );
             }
 
-            $updates += $this->copyLegacyCatalogOntoParent($canonical, $dryRun, $hierarchy, $identityBuilder);
+            try {
+                $updates += $this->copyLegacyCatalogOntoParent($canonical, $dryRun, $hierarchy, $identityBuilder);
+            } catch (QueryException $exception) {
+                if (! (bool) $this->option('continue-on-error')) {
+                    throw $exception;
+                }
+
+                $this->error($exception->getMessage());
+            }
         }
 
         return $updates;
+    }
+
+    protected function warnIfParentDescriptionsNotWidened(): void
+    {
+        if (Schema::getConnection()->getDriverName() !== 'mysql') {
+            return;
+        }
+
+        if (ItemCatalog::parentDescriptionsUseTextColumn()) {
+            return;
+        }
+
+        $this->warn(
+            'item_parents.description is still VARCHAR — long legacy text will fail until you run: '
+            .'php artisan migrate --path=database/migrations/2026_11_07_150000_widen_item_parents_description_columns.php'
+        );
     }
 
     protected function copyLegacyCatalogOntoParent(
@@ -315,10 +343,21 @@ class BackfillItemGroupParentIdCommand extends Command
             return 1;
         }
 
-        if (! ItemCatalog::applyToParentRecord($parent, $attributes)) {
-            $this->error("Failed to persist catalog on parent #{$parent->id}");
+        try {
+            if (! ItemCatalog::applyToParentRecord($parent, $attributes)) {
+                $this->error("Failed to persist catalog on parent #{$parent->id}");
 
-            return 0;
+                return 0;
+            }
+        } catch (QueryException $exception) {
+            if (str_contains($exception->getMessage(), 'Data too long')) {
+                $this->error(
+                    "Parent #{$parent->id}: catalog text exceeds item_parents column size. "
+                    .'Run migration 2026_11_07_150000_widen_item_parents_description_columns.php then retry.'
+                );
+            }
+
+            throw $exception;
         }
 
         if (! $this->verifyParentCatalogPersisted($parent->id, array_keys($attributes))) {

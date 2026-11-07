@@ -154,6 +154,37 @@ it('relinks colorways to canonical parent when parent_key is duplicated', functi
     expect($canonical->product_name)->toBe('ULTIMATE KNEE SUPPORT');
 });
 
+it('copies long descriptions when item_parents columns are text', function () {
+    $parent = ItemParent::query()->create(['parent_key' => '2:BLOCK-01']);
+    $longDescription = str_repeat('LONG DESC ', 40);
+
+    $group = ItemGroup::factory()->create([
+        'parent_id' => $parent->id,
+        'master' => 'BLOCK-01',
+        'name' => 'WEDGE BLOCK',
+        'description' => $longDescription,
+    ]);
+
+    Item::factory()->create([
+        'group_id' => $group->id,
+        'pcode' => 'BLOCK-01',
+        'code' => 'BLOCK-01-BLACK-OS',
+        'type' => ItemType::ASSET_LANCAR->value,
+    ]);
+
+    $this->artisan('items:backfill-group-parent-id', [
+        '--copy-catalog' => true,
+        '--parent-id' => (string) $parent->id,
+    ])->assertSuccessful();
+
+    $parent->refresh();
+    expect($parent->description)->toStartWith('LONG DESC');
+
+    if (\App\Support\ItemCatalog::parentDescriptionsUseTextColumn()) {
+        expect($parent->description)->toBe(strtoupper(trim($longDescription)));
+    }
+});
+
 it('repairs wrong parent_id on colorway via sku parent_key', function () {
     $correct = ItemParent::query()->create(['parent_key' => '2:KNEESUPPORT-05']);
     $wrong = ItemParent::query()->create(['parent_key' => '1:AJD:CJ00424']);

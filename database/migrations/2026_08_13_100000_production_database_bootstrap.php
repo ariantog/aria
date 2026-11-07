@@ -106,6 +106,7 @@ return new class extends Migration
         (require __DIR__.'/2026_10_22_100000_add_descriptions_to_item_parent_prices.php')->up();
         (require __DIR__.'/2026_11_07_100000_item_parents_and_group_parent_id.php')->up();
         (require __DIR__.'/2026_11_07_120000_add_catalog_attrs_to_item_parents.php')->up();
+        (require __DIR__.'/2026_11_07_150000_widen_item_parents_description_columns.php')->up();
         (require __DIR__.'/2026_09_08_130000_remove_jubelio_get_orders_cron.php')->up();
         (require __DIR__.'/2026_09_05_150000_add_ppn_included_to_customers_table.php')->up();
         (require __DIR__.'/2026_09_13_100000_install_item_insight_tables.php')->up();

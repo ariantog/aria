@@ -26,7 +26,7 @@ Colorway `item_group` must not be used as a source for price or shared catalog t
 
 - **Writes:** `ItemCatalog::applySharedCatalog()` — shared description, NB, url, brand, genre, and parent-tier pricing fields go to `item_parents` only. Colorway keeps `name` (per-colorway title override), identity (`master`/`variant`), and **image**.
 - **Reads:** parent → legacy `item_group` → SKU override (unchanged from phase 1).
-- **Backfill catalog from legacy group columns:** `php artisan items:backfill-group-parent-id --copy-catalog` (after `--dry-run`). Merges every colorway linked via `item_group.parent_id`, including `name` → `product_name`, descriptions (group or SKU mirrors), url/brand/genre, and pricing.
+- **Backfill catalog from legacy group columns:** `php artisan items:backfill-group-parent-id --copy-catalog` (after `--dry-run`). Target one parent: `--parent-id=3409` or `--parent-key=2:KNEESUPPORT-05`. Run migration `2026_11_07_150000_widen_item_parents_description_columns.php` on MySQL first (legacy descriptions are `TEXT` on `item_group`, not varchar 200).
 
 ## Routes
 
