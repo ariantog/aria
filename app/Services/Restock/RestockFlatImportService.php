@@ -13,6 +13,7 @@ class RestockFlatImportService
     public function __construct(
         protected RestockMoveService $moveService,
         protected RestockGridBuilder $gridBuilder,
+        protected RestockRecommendationApplyService $recommendationApply,
     ) {}
 
     /**
@@ -26,6 +27,10 @@ class RestockFlatImportService
      */
     public function preview(string $direction, array $parsedRows): array
     {
+        if ($direction === RestockFlatPipeline::DIRECTION_SET_RESTOCK) {
+            return $this->previewSetRestock($parsedRows);
+        }
+
         $meta = RestockFlatPipeline::fromDirection($direction);
         $sourceField = $meta['source_field'];
 
@@ -171,6 +176,10 @@ class RestockFlatImportService
      */
     public function apply(string $direction, array $parsedRows, User $user, ?array $includeLineNumbers = null): array
     {
+        if ($direction === RestockFlatPipeline::DIRECTION_SET_RESTOCK) {
+            return $this->applySetRestock($parsedRows, $user, $includeLineNumbers);
+        }
+
         $preview = $this->preview($direction, $parsedRows);
         $linesToApply = $this->filterApplyLines($preview['lines'], $includeLineNumbers);
 
@@ -232,6 +241,170 @@ class RestockFlatImportService
     }
 
     /**
+     * @param  list<array{line: int, sku: string, qty: int}>  $parsedRows
+     * @return array{
+     *     lines: list<array<string, mixed>>,
+     *     summary: array{moving: int, skipped: int, errors: int},
+     *     can_apply: bool,
+     *     direction_label: string,
+     * }
+     */
+    private function previewSetRestock(array $parsedRows): array
+    {
+        $meta = RestockFlatPipeline::fromDirection(RestockFlatPipeline::DIRECTION_SET_RESTOCK);
+        $lines = [];
+        $seenSkus = [];
+        $setting = 0;
+        $skipped = 0;
+        $errors = 0;
+
+        foreach ($parsedRows as $row) {
+            $sku = $row['sku'];
+            $qty = (int) $row['qty'];
+            $lineNo = (int) $row['line'];
+
+            if ($qty === 0) {
+                $lines[] = $this->line($lineNo, $sku, $qty, 'skipped', 'Quantity is zero — no change.');
+                $skipped++;
+
+                continue;
+            }
+
+            if (isset($seenSkus[$sku])) {
+                $lines[] = $this->line($lineNo, $sku, $qty, 'error', 'Duplicate SKU in file (first on line '.$seenSkus[$sku].').');
+                $errors++;
+
+                continue;
+            }
+            $seenSkus[$sku] = $lineNo;
+
+            $item = Item::findBySku($sku);
+            if (! $item) {
+                $lines[] = $this->line($lineNo, $sku, $qty, 'error', 'SKU not found in items.');
+                $errors++;
+
+                continue;
+            }
+
+            $target = $this->recommendationApply->resolveRestockTarget($item, syncCatalog: false);
+            if ($target['ok'] !== true) {
+                $lines[] = $this->line($lineNo, $sku, $qty, 'error', $target['reason']);
+                $errors++;
+
+                continue;
+            }
+
+            $current = (int) $target['current_qty'];
+            $sheetName = (string) $target['sheet_name'];
+
+            if ($current === $qty) {
+                $lines[] = $this->line(
+                    $lineNo,
+                    $sku,
+                    $qty,
+                    'skipped',
+                    "Restock already {$qty} on «{$sheetName}».",
+                    $target['cell_id'],
+                    $current,
+                    $sheetName,
+                    $target['item_id'],
+                );
+                $skipped++;
+
+                continue;
+            }
+
+            $lines[] = $this->line(
+                $lineNo,
+                $sku,
+                $qty,
+                'ok',
+                "Set restock to {$qty} on «{$sheetName}» (current {$current}).",
+                $target['cell_id'],
+                $current,
+                $sheetName,
+                $target['item_id'],
+            );
+            $setting += $qty;
+        }
+
+        return [
+            'lines' => $lines,
+            'summary' => [
+                'moving' => $setting,
+                'skipped' => $skipped,
+                'errors' => $errors,
+            ],
+            'can_apply' => $errors === 0 && $setting > 0,
+            'has_ok_lines' => collect($lines)->contains(fn (array $line) => ($line['status'] ?? '') === 'ok'),
+            'direction_label' => $meta['label'],
+        ];
+    }
+
+    /**
+     * @param  list<array{line: int, sku: string, qty: int}>  $parsedRows
+     * @param  list<int>|null  $includeLineNumbers
+     * @return array{moved: int, sheets: int, message: string}
+     */
+    private function applySetRestock(array $parsedRows, User $user, ?array $includeLineNumbers = null): array
+    {
+        $preview = $this->previewSetRestock($parsedRows);
+        $linesToApply = $this->filterApplyLines($preview['lines'], $includeLineNumbers);
+
+        if ($linesToApply === []) {
+            throw new InvalidArgumentException('No lines selected to apply.');
+        }
+
+        if ($includeLineNumbers === null && ! $preview['can_apply']) {
+            throw new InvalidArgumentException('Import cannot be applied — fix errors in preview first.');
+        }
+
+        $rows = [];
+        foreach ($linesToApply as $line) {
+            $itemId = (int) ($line['item_id'] ?? 0);
+            if ($itemId <= 0) {
+                continue;
+            }
+
+            $rows[] = [
+                'item_id' => $itemId,
+                'qty_restock' => (int) $line['qty'],
+            ];
+        }
+
+        if ($rows === []) {
+            throw new InvalidArgumentException('No lines selected to apply.');
+        }
+
+        $result = $this->recommendationApply->saveRestockQuantities(
+            $rows,
+            $user,
+            \App\Support\RestockCellHistoryLabels::SOURCE_FLAT_IMPORT,
+        );
+
+        $sheetIds = collect($result['applied'])->pluck('sheet_id')->unique();
+        $updated = count($result['applied']);
+        $skipped = count($result['skipped']);
+
+        if ($updated === 0) {
+            $reason = $result['skipped'][0]['reason'] ?? 'Nothing to update.';
+
+            throw new InvalidArgumentException($reason);
+        }
+
+        $message = "Updated restock qty for {$updated} SKU(s) across ".$sheetIds->count().' sheet(s).';
+        if ($skipped > 0) {
+            $message .= " {$skipped} line(s) skipped.";
+        }
+
+        return [
+            'moved' => collect($result['applied'])->sum('qty'),
+            'sheets' => $sheetIds->count(),
+            'message' => $message,
+        ];
+    }
+
+    /**
      * @param  list<array<string, mixed>>  $lines
      * @param  list<int>|null  $includeLineNumbers
      * @return list<array<string, mixed>>
@@ -266,6 +439,7 @@ class RestockFlatImportService
         ?int $cellId = null,
         ?int $available = null,
         ?string $sheetName = null,
+        ?int $itemId = null,
     ): array {
         return [
             'line' => $lineNo,
@@ -276,6 +450,7 @@ class RestockFlatImportService
             'cell_id' => $cellId,
             'available' => $available,
             'sheet_name' => $sheetName,
+            'item_id' => $itemId,
         ];
     }
 }

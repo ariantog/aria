@@ -85,6 +85,33 @@ test('flat import preview and apply moves restock to production', function () {
     @unlink($path);
 });
 
+test('flat import preview and apply sets restock column from same sku file', function () {
+    $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
+    $cell = $sheet->cells()->first();
+    $cell->update(['qty_restock' => 3, 'qty_production' => 0]);
+    $sku = $cell->item->code;
+
+    $csv = "sku,quantity\n{$sku},25\n";
+    $path = sys_get_temp_dir().'/restock-flat-set-'.uniqid().'.csv';
+    file_put_contents($path, $csv);
+
+    $parsed = app(RestockFlatImportParser::class)->parse($path);
+    $preview = app(RestockFlatImportService::class)->preview('set_restock', $parsed);
+
+    expect($preview['can_apply'])->toBeTrue();
+    expect($preview['direction_label'])->toBe('Set restock qty');
+    expect($preview['summary']['moving'])->toBe(25);
+
+    $result = app(RestockFlatImportService::class)->apply('set_restock', $parsed, $this->user);
+    expect($result['moved'])->toBe(25);
+
+    $cell->refresh();
+    expect($cell->qty_restock)->toBe(25);
+    expect($cell->qty_production)->toBe(0);
+
+    @unlink($path);
+});
+
 test('flat import apply moves only selected preview line numbers', function () {
     $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
     $cells = $sheet->cells()->with('item')->get();

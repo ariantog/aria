@@ -130,7 +130,11 @@ class RestockRecommendationApplyService
      *     skipped: list<array{item_id: int, reason: string}>
      * }
      */
-    public function saveRestockQuantities(array $rows, User $user): array
+    public function saveRestockQuantities(
+        array $rows,
+        User $user,
+        string $source = \App\Support\RestockCellHistoryLabels::SOURCE_RECOMMENDATIONS_SAVE,
+    ): array
     {
         $applied = [];
         $skipped = [];
@@ -172,7 +176,7 @@ class RestockRecommendationApplyService
                 $qty,
                 $user,
                 replace: true,
-                source: \App\Support\RestockCellHistoryLabels::SOURCE_RECOMMENDATIONS_SAVE,
+                source: $source,
                 sheetsToSync: $sheetsToSync,
             );
             if ($result['ok']) {
@@ -194,16 +198,21 @@ class RestockRecommendationApplyService
     }
 
     /**
-     * @return array{ok: true, qty_saved: int, sheet_id: int, sheet_name: string, sheet_url: string}|array{ok: false, reason: string}
+     * Resolve where a restock qty would be written (optionally syncs missing catalog SKUs onto the sheet).
+     *
+     * @return array{
+     *     ok: true,
+     *     cell_id: int,
+     *     item_id: int,
+     *     sheet_id: int,
+     *     sheet_name: string,
+     *     current_qty: int,
+     * }|array{ok: false, reason: string}
      */
-    private function setQtyOnTypeSheet(
-        Item $item,
-        int $qty,
-        User $user,
-        bool $replace,
-        string $source,
-        array &$sheetsToSync = [],
-    ): array {
+    public function resolveRestockTarget(Item $item, ?User $user = null, bool $syncCatalog = false): array
+    {
+        $item->loadMissing('tags');
+
         if (ItemType::coerce($item->type) !== ItemType::ASSET_LANCAR) {
             return ['ok' => false, 'reason' => 'Only asset lancar SKUs use restock sheets.'];
         }
@@ -219,11 +228,11 @@ class RestockRecommendationApplyService
         }
 
         $sheet->loadMissing('typeTag');
-        $this->sheetService->syncSkus($sheet, $user);
+        if ($syncCatalog && $user !== null) {
+            $this->sheetService->syncSkus($sheet, $user);
+        }
 
-        $inCatalog = $this->sheetService->itemBelongsToTypeCatalog($sheet->typeTag, $item->id);
-
-        if (! $inCatalog) {
+        if (! $this->sheetService->itemBelongsToTypeCatalog($sheet->typeTag, $item->id)) {
             return ['ok' => false, 'reason' => 'SKU is not in the restock sheet catalog for this TYPE.'];
         }
 
@@ -233,7 +242,43 @@ class RestockRecommendationApplyService
             ->first();
 
         if ($cell === null) {
-            return ['ok' => false, 'reason' => 'Could not create a restock cell for this SKU.'];
+            return ['ok' => false, 'reason' => 'SKU is not on the restock sheet yet — sync catalog SKUs on the sheet or add the row manually.'];
+        }
+
+        return [
+            'ok' => true,
+            'cell_id' => (int) $cell->id,
+            'item_id' => (int) $item->id,
+            'sheet_id' => (int) $sheet->id,
+            'sheet_name' => (string) $sheet->name,
+            'current_qty' => (int) $cell->qty_restock,
+        ];
+    }
+
+    /**
+     * @return array{ok: true, qty_saved: int, sheet_id: int, sheet_name: string, sheet_url: string}|array{ok: false, reason: string}
+     */
+    private function setQtyOnTypeSheet(
+        Item $item,
+        int $qty,
+        User $user,
+        bool $replace,
+        string $source,
+        array &$sheetsToSync = [],
+    ): array {
+        $target = $this->resolveRestockTarget($item, $user, syncCatalog: true);
+        if ($target['ok'] !== true) {
+            return $target;
+        }
+
+        $cell = RestockCell::query()->find($target['cell_id']);
+        if ($cell === null) {
+            return ['ok' => false, 'reason' => 'Could not load restock cell for this SKU.'];
+        }
+
+        $sheet = RestockSheet::query()->find($target['sheet_id']);
+        if ($sheet === null) {
+            return ['ok' => false, 'reason' => 'Restock sheet not found.'];
         }
 
         $targetQty = $replace ? $qty : max((int) $cell->qty_restock, $qty);

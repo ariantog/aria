@@ -137,7 +137,7 @@ $stageLabels = [
                 <h2 class="text-sm font-semibold text-gray-900">Flat pipeline (SKU list)</h2>
                 <p class="mt-1 text-xs text-gray-500">
                     Export one file with every sheet: columns <strong>sku</strong> and <strong>quantity</strong>.
-                    After supplier confirmation, remove rejected SKUs and re-import to move quantities.
+                    Upload the same format to <strong>set restock qty</strong> or to move pipeline stages after supplier confirmation.
                 </p>
 
                 @if($canExport ?? false)
@@ -163,6 +163,7 @@ $stageLabels = [
                             <select id="restock-flat-direction" x-model="flatDirection"
                                     data-testid="restock-flat-direction"
                                     class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                                <option value="set_restock">Set restock qty</option>
                                 <option value="to_production">Restock → Production</option>
                                 <option value="to_shipped">Production → Shipping</option>
                             </select>
@@ -183,7 +184,7 @@ $stageLabels = [
                         <button type="button" @click="flatApply()" :disabled="flatBusy || !flatCanSubmitApply() || !flatFile"
                                 data-testid="restock-flat-apply"
                                 class="inline-flex items-center justify-center rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50">
-                            Apply move
+                            <span x-text="flatDirection === 'set_restock' ? 'Apply' : 'Apply move'"></span>
                         </button>
                     </div>
 
@@ -222,7 +223,7 @@ $stageLabels = [
                                 <p class="border-b border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-900"
                                    data-testid="restock-flat-apply-blocked-hint">
                                     Select at least one OK row to move (use checkboxes). Error rows are never applied.
-                                    Match the Move direction to the file you exported (restock qty → Restock → Production; production qty → Production → Shipping).
+                                    Match the action to your file: supplier order list → <strong>Set restock qty</strong>; exported restock qty → Restock → Production; exported production qty → Production → Shipping.
                                 </p>
                             </template>
                             <template x-if="flatPreviewData && flatOkLines().length === 0">
