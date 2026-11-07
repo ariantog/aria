@@ -217,6 +217,7 @@ class ItemService
             if ($this->userClearedColorwayProductName($input)) {
                 $this->clearColorwayTitleOverrides($group);
                 $group->name = '';
+                $group->save();
 
                 if ($pcode !== $pcodeAtStart) {
                     $parent = ItemPricing::ensureParentForItem($sample->loadMissing(['group', 'tags']));
@@ -238,16 +239,18 @@ class ItemService
                 $group->name = $storedName;
             }
 
+            $group->save();
+
             $catalogAttributes = [
-                'brand' => $group->brand ?? ItemBrand::fromPcode($pcode),
-                'genre' => (int) ($group->genre ?? ($typeTag?->id ?? 0)),
+                'brand' => ItemCatalog::brand($sample),
+                'genre' => ItemCatalog::genre($sample),
             ];
 
             if (isset($input->url)) {
                 $catalogAttributes['url'] = $this->normalizeUrl($input->url);
             }
 
-            ItemCatalog::applyToGroup($group, $catalogAttributes);
+            ItemCatalog::applyToGroup($group, $catalogAttributes, $sample);
 
             $mirror = [
                 'brand' => $catalogAttributes['brand'],
@@ -518,11 +521,12 @@ class ItemService
                     continue;
                 }
 
-                ItemCatalog::applyToGroup($group, $attributes);
+                ItemCatalog::applyToGroup($group, $attributes, $sample);
+                $group->loadMissing('parent');
 
                 $mirror = [
-                    'brand' => $attributes['brand'] ?? $group->brand,
-                    'genre' => $attributes['genre'] ?? (int) ($group->genre ?? 0),
+                    'brand' => $attributes['brand'] ?? ItemCatalog::brand($sample),
+                    'genre' => $attributes['genre'] ?? ItemCatalog::genre($sample),
                 ];
 
                 foreach ($group->items as $item) {
@@ -980,27 +984,12 @@ class ItemService
                 ],
                 [
                     'name' => $storedName,
-                    'description' => $this->inputIncludes($input, 'description') ? strtoupper((string) $input->description) : null,
-                    'description2' => $this->inputIncludes($input, 'description2') ? strtoupper((string) $input->description2) : null,
-                    'url' => $this->normalizeUrl($input->url ?? null),
                 ],
             );
         }
 
         if (strtoupper(trim((string) $group->name)) !== strtoupper($storedName)) {
             $group->name = $storedName;
-        }
-
-        if ($this->inputIncludes($input, 'description')) {
-            $group->description = strtoupper((string) $input->description);
-        }
-
-        if ($this->inputIncludes($input, 'description2')) {
-            $group->description2 = strtoupper((string) $input->description2);
-        }
-
-        if (isset($input->url)) {
-            $group->url = $this->normalizeUrl($input->url);
         }
 
         $group->save();
@@ -1873,12 +1862,13 @@ class ItemService
             $attributes['url'] = $this->normalizeUrl($input->url);
         }
 
+        $group->loadMissing('parent');
         $previousGroupText = [
-            'description' => trim((string) ($group->description ?? '')),
-            'description2' => trim((string) ($group->description2 ?? '')),
+            'description' => trim((string) ($group->parent?->description ?? $group->description ?? '')),
+            'description2' => trim((string) ($group->parent?->description2 ?? $group->description2 ?? '')),
         ];
 
-        ItemCatalog::applyToGroup($group, $attributes);
+        ItemCatalog::applyToGroup($group, $attributes, $item);
         ItemCatalog::syncDescriptionMirrorsForGroup($group, $input, $item, $previousGroupText);
     }
 

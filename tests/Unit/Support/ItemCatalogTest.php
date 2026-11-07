@@ -138,23 +138,23 @@ test('seedEmptyDescriptions fills blank group text and never overwrites catalog'
     ]);
     $item = Item::factory()->create([
         'group_id' => $emptyGroup->id,
-        'description' => 'MIKRO MOTIF HIJAU',
-        'description2' => 'STALE',
+        'description' => '',
+        'description2' => '',
     ]);
 
     ItemCatalog::seedEmptyDescriptions($emptyGroup, $item, $source);
-    $emptyGroup->refresh();
+    $item->refresh()->load('group.parent');
 
-    expect($emptyGroup->description)->toBe('MIKRO MOTIF CAMO HIJAU')
-        ->and($emptyGroup->description2)->toBe('NOTE');
+    expect($item->catalogDescription())->toBe('MIKRO MOTIF CAMO HIJAU')
+        ->and($item->catalogDescription2())->toBe('NOTE');
 
     $item->description = 'PUTIH';
     $item->description2 = 'OTHER';
     ItemCatalog::seedEmptyDescriptions($emptyGroup->fresh(), $item, null);
-    $emptyGroup->refresh();
+    $item->refresh()->load('group.parent');
 
-    expect($emptyGroup->description)->toBe('MIKRO MOTIF CAMO HIJAU')
-        ->and($emptyGroup->description2)->toBe('NOTE');
+    expect($item->catalogDescription())->toBe('MIKRO MOTIF CAMO HIJAU')
+        ->and($item->catalogDescription2())->toBe('NOTE');
 });
 
 test('clearStaleDescriptionMirrorsForColorway clears mirrors but keeps empty and local sku text', function () {

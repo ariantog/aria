@@ -268,10 +268,10 @@ $showDualChannelStockMismatch = $showShopeeStock && ! empty($jubelioByWarehouse)
                             <p class="mb-1 text-[10px] font-bold uppercase tracking-tight text-gray-500">NB</p>
                             <p class="text-xs leading-relaxed text-gray-600">{{ $nb }}</p>
                         </div>
-                        @if($item->group?->url)
+                        @if($item->catalogUrl() !== '')
                         <div>
                             <p class="mb-1 text-[10px] font-bold uppercase tracking-tight text-gray-500">Product URL</p>
-                            <a href="{{ $item->group->url }}" target="_blank" rel="noopener noreferrer" class="text-xs text-blue-600 hover:underline">{{ $item->group->url }}</a>
+                            <a href="{{ $item->catalogUrl() }}" target="_blank" rel="noopener noreferrer" class="text-xs text-blue-600 hover:underline">{{ $item->catalogUrl() }}</a>
                         </div>
                         @endif
                         @if($item->restock_urgent_threshold)

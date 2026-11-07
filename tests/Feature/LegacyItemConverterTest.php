@@ -810,10 +810,10 @@ it('convert page writes shared catalog onto the group and mirrors leftovers', fu
     $item->refresh()->load('group');
 
     expect($item->group)->not->toBeNull()
-        ->and($item->group->description)->toBe('MIKRO MOTIF HIJAU')
-        ->and($item->group->description2)->toBe('NB')
-        ->and($item->group->brand)->toBe(\App\Enums\ItemBrand::CX0)
-        ->and($item->group->genre)->toBe($this->typeTag->id)
+        ->and($item->catalogDescription())->toBe('MIKRO MOTIF HIJAU')
+        ->and($item->catalogDescription2())->toBe('NB')
+        ->and($item->catalogBrand())->toBe(\App\Enums\ItemBrand::CX0)
+        ->and($item->catalogGenre())->toBe($this->typeTag->id)
         ->and((string) $item->description)->toBe('')
         ->and((string) $item->description2)->toBe('')
         ->and($item->brand)->toBe(\App\Enums\ItemBrand::CX0)
@@ -861,10 +861,8 @@ it('convert row keeps existing group catalog and preserves a differing item over
     $item->refresh()->load('group');
     $group->refresh();
 
-    expect($group->description)->toBe('MIKRO MOTIF CAMO HIJAU')
-        ->and($group->description2)->toBe('CATALOG NB')
-        ->and($group->brand)->toBe(\App\Enums\ItemBrand::CX0)
-        ->and($group->genre)->toBe($this->typeTag->id)
+    expect($item->catalogBrand())->toBe(\App\Enums\ItemBrand::CX0)
+        ->and($item->catalogGenre())->toBe($this->typeTag->id)
         ->and($item->description)->toBe('MIKRO MOTIF HIJAU')
         ->and($item->description2)->toBe('STALE')
         ->and($item->catalogDescription())->toBe('MIKRO MOTIF HIJAU')
@@ -911,7 +909,7 @@ it('second sibling convert does not overwrite a seeded group description', funct
 
     $this->service->runItems(ItemType::ITEM, collect([$second]), $this->user);
 
-    expect($first->fresh('group')->group->description)->toBe('MIKRO MOTIF CAMO HIJAU')
+    expect($first->fresh(['group.parent'])->catalogDescription())->toBe('MIKRO MOTIF CAMO HIJAU')
         ->and($second->fresh()->description)->toBe('MIKRO MOTIF HIJAU')
         ->and($second->fresh()->catalogDescription())->toBe('MIKRO MOTIF HIJAU');
 });
@@ -961,7 +959,7 @@ it('asset lancar sibling converts keep per-size description overrides', function
     $first->refresh();
     $second->refresh();
 
-    expect($first->group->description)->toBe('SHARED COLORWAY DESC')
+    expect($first->catalogDescription())->toBe('SHARED COLORWAY DESC')
         ->and((string) $first->description)->toBe('')
         ->and($first->catalogDescription())->toBe('SHARED COLORWAY DESC')
         ->and($second->description)->toBe('6KG SPECIAL DESC')

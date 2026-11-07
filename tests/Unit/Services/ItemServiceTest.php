@@ -1012,7 +1012,7 @@ test('it does not append color twice when the submitted name is a unique stored 
         ->and($item->name)->not->toBe('ELBOW STRAP - BLACKWHITE (ELBOWSUPPORT-02) - BLACKWHITE');
 });
 
-test('it stores brand and genre on the item group and mirrors them on each size', function () {
+test('it stores brand and genre on the parent and mirrors them on each size', function () {
     $mediumTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'Medium']);
 
     $this->itemService->create((object) [
@@ -1030,11 +1030,13 @@ test('it stores brand and genre on the item group and mirrors them on each size'
 
     $group = ItemGroup::where('master', 'CX90233-23')->where('variant', '23')->firstOrFail();
 
+    $small = Item::where('code', 'AJD-CX90233-23-S')->firstOrFail();
+
     expect($group->name)->toBe('CX90233-23')
-        ->and($group->brand)->toBe(\App\Enums\ItemBrand::CX9)
-        ->and($group->genre)->toBe($this->typeTag->id)
-        ->and($group->description)->toBe('MIKRO MOTIF NAVY')
-        ->and($group->description2)->toBe('GROUP NB');
+        ->and($small->catalogBrand())->toBe(\App\Enums\ItemBrand::CX9)
+        ->and($small->catalogGenre())->toBe($this->typeTag->id)
+        ->and($small->catalogDescription())->toBe('MIKRO MOTIF NAVY')
+        ->and($small->catalogDescription2())->toBe('GROUP NB');
 
     $this->assertDatabaseHas('items', [
         'code' => 'AJD-CX90233-23-S',
@@ -1051,7 +1053,6 @@ test('it stores brand and genre on the item group and mirrors them on each size'
         'price' => 0,
     ]);
 
-    $small = Item::where('code', 'AJD-CX90233-23-S')->firstOrFail();
     $medium = Item::where('code', 'AJD-CX90233-23-M')->firstOrFail();
 
     $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey($small);
@@ -1106,16 +1107,15 @@ test('it syncs shared colorway attributes to every size when one item is edited'
     $medium->refresh();
     $group = $small->group()->firstOrFail();
 
-    expect($group->description)->toBe('MIKRO MOTIF CAMO HIJAU')
-        ->and($group->description2)->toBe('UPDATED NB')
-        ->and($group->brand)->toBe(\App\Enums\ItemBrand::CX9)
-        ->and($group->genre)->toBe($this->typeTag->id)
+    expect($small->catalogDescription())->toBe('MIKRO MOTIF CAMO HIJAU')
+        ->and($small->catalogDescription2())->toBe('UPDATED NB')
+        ->and($small->catalogBrand())->toBe(\App\Enums\ItemBrand::CX9)
+        ->and($small->catalogGenre())->toBe($this->typeTag->id)
         ->and((float) $small->price)->toBe(175000.0)
         ->and($medium->effectivePrice())->toBe(100000.0)
         ->and((float) $medium->price)->toBe(0.0)
         ->and((string) $small->description)->toBe('')
         ->and((string) $medium->description)->toBe('')
-        ->and($small->catalogDescription())->toBe('MIKRO MOTIF CAMO HIJAU')
         ->and($medium->catalogDescription())->toBe('MIKRO MOTIF CAMO HIJAU')
         ->and($small->restock_urgent_threshold)->toBe(12)
         ->and($medium->restock_urgent_threshold)->toBe(9)

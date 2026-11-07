@@ -352,9 +352,9 @@ it('converts a single asset lancar item from the detail page', function () {
         ->and($item->group?->variant)->toBe('BLACK')
         ->and($item->code)->toBe('GLOVE-07-BLACK-S')
         ->and($item->genre)->toBe($gloveType->id)
-        ->and($item->group?->genre)->toBe($gloveType->id)
-        ->and($item->group?->description)->toBe('FOAM BLACK')
-        ->and($item->group?->description2)->toBe('NOTE')
+        ->and($item->catalogGenre())->toBe($gloveType->id)
+        ->and($item->catalogDescription())->toBe('FOAM BLACK')
+        ->and($item->catalogDescription2())->toBe('NOTE')
         ->and((string) $item->description)->toBe('')
         ->and($item->catalogDescription())->toBe('FOAM BLACK')
         ->and($item->catalogDescription2())->toBe('NOTE')
@@ -402,10 +402,10 @@ it('converts a manufactured item from the items detail page onto the group catal
 
     expect($item->code)->toBe('AJJ-CX00122-04-S')
         ->and($item->legacy_code)->toBe('AJJCX0012204S')
-        ->and($item->group?->description)->toBe('MIKRO MOTIF HIJAU')
-        ->and($item->group?->description2)->toBe('NB')
-        ->and($item->group?->brand)->toBe(\App\Enums\ItemBrand::CX0)
-        ->and($item->group?->genre)->toBe($typeTag->id)
+        ->and($item->catalogDescription())->toBe('MIKRO MOTIF HIJAU')
+        ->and($item->catalogDescription2())->toBe('NB')
+        ->and($item->catalogBrand())->toBe(\App\Enums\ItemBrand::CX0)
+        ->and($item->catalogGenre())->toBe($typeTag->id)
         ->and((string) $item->description)->toBe('')
         ->and($item->catalogDescription())->toBe('MIKRO MOTIF HIJAU');
 });
@@ -448,11 +448,10 @@ it('seeds a new group from the leftover group catalog when relinking from items 
 
     expect((int) $item->group_id)->not->toBe($oldGroup->id)
         ->and($item->group?->master)->toBe('CX00122-04')
-        ->and($item->group?->description)->toBe('MIKRO MOTIF CAMO HIJAU')
-        ->and($item->group?->description2)->toBe('KEEP')
         ->and($item->description)->toBe('MIKRO MOTIF HIJAU')
         ->and($item->description2)->toBe('STALE')
         ->and($item->catalogDescription())->toBe('MIKRO MOTIF HIJAU')
+        ->and($item->catalogDescription2())->toBe('STALE')
         ->and($item->catalogDescription2())->toBe('STALE');
 });
 

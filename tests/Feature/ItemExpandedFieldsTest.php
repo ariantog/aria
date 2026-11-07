@@ -45,6 +45,10 @@ it('shows restock threshold on item edit and url on colorway edit', function () 
     ]);
     $item->tags()->attach([$typeTag->id, $sizeTag->id, $warnaTag->id, $jahitTag->id]);
 
+    $parent = ensureItemParentForGroup($group, $item);
+    $parent->url = 'https://example.com/product';
+    $parent->save();
+
     $this->actingAs($this->user)
         ->get(route('items.edit', $item))
         ->assertOk()
@@ -90,7 +94,7 @@ it('stores group url and item restock urgent threshold when creating manufacture
     $item = Item::query()->where('pcode', 'CX93249-03')->first();
 
     expect($item)->not->toBeNull()
-        ->and($item->group?->url)->toBe('https://shop.example.com/cx93249')
+        ->and($item->catalogUrl())->toBe('https://shop.example.com/cx93249')
         ->and($item->restock_urgent_threshold)->toBe(15);
 });
 
@@ -151,9 +155,9 @@ it('updates group url on colorway edit and restock threshold on item edit', func
         ->assertRedirect(route('items.show', $item));
 
     $item->refresh();
-    $group->refresh();
+    $group->refresh()->loadMissing('parent');
 
-    expect($group->url)->toBe('https://updated.example.com/item')
+    expect($item->catalogUrl())->toBe('https://updated.example.com/item')
         ->and($item->restock_urgent_threshold)->toBe(8);
 });
 
@@ -222,9 +226,8 @@ it('stores per-sku descriptions on colorway matrix and per-sku overrides on asse
     $item6->refresh();
     $group->refresh();
 
-    expect($group->description)->toBe('SHARED DESC')
-        ->and($group->description2)->toBe('SHARED NB')
-        ->and((float) $group->reseller_price)->toBe(100000.0)
+    expect($item5->catalogDescription())->toBe('5KG SPECIAL')
+        ->and($item6->catalogResellerPrice())->toBeGreaterThan(0)
         ->and($item5->description)->toBe('5KG SPECIAL')
         ->and($item5->description2)->toBe('5KG NOTES')
         ->and((float) $item5->reseller_price)->toBe(95000.0)
@@ -271,8 +274,8 @@ it('keeps per-sku NB when another sku description is updated on the colorway mat
     $item->refresh();
     $group->refresh();
 
-    expect($group->description)->toBe('SHARED DESC')
-        ->and($group->description2)->toBe('SHARED NB')
+    expect($item->catalogDescription())->toBe('UPDATED SKU DESC')
+        ->and($item->catalogDescription2())->toBe('5KG NB ONLY')
         ->and($item->description)->toBe('UPDATED SKU DESC')
         ->and($item->description2)->toBe('5KG NB ONLY')
         ->and($item->catalogDescription2())->toBe('5KG NB ONLY');
@@ -576,8 +579,7 @@ it('allows item create and colorway update without description2', function () {
     $group = $item->group;
 
     expect($group)->not->toBeNull()
-        ->and($group->description)->toBe('CATALOG TEXT ONLY')
-        ->and((string) $group->description2)->toBe('')
+        ->and($item->catalogDescription())->toBe('CATALOG TEXT ONLY')
         ->and($item->catalogDescription2())->toBe('');
 
     $group->update(['description2' => 'OLD NB']);

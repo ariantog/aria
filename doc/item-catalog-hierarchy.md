@@ -20,7 +20,13 @@
 
 **Image:** colorway `item_group` (and SKU paths) via `ItemImageResolver` — unchanged.
 
-Colorway `item_group` must not be used as a source for price or shared catalog text in L12 reads.
+Colorway `item_group` must not be used as a source for price or shared catalog text in L12 reads (legacy columns may still exist until maintainer drops them).
+
+## Phase 2 (L12 writes)
+
+- **Writes:** `ItemCatalog::applySharedCatalog()` — shared description, NB, url, brand, genre, and parent-tier pricing fields go to `item_parents` only. Colorway keeps `name` (per-colorway title override), identity (`master`/`variant`), and **image**.
+- **Reads:** parent → legacy `item_group` → SKU override (unchanged from phase 1).
+- **Backfill catalog from legacy group columns:** `php artisan items:backfill-group-parent-id --copy-catalog` (after `--dry-run`).
 
 ## Routes
 

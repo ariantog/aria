@@ -827,6 +827,10 @@ class ItemsController extends Controller
         $parentProductName = trim((string) ($parentRecord?->product_name ?? ''));
         $parentDescription = \App\Support\ItemCatalog::parentDescriptionForKey($parentKey);
         $parentDescription2 = \App\Support\ItemCatalog::parentDescription2ForKey($parentKey);
+        $group->loadMissing('parent');
+        $parentCatalogUrl = $group->parent !== null
+            ? trim((string) ($group->parent->url ?? ''))
+            : '';
 
         $itemTypeEnum = $sample->type;
 
@@ -846,6 +850,7 @@ class ItemsController extends Controller
             'usesPlaceholder' => $usesPlaceholder,
             'color' => $color,
             'parentId' => $parentId,
+            'parentCatalogUrl' => $parentCatalogUrl,
             'isAsset' => $itemType === ItemType::ASSET_LANCAR,
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]));
