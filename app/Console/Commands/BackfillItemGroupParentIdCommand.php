@@ -155,12 +155,17 @@ class BackfillItemGroupParentIdCommand extends Command
     ): int {
         $onlyParentId = max(0, (int) $this->option('parent-id'));
 
-        $parentQuery = ItemParent::query()
-            ->whereHas('colorwayGroups')
-            ->orderBy('id');
+        $parentQuery = ItemParent::query()->orderBy('id');
 
         if ($onlyParentId > 0) {
             $parentQuery->whereKey($onlyParentId);
+        } else {
+            $parentQuery->where(function ($query) {
+                $query->whereNull('product_name')
+                    ->orWhere('product_name', '')
+                    ->orWhereNull('description')
+                    ->orWhere('description', '');
+            });
         }
 
         if ($limit > 0) {
@@ -203,18 +208,21 @@ class BackfillItemGroupParentIdCommand extends Command
         $parent = $this->canonicalParentFor($parent);
         $parent->refresh();
 
-        $parentIds = $this->siblingParentIds($parent);
-
-        $groups = ItemGroup::query()
-            ->whereIn('parent_id', $parentIds)
-            ->with(['items' => fn ($q) => $q->orderBy('id')])
-            ->orderBy('id')
-            ->get();
+        $groups = $this->resolveCatalogGroupsForParent($parent, $hierarchy);
 
         if ($groups->isEmpty()) {
-            $this->warn("Parent #{$parent->id} has no item_group rows with parent_id={$parent->id} — nothing to copy.");
+            $key = trim((string) ($parent->parent_key ?? ''));
+            $this->warn(
+                "Parent #{$parent->id} ({$key}): no colorway groups found by parent_id or parent_key — nothing to copy."
+            );
 
             return 0;
+        }
+
+        if (! $dryRun) {
+            $this->relinkGroupsToParent($groups, (int) $parent->id);
+        } elseif ($groups->contains(fn (ItemGroup $g) => (int) $g->parent_id !== (int) $parent->id)) {
+            $this->line("Would set parent_id={$parent->id} on colorway group id(s): ".$groups->pluck('id')->join(', '));
         }
 
         $sample = $this->sampleItemPreferringActive($groups);
@@ -244,10 +252,15 @@ class BackfillItemGroupParentIdCommand extends Command
         );
 
         if ($attributes === []) {
+            $parentCatalogEmpty = trim((string) ($parent->product_name ?? '')) === ''
+                && trim((string) ($parent->description ?? '')) === '';
             $this->line(
                 'Parent #'.$parent->id.' ('.($parent->parent_key ?? '').'): groups '
                 .$groups->pluck('id')->join(', ')
-                .' — parent already has catalog or groups have no legacy fields to lift.'
+                .' — skip: '
+                .($parentCatalogEmpty
+                    ? 'colorway rows have no legacy catalog columns to lift (check item_group in SQL).'
+                    : 'parent catalog columns already set.')
             );
 
             return 0;
@@ -634,6 +647,46 @@ class BackfillItemGroupParentIdCommand extends Command
         }
 
         return $best;
+    }
+
+    /**
+     * @return Collection<int, ItemGroup>
+     */
+    protected function resolveCatalogGroupsForParent(ItemParent $parent, ItemGroupHierarchyService $hierarchy): Collection
+    {
+        $parentKey = trim((string) ($parent->parent_key ?? ''));
+        $merged = collect();
+
+        if ($parentKey !== '') {
+            $merged = $merged->merge($hierarchy->groupsForParentKeyRelaxed($parentKey));
+        }
+
+        $merged = $merged->merge(
+            ItemGroup::query()
+                ->whereIn('parent_id', $this->siblingParentIds($parent))
+                ->with(['items' => fn ($q) => $q->orderBy('id')])
+                ->orderBy('id')
+                ->get()
+        );
+
+        return $merged->unique('id')->values();
+    }
+
+    /**
+     * @param  Collection<int, ItemGroup>  $groups
+     */
+    protected function relinkGroupsToParent(Collection $groups, int $parentId): void
+    {
+        $staleIds = $groups
+            ->filter(fn (ItemGroup $group) => (int) $group->parent_id !== $parentId)
+            ->pluck('id')
+            ->all();
+
+        if ($staleIds === []) {
+            return;
+        }
+
+        ItemGroup::query()->whereIn('id', $staleIds)->update(['parent_id' => $parentId]);
     }
 
     protected function sampleItemForGroup(ItemGroup $group): ?Item

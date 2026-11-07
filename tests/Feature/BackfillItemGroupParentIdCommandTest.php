@@ -86,6 +86,37 @@ it('copies group catalog when skus are soft-deleted', function () {
     expect($parent->genre)->toBe(6499);
 });
 
+it('finds asset colorways by parent_key when parent_id is not set', function () {
+    $parent = ItemParent::query()->create(['parent_key' => '2:KNEESUPPORT-05']);
+
+    $group = ItemGroup::factory()->create([
+        'parent_id' => 0,
+        'master' => 'KNEESUPPORT-05',
+        'variant' => 'BLACK',
+        'name' => 'ULTIMATE KNEE SUPPORT',
+        'description' => 'KNEE SUPPORT TEXT',
+    ]);
+
+    Item::factory()->create([
+        'group_id' => $group->id,
+        'deleted_at' => now(),
+        'pcode' => 'KNEESUPPORT-05',
+        'code' => 'KNEESUPPORT-05-BLACK-S',
+        'type' => ItemType::ASSET_LANCAR->value,
+    ]);
+
+    $this->artisan('items:backfill-group-parent-id', [
+        '--copy-catalog' => true,
+        '--parent-id' => (string) $parent->id,
+    ])->assertSuccessful();
+
+    expect($group->fresh()->parent_id)->toBe($parent->id);
+
+    $parent->refresh();
+    expect($parent->description)->toBe('KNEE SUPPORT TEXT');
+    expect($parent->product_name)->toBe('ULTIMATE KNEE SUPPORT');
+});
+
 it('relinks colorways to canonical parent when parent_key is duplicated', function () {
     if (Schema::hasTable('item_parents') && Schema::hasColumn('item_parents', 'parent_key')) {
         Schema::table('item_parents', function (Blueprint $table) {
