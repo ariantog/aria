@@ -386,9 +386,15 @@ class RestockGridBuilder
      */
     protected function parentImageUrl(Collection $cells): string
     {
-        $item = $cells->first(fn (RestockCell $cell) => $cell->item !== null)?->item;
+        $items = $cells
+            ->map(fn (RestockCell $cell) => $cell->item)
+            ->filter();
 
-        return $item?->image_url ?? asset('images/default-item.svg');
+        if ($items->isEmpty()) {
+            return asset('images/default-item.svg');
+        }
+
+        return app(ItemImageResolver::class)->resolveUrlForItems($items);
     }
 
     /**

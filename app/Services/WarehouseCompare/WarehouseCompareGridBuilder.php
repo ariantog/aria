@@ -510,9 +510,11 @@ class WarehouseCompareGridBuilder
      */
     protected function parentImageUrl(Collection $items): string
     {
-        $item = $items->first();
+        if ($items->isEmpty()) {
+            return asset('images/default-item.svg');
+        }
 
-        return $item?->image_url ?? asset('images/default-item.svg');
+        return app(\App\Support\ItemImageResolver::class)->resolveUrlForItems($items);
     }
 
     /**

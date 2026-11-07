@@ -12,7 +12,10 @@ use App\Models\User;
 use App\Models\WarehouseItem;
 use App\Services\Items\ItemGroupHierarchyService;
 use App\Services\Items\ItemIdentityBuilder;
+use App\Support\ItemImageResolver;
 use App\Support\ItemProductTitle;
+use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\File;
 
 beforeEach(function () {
     $this->user = User::factory()->create();
@@ -398,6 +401,62 @@ it('renders group list and parent detail pages', function () {
         ->assertSee('How to read quantities', false)
         ->assertDontSee('data-testid="group-parent-brand"', false)
         ->assertDontSee('data-testid="group-parent-genre"', false);
+});
+
+it('parent detail by id merges colorways from parent_key and resolves their images', function () {
+    $imageRoot = storage_path('framework/testing/parent-image');
+    File::deleteDirectory($imageRoot);
+    Config::set('core-nation.item_image_path', $imageRoot.DIRECTORY_SEPARATOR);
+    Config::set('core-nation.item_image_url', 'http://localhost/test-asset/');
+    File::ensureDirectoryExists(config('core-nation.item_image_path'));
+
+    $parent = ItemParent::query()->create(['parent_key' => '1:AJD:CX93099']);
+    $linkedGroup = ItemGroup::factory()->create([
+        'parent_id' => $parent->id,
+        'master' => 'CX93099',
+        'variant' => '01',
+    ]);
+    $legacyGroup = ItemGroup::factory()->create([
+        'parent_id' => 0,
+        'master' => 'CX93099',
+        'variant' => '02',
+    ]);
+
+    $linkedItem = Item::factory()->create([
+        'group_id' => $linkedGroup->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CX93099-01',
+        'code' => 'AJD-CX93099-01-S',
+    ]);
+    $linkedItem->tags()->attach([$this->typeTag->id, $this->pinkTag->id, $this->sizeS->id]);
+
+    $legacyItem = Item::factory()->create([
+        'group_id' => $legacyGroup->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CX93099-02',
+        'code' => 'AJD-CX93099-02-M',
+    ]);
+    $legacyItem->tags()->attach([$this->typeTag->id, $this->blackTag->id, $this->sizeM->id]);
+
+    $resolver = app(ItemImageResolver::class);
+
+    foreach ([$linkedGroup->id, $legacyGroup->id, $linkedItem->id, $legacyItem->id] as $candidateId) {
+        $path = $resolver->resolveExistingDiskPathForId((int) $candidateId);
+        if ($path !== null && is_file($path)) {
+            unlink($path);
+        }
+    }
+
+    $diskPath = $resolver->diskPathForId((int) $legacyGroup->id);
+    File::ensureDirectoryExists(dirname($diskPath));
+    File::put($diskPath, 'colorway-two-image');
+
+    $detail = $this->hierarchy->parentDetailForParent($parent->fresh(), fetchJubelio: false);
+
+    expect($detail['colors'])->toHaveCount(2)
+        ->and($detail['image_url'])->toBe($resolver->publicUrlForId($legacyGroup->id));
+
+    File::deleteDirectory($imageRoot);
 });
 
 it('exports parent group stock to excel', function () {

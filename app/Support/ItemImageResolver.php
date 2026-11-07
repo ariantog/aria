@@ -118,6 +118,30 @@ class ItemImageResolver
         return $this->resolveUrlFromCandidateIds($candidates);
     }
 
+    /**
+     * Parent row / restock matrix: first on-disk image across every colorway group and SKU.
+     *
+     * @param  iterable<int, Item>  $items
+     */
+    public function resolveUrlForItems(iterable $items): string
+    {
+        $candidates = [];
+
+        foreach ($items as $item) {
+            if (! $item instanceof Item) {
+                continue;
+            }
+
+            if ((int) $item->group_id > 0) {
+                $candidates[] = (int) $item->group_id;
+            }
+
+            $candidates[] = (int) $item->id;
+        }
+
+        return $this->resolveUrlFromCandidateIds($candidates);
+    }
+
     public function resolveDiskPathForItem(Item $item): string
     {
         $existing = $this->resolveExistingDiskPathForItem($item);
