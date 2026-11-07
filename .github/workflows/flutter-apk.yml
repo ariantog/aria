@@ -2,6 +2,11 @@ name: Flutter debug APK
 
 on:
   workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'Optional API base URL baked into the APK (no trailing slash). Overrides repo variable ARIA_MOBILE_BASE_URL.'
+        required: false
+        type: string
   push:
     branches:
       - main
@@ -36,7 +41,17 @@ jobs:
         run: cp android_manifests/main/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
 
       - name: Build debug APK
-        run: flutter build apk --debug
+        env:
+          INPUT_BASE_URL: ${{ github.event.inputs.base_url }}
+          VAR_BASE_URL: ${{ vars.ARIA_MOBILE_BASE_URL }}
+        run: |
+          BASE_URL="${INPUT_BASE_URL:-$VAR_BASE_URL}"
+          if [ -n "${BASE_URL}" ]; then
+            echo "Baking default base URL into APK (dart-define)."
+            flutter build apk --debug --dart-define="ARIA_DEFAULT_BASE_URL=${BASE_URL}"
+          else
+            flutter build apk --debug
+          fi
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
