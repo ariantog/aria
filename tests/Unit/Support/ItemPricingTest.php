@@ -70,8 +70,11 @@ test('apply colorway scope writes all skus in the colorway', function () {
     $first->refresh();
     $second->refresh();
 
-    expect((float) $first->price)->toBe(120000.0)
-        ->and((float) $second->price)->toBe(120000.0)
+    $parent->refresh();
+
+    expect((float) $first->price)->toBe(0.0)
+        ->and((float) $second->price)->toBe(0.0)
+        ->and((float) $parent->price)->toBe(120000.0)
         ->and(ItemPricing::resolve($first->fresh(['group.parent']), 'price'))->toBe(120000.0);
 });
 

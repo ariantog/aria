@@ -50,6 +50,11 @@ final class ItemProductTitle
             return self::normalizeBareTitle($itemType, $parentTitle, $item->group, $builder);
         }
 
+        $groupTitle = self::readGroupProductTitle($item);
+        if ($groupTitle !== '') {
+            return self::normalizeBareTitle($itemType, $groupTitle, $item->group, $builder);
+        }
+
         if ($pcode !== '') {
             return $itemType === ItemType::ITEM
                 ? $builder->manufacturedCatalogTitleFallback($item)
@@ -249,6 +254,26 @@ final class ItemProductTitle
         $parent = self::parentRecord($item);
 
         return strtoupper(trim((string) ($parent?->product_name ?? '')));
+    }
+
+    private static function readGroupProductTitle(Item $item): string
+    {
+        $group = $item->group;
+        if ($group === null) {
+            return '';
+        }
+
+        $itemType = $item->type instanceof ItemType ? $item->type : ItemType::coerce($item->type) ?? ItemType::ITEM;
+        $pcode = strtoupper(trim((string) $item->pcode));
+        $stored = trim((string) ($group->name ?? ''));
+
+        if ($stored === '' || ItemCatalogTitleForm::groupNameIsPlaceholder($itemType, $stored, $pcode, $group, app(ItemIdentityBuilder::class))) {
+            $alias = self::readGroupAlias($group);
+
+            return $alias;
+        }
+
+        return strtoupper($stored);
     }
 
     private static function parentRecord(Item $item): ?ItemParent

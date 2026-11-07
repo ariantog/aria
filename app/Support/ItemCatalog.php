@@ -91,15 +91,28 @@ final class ItemCatalog
 
         $parentText = trim((string) ($item->group?->parent?->{$field} ?? ''));
 
+        $groupText = self::groupColumnExists($field)
+            ? trim((string) ($item->group?->{$field} ?? ''))
+            : '';
+
         $itemText = $field === 'description'
             ? self::leftoverDescription($item)
             : self::leftoverDescription2($item);
 
-        if ($itemText !== '' && ($parentText === '' || strtoupper($itemText) !== strtoupper($parentText))) {
+        if ($itemText !== '' && ($parentText === '' || strtoupper($itemText) !== strtoupper($parentText))
+            && ($groupText === '' || strtoupper($itemText) !== strtoupper($groupText))) {
             return $itemText;
         }
 
-        return $parentText !== '' ? $parentText : $itemText;
+        if ($parentText !== '') {
+            return $parentText;
+        }
+
+        if ($groupText !== '') {
+            return $groupText;
+        }
+
+        return $itemText;
     }
 
     public static function parentDescriptionForKey(string $parentKey): string
@@ -303,6 +316,16 @@ final class ItemCatalog
         }
 
         $group->save();
+
+        $parentId = (int) ($group->parent_id ?? 0);
+        if ($parentId > 0
+            && (array_key_exists('description', $attributes) || array_key_exists('description2', $attributes))) {
+            self::syncParentDescriptionsById(
+                $parentId,
+                (string) ($group->description ?? ''),
+                (string) ($group->description2 ?? ''),
+            );
+        }
     }
 
     /**

@@ -76,8 +76,10 @@ it('parent detail page shows all skus when warehouse qty is zero', function () {
         $item->tags()->attach([$this->typeTag->id, $this->blackTag->id, $sizeTag->id]);
     }
 
+    $parent = ensureItemParentForGroup($group, $item);
+
     $response = $this->actingAs($this->user)
-        ->get(route('items.group-parent-detail', $group->id));
+        ->get(route('items.group-parent-detail', $parent->id));
 
     $response->assertOk()
         ->assertSee('POWERBAND-03-BLACK-MEDIUM', false)
@@ -102,7 +104,9 @@ it('redirects legacy slug parent urls to numeric group id', function () {
     ]);
     $item->tags()->attach([$this->blackTag->id, $this->sizeTags['MEDIUM']->id]);
 
+    $parent = ensureItemParentForGroup($group, $item);
+
     $this->actingAs($this->user)
         ->get(route('items.group-parent-legacy', '2__POWERBAND-03'))
-        ->assertRedirect(route('items.group-parent-detail', $group->id));
+        ->assertRedirect(route('items.group-parent-detail', $parent->id));
 });

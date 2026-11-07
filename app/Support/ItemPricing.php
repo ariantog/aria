@@ -71,7 +71,12 @@ final class ItemPricing
             return $sizeValue;
         }
 
-        return self::readParentColumn($item->group?->parent, $field);
+        $parentValue = self::readParentColumn($item->group?->parent, $field);
+        if (self::isSet($parentValue)) {
+            return $parentValue;
+        }
+
+        return self::readGroupColumn($item->group, $field);
     }
 
     public static function detectScope(Item $item, string $field): string
@@ -252,6 +257,12 @@ final class ItemPricing
             return;
         }
 
+        if ((int) ($group->parent_id ?? 0) > 0) {
+            self::writeParentFromItem($item, $field, $value);
+
+            return;
+        }
+
         Item::query()
             ->where('group_id', $group->id)
             ->update([$field => $value]);
@@ -371,6 +382,15 @@ final class ItemPricing
         }
 
         return (float) ($record->{$field} ?? 0);
+    }
+
+    private static function readGroupColumn(?ItemGroup $group, string $field): float
+    {
+        if ($group === null || ! self::hasColumn($group->getTable(), $field)) {
+            return 0.0;
+        }
+
+        return (float) ($group->{$field} ?? 0);
     }
 
     private static function writeParentColumn(ItemParent $record, string $field, float $value): void

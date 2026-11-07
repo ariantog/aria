@@ -189,3 +189,18 @@ function shopeeRecommendedItem(int $itemId, array $tags = ['best selling']): arr
         'ongoing_ad_types' => [],
     ];
 }
+
+function ensureItemParentForGroup(\App\Models\ItemGroup $group, ?\App\Models\Item $sample = null): \App\Models\ItemParent
+{
+    $sample = $sample ?? $group->items()->with(['group', 'tags'])->orderBy('id')->first();
+
+    if ($sample !== null) {
+        return \App\Support\ItemPricing::ensureParentForItem($sample);
+    }
+
+    $parent = \App\Models\ItemParent::query()->create();
+    $group->parent_id = (int) $parent->id;
+    $group->save();
+
+    return $parent;
+}

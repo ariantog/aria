@@ -189,6 +189,7 @@ class ItemService
 
             $itemType = $this->resolveItemType($sample->type);
             $pcode = strtoupper(trim((string) $sample->pcode));
+            $pcodeAtStart = $pcode;
             $typeTag = $sample->tags->firstWhere('type', Tag::TYPE_TYPE);
 
             if (property_exists($input, 'pcode') && trim((string) ($input->pcode ?? '')) !== '') {
@@ -216,6 +217,11 @@ class ItemService
             if ($this->userClearedColorwayProductName($input)) {
                 $this->clearColorwayTitleOverrides($group);
                 $group->name = '';
+
+                if ($pcode !== $pcodeAtStart) {
+                    $parent = ItemPricing::ensureParentForItem($sample->loadMissing(['group', 'tags']));
+                    ItemProductTitle::syncParentProductNameById((int) $parent->id, '');
+                }
             } else {
                 $groupName = $this->groupNameFromInput($input, $itemType, $pcode, $group, $sample);
                 $storedName = $this->identityBuilder->uniqueStoredGroupName(
@@ -351,7 +357,7 @@ class ItemService
      * @param  list<int>  $groupIds
      */
     public function applyParentGroupProductName(
-        int $parentId,
+        int|string $parentId,
         string $productName,
         array $groupIds,
         bool $resetColorwayTitlesToInherit = false,
@@ -362,8 +368,14 @@ class ItemService
             throw new Exception('Product name is required.');
         }
 
+        $parentId = $this->resolveParentId($parentId);
+
         DB::transaction(function () use ($parentId, $productName, $groupIds, $resetColorwayTitlesToInherit): void {
             ItemProductTitle::syncParentProductNameById($parentId, $productName);
+
+            ItemGroup::query()
+                ->whereIn('id', $groupIds)
+                ->update(['parent_id' => $parentId]);
 
             if ($resetColorwayTitlesToInherit) {
                 foreach ($groupIds as $groupId) {
@@ -417,12 +429,14 @@ class ItemService
      * @param  list<int>  $groupIds
      */
     public function applyParentGroupDescriptions(
-        int $parentId,
+        int|string $parentId,
         string $description,
         string $description2,
         array $groupIds,
         bool $resetColorwayDescriptionsToInherit = false,
     ): void {
+        $parentId = $this->resolveParentId($parentId);
+
         DB::transaction(function () use (
             $parentId,
             $description,
@@ -431,6 +445,10 @@ class ItemService
             $resetColorwayDescriptionsToInherit,
         ): void {
             ItemCatalog::syncParentDescriptionsById($parentId, $description, $description2);
+
+            ItemGroup::query()
+                ->whereIn('id', $groupIds)
+                ->update(['parent_id' => $parentId]);
 
             if (! $resetColorwayDescriptionsToInherit) {
                 return;
@@ -443,10 +461,6 @@ class ItemService
                     continue;
                 }
 
-                ItemCatalog::applyToGroup($group, [
-                    'description' => $description,
-                    'description2' => $description2,
-                ]);
                 ItemCatalog::resetDescriptionMirrorsForColorway($group);
             }
         });
@@ -455,8 +469,10 @@ class ItemService
     /**
      * @param  array<string, array{scope?: mixed, value?: mixed}>  $pricingRows
      */
-    public function applyParentGroupPricing(int $parentId, array $pricingRows, bool $cascadeOverrides = false): void
+    public function applyParentGroupPricing(int|string $parentId, array $pricingRows, bool $cascadeOverrides = false): void
     {
+        $parentId = $this->resolveParentId($parentId);
+
         DB::transaction(function () use ($parentId, $pricingRows, $cascadeOverrides): void {
             ItemPricing::applyForParent($parentId, $pricingRows, $cascadeOverrides);
         });
@@ -858,6 +874,9 @@ class ItemService
         $item->name = ItemProductTitle::buildDisplayName($item);
         $this->applyInventorySettings($item, $input);
         $item->save();
+
+        $item->setRelation('group', $group);
+        ItemPricing::ensureParentForItem($item);
 
         return $item;
     }
@@ -1657,12 +1676,41 @@ class ItemService
 
     protected function syncItemNamesForGroup(ItemGroup $group): void
     {
+        $this->syncParentProductNameFromGroup($group);
+
         $items = Item::with('tags')->where('group_id', $group->id)->get();
 
         foreach ($items as $item) {
             $item->name = ItemProductTitle::buildDisplayName($item);
             $item->save();
         }
+    }
+
+    protected function syncParentProductNameFromGroup(ItemGroup $group): void
+    {
+        $sample = $group->items()->first();
+        if ($sample === null) {
+            return;
+        }
+
+        $itemType = $this->resolveItemType($sample->getAttributes()['type'] ?? $sample->type);
+        $pcode = strtoupper(trim((string) $sample->pcode));
+        $storedName = trim((string) ($group->name ?? ''));
+
+        if ($storedName === ''
+            || $this->isPlaceholderProductName($itemType, $storedName, $pcode)
+            || ItemCatalogTitleForm::groupNameIsPlaceholder($itemType, $storedName, $pcode, $group, $this->identityBuilder)) {
+            return;
+        }
+
+        $title = $this->identityBuilder->productDisplayName(
+            $itemType,
+            $storedName,
+            (string) ($group->variant ?? ''),
+            (string) ($group->master ?? ''),
+        );
+        $parent = ItemPricing::ensureParentForItem($sample->loadMissing(['group', 'tags']));
+        ItemProductTitle::syncParentProductNameById((int) $parent->id, $title);
     }
 
     /** Regenerate items.name for every SKU in a colorway from catalog + tags. */
@@ -1895,11 +1943,42 @@ class ItemService
 
     protected function resolveCreatePricingScope(Item $item): string
     {
-        $parentKey = app(ItemIdentityBuilder::class)->itemParentKey($item);
+        $item->loadMissing('group');
+        $parentId = ItemPricing::parentIdForItem($item);
 
-        return ItemPricing::parentGroupHasStoredPricing($parentKey)
+        return ItemPricing::parentGroupHasStoredPricing($parentId)
             ? ItemPricing::SCOPE_SIZE
             : ItemPricing::SCOPE_COLORWAY;
+    }
+
+    protected function resolveParentId(int|string $parentIdOrKey, ?Item $sample = null): int
+    {
+        if (is_int($parentIdOrKey)) {
+            return $parentIdOrKey;
+        }
+
+        $numeric = trim((string) $parentIdOrKey);
+        if ($numeric !== '' && ctype_digit($numeric)) {
+            return (int) $numeric;
+        }
+
+        $parentKey = (string) $parentIdOrKey;
+        $existing = ItemParentPrice::query()->where('parent_key', $parentKey)->first();
+        if ($existing !== null) {
+            return (int) $existing->id;
+        }
+
+        if ($sample !== null) {
+            return (int) ItemPricing::ensureParentForItem($sample->loadMissing(['group', 'tags']))->id;
+        }
+
+        $record = new ItemParentPrice;
+        if (Schema::hasColumn($record->getTable(), 'parent_key')) {
+            $record->parent_key = $parentKey;
+        }
+        $record->save();
+
+        return (int) $record->id;
     }
 
     protected function persistItemLocalAttributes(Item $item, object $input): void
