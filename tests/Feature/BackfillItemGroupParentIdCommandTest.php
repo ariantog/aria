@@ -5,6 +5,8 @@ use App\Models\ItemGroup;
 use App\Models\ItemParent;
 use App\Models\Tag;
 use App\Enums\ItemType;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
 
 it('copies legacy group catalog when parent_id is already linked', function () {
     $typeTag = Tag::factory()->create([
@@ -82,6 +84,44 @@ it('copies group catalog when skus are soft-deleted', function () {
     expect($parent->description)->toBe('EXTRA SUPPORT');
     expect($parent->description2)->toBe('RESELLER NOTE');
     expect($parent->genre)->toBe(6499);
+});
+
+it('relinks colorways to canonical parent when parent_key is duplicated', function () {
+    if (Schema::hasTable('item_parents') && Schema::hasColumn('item_parents', 'parent_key')) {
+        Schema::table('item_parents', function (Blueprint $table) {
+            if (Schema::hasIndex('item_parents', 'item_parents_key_uq')) {
+                $table->dropUnique('item_parents_key_uq');
+            }
+        });
+    }
+
+    $canonical = ItemParent::query()->create(['parent_key' => '2:KNEESUPPORT-05']);
+    $duplicate = ItemParent::query()->create(['parent_key' => '2:KNEESUPPORT-05']);
+
+    $group = ItemGroup::factory()->create([
+        'parent_id' => $duplicate->id,
+        'master' => 'KNEESUPPORT-05',
+        'variant' => 'BLACK',
+        'name' => 'ULTIMATE KNEE SUPPORT',
+        'description' => 'KNEE SUPPORT DESC',
+    ]);
+
+    Item::factory()->create([
+        'group_id' => $group->id,
+        'pcode' => 'KNEESUPPORT-05',
+        'code' => 'KNEESUPPORT-05-BLACK-S',
+        'type' => ItemType::ASSET_LANCAR->value,
+    ]);
+
+    $this->artisan('items:backfill-group-parent-id', ['--copy-catalog' => true])
+        ->assertSuccessful()
+        ->expectsOutputToContain("Relinked 1 colorway(s): parent_id {$duplicate->id} → {$canonical->id}");
+
+    expect($group->fresh()->parent_id)->toBe($canonical->id);
+
+    $canonical->refresh();
+    expect($canonical->description)->toBe('KNEE SUPPORT DESC');
+    expect($canonical->product_name)->toBe('ULTIMATE KNEE SUPPORT');
 });
 
 it('reports already-linked groups when nothing needs parent_id', function () {

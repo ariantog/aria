@@ -333,7 +333,7 @@ final class ItemPricing
         $record = null;
 
         if (Schema::hasColumn('item_parents', 'parent_key')) {
-            $record = ItemParent::query()->where('parent_key', $parentKey)->first();
+            $record = ItemParent::query()->where('parent_key', $parentKey)->orderBy('id')->first();
         }
 
         if ($record === null) {
