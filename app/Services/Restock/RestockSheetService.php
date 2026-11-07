@@ -121,7 +121,7 @@ class RestockSheetService
         return [
           'pcode' => $parentPcode,
           'name' => $name,
-          'image_url' => $group?->image_url ?? asset('images/default-item.svg'),
+          'image_url' => app(\App\Support\ItemImageResolver::class)->resolveUrlForItems($items),
           'group_url' => $groupUrl,
           'sku_count' => $items->count(),
           'totals' => [

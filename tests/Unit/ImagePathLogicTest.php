@@ -203,4 +203,29 @@ class ImagePathLogicTest extends TestCase
 
         $this->assertEquals(config('core-nation.item_image_url').'01/701.jpg', $url);
     }
+
+    public function test_resolve_url_for_items_scans_every_group_and_sku(): void
+    {
+        $groupA = new ItemGroup;
+        $groupA->id = 80;
+
+        $groupB = new ItemGroup;
+        $groupB->id = 81;
+
+        $first = new Item;
+        $first->id = 801;
+        $first->group_id = 80;
+
+        $second = new Item;
+        $second->id = 802;
+        $second->group_id = 81;
+
+        $diskPath = $this->resolver->diskPathForId(81);
+        File::ensureDirectoryExists(dirname($diskPath));
+        File::put($diskPath, 'second colorway group image');
+
+        $url = $this->resolver->resolveUrlForItems(collect([$first, $second]));
+
+        $this->assertEquals($this->resolver->publicUrlForId(81), $url);
+    }
 }

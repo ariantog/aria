@@ -317,8 +317,35 @@ class ItemGroupHierarchyService
             return collect();
         }
 
-        return ItemGroup::query()
+        $byParentId = $this->colorwayGroupsQuery()
             ->where('parent_id', $parentId)
+            ->orderBy('variant')
+            ->get();
+
+        $parent = ItemParent::query()->find($parentId);
+        $parentKey = trim((string) ($parent?->parent_key ?? ''));
+        if ($parentKey === '') {
+            return $byParentId;
+        }
+
+        $byKey = $this->groupsForParentKey($parentKey);
+        if ($byKey->isEmpty()) {
+            return $byParentId;
+        }
+
+        return $byParentId
+            ->concat($byKey)
+            ->unique('id')
+            ->sortBy('variant')
+            ->values();
+    }
+
+    /**
+     * @return Builder<ItemGroup>
+     */
+    protected function colorwayGroupsQuery(): Builder
+    {
+        return ItemGroup::query()
             ->with([
                 'items' => fn ($q) => $q
                     ->whereNull('deleted_at')
@@ -328,9 +355,7 @@ class ItemGroupHierarchyService
                             ->forAvailableStock()
                             ->with('warehouse'),
                     ]),
-            ])
-            ->orderBy('variant')
-            ->get();
+            ]);
     }
 
     /**
