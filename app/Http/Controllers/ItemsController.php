@@ -590,11 +590,11 @@ class ItemsController extends Controller
         ]);
     }
 
-    public function groupParentDetail(ItemGroup $group)
+    public function groupParentDetail(\App\Models\ItemParent $parent)
     {
         Gate::authorize(ItemGroup::getPermissions()['view']);
 
-        $detail = $this->groupHierarchy->parentDetailForAnchorGroup($group);
+        $detail = $this->groupHierarchy->parentDetailForParent($parent);
 
         abort_if($detail === null, 404);
 
@@ -602,39 +602,57 @@ class ItemsController extends Controller
             'detail' => $detail,
             'canEditGroup' => auth()->user()->can(ItemGroup::getPermissions()['edit']),
             'parentPricingState' => ItemPricing::formStateForParent(
-                $detail['parent_key'],
-                Item::query()->whereIn('group_id', $detail['group_ids'])->with('group')->first(),
+                (int) $parent->id,
+                Item::query()->whereIn('group_id', $detail['group_ids'])->with('group.parent')->first(),
             ),
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
 
+    public function redirectGroupParentFromColorway(ItemGroup $group)
+    {
+        $parentId = (int) $group->parent_id;
+
+        if ($parentId <= 0) {
+            $sample = $group->items()->whereNull('deleted_at')->with(['tags', 'group'])->orderBy('id')->first();
+            abort_if($sample === null, 404);
+            ItemPricing::ensureParentForItem($sample);
+            $parentId = (int) $group->fresh()->parent_id;
+        }
+
+        abort_if($parentId <= 0, 404);
+
+        return redirect()->route('items.group-parent-detail', $parentId, 301);
+    }
+
     public function redirectLegacyGroupParent(string $parentSlug)
     {
         $parentKey = $this->identityBuilder->parentKeyFromSlug($parentSlug);
-        $anchorGroupId = $this->groupHierarchy->anchorGroupIdForParentKey($parentKey);
+        $parentId = $this->groupHierarchy->parentIdForParentKey($parentKey);
 
-        abort_if($anchorGroupId === null, 404);
+        abort_if($parentId === null, 404);
 
-        return redirect()->route('items.group-parent-detail', $anchorGroupId, 301);
+        return redirect()->route('items.group-parent-detail', $parentId, 301);
     }
 
-    public function exportGroupParent(ItemGroup $group, ItemGroupParentExportService $exportService)
+    public function exportGroupParent(\App\Models\ItemParent $parent, ItemGroupParentExportService $exportService)
     {
         Gate::authorize(ItemGroup::getPermissions()['view']);
 
-        $detail = $this->groupHierarchy->parentDetailForAnchorGroup($group, fetchJubelio: false);
+        $detail = $this->groupHierarchy->parentDetailForParent($parent, fetchJubelio: false);
 
         abort_if($detail === null, 404);
 
-        return $exportService->download($detail['parent_key']);
+        $parentKey = (string) ($detail['parent_key'] ?? '');
+
+        return $exportService->download($parentKey !== '' ? $parentKey : (string) $parent->id);
     }
 
-    public function updateGroupParentName(Request $request, ItemGroup $group)
+    public function updateGroupParentName(Request $request, \App\Models\ItemParent $parent)
     {
         Gate::authorize(ItemGroup::getPermissions()['edit']);
 
-        $detail = $this->groupHierarchy->parentDetailForAnchorGroup($group, fetchJubelio: false);
+        $detail = $this->groupHierarchy->parentDetailForParent($parent, fetchJubelio: false);
 
         abort_if($detail === null, 404);
 
@@ -647,21 +665,21 @@ class ItemsController extends Controller
 
         try {
             $this->itemService->applyParentGroupProductName(
-                $detail['parent_key'],
+                (int) $parent->id,
                 (string) $request->input('name'),
                 $detail['group_ids'],
                 $request->boolean('reset_colorway_titles'),
             );
 
             return redirect()
-                ->route('items.group-parent-detail', $group->id)
+                ->route('items.group-parent-detail', $parent->id)
                 ->with('success', 'Parent product name updated.');
         } catch (\Exception $e) {
             return back()->withErrors(['message' => $e->getMessage()])->withInput();
         }
     }
 
-    public function updateGroupParentPricing(Request $request, ItemGroup $group)
+    public function updateGroupParentPricing(Request $request, \App\Models\ItemParent $parent)
     {
         Gate::authorize(ItemGroup::getPermissions()['edit']);
 
@@ -669,26 +687,26 @@ class ItemsController extends Controller
             'cascade_pricing' => ['nullable', 'boolean'],
         ], $this->pricingValidationRules()));
 
-        $detail = $this->groupHierarchy->parentDetailForAnchorGroup($group, fetchJubelio: false);
+        $detail = $this->groupHierarchy->parentDetailForParent($parent, fetchJubelio: false);
 
         abort_if($detail === null, 404);
 
         $this->itemService->applyParentGroupPricing(
-            $detail['parent_key'],
+            (int) $parent->id,
             $request->input('pricing', []),
             $request->boolean('cascade_pricing'),
         );
 
         return redirect()
-            ->route('items.group-parent-detail', $group->id)
+            ->route('items.group-parent-detail', $parent->id)
             ->with('success', 'Parent group pricing updated.');
     }
 
-    public function updateGroupParentDescriptions(Request $request, ItemGroup $group)
+    public function updateGroupParentDescriptions(Request $request, \App\Models\ItemParent $parent)
     {
         Gate::authorize(ItemGroup::getPermissions()['edit']);
 
-        $detail = $this->groupHierarchy->parentDetailForAnchorGroup($group, fetchJubelio: false);
+        $detail = $this->groupHierarchy->parentDetailForParent($parent, fetchJubelio: false);
 
         abort_if($detail === null, 404);
 
@@ -699,7 +717,7 @@ class ItemsController extends Controller
         ]);
 
         $this->itemService->applyParentGroupDescriptions(
-            $detail['parent_key'],
+            (int) $parent->id,
             (string) $request->input('description', ''),
             (string) $request->input('description2', ''),
             $detail['group_ids'],
@@ -707,7 +725,7 @@ class ItemsController extends Controller
         );
 
         return redirect()
-            ->route('items.group-parent-detail', $group->id)
+            ->route('items.group-parent-detail', $parent->id)
             ->with('success', 'Parent group descriptions updated.');
     }
 
@@ -724,7 +742,17 @@ class ItemsController extends Controller
             $this->identityBuilder->itemParentKey($sample)
         ) ?? $group->id;
 
-        return redirect()->route('items.group-parent-detail', $anchorGroupId);
+        $parentId = (int) ($group->parent_id ?? 0);
+        if ($parentId <= 0) {
+            ItemPricing::ensureParentForItem($sample);
+            $parentId = (int) $group->fresh()->parent_id;
+        }
+
+        if ($parentId > 0) {
+            return redirect()->route('items.group-parent-detail', $parentId);
+        }
+
+        return redirect()->route('items.group-parent-detail-legacy', $group->id);
     }
 
     public function colorwayEdit(ItemGroup $group)
@@ -751,9 +779,11 @@ class ItemsController extends Controller
         $color = $this->identityBuilder->itemColorInfo($sample);
         $typeTag = $sample->tags->firstWhere('type', Tag::TYPE_TYPE);
         $resolvedSampleWarna = $this->identityBuilder->warnaTagForItem($sample);
-        $parentGroupId = $this->groupHierarchy->anchorGroupIdForParentKey(
-            $this->identityBuilder->itemParentKey($sample)
-        ) ?? $group->id;
+        $parentId = (int) ($group->parent_id ?? 0);
+        if ($parentId <= 0) {
+            ItemPricing::ensureParentForItem($sample);
+            $parentId = (int) $group->fresh()->parent_id;
+        }
 
         $identityBuilder = $this->identityBuilder;
         $items->each(fn (Item $item) => $item->setRelation('group', $group));
@@ -822,7 +852,7 @@ class ItemsController extends Controller
             'parentDescription2' => $parentDescription2,
             'usesPlaceholder' => $usesPlaceholder,
             'color' => $color,
-            'parentGroupId' => $parentGroupId,
+            'parentId' => $parentId,
             'isAsset' => $itemType === ItemType::ASSET_LANCAR,
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]));

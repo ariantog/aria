@@ -8,12 +8,14 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (! Schema::hasTable('item_parent_prices')) {
+        $table = Schema::hasTable('item_parents') ? 'item_parents' : (Schema::hasTable('item_parent_prices') ? 'item_parent_prices' : null);
+
+        if ($table === null) {
             return;
         }
 
-        if (! Schema::hasColumn('item_parent_prices', 'product_name')) {
-            Schema::table('item_parent_prices', function (Blueprint $table) {
+        if (! Schema::hasColumn($table, 'product_name')) {
+            Schema::table($table, function (Blueprint $table) {
                 $table->string('product_name', 255)->default('')->after('parent_key');
             });
         }

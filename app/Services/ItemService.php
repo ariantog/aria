@@ -351,7 +351,7 @@ class ItemService
      * @param  list<int>  $groupIds
      */
     public function applyParentGroupProductName(
-        string $parentKey,
+        int $parentId,
         string $productName,
         array $groupIds,
         bool $resetColorwayTitlesToInherit = false,
@@ -362,8 +362,8 @@ class ItemService
             throw new Exception('Product name is required.');
         }
 
-        DB::transaction(function () use ($parentKey, $productName, $groupIds, $resetColorwayTitlesToInherit): void {
-            ItemProductTitle::syncParentProductName($parentKey, $productName);
+        DB::transaction(function () use ($parentId, $productName, $groupIds, $resetColorwayTitlesToInherit): void {
+            ItemProductTitle::syncParentProductNameById($parentId, $productName);
 
             if ($resetColorwayTitlesToInherit) {
                 foreach ($groupIds as $groupId) {
@@ -417,20 +417,20 @@ class ItemService
      * @param  list<int>  $groupIds
      */
     public function applyParentGroupDescriptions(
-        string $parentKey,
+        int $parentId,
         string $description,
         string $description2,
         array $groupIds,
         bool $resetColorwayDescriptionsToInherit = false,
     ): void {
         DB::transaction(function () use (
-            $parentKey,
+            $parentId,
             $description,
             $description2,
             $groupIds,
             $resetColorwayDescriptionsToInherit,
         ): void {
-            ItemCatalog::syncParentDescriptions($parentKey, $description, $description2);
+            ItemCatalog::syncParentDescriptionsById($parentId, $description, $description2);
 
             if (! $resetColorwayDescriptionsToInherit) {
                 return;
@@ -455,10 +455,10 @@ class ItemService
     /**
      * @param  array<string, array{scope?: mixed, value?: mixed}>  $pricingRows
      */
-    public function applyParentGroupPricing(string $parentKey, array $pricingRows, bool $cascadeOverrides = false): void
+    public function applyParentGroupPricing(int $parentId, array $pricingRows, bool $cascadeOverrides = false): void
     {
-        DB::transaction(function () use ($parentKey, $pricingRows, $cascadeOverrides): void {
-            ItemPricing::applyForParent($parentKey, $pricingRows, $cascadeOverrides);
+        DB::transaction(function () use ($parentId, $pricingRows, $cascadeOverrides): void {
+            ItemPricing::applyForParent($parentId, $pricingRows, $cascadeOverrides);
         });
     }
 

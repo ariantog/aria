@@ -5,13 +5,14 @@ namespace App\Support;
 use App\Enums\ItemType;
 use App\Models\Item;
 use App\Models\ItemGroup;
+use App\Models\ItemParent;
 use App\Models\ItemParentPrice;
 use App\Models\Tag;
 use App\Services\Items\ItemIdentityBuilder;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Bare product title resolves: SKU (items.alias) → colorway (item_group.name) → parent group.
+ * Bare product title resolves: SKU (items.alias) → parent (item_parents.product_name).
  *
  * Full SKU display names: manufactured = bare title + size; asset lancar adds warna via buildName().
  *
@@ -42,29 +43,6 @@ final class ItemProductTitle
         $skuTitle = self::readItemAlias($item);
         if ($skuTitle !== '') {
             return self::normalizeBareTitle($itemType, $skuTitle, $item->group, $builder);
-        }
-
-        if ($item->hasCatalogGroup()) {
-            $group = $item->group;
-            $storedName = (string) ($group->name ?? '');
-            if ($storedName !== '' && ! self::isPcodePlaceholder($itemType, $storedName, $pcode)) {
-                return self::normalizeBareTitle(
-                    $itemType,
-                    $builder->productDisplayName(
-                        $itemType,
-                        $storedName,
-                        (string) ($group->variant ?? ''),
-                        (string) ($group->master ?? ''),
-                    ),
-                    $group,
-                    $builder,
-                );
-            }
-
-            $groupAlias = self::readGroupAlias($group);
-            if ($groupAlias !== '') {
-                return self::normalizeBareTitle($itemType, $groupAlias, $group, $builder);
-            }
         }
 
         $parentTitle = self::readParentProductName($item);
@@ -148,7 +126,7 @@ final class ItemProductTitle
 
     public static function parentProductNameForKey(string $parentKey): string
     {
-        if (! self::hasColumn('item_parent_prices', 'product_name')) {
+        if (! self::hasColumn('item_parents', 'product_name') && ! self::hasColumn('item_parent_prices', 'product_name')) {
             return '';
         }
 
@@ -173,17 +151,29 @@ final class ItemProductTitle
 
     public static function syncParentProductName(string $parentKey, string $productName): void
     {
-        if (! self::hasColumn('item_parent_prices', 'product_name')) {
+        if (! self::hasColumn('item_parents', 'product_name') && ! self::hasColumn('item_parent_prices', 'product_name')) {
             return;
         }
 
         $parentKey = trim($parentKey);
         $productName = strtoupper(trim($productName));
-        $record = ItemParentPrice::query()->firstOrNew(['parent_key' => $parentKey]);
+        $record = ItemParent::query()->firstOrNew(['parent_key' => $parentKey]);
         $record->product_name = $productName;
         $record->save();
 
         self::$parentRecordCache[$parentKey] = $record->fresh();
+    }
+
+    public static function syncParentProductNameById(int $parentId, string $productName): void
+    {
+        if ($parentId <= 0) {
+            return;
+        }
+
+        $productName = strtoupper(trim($productName));
+        $record = ItemParent::query()->findOrFail($parentId);
+        $record->product_name = $productName;
+        $record->save();
     }
 
     private static function normalizeBareTitle(
@@ -252,7 +242,7 @@ final class ItemProductTitle
 
     private static function readParentProductName(Item $item): string
     {
-        if (! self::hasColumn('item_parent_prices', 'product_name')) {
+        if (! self::hasColumn('item_parents', 'product_name') && ! self::hasColumn('item_parent_prices', 'product_name')) {
             return '';
         }
 
@@ -261,12 +251,19 @@ final class ItemProductTitle
         return strtoupper(trim((string) ($parent?->product_name ?? '')));
     }
 
-    private static function parentRecord(Item $item): ?ItemParentPrice
+    private static function parentRecord(Item $item): ?ItemParent
     {
+        $item->loadMissing('group');
+        $parentId = (int) ($item->group?->parent_id ?? 0);
+
+        if ($parentId > 0) {
+            return ItemParent::query()->find($parentId);
+        }
+
         $parentKey = app(ItemIdentityBuilder::class)->itemParentKey($item);
 
         if (! array_key_exists($parentKey, self::$parentRecordCache)) {
-            self::$parentRecordCache[$parentKey] = ItemParentPrice::query()
+            self::$parentRecordCache[$parentKey] = ItemParent::query()
                 ->where('parent_key', $parentKey)
                 ->first();
         }
