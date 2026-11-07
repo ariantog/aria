@@ -13,6 +13,7 @@ use App\Support\ItemCatalog;
 use App\Support\ItemPricing;
 use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 class BackfillItemGroupParentIdCommand extends Command
@@ -69,7 +70,7 @@ class BackfillItemGroupParentIdCommand extends Command
             }
 
             $parentKey = $identityBuilder->itemParentKey($sample);
-            $parent = ItemParent::query()->where('parent_key', $parentKey)->first();
+            $parent = ItemParent::query()->where('parent_key', $parentKey)->orderBy('id')->first();
 
             if ($parent === null) {
                 if ($dryRun) {
@@ -105,6 +106,12 @@ class BackfillItemGroupParentIdCommand extends Command
         }
 
         if ($copyCatalog) {
+            $relinked = $this->consolidateDuplicateParentKeys($dryRun);
+            if ($relinked > 0) {
+                $this->line("Consolidated colorway links onto canonical parent ids: {$relinked} group row(s)".($dryRun ? ' (dry-run)' : ''));
+            }
+            $this->reportDuplicateParentKeys();
+
             $catalogCopied = $this->copyCatalogForLinkedParents($dryRun, $limit, $hierarchy, $identityBuilder);
         }
 
@@ -161,9 +168,27 @@ class BackfillItemGroupParentIdCommand extends Command
         }
 
         $updates = 0;
+        $processedKeys = [];
 
         foreach ($parentQuery->get() as $parent) {
-            $updates += $this->copyLegacyCatalogOntoParent($parent, $dryRun, $hierarchy, $identityBuilder);
+            $canonical = $this->canonicalParentFor($parent);
+            $parentKey = trim((string) ($canonical->parent_key ?? ''));
+
+            if ($parentKey !== '' && isset($processedKeys[$parentKey])) {
+                continue;
+            }
+
+            if ($parentKey !== '') {
+                $processedKeys[$parentKey] = true;
+            }
+
+            if ((int) $parent->id !== (int) $canonical->id) {
+                $this->comment(
+                    "Using canonical parent #{$canonical->id} for key {$parentKey} (skipped duplicate parent #{$parent->id})."
+                );
+            }
+
+            $updates += $this->copyLegacyCatalogOntoParent($canonical, $dryRun, $hierarchy, $identityBuilder);
         }
 
         return $updates;
@@ -175,10 +200,13 @@ class BackfillItemGroupParentIdCommand extends Command
         ItemGroupHierarchyService $hierarchy,
         ItemIdentityBuilder $identityBuilder,
     ): int {
+        $parent = $this->canonicalParentFor($parent);
         $parent->refresh();
 
+        $parentIds = $this->siblingParentIds($parent);
+
         $groups = ItemGroup::query()
-            ->where('parent_id', (int) $parent->id)
+            ->whereIn('parent_id', $parentIds)
             ->with(['items' => fn ($q) => $q->orderBy('id')])
             ->orderBy('id')
             ->get();
@@ -237,13 +265,173 @@ class BackfillItemGroupParentIdCommand extends Command
             return 1;
         }
 
-        if (ItemCatalog::applyToParentRecord($parent, $attributes)) {
-            $this->line("Copied catalog → parent #{$parent->id} from group id(s): {$groupIds}");
+        if (! ItemCatalog::applyToParentRecord($parent, $attributes)) {
+            $this->error("Failed to persist catalog on parent #{$parent->id}");
 
-            return 1;
+            return 0;
         }
 
-        return 0;
+        if (! $this->verifyParentCatalogPersisted($parent->id, array_keys($attributes))) {
+            $this->error(
+                "Save verification failed for parent #{$parent->id} — re-query still shows empty catalog. "
+                .'Check you are viewing the same database/host as php artisan (.env).'
+            );
+
+            return 0;
+        }
+
+        $fresh = ItemParent::query()->find($parent->id);
+        $title = trim((string) ($fresh?->product_name ?? ''));
+        $descLen = strlen(trim((string) ($fresh?->description ?? '')));
+        $this->line(
+            "Copied catalog → parent #{$parent->id} from group id(s): {$groupIds}"
+            .($title !== '' ? " — product_name: {$title}" : '')
+            .($descLen > 0 ? ", description: {$descLen} chars" : '')
+        );
+
+        return 1;
+    }
+
+    protected function consolidateDuplicateParentKeys(bool $dryRun): int
+    {
+        if (! Schema::hasColumn('item_parents', 'parent_key')) {
+            return 0;
+        }
+
+        $duplicateKeys = DB::table('item_parents')
+            ->select('parent_key')
+            ->whereNotNull('parent_key')
+            ->where('parent_key', '!=', '')
+            ->groupBy('parent_key')
+            ->havingRaw('COUNT(*) > 1')
+            ->pluck('parent_key');
+
+        $relinked = 0;
+
+        foreach ($duplicateKeys as $parentKey) {
+            $parentIds = ItemParent::query()
+                ->where('parent_key', $parentKey)
+                ->orderBy('id')
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+
+            if (count($parentIds) < 2) {
+                continue;
+            }
+
+            $canonicalId = $parentIds[0];
+
+            foreach (array_slice($parentIds, 1) as $duplicateId) {
+                $groupCount = ItemGroup::query()->where('parent_id', $duplicateId)->count();
+                if ($groupCount === 0) {
+                    continue;
+                }
+
+                if ($dryRun) {
+                    $this->line("Would relink {$groupCount} colorway(s): parent_id {$duplicateId} → {$canonicalId} ({$parentKey})");
+                } else {
+                    ItemGroup::query()
+                        ->where('parent_id', $duplicateId)
+                        ->update(['parent_id' => $canonicalId]);
+                    $this->line("Relinked {$groupCount} colorway(s): parent_id {$duplicateId} → {$canonicalId} ({$parentKey})");
+                }
+
+                $relinked += $groupCount;
+            }
+        }
+
+        return $relinked;
+    }
+
+    protected function reportDuplicateParentKeys(): void
+    {
+        $rows = DB::table('item_parents')
+            ->select('parent_key', DB::raw('COUNT(*) as parent_count'), DB::raw('MIN(id) as canonical_id'))
+            ->whereNotNull('parent_key')
+            ->where('parent_key', '!=', '')
+            ->groupBy('parent_key')
+            ->havingRaw('COUNT(*) > 1')
+            ->orderBy('parent_key')
+            ->limit(15)
+            ->get();
+
+        if ($rows->isEmpty()) {
+            return;
+        }
+
+        $this->warn('Duplicate item_parents.parent_key rows remain (orphans after relink). Canonical id = MIN(id):');
+        foreach ($rows as $row) {
+            $this->line("  {$row->parent_key}: {$row->parent_count} rows → use canonical #{$row->canonical_id}");
+        }
+    }
+
+    protected function canonicalParentFor(ItemParent $parent): ItemParent
+    {
+        $parentKey = trim((string) ($parent->parent_key ?? ''));
+        if ($parentKey === '') {
+            return $parent;
+        }
+
+        return ItemParent::query()
+            ->where('parent_key', $parentKey)
+            ->orderBy('id')
+            ->first() ?? $parent;
+    }
+
+    /**
+     * @return list<int>
+     */
+    protected function siblingParentIds(ItemParent $parent): array
+    {
+        $parentKey = trim((string) ($parent->parent_key ?? ''));
+        if ($parentKey === '') {
+            return [(int) $parent->id];
+        }
+
+        return ItemParent::query()
+            ->where('parent_key', $parentKey)
+            ->orderBy('id')
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
+    /**
+     * @param  list<string>  $attributeKeys
+     */
+    protected function verifyParentCatalogPersisted(int $parentId, array $attributeKeys): bool
+    {
+        $fresh = ItemParent::query()->find($parentId);
+        if ($fresh === null) {
+            return false;
+        }
+
+        foreach ($attributeKeys as $key) {
+            if (in_array($key, ['product_name', 'description', 'description2', 'url'], true)) {
+                if (trim((string) ($fresh->{$key} ?? '')) !== '') {
+                    return true;
+                }
+
+                continue;
+            }
+
+            if (in_array($key, ['brand', 'genre'], true)) {
+                if ((int) ($fresh->{$key} ?? 0) > 0) {
+                    return true;
+                }
+
+                continue;
+            }
+
+            if (in_array($key, ['price', 'reseller_price', 'cost', 'cost_cnh'], true)) {
+                if ((float) ($fresh->{$key} ?? 0) > 0) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
