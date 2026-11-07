@@ -19,7 +19,8 @@ class BackfillItemGroupParentIdCommand extends Command
 {
     protected $signature = 'items:backfill-group-parent-id
                             {--dry-run : Report changes without writing}
-                            {--limit=0 : Max colorway groups to process (0 = all)}
+                            {--limit=0 : Max parents (copy-catalog) or colorway groups (link pass) to process (0 = all)}
+                            {--parent-id= : With --copy-catalog, only this item_parents.id}
                             {--copy-catalog : Copy empty parent catalog fields from item_group legacy columns}';
 
     protected $description = 'Link item_group.parent_id to item_parents; optionally copy legacy group catalog onto parent rows.';
@@ -145,11 +146,15 @@ class BackfillItemGroupParentIdCommand extends Command
         ItemGroupHierarchyService $hierarchy,
         ItemIdentityBuilder $identityBuilder,
     ): int {
+        $onlyParentId = max(0, (int) $this->option('parent-id'));
+
         $parentQuery = ItemParent::query()
-            ->whereHas('colorwayGroups', fn ($q) => $q
-                ->where('parent_id', '>', 0)
-                ->whereHas('items', fn ($iq) => $iq->whereNull('deleted_at')))
+            ->whereHas('colorwayGroups')
             ->orderBy('id');
+
+        if ($onlyParentId > 0) {
+            $parentQuery->whereKey($onlyParentId);
+        }
 
         if ($limit > 0) {
             $parentQuery->limit($limit);
@@ -174,57 +179,97 @@ class BackfillItemGroupParentIdCommand extends Command
 
         $groups = ItemGroup::query()
             ->where('parent_id', (int) $parent->id)
-            ->whereHas('items', fn ($q) => $q->whereNull('deleted_at'))
-            ->with(['items' => fn ($q) => $q->whereNull('deleted_at')->orderBy('id')])
+            ->with(['items' => fn ($q) => $q->orderBy('id')])
             ->orderBy('id')
             ->get();
 
         if ($groups->isEmpty()) {
+            $this->warn("Parent #{$parent->id} has no item_group rows with parent_id={$parent->id} — nothing to copy.");
+
             return 0;
         }
 
-        $sample = null;
-        foreach ($groups as $group) {
-            $sample = $this->sampleItemForGroup($group);
-            if ($sample !== null) {
-                break;
+        $sample = $this->sampleItemPreferringActive($groups);
+        $itemType = ItemType::ITEM;
+        $parentKey = trim((string) ($parent->parent_key ?? ''));
+
+        if ($sample !== null) {
+            $sample->loadMissing(['group', 'tags']);
+            $itemType = $sample->type instanceof ItemType
+                ? $sample->type
+                : ItemType::coerce($sample->type) ?? ItemType::ITEM;
+
+            if ($parentKey === '') {
+                $parentKey = $identityBuilder->itemParentKey($sample);
             }
+        } elseif ($parentKey === '' && trim((string) $groups->first()?->master) !== '') {
+            $parentKey = ItemType::ASSET_LANCAR->value.':'.strtoupper(trim((string) $groups->first()->master));
+            $itemType = ItemType::ASSET_LANCAR;
         }
-
-        if ($sample === null) {
-            return 0;
-        }
-
-        $sample->loadMissing(['group', 'tags']);
-        $itemType = $sample->type instanceof ItemType
-            ? $sample->type
-            : ItemType::coerce($sample->type) ?? ItemType::ITEM;
 
         $attributes = $this->buildLegacyCatalogAttributes(
             $parent,
             $groups,
-            (string) ($parent->parent_key ?? $identityBuilder->itemParentKey($sample)),
+            $parentKey,
             $itemType,
             $hierarchy,
         );
 
         if ($attributes === []) {
+            $this->line(
+                'Parent #'.$parent->id.' ('.($parent->parent_key ?? '').'): groups '
+                .$groups->pluck('id')->join(', ')
+                .' — parent already has catalog or groups have no legacy fields to lift.'
+            );
+
             return 0;
         }
 
+        $groupIds = $groups->pluck('id')->join(', ');
+
         if ($dryRun) {
             $this->line(
-                'Would copy catalog → parent #'.$parent->id.' ('.($parent->parent_key ?? '').'): '
+                'Would copy catalog → parent #'.$parent->id.' ('.($parent->parent_key ?? '').')'
+                ." from colorway group id(s): {$groupIds}; fields: "
                 .implode(', ', array_keys($attributes))
             );
 
             return 1;
         }
 
-        $anchorGroup = $groups->first();
-        ItemCatalog::applySharedCatalog($anchorGroup, $sample, $attributes);
+        if (ItemCatalog::applyToParentRecord($parent, $attributes)) {
+            $this->line("Copied catalog → parent #{$parent->id} from group id(s): {$groupIds}");
 
-        return 1;
+            return 1;
+        }
+
+        return 0;
+    }
+
+    /**
+     * @param  Collection<int, ItemGroup>  $groups
+     */
+    protected function sampleItemPreferringActive(Collection $groups): ?Item
+    {
+        foreach ($groups as $group) {
+            $active = $this->sampleItemForGroup($group);
+            if ($active !== null) {
+                return $active;
+            }
+        }
+
+        foreach ($groups as $group) {
+            $any = $group->items->first();
+            if ($any !== null) {
+                return $any;
+            }
+        }
+
+        return Item::query()
+            ->whereIn('group_id', $groups->pluck('id')->all())
+            ->orderByRaw('CASE WHEN deleted_at IS NULL THEN 0 ELSE 1 END')
+            ->orderBy('id')
+            ->first();
     }
 
     /**
@@ -243,6 +288,9 @@ class BackfillItemGroupParentIdCommand extends Command
         if (trim((string) ($parent->product_name ?? '')) === ''
             && ItemCatalog::parentColumnExists('product_name')) {
             $productName = trim($hierarchy->legacyParentProductName($groups, $parentKey, $itemType));
+            if ($productName === '') {
+                $productName = $this->firstNonEmptyFromGroups($groups, 'name');
+            }
             if ($productName !== '') {
                 $attributes['product_name'] = $productName;
             }

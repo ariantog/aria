@@ -49,6 +49,41 @@ it('copies legacy group catalog when parent_id is already linked', function () {
     expect($parent->product_name)->toBe('LEGACY PRODUCT TITLE');
 });
 
+it('copies group catalog when skus are soft-deleted', function () {
+    $parent = ItemParent::query()->create([
+        'parent_key' => '2:KNEESUPPORT-05',
+    ]);
+
+    $group = ItemGroup::factory()->create([
+        'parent_id' => $parent->id,
+        'master' => 'KNEESUPPORT-05',
+        'variant' => 'BLACK',
+        'name' => 'ULTIMATE KNEE SUPPORT',
+        'description' => 'EXTRA SUPPORT',
+        'description2' => 'RESELLER NOTE',
+        'genre' => 6499,
+    ]);
+
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
+        'deleted_at' => now(),
+        'pcode' => 'KNEESUPPORT-05',
+        'code' => 'KNEESUPPORT-05-BLACK-S',
+        'type' => ItemType::ASSET_LANCAR->value,
+    ]);
+
+    $this->artisan('items:backfill-group-parent-id', [
+        '--copy-catalog' => true,
+        '--parent-id' => (string) $parent->id,
+    ])->assertSuccessful();
+
+    $parent->refresh();
+    expect($parent->product_name)->toBe('ULTIMATE KNEE SUPPORT');
+    expect($parent->description)->toBe('EXTRA SUPPORT');
+    expect($parent->description2)->toBe('RESELLER NOTE');
+    expect($parent->genre)->toBe(6499);
+});
+
 it('reports already-linked groups when nothing needs parent_id', function () {
     $group = ItemGroup::factory()->create(['parent_id' => 0]);
     Item::factory()->create(['group_id' => $group->id]);

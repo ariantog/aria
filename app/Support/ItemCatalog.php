@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Enums\ItemBrand;
 use App\Models\Item;
 use App\Models\ItemGroup;
+use App\Models\ItemParent;
 use App\Models\ItemParentPrice;
 use App\Services\Items\ItemIdentityBuilder;
 use Illuminate\Database\Eloquent\Builder;
@@ -337,50 +338,74 @@ final class ItemCatalog
         }
 
         $record = \App\Models\ItemParent::query()->findOrFail($parentId);
+        self::applyToParentRecord($record, $attributes);
+    }
+
+    /**
+     * Backfill / admin: write catalog fields on a known item_parents row (no group re-resolution).
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    public static function applyToParentRecord(ItemParent $parent, array $attributes): bool
+    {
+        if ($attributes === []) {
+            return false;
+        }
+
+        $parent->refresh();
         $dirty = false;
 
         if (array_key_exists('description', $attributes)) {
-            $record->description = strtoupper((string) ($attributes['description'] ?? ''));
+            $parent->description = strtoupper((string) ($attributes['description'] ?? ''));
             $dirty = true;
         }
 
         if (array_key_exists('description2', $attributes)) {
-            $record->description2 = strtoupper((string) ($attributes['description2'] ?? ''));
+            $parent->description2 = strtoupper((string) ($attributes['description2'] ?? ''));
             $dirty = true;
         }
 
         if (array_key_exists('url', $attributes)) {
-            $record->url = trim((string) ($attributes['url'] ?? ''));
+            $parent->url = trim((string) ($attributes['url'] ?? ''));
             $dirty = true;
         }
 
         if (array_key_exists('product_name', $attributes) && self::parentColumnExists('product_name')) {
-            $record->product_name = strtoupper(trim((string) ($attributes['product_name'] ?? '')));
+            $parent->product_name = strtoupper(trim((string) ($attributes['product_name'] ?? '')));
             $dirty = true;
         }
 
         if (array_key_exists('brand', $attributes) && self::parentColumnExists('brand')) {
-            $record->brand = self::normalizeBrand($attributes['brand']);
+            $parent->brand = self::normalizeBrand($attributes['brand']);
             $dirty = true;
         }
 
         if (array_key_exists('genre', $attributes) && self::parentColumnExists('genre')) {
-            $record->genre = (int) ($attributes['genre'] ?? 0);
+            $parent->genre = (int) ($attributes['genre'] ?? 0);
             $dirty = true;
         }
 
         foreach (['price', 'reseller_price', 'cost', 'cost_cnh'] as $priceField) {
             if (array_key_exists($priceField, $attributes)) {
-                $record->{$priceField} = max(0, (float) ($attributes[$priceField] ?? 0));
+                $parent->{$priceField} = max(0, (float) ($attributes[$priceField] ?? 0));
                 $dirty = true;
             }
         }
 
-        if ($dirty) {
-            $record->save();
-            ItemPricing::flushRequestCache();
-            self::$parentRecordCache = [];
+        if (! $dirty) {
+            return false;
         }
+
+        $parent->save();
+        self::flushParentCatalogCaches();
+
+        return true;
+    }
+
+    private static function flushParentCatalogCaches(): void
+    {
+        ItemPricing::flushRequestCache();
+        self::$parentRecordCache = [];
     }
 
     /**
