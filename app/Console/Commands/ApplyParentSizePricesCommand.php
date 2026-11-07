@@ -3,18 +3,20 @@
 namespace App\Console\Commands;
 
 use App\Models\Item;
+use App\Models\ItemGroup;
 use App\Models\ItemParent;
 use App\Services\Items\ItemGroupHierarchyService;
 use App\Services\Items\ItemIdentityBuilder;
 use App\Support\ItemPricing;
 use Illuminate\Console\Command;
+use Illuminate\Database\QueryException;
 
 class ApplyParentSizePricesCommand extends Command
 {
     protected $signature = 'app:apply-parent-size-prices
         {parent : item_parents.id (e.g. 67 for items-group/parent/67)}
-        {--map= : Sell price map — SIZE:amount pairs, e.g. LIGHT:49000,MEDIUM:59000,XHEAVY:79000}
-        {--reseller-map= : Reseller price map — SIZE:amount pairs, e.g. LIGHT:15000,MEDIUM:17000,XHEAVY:27000}
+        {--map=* : Sell price entries (SIZE:amount). Repeat per size or once comma-separated — quote values in shell}
+        {--reseller-map=* : Reseller price entries (SIZE:amount). Repeat per size or once comma-separated}
         {--field=price : When --reseller-map is omitted, apply --map to this field instead of sell price}
         {--dry-run : List changes without writing}
         {--no-clear-parent-price : Keep item_parents defaults after updates (default: clear each touched field on the parent to 0)}
@@ -37,6 +39,11 @@ class ApplyParentSizePricesCommand extends Command
         $fieldMaps = $this->resolveFieldMaps();
         if ($fieldMaps === []) {
             $this->error('Provide at least one of --map (sell price) or --reseller-map.');
+            $this->line('Example (quote maps so the shell does not split on commas):');
+            $this->line("  php artisan app:apply-parent-size-prices 67 \\");
+            $this->line("    '--map=LIGHT:49000,MEDIUM:59000,XHEAVY:79000' \\");
+            $this->line("    '--reseller-map=LIGHT:15000,MEDIUM:17000,XHEAVY:27000' --dry-run");
+            $this->line('Or repeat flags: --map=LIGHT:49000 --map=MEDIUM:59000 --map=XHEAVY:79000');
 
             return self::FAILURE;
         }
@@ -54,9 +61,24 @@ class ApplyParentSizePricesCommand extends Command
             }
         }
 
-        $parent = ItemParent::query()->find($parentId);
+        try {
+            $parent = ItemParent::query()->find($parentId);
+        } catch (QueryException $e) {
+            $this->error('Could not query item_parents: '.$e->getMessage());
+            $this->line('Run pending migrations on this database before using this command.');
+
+            return self::FAILURE;
+        }
+
         if ($parent === null) {
             $this->error("No item_parents row for id {$parentId}.");
+            $linkedGroups = ItemGroup::query()->where('parent_id', $parentId)->count();
+            if ($linkedGroups > 0) {
+                $this->line("Found {$linkedGroups} item_group row(s) with parent_id={$parentId} but no matching parent — data repair needed.");
+            } else {
+                $this->line('Confirm this id matches the URL /items-group/parent/{id} and that APP_ENV points at production.');
+                $this->line('From a colorway group id: php artisan tinker --execute="echo (int) \\App\\Models\\ItemGroup::find(GROUP_ID)?->parent_id;"');
+            }
 
             return self::FAILURE;
         }
@@ -190,24 +212,49 @@ class ApplyParentSizePricesCommand extends Command
      */
     private function resolveFieldMaps(): array
     {
-        $mapRaw = trim((string) $this->option('map'));
-        $resellerRaw = trim((string) $this->option('reseller-map'));
+        /** @var array<int, string> $mapChunks */
+        $mapChunks = array_values(array_filter(array_map(
+            fn ($v) => trim((string) $v),
+            (array) $this->option('map'),
+        )));
+        /** @var array<int, string> $resellerChunks */
+        $resellerChunks = array_values(array_filter(array_map(
+            fn ($v) => trim((string) $v),
+            (array) $this->option('reseller-map'),
+        )));
         $field = (string) $this->option('field');
 
         $out = [];
 
-        if ($resellerRaw !== '') {
-            $out['reseller_price'] = $this->parseMap($resellerRaw);
+        if ($resellerChunks !== []) {
+            $out['reseller_price'] = $this->mergeMapChunks($resellerChunks);
         }
 
-        if ($mapRaw === '') {
+        if ($mapChunks === []) {
             return $out;
         }
 
-        $sellField = $resellerRaw !== '' ? 'price' : $field;
-        $out[$sellField] = $this->parseMap($mapRaw);
+        $sellField = $resellerChunks !== [] ? 'price' : $field;
+        $out[$sellField] = $this->mergeMapChunks($mapChunks);
 
         return $out;
+    }
+
+    /**
+     * @param  list<string>  $chunks
+     * @return array<string, float>
+     */
+    private function mergeMapChunks(array $chunks): array
+    {
+        $merged = [];
+
+        foreach ($chunks as $chunk) {
+            foreach ($this->parseMap($chunk) as $size => $amount) {
+                $merged[$size] = $amount;
+            }
+        }
+
+        return $merged;
     }
 
     /**
