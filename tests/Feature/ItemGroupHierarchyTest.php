@@ -178,6 +178,37 @@ it('renders parent detail with color sections and size rows', function () {
     expect($detail['colors'][0]['warehouse_breakdown'])->toBeArray();
 });
 
+it('parent detail includes effective sell price per sku and shows it on the page', function () {
+    $pinkGroup = ItemGroup::factory()->create([
+        'master' => 'CX93024',
+        'variant' => '05',
+        'name' => 'RUNNING SHIRT',
+        'price' => 199_000,
+    ]);
+
+    $pinkS = Item::factory()->create([
+        'group_id' => $pinkGroup->id,
+        'type' => ItemType::ITEM,
+        'pcode' => 'CX93024-05',
+        'code' => 'AJD-CX93024-05-S',
+        'name' => 'RUNNING SHIRT - PINK - S',
+        'price' => 0,
+    ]);
+    $pinkS->tags()->attach([$this->typeTag->id, $this->pinkTag->id, $this->sizeS->id]);
+
+    $parentKey = $this->builder->itemParentKey($pinkS->load('tags', 'group'));
+    $detail = $this->hierarchy->parentDetail($parentKey, fetchJubelio: false);
+
+    expect($detail['colors'][0]['size_rows'][0]['price'])->toBe(199_000.0);
+
+    $this->actingAs($this->user)
+        ->get(route('items.group-parent-detail', $pinkGroup->id))
+        ->assertOk()
+        ->assertSee('>Price<', false)
+        ->assertSee('data-testid="group-parent-row-price-'.$pinkS->id.'"', false)
+        ->assertSee('Rp '.format_amount(199_000, 0), false);
+});
+
 it('builds export payload with warehouse columns per sku', function () {
     $pinkGroup = ItemGroup::factory()->create(['master' => 'CX93024', 'variant' => '05', 'name' => 'RUNNING SHIRT']);
 

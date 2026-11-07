@@ -541,6 +541,7 @@ class ItemGroupHierarchyService
                             continue;
                         }
 
+                        $item->setRelation('group', $group);
                         $section['size_rows'][] = $this->buildSizeRow($item, $sizeCode, $jubelioStocks);
                     }
 
@@ -554,10 +555,12 @@ class ItemGroupHierarchyService
                         }
 
                         $sizeCode = $this->identityBuilder->itemSizeCode($item) ?? '—';
+                        $item->setRelation('group', $group);
                         $section['size_rows'][] = $this->buildSizeRow($item, $sizeCode, $jubelioStocks);
                     }
                 } else {
                     foreach ($colorItems as $item) {
+                        $item->setRelation('group', $group);
                         $section['no_size_items'][] = $this->buildSizeRow($item, '—', $jubelioStocks);
                     }
                 }
@@ -628,6 +631,7 @@ class ItemGroupHierarchyService
             'code' => $item->code,
             'name' => $item->name,
             'size' => $sizeCode,
+            'price' => $item->effectivePrice(),
             'show_url' => $base.'/'.$item->id,
             'warehouse_qty' => $item->warehouseItems->sum('quantity'),
             'warehouses' => $item->warehouseItems->map(fn ($wh) => [

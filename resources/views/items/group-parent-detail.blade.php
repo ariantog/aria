@@ -10,6 +10,7 @@ $breadcrumbs = [
     ['title' => $detail['label'], 'href' => '#'],
 ];
 $fmt = fn ($v) => format_amount($v, 0);
+$idr = fn ($v) => 'Rp '.format_amount($v, 0);
 @endphp
 
 <div class="p-4 sm:p-6" x-data="groupWarehousePicker(@js($detail['warehouse_names']), @js($detail['anchor_group_id']))">
@@ -321,6 +322,7 @@ $fmt = fn ($v) => format_amount($v, 0);
                             <tr>
                                 <th class="px-4 py-3 text-left font-semibold">Size</th>
                                 <th class="px-4 py-3 text-left font-semibold">SKU</th>
+                                <th class="px-4 py-3 text-right font-semibold">Price</th>
                                 <th class="px-4 py-3 text-right font-semibold">
                                     <div>Aria stock</div>
                                     <div class="mt-0.5 text-[10px] font-normal normal-case text-gray-400" x-text="selectedWarehouses.length > 0 ? 'selected + others' : 'all warehouses total'"></div>
@@ -351,6 +353,13 @@ $fmt = fn ($v) => format_amount($v, 0);
                                 <td class="px-4 py-3">
                                     <a href="{{ $row['show_url'] }}" class="font-mono text-blue-600 hover:underline">{{ $row['code'] }}</a>
                                     <div class="text-xs text-gray-500">{{ $row['name'] }}</div>
+                                </td>
+                                <td class="px-4 py-3 text-right font-mono tabular-nums text-gray-900" data-testid="group-parent-row-price-{{ $row['item_id'] }}">
+                                    @if((float) ($row['price'] ?? 0) > 0)
+                                        {{ $idr($row['price']) }}
+                                    @else
+                                        <span class="text-gray-400">—</span>
+                                    @endif
                                 </td>
                                 <td class="px-4 py-3 align-top">
                                     @include('items.partials.warehouse-qty-breakdown', [
@@ -394,6 +403,16 @@ $fmt = fn ($v) => format_amount($v, 0);
                                     'warehouses' => $row['warehouses'],
                                     'align' => 'left',
                                 ])
+                            </div>
+                            <div class="text-right text-sm">
+                                <div class="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Price</div>
+                                <div class="font-mono font-semibold tabular-nums text-gray-900" data-testid="group-parent-row-price-{{ $row['item_id'] }}">
+                                    @if((float) ($row['price'] ?? 0) > 0)
+                                        {{ $idr($row['price']) }}
+                                    @else
+                                        <span class="text-gray-400">—</span>
+                                    @endif
+                                </div>
                             </div>
                             <div class="text-right text-sm">
                                 <div class="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Jubelio available</div>
