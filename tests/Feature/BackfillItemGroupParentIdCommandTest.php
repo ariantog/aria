@@ -185,6 +185,36 @@ it('copies long descriptions when item_parents columns are text', function () {
     }
 });
 
+it('resumes catalog copy only for parents with id after a cursor', function () {
+    $skipped = ItemParent::query()->create(['parent_key' => '2:SKIP-01', 'product_name' => '']);
+    $target = ItemParent::query()->create(['parent_key' => '2:AFTER-01', 'product_name' => '']);
+
+    $group = ItemGroup::factory()->create([
+        'parent_id' => $target->id,
+        'master' => 'AFTER-01',
+        'name' => 'AFTER PRODUCT',
+        'description' => 'ONLY AFTER',
+    ]);
+
+    Item::factory()->create([
+        'group_id' => $group->id,
+        'pcode' => 'AFTER-01',
+        'code' => 'AFTER-01-BLACK-S',
+        'type' => ItemType::ASSET_LANCAR->value,
+    ]);
+
+    expect($skipped->id)->toBeLessThan($target->id);
+
+    $this->artisan('items:backfill-group-parent-id', [
+        '--copy-catalog' => true,
+        '--parent-id-after' => (string) $skipped->id,
+    ])->assertSuccessful()
+        ->expectsOutputToContain('item_parents.id > '.$skipped->id);
+
+    $target->refresh();
+    expect($target->description)->toBe('ONLY AFTER');
+});
+
 it('repairs wrong parent_id on colorway via sku parent_key', function () {
     $correct = ItemParent::query()->create(['parent_key' => '2:KNEESUPPORT-05']);
     $wrong = ItemParent::query()->create(['parent_key' => '1:AJD:CJ00424']);

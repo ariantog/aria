@@ -23,6 +23,7 @@ class BackfillItemGroupParentIdCommand extends Command
                             {--dry-run : Report changes without writing}
                             {--limit=0 : Max parents (copy-catalog) or colorway groups (link pass) to process (0 = all)}
                             {--parent-id= : With --copy-catalog, only this item_parents.id (verify parent_key in output)}
+                            {--parent-id-after= : With --copy-catalog batch, only item_parents.id greater than this (resume)}
                             {--parent-key= : With --copy-catalog, target this item_parents.parent_key (e.g. 2:KNEESUPPORT-05)}
                             {--continue-on-error : With --copy-catalog, keep going after a save failure}
                             {--copy-catalog : Copy empty parent catalog fields from item_group legacy columns}';
@@ -179,6 +180,7 @@ class BackfillItemGroupParentIdCommand extends Command
         ItemIdentityBuilder $identityBuilder,
     ): int {
         $onlyParentId = max(0, (int) $this->option('parent-id'));
+        $parentIdAfter = max(0, (int) $this->option('parent-id-after'));
         $onlyParentKey = trim((string) $this->option('parent-key'));
 
         $parentQuery = ItemParent::query()->orderBy('id');
@@ -207,6 +209,15 @@ class BackfillItemGroupParentIdCommand extends Command
                     ->orWhereNull('description')
                     ->orWhere('description', '');
             });
+
+            if ($parentIdAfter > 0) {
+                $parentQuery->where('id', '>', $parentIdAfter);
+                $this->line("Resuming catalog copy for item_parents.id > {$parentIdAfter}");
+            }
+        }
+
+        if ($onlyParentId > 0 && $parentIdAfter > 0) {
+            $this->comment('Ignoring --parent-id-after because --parent-id is set.');
         }
 
         if ($limit > 0) {
