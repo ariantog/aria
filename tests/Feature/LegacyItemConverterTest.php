@@ -849,6 +849,7 @@ it('convert row keeps existing group catalog and preserves a differing item over
         $this->jahitTag->id,
         Tag::where('code', 'S')->first()->id,
     ]);
+    seedParentCatalogFromGroup($group, $item);
 
     $this->actingAs($this->user)
         ->post(route('items.legacy-converter.run-item', $item), [

@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Schema;
  *
  * Leftover items.* and item_group.* columns stay on production for L10 parity;
  * L12 writes catalog to the parent row via {@see applySharedCatalog()}. Reads
- * resolve parent first, then legacy group, then SKU.
+ * resolve parent (item_parents), then per-SKU overrides — not item_group catalog columns.
  *
  * Before a future DROP of the leftover item columns:
  * 1. Backfill item_group.brand / genre / description / description2
@@ -92,25 +92,16 @@ final class ItemCatalog
 
         $parentText = trim((string) ($item->group?->parent?->{$field} ?? ''));
 
-        $groupText = self::groupColumnExists($field)
-            ? trim((string) ($item->group?->{$field} ?? ''))
-            : '';
-
         $itemText = $field === 'description'
             ? self::leftoverDescription($item)
             : self::leftoverDescription2($item);
 
-        if ($itemText !== '' && ($parentText === '' || strtoupper($itemText) !== strtoupper($parentText))
-            && ($groupText === '' || strtoupper($itemText) !== strtoupper($groupText))) {
+        if ($itemText !== '' && ($parentText === '' || strtoupper($itemText) !== strtoupper($parentText))) {
             return $itemText;
         }
 
         if ($parentText !== '') {
             return $parentText;
-        }
-
-        if ($groupText !== '') {
-            return $groupText;
         }
 
         return $itemText;
@@ -249,15 +240,7 @@ final class ItemCatalog
         $item->loadMissing('group.parent');
 
         $parentUrl = trim((string) ($item->group?->parent?->url ?? ''));
-        if ($parentUrl !== '') {
-            return $parentUrl;
-        }
-
-        if ($item->hasCatalogGroup() && self::groupColumnExists('url')) {
-            return trim((string) ($item->group->url ?? ''));
-        }
-
-        return '';
+        return $parentUrl;
     }
 
     public static function brand(Item $item): ItemBrand
@@ -268,14 +251,6 @@ final class ItemCatalog
             $parentBrand = self::normalizeBrand($item->group->parent->brand);
             if ($parentBrand !== ItemBrand::NO_BRAND) {
                 return $parentBrand;
-            }
-        }
-
-        if ($item->hasCatalogGroup() && self::groupColumnExists('brand')) {
-            $groupBrand = self::normalizeBrand($item->group->brand);
-
-            if ($groupBrand !== ItemBrand::NO_BRAND) {
-                return $groupBrand;
             }
         }
 
@@ -292,10 +267,6 @@ final class ItemCatalog
 
         if ($item->group?->parent !== null && self::parentColumnExists('genre') && (int) ($item->group->parent->genre ?? 0) > 0) {
             return (int) $item->group->parent->genre;
-        }
-
-        if ($item->hasCatalogGroup() && self::groupColumnExists('genre') && (int) ($item->group->genre ?? 0) > 0) {
-            return (int) $item->group->genre;
         }
 
         if (! self::itemColumnExists('genre')) {
@@ -546,10 +517,6 @@ final class ItemCatalog
             if ($fromParent !== '') {
                 return strtoupper($fromParent);
             }
-        }
-
-        if (self::groupColumnExists($field)) {
-            return strtoupper(trim((string) ($group->{$field} ?? '')));
         }
 
         return '';
@@ -866,7 +833,7 @@ final class ItemCatalog
 
     private static function readParentFieldForKey(string $parentKey, string $field): string
     {
-        if (! self::hasColumn('item_parent_prices', $field)) {
+        if (! self::hasColumn('item_parents', $field)) {
             return '';
         }
 
@@ -876,8 +843,9 @@ final class ItemCatalog
         }
 
         if (! array_key_exists($parentKey, self::$parentRecordCache)) {
-            self::$parentRecordCache[$parentKey] = ItemParentPrice::query()
+            self::$parentRecordCache[$parentKey] = ItemParent::query()
                 ->where('parent_key', $parentKey)
+                ->orderBy('id')
                 ->first();
         }
 

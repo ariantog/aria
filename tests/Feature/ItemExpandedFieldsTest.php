@@ -453,11 +453,14 @@ it('stores legacy_code when asset lancar edit changes the sku', function () {
 });
 
 it('shows group url and item restock threshold on item detail page when set', function () {
-    $group = ItemGroup::factory()->create(['url' => 'https://catalog.example.com/sku']);
+    $group = ItemGroup::factory()->create();
     $item = Item::factory()->create([
         'group_id' => $group->id,
         'restock_urgent_threshold' => 20,
     ]);
+    $parent = ensureItemParentForGroup($group, $item);
+    $parent->url = 'https://catalog.example.com/sku';
+    $parent->save();
 
     $this->actingAs($this->user)
         ->get(route('items.show', $item))

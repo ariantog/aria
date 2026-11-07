@@ -53,11 +53,7 @@ it('includes reseller sell price with sku then group then price fallback', funct
         'reseller_price' => 95000,
     ]);
 
-    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey($item);
-    \App\Models\ItemParentPrice::query()->create([
-        'parent_key' => $parentKey,
-        'reseller_price' => 120000,
-    ]);
+    $parent = seedParentCatalogFromGroup($group, $item);
 
     $response = $this->actingAs($this->user)
         ->getJson(route('transactions.item-by-id', ['type' => 'sell', 'id' => $item->id]));
@@ -74,8 +70,8 @@ it('includes reseller sell price with sku then group then price fallback', funct
     $response->assertSuccessful();
     expect((float) $response->json('item.reseller_sell_price'))->toBe(120000.0);
 
-    \App\Models\ItemParentPrice::query()->where('parent_key', $parentKey)->update(['reseller_price' => 0]);
-    $group->update(['reseller_price' => 0]);
+    $parent->reseller_price = 0;
+    $parent->save();
     ItemPricing::flushRequestCache();
 
     $response = $this->actingAs($this->user)
@@ -223,6 +219,7 @@ it('items autocomplete json uses effective price and cost from colorway when sku
         'price' => 0,
         'cost' => 0,
     ]);
+    seedParentCatalogFromGroup($group, $item);
 
     $match = collect($this->actingAs($this->user)
         ->getJson('/items?search=Cascade&json=1')
@@ -256,6 +253,7 @@ it('transaction item lookup uses colorway price when type tag differs from sku p
         'price' => 0,
     ]);
     $item->tags()->attach($typeTag->id);
+    seedParentCatalogFromGroup($group, $item);
 
     $response = $this->actingAs($this->user)
         ->getJson(route('transactions.item-by-code', ['type' => 'move', 'code' => 'AJD-CX90032-01-S']));
@@ -282,12 +280,7 @@ it('transaction item lookup uses effective sell price and cost from parent group
         'cost' => 0,
     ]);
 
-    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey($item);
-    \App\Models\ItemParentPrice::query()->create([
-        'parent_key' => $parentKey,
-        'price' => 210_000,
-        'cost' => 105_000,
-    ]);
+    seedParentCatalogFromGroup($group, $item);
 
     $response = $this->actingAs($this->user)
         ->getJson(route('transactions.item-by-code', ['type' => 'buy', 'code' => 'AJD-TX-LOOKUP-S']));

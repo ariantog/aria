@@ -158,7 +158,8 @@ it('resolves manufactured brand and genre from the item group when item mirrors 
         'brand' => ItemBrand::NO_BRAND,
         'genre' => 0,
     ]);
-    $item->setRelation('group', $group->fresh());
+    seedParentCatalogFromGroup($group, $item);
+    $item->setRelation('group', $group->fresh('parent'));
     $item->setRelation('tags', collect());
 
     $dims = app(\App\Services\Items\ItemDimensionResolver::class)->resolve($item);

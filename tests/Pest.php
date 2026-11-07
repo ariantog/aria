@@ -204,3 +204,33 @@ function ensureItemParentForGroup(\App\Models\ItemGroup $group, ?\App\Models\Ite
 
     return $parent;
 }
+
+/**
+ * Phase 3 reads use item_parents. Copy legacy item_group fixture columns onto the parent row.
+ */
+function seedParentCatalogFromGroup(\App\Models\ItemGroup $group, ?\App\Models\Item $sample = null): \App\Models\ItemParent
+{
+    $sample = $sample ?? $group->items()->with(['group', 'tags'])->orderBy('id')->first();
+    $attrs = [];
+    foreach (['description', 'description2', 'url', 'brand', 'genre', 'price', 'reseller_price', 'cost', 'cost_cnh', 'product_name'] as $field) {
+        if (! array_key_exists($field, $group->getAttributes())) {
+            continue;
+        }
+        $value = $group->{$field};
+        if ($value === null || $value === '' || $value === 0 || $value === 0.0) {
+            continue;
+        }
+        $attrs[$field] = $value;
+    }
+
+    if ($sample === null) {
+        return ensureItemParentForGroup($group);
+    }
+
+    $parent = ensureItemParentForGroup($group, $sample);
+    if ($attrs !== []) {
+        \App\Support\ItemCatalog::applyToGroup($group, $attrs, $sample);
+    }
+
+    return $parent;
+}

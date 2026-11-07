@@ -525,10 +525,7 @@ class WarehouseCompareGridBuilder
             return null;
         }
 
-        $anchorId = app(ItemGroupHierarchyService::class)
-            ->anchorGroupIdForParentKey($this->identityBuilder->itemParentKey($item));
-
-        return $anchorId !== null ? route('items.group-parent-detail', $anchorId) : null;
+        return $item->groupParentUrl();
     }
 
     /**

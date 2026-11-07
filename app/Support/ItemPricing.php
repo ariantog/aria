@@ -76,7 +76,7 @@ final class ItemPricing
             return $parentValue;
         }
 
-        return self::readGroupColumn($item->group, $field);
+        return 0.0;
     }
 
     public static function detectScope(Item $item, string $field): string

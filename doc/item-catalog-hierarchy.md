@@ -10,31 +10,31 @@
 
 `item_group.parent_id` → `item_parents.id`.
 
-## Read order
+## Read order (phase 3)
 
-**Pricing (sell / reseller / cost / cost CNY):** SKU → parent (`ItemPricing::resolve`).
+**Pricing (sell / reseller / cost / cost CNY):** SKU override → parent (`ItemPricing::resolve`). Colorway `item_group` price columns are not read.
 
-**Description / NB:** SKU override, else parent row.
+**Description / NB:** SKU override, else parent row only (`ItemCatalog::description` / `description2`).
 
 **Bare product title:** SKU `alias` → parent `product_name` → pcode fallback (`ItemProductTitle`).
 
+**Url / brand / genre:** parent row, then SKU where applicable — not `item_group` catalog columns.
+
 **Image:** colorway `item_group` (and SKU paths) via `ItemImageResolver` — unchanged.
 
-Colorway `item_group` must not be used as a source for price or shared catalog text in L12 reads (legacy columns may still exist until maintainer drops them).
+## Writes (phase 2+)
 
-## Phase 2 (L12 writes)
-
-- **Writes:** `ItemCatalog::applySharedCatalog()` — shared description, NB, url, brand, genre, and parent-tier pricing fields go to `item_parents` only. Colorway keeps `name` (per-colorway title override), identity (`master`/`variant`), and **image**.
-- **Reads:** parent → legacy `item_group` → SKU override (unchanged from phase 1).
-- **Backfill catalog from legacy group columns:** `php artisan items:backfill-group-parent-id --copy-catalog` (after `--dry-run`). Target one parent: `--parent-id=3409` or `--parent-key=2:KNEESUPPORT-05`. Resume batch: `--parent-id-after=3408` (ids strictly greater than 3408). Run migration `2026_11_07_150000_widen_item_parents_description_columns.php` on MySQL first (legacy descriptions are `TEXT` on `item_group`, not varchar 200).
+- **Shared catalog + parent-tier pricing:** `ItemCatalog::applySharedCatalog()` → `item_parents` only.
+- **Colorway:** identity (`master`/`variant`), optional per-colorway `name`, image.
 
 ## Routes
 
 - Parent detail: `/items-group/parent/{item_parents.id}`
 - Legacy colorway id: `/items-group/parent-by-group/{item_group.id}` → 301 to parent id
+- Legacy parent slug: `/items-group/parent/{parentSlug}` → 301 to parent id (slug encodes old `parent_key`)
 
-## Production rollout
+## Production rollout (complete)
 
-1. Run migration `2026_11_07_100000_item_parents_and_group_parent_id.php`.
-2. `php artisan items:backfill-group-parent-id` (use `--dry-run` first).
-3. Drop obsolete columns per `doc/item-parent-manual-column-drops.md`.
+1. Migrations including `item_parents` + `item_group.parent_id`.
+2. One-off catalog backfill on production (artisan command removed after backfill).
+3. Drop obsolete columns per `doc/item-parent-manual-column-drops.md` when verified.

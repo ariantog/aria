@@ -1,6 +1,6 @@
 # Manual column drops (maintainer) — parent / colorway catalog flatten
 
-L12 code stops **reading** these for catalog/pricing where noted. Drop on production MySQL only after backfill (`php artisan items:backfill-group-parent-id`) and verification.
+L12 code stops **reading** these for catalog/pricing where noted. Drop on production MySQL only after catalog backfill and verification (phase 3 reads parent/SKU only).
 
 ## `item_group` (colorway row)
 

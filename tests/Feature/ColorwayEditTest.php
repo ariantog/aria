@@ -211,6 +211,7 @@ test('colorway edit page renders with size matrix and preview', function () {
         'description2' => '',
     ]);
     $item->tags()->sync([$this->typeTag->id, $this->warnaTag->id, $this->sizeTag->id, $this->jahitTag->id]);
+    seedParentCatalogFromGroup($group, $item);
 
     $response = $this->actingAs($this->user)
         ->get(route('items.colorway-edit', $group));
@@ -218,7 +219,7 @@ test('colorway edit page renders with size matrix and preview', function () {
     $response->assertOk()
         ->assertSee('Edit colorway', false)
         ->assertSee('data-testid="colorway-desc-'.$item->id.'"', false)
-        ->assertSee('Test colorway', false)
+        ->assertSee('TEST COLORWAY', false)
         ->assertSee('data-testid="colorway-size-matrix"', false)
         ->assertSee('data-testid="colorway-name-preview"', false)
         ->assertSee('data-testid="colorway-save"', false)
@@ -263,6 +264,7 @@ test('colorway matrix prefills description from group when item column is empty'
         'description2' => '',
     ]);
     $item->tags()->sync([$this->typeTag->id, $this->warnaTag->id, $this->sizeTag->id, $this->jahitTag->id]);
+    seedParentCatalogFromGroup($group, $item);
 
     $this->actingAs($this->user)
         ->get(route('items.colorway-edit', $group))
@@ -290,6 +292,7 @@ test('colorway edit matrix prefills price from colorway when sku amount is unset
         'reseller_price' => 0,
     ]);
     $item->tags()->sync([$this->typeTag->id, $this->warnaTag->id, $this->sizeTag->id, $this->jahitTag->id]);
+    seedParentCatalogFromGroup($group, $item);
 
     $this->actingAs($this->user)
         ->get(route('items.colorway-edit', $group))

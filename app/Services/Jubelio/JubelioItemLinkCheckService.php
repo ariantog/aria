@@ -33,7 +33,7 @@ class JubelioItemLinkCheckService
 
         $paginator->setCollection(
             collect($paginator->items())->map(function (array $parent) {
-                $stats = $this->linkStatsForParentGroupId($parent['parent_group_id']);
+                $stats = $this->linkStatsForParentGroupId($parent['legacy_colorway_group_id']);
 
                 return array_merge($parent, [
                     'linked_sku_count' => $stats['linked'],

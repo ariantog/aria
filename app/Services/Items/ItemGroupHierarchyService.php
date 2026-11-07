@@ -164,12 +164,17 @@ class ItemGroupHierarchyService
                     ? $master
                     : trim(($sample ? $this->identityBuilder->manufacturedTypeCode($sample) : 'UNK').' '.$master);
 
-                $parentId = $this->parentIdForParentKey($parentKey) ?? 0;
+                $parentId = $sample !== null
+                    ? (int) ($sample->group?->parent_id ?? 0)
+                    : 0;
+                if ($parentId <= 0) {
+                    $parentId = $this->parentIdForParentKey($parentKey) ?? 0;
+                }
 
                 return [
                     'parent_key' => $parentKey,
                     'parent_id' => $parentId,
-                    'parent_group_id' => $parentId > 0 ? $parentId : (int) $row->sample_group_id,
+                    'legacy_colorway_group_id' => (int) $row->sample_group_id,
                     'label' => $label,
                     'product_name' => $this->resolveListProductName(
                         (string) ($row->product_name ?? ''),
@@ -260,11 +265,28 @@ class ItemGroupHierarchyService
         return $this->groupsForParentKey($parentKey)->pluck('id')->map(fn ($id) => (int) $id)->all();
     }
 
+    public function parentIdForItem(Item $item): ?int
+    {
+        $item->loadMissing('group');
+
+        $parentId = (int) ($item->group?->parent_id ?? 0);
+        if ($parentId > 0) {
+            return $parentId;
+        }
+
+        $resolved = $this->parentIdForParentKey($this->identityBuilder->itemParentKey($item));
+
+        return $resolved !== null && $resolved > 0 ? $resolved : null;
+    }
+
+    /**
+     * @deprecated Prefer {@see parentIdForItem()} — parent detail routes use item_parents.id.
+     */
     public function anchorGroupIdForParentKey(string $parentKey): ?int
     {
-        $id = $this->groupsForParentKey($parentKey)->min('id');
+        $parentId = $this->parentIdForParentKey($parentKey);
 
-        return $id !== null ? (int) $id : null;
+        return $parentId !== null && $parentId > 0 ? $parentId : null;
     }
 
     public function parentIdForParentKey(string $parentKey): ?int
@@ -558,52 +580,6 @@ class ItemGroupHierarchyService
     }
 
     /**
-     * Backfill path: same as {@see groupsForParentKey()} but falls back to master/pcode
-     * match when every SKU is soft-deleted (legacy catalog still on item_group).
-     *
-     * @return Collection<int, ItemGroup>
-     */
-    public function groupsForParentKeyRelaxed(string $parentKey): Collection
-    {
-        $groups = $this->groupsForParentKey($parentKey);
-        if ($groups->isNotEmpty()) {
-            return $groups;
-        }
-
-        $parentKey = trim($parentKey);
-        if ($parentKey === '') {
-            return collect();
-        }
-
-        $parts = explode(':', $parentKey);
-        $itemType = ItemType::tryFrom((int) ($parts[0] ?? 0)) ?? ItemType::ITEM;
-
-        if ($itemType === ItemType::ASSET_LANCAR) {
-            $master = strtoupper($parts[1] ?? '');
-
-            return ItemGroup::query()
-                ->whereRaw('UPPER(TRIM(item_group.master)) = ?', [$master])
-                ->with(['items' => fn ($q) => $q->orderBy('id')])
-                ->orderBy('variant')
-                ->get();
-        }
-
-        $typeCode = strtoupper($parts[1] ?? '');
-        $master = $this->identityBuilder->canonicalManufacturedMaster((string) ($parts[2] ?? ''))
-            ?? strtoupper((string) ($parts[2] ?? ''));
-
-        return ItemGroup::query()
-            ->where(function (Builder $masterQuery) use ($master) {
-                $masterQuery->whereRaw('UPPER(TRIM(item_group.master)) = ?', [$master])
-                    ->orWhereRaw("UPPER(REPLACE(TRIM(item_group.master), '/', '-')) = ?", [$master])
-                    ->orWhereRaw("UPPER(REPLACE(TRIM(item_group.master), '/', '-')) LIKE ?", [$master.'-%']);
-            })
-            ->with(['items' => fn ($q) => $q->orderBy('id')])
-            ->orderBy('variant')
-            ->get();
-    }
-
-    /**
      * @param  list<int>  $groupIds
      * @return array<int, Item>
      */
@@ -616,7 +592,10 @@ class ItemGroupHierarchyService
         return Item::query()
             ->whereIn('group_id', $groupIds)
             ->whereNull('deleted_at')
-            ->with(['tags' => fn ($q) => $q->where('type', Tag::TYPE_TYPE)])
+            ->with([
+                'tags' => fn ($q) => $q->where('type', Tag::TYPE_TYPE),
+                'group',
+            ])
             ->orderBy('id')
             ->get()
             ->unique('group_id')

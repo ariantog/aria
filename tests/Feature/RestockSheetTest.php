@@ -768,6 +768,7 @@ test('grid color url uses restock cell color when sku has no parseable color seg
         'name' => 'ADJUSTABLE WRIST BRACELET - PINK',
     ]);
     $item->tags()->attach([$this->typeTag->id]);
+    ensureItemParentForGroup($group, $item);
 
     $sheet = app(RestockSheetService::class)->createSheet($this->typeTag, $this->user);
     $cell = $sheet->cells()->where('item_id', $item->id)->firstOrFail();

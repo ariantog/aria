@@ -76,6 +76,7 @@ it('returns hierarchy-aware base cost from colorway when SKU cost is unset', fun
     $item->load('group', 'tags');
     $parentKey = app(ItemIdentityBuilder::class)->itemParentKey($item);
     $item->group?->update(['cost' => 1000]);
+    seedParentCatalogFromGroup($item->group->fresh(), $item);
 
     ItemPricing::flushRequestCache();
 
