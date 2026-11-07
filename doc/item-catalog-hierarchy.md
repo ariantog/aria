@@ -25,7 +25,7 @@
 ## Writes (phase 2+)
 
 - **Shared catalog + parent-tier pricing:** `ItemCatalog::applySharedCatalog()` → `item_parents` only.
-- **Colorway:** identity (`master`/`variant`), optional per-colorway `name`, image.
+- **Colorway:** identity (`master`/`variant`), optional per-colorway `name`, **image** (one file per colorway `item_group.id`, shared by every size SKU in that group; colorway edit upload).
 
 ## Routes
 

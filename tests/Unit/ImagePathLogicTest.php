@@ -212,20 +212,30 @@ class ImagePathLogicTest extends TestCase
         $groupB = new ItemGroup;
         $groupB->id = 81;
 
-        $first = new Item;
-        $first->id = 801;
-        $first->group_id = 80;
+        $group = new ItemGroup;
+        $group->id = 80;
 
-        $second = new Item;
-        $second->id = 802;
-        $second->group_id = 81;
+        $withImage = new Item;
+        $withImage->id = 801;
+        $withImage->group_id = 80;
 
-        $diskPath = $this->resolver->diskPathForId(81);
+        $sizeL = new Item;
+        $sizeL->id = 803;
+        $sizeL->group_id = 80;
+
+        $group->setRelation('items', collect([$withImage, $sizeL]));
+        $withImage->setRelation('group', $group);
+
+        $peer = new Item;
+        $peer->id = 802;
+        $peer->group_id = 81;
+
+        $diskPath = $this->resolver->diskPathForId(80);
         File::ensureDirectoryExists(dirname($diskPath));
-        File::put($diskPath, 'second colorway group image');
+        File::put($diskPath, 'first row colorway image');
 
-        $url = $this->resolver->resolveUrlForItems(collect([$first, $second]));
+        $url = $this->resolver->resolveUrlForItems(collect([$withImage, $peer]));
 
-        $this->assertEquals($this->resolver->publicUrlForId(81), $url);
+        $this->assertEquals($this->resolver->publicUrlForId(80), $url);
     }
 }

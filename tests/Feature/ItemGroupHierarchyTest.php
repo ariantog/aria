@@ -447,14 +447,14 @@ it('parent detail by id merges colorways from parent_key and resolves their imag
         }
     }
 
-    $diskPath = $resolver->diskPathForId((int) $legacyGroup->id);
+    $diskPath = $resolver->diskPathForId((int) $linkedGroup->id);
     File::ensureDirectoryExists(dirname($diskPath));
-    File::put($diskPath, 'colorway-two-image');
+    File::put($diskPath, 'first-colorway-image');
 
     $detail = $this->hierarchy->parentDetailForParent($parent->fresh(), fetchJubelio: false);
 
     expect($detail['colors'])->toHaveCount(2)
-        ->and($detail['image_url'])->toBe($resolver->publicUrlForId($legacyGroup->id));
+        ->and($detail['image_url'])->toBe($resolver->publicUrlForId($linkedGroup->id));
 
     File::deleteDirectory($imageRoot);
 });

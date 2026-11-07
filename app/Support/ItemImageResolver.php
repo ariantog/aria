@@ -4,7 +4,6 @@ namespace App\Support;
 
 use App\Models\Item;
 use App\Models\ItemGroup;
-use App\Services\Items\ItemGroupHierarchyService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 
@@ -50,13 +49,14 @@ class ItemImageResolver
     }
 
     /**
-     * Resolve image URL for a SKU (type-code-color when grouped, else item id).
+     * Resolve image URL for a SKU. Canonical file is the colorway ({@see ItemGroup}) id —
+     * one photo per warna/size matrix, shared by every size in that colorway.
      *
-     * Fallback order:
-     * 1. Current item_group id (canonical type-code-color image)
-     * 2. Item id (legacy asset lancar per-SKU uploads)
-     * 3. Any sibling SKU in the same group
-     * 4. Other colorway groups / SKUs under the same item_parents row (parent detail scope)
+     * Fallback order when grouped:
+     * 1. item_group.id (upload target on colorway edit)
+     * 2. Any SKU id in the same colorway (legacy per-size uploads on one size)
+     *
+     * Ungrouped SKUs use items.id only.
      */
     public function resolveUrlForItem(Item $item): string
     {
@@ -74,9 +74,13 @@ class ItemImageResolver
     {
         $candidates = [(int) $group->id];
 
-        $items ??= $group->relationLoaded('items')
-            ? $group->items
-            : $group->items()->pluck('id');
+        if ($items === null) {
+            $items = $group->relationLoaded('items')
+                ? $group->items
+                : ($group->exists
+                    ? $group->items()->whereNull('deleted_at')->pluck('id')
+                    : collect());
+        }
 
         foreach ($items as $item) {
             $candidates[] = (int) (is_object($item) ? $item->id : $item);
@@ -86,49 +90,40 @@ class ItemImageResolver
     }
 
     /**
-     * Parent group list/detail: first image found on any color variant or child SKU.
+     * Parent hero / summary: first colorway that has an on-disk image (each colorway is separate).
      *
      * @param  Collection<int, ItemGroup>|array<int, ItemGroup>  $groups
      */
     public function resolveUrlForGroups(Collection|array $groups): string
     {
-        $candidates = [];
+        $default = $this->defaultImageUrl();
 
         foreach ($groups as $group) {
-            $candidates[] = (int) $group->id;
+            $items = $group->relationLoaded('items') ? $group->items : null;
+            $url = $this->resolveUrlForGroup($group, $items);
 
-            if ($group->relationLoaded('items')) {
-                foreach ($group->items as $item) {
-                    $candidates[] = (int) $item->id;
-                }
+            if ($url !== $default) {
+                return $url;
             }
         }
 
-        return $this->resolveUrlFromCandidateIds($candidates);
+        return $default;
     }
 
     /**
-     * Parent row / restock matrix: first on-disk image across every colorway group and SKU.
+     * Pick the colorway image for one representative SKU (same rules as {@see resolveUrlForItem}).
      *
      * @param  iterable<int, Item>  $items
      */
     public function resolveUrlForItems(iterable $items): string
     {
-        $candidates = [];
-
         foreach ($items as $item) {
-            if (! $item instanceof Item) {
-                continue;
+            if ($item instanceof Item) {
+                return $this->resolveUrlForItem($item);
             }
-
-            if ((int) $item->group_id > 0) {
-                $candidates[] = (int) $item->group_id;
-            }
-
-            $candidates[] = (int) $item->id;
         }
 
-        return $this->resolveUrlFromCandidateIds($candidates);
+        return $this->defaultImageUrl();
     }
 
     public function resolveDiskPathForItem(Item $item): string
@@ -368,67 +363,43 @@ class ItemImageResolver
      */
     protected function uniqueCandidateIdsForItem(Item $item): array
     {
-        $candidates = [];
+        $groupId = (int) $item->group_id;
 
-        if ((int) $item->group_id > 0) {
-            $candidates[] = (int) $item->group_id;
+        if ($groupId > 0) {
+            return $this->uniqueIds(array_merge(
+                [$groupId],
+                $this->colorwaySkuIdsForGroup($item, $groupId),
+                [(int) $item->id],
+            ));
         }
 
-        $candidates[] = (int) $item->id;
-
-        if ($item->relationLoaded('group') && $item->group?->relationLoaded('items')) {
-            foreach ($item->group->items as $sibling) {
-                $candidates[] = (int) $sibling->id;
-            }
-        }
-
-        return $this->uniqueIds(array_merge($candidates, $this->parentColorwayCandidateIds($item)));
+        return $this->uniqueIds([(int) $item->id]);
     }
 
     /**
-     * Group / SKU ids for other colorways under the same parent (matches parent detail image scope).
+     * Legacy SKU-level uploads for one colorway (any size may hold the shared file).
      *
      * @return list<int>
      */
-    protected function parentColorwayCandidateIds(Item $item): array
+    protected function colorwaySkuIdsForGroup(Item $item, int $groupId): array
     {
-        if ((int) $item->group_id <= 0 || ! $item->exists) {
+        if ($item->relationLoaded('group') && (int) ($item->group?->id ?? 0) === $groupId && $item->group?->relationLoaded('items')) {
+            return $item->group->items
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+        }
+
+        if (! $item->exists || ! Schema::hasTable('items')) {
             return [];
         }
 
-        if (! Schema::hasTable('item_parents')) {
-            return [];
-        }
-
-        $item->loadMissing(['group', 'tags']);
-
-        $parentId = (int) ($item->group?->parent_id ?? 0);
-        if ($parentId <= 0) {
-            $parentId = (int) (app(ItemGroupHierarchyService::class)->parentIdForItem($item) ?? 0);
-        }
-
-        if ($parentId <= 0) {
-            return [];
-        }
-
-        $ownGroupId = (int) $item->group_id;
-        $candidates = [];
-
-        foreach (app(ItemGroupHierarchyService::class)->groupsForParentId($parentId) as $group) {
-            if ((int) $group->id === $ownGroupId) {
-                continue;
-            }
-
-            $candidates[] = (int) $group->id;
-
-            if ($group->relationLoaded('items')) {
-                foreach ($group->items as $otherItem) {
-                    $candidates[] = (int) $otherItem->id;
-                }
-            }
-        }
-
-        return $candidates;
+        return Item::query()
+            ->where('group_id', $groupId)
+            ->whereNull('deleted_at')
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
     }
 
     /**
