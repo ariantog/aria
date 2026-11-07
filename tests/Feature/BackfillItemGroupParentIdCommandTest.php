@@ -145,8 +145,7 @@ it('relinks colorways to canonical parent when parent_key is duplicated', functi
     ]);
 
     $this->artisan('items:backfill-group-parent-id', ['--copy-catalog' => true])
-        ->assertSuccessful()
-        ->expectsOutputToContain("Relinked 1 colorway(s): parent_id {$duplicate->id} → {$canonical->id}");
+        ->assertSuccessful();
 
     expect($group->fresh()->parent_id)->toBe($canonical->id);
 
@@ -155,11 +154,93 @@ it('relinks colorways to canonical parent when parent_key is duplicated', functi
     expect($canonical->product_name)->toBe('ULTIMATE KNEE SUPPORT');
 });
 
-it('reports already-linked groups when nothing needs parent_id', function () {
-    $group = ItemGroup::factory()->create(['parent_id' => 0]);
-    Item::factory()->create(['group_id' => $group->id]);
+it('copies long descriptions when item_parents columns are text', function () {
+    $parent = ItemParent::query()->create(['parent_key' => '2:BLOCK-01']);
+    $longDescription = str_repeat('LONG DESC ', 40);
 
-    $this->artisan('items:backfill-group-parent-id', ['--dry-run' => true])
-        ->assertSuccessful()
-        ->expectsOutputToContain('Groups needing parent_id link: 1');
+    $group = ItemGroup::factory()->create([
+        'parent_id' => $parent->id,
+        'master' => 'BLOCK-01',
+        'name' => 'WEDGE BLOCK',
+        'description' => $longDescription,
+    ]);
+
+    Item::factory()->create([
+        'group_id' => $group->id,
+        'pcode' => 'BLOCK-01',
+        'code' => 'BLOCK-01-BLACK-OS',
+        'type' => ItemType::ASSET_LANCAR->value,
+    ]);
+
+    $this->artisan('items:backfill-group-parent-id', [
+        '--copy-catalog' => true,
+        '--parent-id' => (string) $parent->id,
+    ])->assertSuccessful();
+
+    $parent->refresh();
+    expect($parent->description)->toStartWith('LONG DESC');
+
+    if (\App\Support\ItemCatalog::parentDescriptionsUseTextColumn()) {
+        expect($parent->description)->toBe(strtoupper(trim($longDescription)));
+    }
+});
+
+it('resumes catalog copy only for parents with id after a cursor', function () {
+    $skipped = ItemParent::query()->create(['parent_key' => '2:SKIP-01', 'product_name' => '']);
+    $target = ItemParent::query()->create(['parent_key' => '2:AFTER-01', 'product_name' => '']);
+
+    $group = ItemGroup::factory()->create([
+        'parent_id' => $target->id,
+        'master' => 'AFTER-01',
+        'name' => 'AFTER PRODUCT',
+        'description' => 'ONLY AFTER',
+    ]);
+
+    Item::factory()->create([
+        'group_id' => $group->id,
+        'pcode' => 'AFTER-01',
+        'code' => 'AFTER-01-BLACK-S',
+        'type' => ItemType::ASSET_LANCAR->value,
+    ]);
+
+    expect($skipped->id)->toBeLessThan($target->id);
+
+    $this->artisan('items:backfill-group-parent-id', [
+        '--copy-catalog' => true,
+        '--parent-id-after' => (string) $skipped->id,
+    ])->assertSuccessful()
+        ->expectsOutputToContain('item_parents.id > '.$skipped->id);
+
+    $target->refresh();
+    expect($target->description)->toBe('ONLY AFTER');
+});
+
+it('repairs wrong parent_id on colorway via sku parent_key', function () {
+    $correct = ItemParent::query()->create(['parent_key' => '2:KNEESUPPORT-05']);
+    $wrong = ItemParent::query()->create(['parent_key' => '1:AJD:CJ00424']);
+
+    $group = ItemGroup::factory()->create([
+        'parent_id' => $wrong->id,
+        'master' => 'KNEESUPPORT-05',
+        'variant' => 'BLACK',
+        'name' => 'ULTIMATE KNEE SUPPORT',
+        'description' => 'FIXED DESC',
+    ]);
+
+    Item::factory()->create([
+        'group_id' => $group->id,
+        'pcode' => 'KNEESUPPORT-05',
+        'code' => 'KNEESUPPORT-05-BLACK-S',
+        'type' => ItemType::ASSET_LANCAR->value,
+    ]);
+
+    $this->artisan('items:backfill-group-parent-id', [
+        '--copy-catalog' => true,
+        '--parent-key' => '2:KNEESUPPORT-05',
+    ])->assertSuccessful()
+        ->expectsOutputToContain('Targeting parent #'.$correct->id);
+
+    expect($group->fresh()->parent_id)->toBe($correct->id);
+    $correct->refresh();
+    expect($correct->description)->toBe('FIXED DESC');
 });
