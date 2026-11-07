@@ -408,6 +408,11 @@ class Item extends Model
         return ItemCatalog::genre($this);
     }
 
+    public function catalogUrl(): string
+    {
+        return ItemCatalog::url($this);
+    }
+
     public function hasCatalogGroup(): bool
     {
         return (int) $this->group_id > 0 && $this->group !== null;

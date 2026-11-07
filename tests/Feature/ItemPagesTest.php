@@ -403,11 +403,18 @@ test('catalogDescription falls back to the item column when there is no group', 
         ->and($item->catalogDescription2())->toBe('UNGROUPED NB');
 });
 
-test('catalogBrand and catalogGenre prefer group values when they are set', function () {
-    $group = \App\Models\ItemGroup::factory()->make([
+test('catalogBrand and catalogGenre prefer parent values when they are set', function () {
+    $parent = \App\Models\ItemParent::query()->create([
+        'parent_key' => '1:test-brand-genre',
         'brand' => \App\Enums\ItemBrand::CX9,
         'genre' => 6480,
     ]);
+    $group = \App\Models\ItemGroup::factory()->make([
+        'parent_id' => $parent->id,
+        'brand' => \App\Enums\ItemBrand::NO_BRAND,
+        'genre' => 0,
+    ]);
+    $group->setRelation('parent', $parent);
     $item = Item::factory()->make([
         'group_id' => 24961,
         'brand' => \App\Enums\ItemBrand::NO_BRAND,

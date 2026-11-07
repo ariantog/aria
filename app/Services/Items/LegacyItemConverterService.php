@@ -823,7 +823,7 @@ class LegacyItemConverterService
         }
 
         if ($attributes !== []) {
-            ItemCatalog::applyToGroup($group, $attributes);
+            ItemCatalog::applyToGroup($group, $attributes, $item);
         }
 
         $sourceGroup = $previousGroup && (int) $previousGroup->id !== (int) $group->id
@@ -831,11 +831,11 @@ class LegacyItemConverterService
             : null;
 
         ItemCatalog::seedEmptyDescriptions($group, $item, $sourceGroup);
-        $group->refresh();
+        $group->refresh()->loadMissing('parent');
 
         ItemCatalog::mirrorToItem($item, [
-            'brand' => $group->brand,
-            'genre' => (int) ($group->genre ?? 0),
+            'brand' => ItemCatalog::brand($item),
+            'genre' => ItemCatalog::genre($item),
         ]);
 
         ItemCatalog::dedupeItemDescriptionsFromGroup($item, $group);

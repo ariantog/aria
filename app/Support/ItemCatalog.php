@@ -11,12 +11,12 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Shared colorway attributes live on item_group.
+ * Shared catalog (description, NB, url, brand, genre, pricing defaults) lives on
+ * item_parents. Colorway ({@see ItemGroup}) keeps identity + image only.
  *
- * Leftover items.* columns stay on the production table for L10 / stats
- * compatibility. Application reads must go through this class (or Item
- * catalog* helpers). Writes still mirror onto the item while
- * {@see self::MIRROR_ITEM_COLUMNS} is true.
+ * Leftover items.* and item_group.* columns stay on production for L10 parity;
+ * L12 writes catalog to the parent row via {@see applySharedCatalog()}. Reads
+ * resolve parent first, then legacy group, then SKU.
  *
  * Before a future DROP of the leftover item columns:
  * 1. Backfill item_group.brand / genre / description / description2
@@ -207,18 +207,20 @@ final class ItemCatalog
     {
         if (self::itemColumnExists('description')) {
             $itemDescription = trim((string) ($item->description ?? ''));
-            $groupDescription = trim((string) ($group->description ?? ''));
+            $sharedDescription = self::sharedDescriptionText($group, 'description');
 
-            if ($itemDescription !== '' && strtoupper($itemDescription) === strtoupper($groupDescription)) {
+            if ($itemDescription !== '' && $sharedDescription !== ''
+                && strtoupper($itemDescription) === $sharedDescription) {
                 $item->description = '';
             }
         }
 
         if (self::itemColumnExists('description2')) {
             $itemDescription = trim((string) ($item->description2 ?? ''));
-            $groupDescription = trim((string) ($group->description2 ?? ''));
+            $sharedDescription = self::sharedDescriptionText($group, 'description2');
 
-            if ($itemDescription !== '' && strtoupper($itemDescription) === strtoupper($groupDescription)) {
+            if ($itemDescription !== '' && $sharedDescription !== ''
+                && strtoupper($itemDescription) === $sharedDescription) {
                 $item->description2 = '';
             }
         }
@@ -241,8 +243,33 @@ final class ItemCatalog
         return trim(self::leftoverDescription($item).' '.self::leftoverDescription2($item));
     }
 
+    public static function url(Item $item): string
+    {
+        $item->loadMissing('group.parent');
+
+        $parentUrl = trim((string) ($item->group?->parent?->url ?? ''));
+        if ($parentUrl !== '') {
+            return $parentUrl;
+        }
+
+        if ($item->hasCatalogGroup() && self::groupColumnExists('url')) {
+            return trim((string) ($item->group->url ?? ''));
+        }
+
+        return '';
+    }
+
     public static function brand(Item $item): ItemBrand
     {
+        $item->loadMissing('group.parent');
+
+        if ($item->group?->parent !== null && self::parentColumnExists('brand')) {
+            $parentBrand = self::normalizeBrand($item->group->parent->brand);
+            if ($parentBrand !== ItemBrand::NO_BRAND) {
+                return $parentBrand;
+            }
+        }
+
         if ($item->hasCatalogGroup() && self::groupColumnExists('brand')) {
             $groupBrand = self::normalizeBrand($item->group->brand);
 
@@ -260,6 +287,12 @@ final class ItemCatalog
 
     public static function genre(Item $item): int
     {
+        $item->loadMissing('group.parent');
+
+        if ($item->group?->parent !== null && self::parentColumnExists('genre') && (int) ($item->group->parent->genre ?? 0) > 0) {
+            return (int) $item->group->parent->genre;
+        }
+
         if ($item->hasCatalogGroup() && self::groupColumnExists('genre') && (int) ($item->group->genre ?? 0) > 0) {
             return (int) $item->group->genre;
         }
@@ -272,6 +305,80 @@ final class ItemCatalog
     }
 
     /**
+     * L12 write path: persist shared catalog on item_parents (links group.parent_id).
+     *
+     * @param  array{
+     *     description?: mixed,
+     *     description2?: mixed,
+     *     reseller_price?: mixed,
+     *     price?: mixed,
+     *     cost?: mixed,
+     *     cost_cnh?: mixed,
+     *     url?: mixed,
+     *     brand?: ItemBrand|int|null,
+     *     genre?: int|null
+     * }  $attributes
+     */
+    public static function applySharedCatalog(ItemGroup $group, Item $anchor, array $attributes): void
+    {
+        $anchor->loadMissing(['group', 'tags']);
+        $anchor->setRelation('group', $group);
+
+        $parent = ItemPricing::ensureParentForItem($anchor);
+        $parentId = (int) $parent->id;
+
+        if ((int) $group->parent_id !== $parentId) {
+            $group->parent_id = $parentId;
+        }
+
+        if ($group->isDirty(['parent_id'])) {
+            $group->save();
+        }
+
+        $record = \App\Models\ItemParent::query()->findOrFail($parentId);
+        $dirty = false;
+
+        if (array_key_exists('description', $attributes)) {
+            $record->description = strtoupper((string) ($attributes['description'] ?? ''));
+            $dirty = true;
+        }
+
+        if (array_key_exists('description2', $attributes)) {
+            $record->description2 = strtoupper((string) ($attributes['description2'] ?? ''));
+            $dirty = true;
+        }
+
+        if (array_key_exists('url', $attributes)) {
+            $record->url = trim((string) ($attributes['url'] ?? ''));
+            $dirty = true;
+        }
+
+        if (array_key_exists('brand', $attributes) && self::parentColumnExists('brand')) {
+            $record->brand = self::normalizeBrand($attributes['brand']);
+            $dirty = true;
+        }
+
+        if (array_key_exists('genre', $attributes) && self::parentColumnExists('genre')) {
+            $record->genre = (int) ($attributes['genre'] ?? 0);
+            $dirty = true;
+        }
+
+        foreach (['price', 'reseller_price', 'cost', 'cost_cnh'] as $priceField) {
+            if (array_key_exists($priceField, $attributes)) {
+                $record->{$priceField} = max(0, (float) ($attributes[$priceField] ?? 0));
+                $dirty = true;
+            }
+        }
+
+        if ($dirty) {
+            $record->save();
+            ItemPricing::flushRequestCache();
+            self::$parentRecordCache = [];
+        }
+    }
+
+    /**
+     * @deprecated Use {@see applySharedCatalog()} for L12 writes. Group-only path remains for legacy tests.
      * Persist catalog fields on the group. Always the write path for shared attributes.
      *
      * @param  array{
@@ -283,8 +390,14 @@ final class ItemCatalog
      *     genre?: int|null
      * }  $attributes
      */
-    public static function applyToGroup(ItemGroup $group, array $attributes): void
+    public static function applyToGroup(ItemGroup $group, array $attributes, ?Item $catalogAnchor = null): void
     {
+        if ($catalogAnchor !== null) {
+            self::applySharedCatalog($group, $catalogAnchor, $attributes);
+
+            return;
+        }
+
         if (array_key_exists('description', $attributes)) {
             $group->description = strtoupper((string) ($attributes['description'] ?? ''));
         }
@@ -316,16 +429,30 @@ final class ItemCatalog
         }
 
         $group->save();
+    }
 
-        $parentId = (int) ($group->parent_id ?? 0);
-        if ($parentId > 0
-            && (array_key_exists('description', $attributes) || array_key_exists('description2', $attributes))) {
-            self::syncParentDescriptionsById(
-                $parentId,
-                (string) ($group->description ?? ''),
-                (string) ($group->description2 ?? ''),
-            );
+    public static function parentColumnExists(string $column): bool
+    {
+        return self::hasColumn('item_parents', $column)
+            || self::hasColumn('item_parent_prices', $column);
+    }
+
+    private static function sharedDescriptionText(ItemGroup $group, string $field): string
+    {
+        $group->loadMissing('parent');
+
+        if ($group->parent !== null && self::parentColumnExists($field)) {
+            $fromParent = trim((string) ($group->parent->{$field} ?? ''));
+            if ($fromParent !== '') {
+                return strtoupper($fromParent);
+            }
         }
+
+        if (self::groupColumnExists($field)) {
+            return strtoupper(trim((string) ($group->{$field} ?? '')));
+        }
+
+        return '';
     }
 
     /**
@@ -361,7 +488,7 @@ final class ItemCatalog
                 $override = strtoupper(trim((string) ($input->{$overrideKey} ?? '')));
             }
 
-            $newGroupText = strtoupper(trim((string) ($group->{$field} ?? '')));
+            $newSharedText = self::sharedDescriptionText($group, $field);
             $previousGroupTextValue = strtoupper(trim((string) ($previousGroupText[$field] ?? '')));
 
             Item::query()
@@ -373,7 +500,7 @@ final class ItemCatalog
                     $overrideKey,
                     $input,
                     $editedItem,
-                    $newGroupText,
+                    $newSharedText,
                     $previousGroupTextValue,
                 ): void {
                     if ($item->id === $editedItem->id) {
@@ -392,9 +519,9 @@ final class ItemCatalog
 
                     $isMirror = $previousGroupTextValue !== ''
                         && $itemText === $previousGroupTextValue;
-                    $matchesNewGroup = $newGroupText !== '' && $itemText === $newGroupText;
+                    $matchesNewShared = $newSharedText !== '' && $itemText === $newSharedText;
 
-                    if ($isMirror || $matchesNewGroup) {
+                    if ($isMirror || $matchesNewShared) {
                         $item->{$field} = '';
                         $item->save();
                     }
@@ -403,7 +530,7 @@ final class ItemCatalog
     }
 
     /**
-     * Colorway editor updates the group only — drop leftover item mirrors for every size.
+     * Colorway editor updates the parent catalog — drop leftover item mirrors for every size.
      */
     public static function resetDescriptionMirrorsForColorway(ItemGroup $group): void
     {
@@ -447,7 +574,7 @@ final class ItemCatalog
                 continue;
             }
 
-            $newGroupText = strtoupper(trim((string) ($group->{$field} ?? '')));
+            $newSharedText = self::sharedDescriptionText($group, $field);
             $previousGroupTextValue = strtoupper(trim((string) ($previousGroupText[$field] ?? '')));
 
             Item::query()
@@ -455,7 +582,7 @@ final class ItemCatalog
                 ->get()
                 ->each(function (Item $item) use (
                     $field,
-                    $newGroupText,
+                    $newSharedText,
                     $previousGroupTextValue,
                 ): void {
                     $itemText = strtoupper(trim((string) ($item->{$field} ?? '')));
@@ -466,9 +593,9 @@ final class ItemCatalog
 
                     $isMirror = $previousGroupTextValue !== ''
                         && $itemText === $previousGroupTextValue;
-                    $matchesNewGroup = $newGroupText !== '' && $itemText === $newGroupText;
+                    $matchesNewShared = $newSharedText !== '' && $itemText === $newSharedText;
 
-                    if ($isMirror || $matchesNewGroup) {
+                    if ($isMirror || $matchesNewShared) {
                         $item->{$field} = '';
                         $item->save();
                     }
@@ -484,7 +611,7 @@ final class ItemCatalog
     {
         $attributes = [];
 
-        if (trim((string) ($group->description ?? '')) === '') {
+        if (self::sharedDescriptionText($group, 'description') === '') {
             $seed = self::firstNonEmpty(
                 trim((string) ($sourceGroup?->description ?? '')),
                 self::leftoverDescription($item),
@@ -495,7 +622,7 @@ final class ItemCatalog
             }
         }
 
-        if (trim((string) ($group->description2 ?? '')) === '') {
+        if (self::sharedDescriptionText($group, 'description2') === '') {
             $seed = self::firstNonEmpty(
                 trim((string) ($sourceGroup?->description2 ?? '')),
                 self::leftoverDescription2($item),
@@ -507,7 +634,7 @@ final class ItemCatalog
         }
 
         if ($attributes !== []) {
-            self::applyToGroup($group, $attributes);
+            self::applySharedCatalog($group, $item, $attributes);
         }
     }
 

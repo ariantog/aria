@@ -16,6 +16,9 @@ class ItemParent extends Model
         'product_name',
         'description',
         'description2',
+        'url',
+        'brand',
+        'genre',
         'price',
         'reseller_price',
         'cost',
@@ -25,6 +28,7 @@ class ItemParent extends Model
     protected function casts(): array
     {
         return [
+            'brand' => \App\Enums\ItemBrand::class,
             'price' => 'decimal:2',
             'reseller_price' => 'decimal:2',
             'cost' => 'decimal:2',

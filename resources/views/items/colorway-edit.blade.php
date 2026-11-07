@@ -104,7 +104,7 @@ $breadcrumbs = [
                 <div class="rounded-xl border border-gray-200 bg-white shadow-sm" data-testid="colorway-catalog">
                     <div class="border-b border-gray-100 px-5 py-4">
                         <h3 class="text-lg font-semibold text-gray-900">Catalog (this colorway)</h3>
-                        <p class="text-sm text-gray-500">Shared by every size in this colorway (stored on item_group).</p>
+                        <p class="text-sm text-gray-500">Image stays on this colorway; shared catalog fields are stored on the parent group (URL here updates parent).</p>
                     </div>
                     <div class="space-y-4 p-5">
                         @include('items.partials.form-colorway-title-hints', ['titleForm' => $titleForm ?? []])
@@ -122,7 +122,7 @@ $breadcrumbs = [
                         <div>
                             <label for="colorway-url" class="mb-1 block text-sm font-medium text-gray-700">URL</label>
                             <input type="text" id="colorway-url" name="url" inputmode="url"
-                                   value="{{ old('url', $group->url) }}"
+                                   value="{{ old('url', $parentCatalogUrl ?? '') }}"
                                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                         </div>
                     </div>
