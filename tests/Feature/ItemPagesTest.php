@@ -616,7 +616,7 @@ test('item show and edit prefer the item description when it differs from the gr
         ->assertSee('Colorway editor', false);
 });
 
-test('asset lancar show resolves product image from another colorway under the same parent', function () {
+test('asset lancar show shares colorway image across sizes in the same group', function () {
     $imageRoot = storage_path('framework/testing/item-show-image');
     File::deleteDirectory($imageRoot);
     Config::set('core-nation.item_image_path', $imageRoot.DIRECTORY_SEPARATOR);
@@ -624,43 +624,38 @@ test('asset lancar show resolves product image from another colorway under the s
     Config::set('core-nation.cdn_path', $imageRoot.DIRECTORY_SEPARATOR);
     File::ensureDirectoryExists($imageRoot);
 
-    $parent = ItemParent::query()->create(['parent_key' => '2:ELBOW-88']);
-    $blueGroup = \App\Models\ItemGroup::factory()->create([
-        'parent_id' => $parent->id,
+    $group = \App\Models\ItemGroup::factory()->create([
         'master' => 'ELBOW-88',
         'variant' => 'BLUE',
     ]);
-    $redGroup = \App\Models\ItemGroup::factory()->create([
-        'parent_id' => $parent->id,
-        'master' => 'ELBOW-88',
-        'variant' => 'RED',
-    ]);
 
-    $blueItem = Item::factory()->create([
+    $sizeS = Item::factory()->create([
         'type' => ItemType::ASSET_LANCAR,
-        'group_id' => $blueGroup->id,
+        'group_id' => $group->id,
         'pcode' => 'ELBOW-88',
         'code' => 'ELBOW-88-BLUE-S',
     ]);
-
-    $redItem = Item::factory()->create([
+    $sizeM = Item::factory()->create([
         'type' => ItemType::ASSET_LANCAR,
-        'group_id' => $redGroup->id,
+        'group_id' => $group->id,
         'pcode' => 'ELBOW-88',
-        'code' => 'ELBOW-88-RED-S',
+        'code' => 'ELBOW-88-BLUE-M',
     ]);
 
     $resolver = app(ItemImageResolver::class);
-    $diskPath = $resolver->diskPathForId((int) $blueGroup->id);
+    $diskPath = $resolver->diskPathForId((int) $group->id);
     File::ensureDirectoryExists(dirname($diskPath));
-    File::put($diskPath, 'blue colorway product photo');
+    File::put($diskPath, 'shared colorway product photo');
 
-    $imageUrl = $resolver->publicUrlForId((int) $blueGroup->id);
+    $imageUrl = $resolver->publicUrlForId((int) $group->id);
 
     $this->actingAs($this->user)
-        ->get(route('assetlancar.show', $redItem))
+        ->get(route('assetlancar.show', $sizeM))
         ->assertOk()
         ->assertSee($imageUrl, false);
+
+    expect($sizeS->fresh()->image_url)->toBe($imageUrl)
+        ->and($sizeM->fresh()->image_url)->toBe($imageUrl);
 
     File::deleteDirectory($imageRoot);
 });
