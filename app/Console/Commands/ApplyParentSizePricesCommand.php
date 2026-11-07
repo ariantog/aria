@@ -13,11 +13,12 @@ class ApplyParentSizePricesCommand extends Command
 {
     protected $signature = 'app:apply-parent-size-prices
         {parent : item_parents.id (e.g. 67 for items-group/parent/67)}
-        {--map= : Comma-separated SIZE:amount pairs, e.g. LIGHT:49000,MEDIUM:59000,XHEAVY:79000}
-        {--field=price : Pricing field (price, reseller_price, cost, cost_cnh)}
+        {--map= : Sell price map — SIZE:amount pairs, e.g. LIGHT:49000,MEDIUM:59000,XHEAVY:79000}
+        {--reseller-map= : Reseller price map — SIZE:amount pairs, e.g. LIGHT:15000,MEDIUM:17000,XHEAVY:27000}
+        {--field=price : When --reseller-map is omitted, apply --map to this field instead of sell price}
         {--dry-run : List changes without writing}
-        {--no-clear-parent-price : Keep item_parents default price after updates (default: clear parent price to 0)}
-        {--no-preserve-unmapped : Skip SKUs whose size tag is not listed in --map}';
+        {--no-clear-parent-price : Keep item_parents defaults after updates (default: clear each touched field on the parent to 0)}
+        {--no-preserve-unmapped : Skip SKUs whose size tag is not listed in the map for that field}';
 
     protected $description = 'Set per-SKU pricing under an item parent from size tag codes (repair mistaken parent-wide overrides)';
 
@@ -32,26 +33,25 @@ class ApplyParentSizePricesCommand extends Command
             return self::FAILURE;
         }
 
-        $mapRaw = trim((string) $this->option('map'));
-        if ($mapRaw === '') {
-            $this->error('Provide --map=SIZE:amount,... (e.g. --map=LIGHT:49000,MEDIUM:59000,XHEAVY:79000)');
+        /** @var array<string, array<string, float>> $fieldMaps */
+        $fieldMaps = $this->resolveFieldMaps();
+        if ($fieldMaps === []) {
+            $this->error('Provide at least one of --map (sell price) or --reseller-map.');
 
             return self::FAILURE;
         }
 
-        $field = (string) $this->option('field');
-        if (! in_array($field, ItemPricing::FIELDS, true)) {
-            $this->error('Invalid --field. Allowed: '.implode(', ', ItemPricing::FIELDS));
+        foreach ($fieldMaps as $field => $map) {
+            if ($map === []) {
+                $this->error("Could not parse map for {$field}. Use SIZE:amount pairs separated by commas.");
 
-            return self::FAILURE;
-        }
+                return self::FAILURE;
+            }
+            if (! in_array($field, ItemPricing::FIELDS, true)) {
+                $this->error("Invalid field {$field}.");
 
-        /** @var array<string, float> $map */
-        $map = $this->parseMap($mapRaw);
-        if ($map === []) {
-            $this->error('Could not parse --map. Use SIZE:amount pairs separated by commas.');
-
-            return self::FAILURE;
+                return self::FAILURE;
+            }
         }
 
         $parent = ItemParent::query()->find($parentId);
@@ -86,94 +86,128 @@ class ApplyParentSizePricesCommand extends Command
         }
 
         $rows = [];
-        $updated = 0;
+        $updatedByField = array_fill_keys(array_keys($fieldMaps), 0);
         $skipped = 0;
 
-        foreach ($items as $item) {
-            $item->loadMissing(['tags', 'group.parent']);
-            $sizeCode = $identityBuilder->itemSizeCode($item);
-            $oldEffective = ItemPricing::resolve($item, $field);
+        foreach ($fieldMaps as $field => $map) {
+            foreach ($items as $item) {
+                $item->loadMissing(['tags', 'group.parent']);
+                $sizeCode = $identityBuilder->itemSizeCode($item);
+                $oldEffective = ItemPricing::resolve($item, $field);
 
-            if ($sizeCode === null || $sizeCode === '') {
+                if ($sizeCode === null || $sizeCode === '') {
+                    $rows[] = [
+                        $field,
+                        (string) $item->id,
+                        (string) $item->code,
+                        '—',
+                        $this->formatMoney($oldEffective),
+                        '—',
+                        'skip (no size)',
+                    ];
+                    $skipped++;
+
+                    continue;
+                }
+
+                $target = null;
+                $reason = '';
+
+                if (array_key_exists($sizeCode, $map)) {
+                    $target = $map[$sizeCode];
+                    $reason = 'map';
+                } elseif ($preserveUnmapped) {
+                    $target = $oldEffective;
+                    $reason = 'preserve effective';
+                } else {
+                    $rows[] = [
+                        $field,
+                        (string) $item->id,
+                        (string) $item->code,
+                        $sizeCode,
+                        $this->formatMoney($oldEffective),
+                        '—',
+                        'skip (unmapped)',
+                    ];
+                    $skipped++;
+
+                    continue;
+                }
+
                 $rows[] = [
-                    (string) $item->id,
-                    (string) $item->code,
-                    '—',
-                    $this->formatMoney($oldEffective),
-                    '—',
-                    'skip (no size)',
-                ];
-                $skipped++;
-
-                continue;
-            }
-
-            $target = null;
-            $reason = '';
-
-            if (array_key_exists($sizeCode, $map)) {
-                $target = $map[$sizeCode];
-                $reason = 'map';
-            } elseif ($preserveUnmapped) {
-                $target = $oldEffective;
-                $reason = 'preserve effective';
-            } else {
-                $rows[] = [
+                    $field,
                     (string) $item->id,
                     (string) $item->code,
                     $sizeCode,
                     $this->formatMoney($oldEffective),
-                    '—',
-                    'skip (unmapped)',
+                    $this->formatMoney($target),
+                    $reason,
                 ];
-                $skipped++;
 
-                continue;
-            }
+                $inheritsParent = ItemPricing::detectScope($item, $field) !== ItemPricing::SCOPE_SIZE;
+                $shouldWrite = abs($oldEffective - $target) > 0.001 || ($clearParent && $inheritsParent);
 
-            $rows[] = [
-                (string) $item->id,
-                (string) $item->code,
-                $sizeCode,
-                $this->formatMoney($oldEffective),
-                $this->formatMoney($target),
-                $reason,
-            ];
-
-            $inheritsParent = ItemPricing::detectScope($item, $field) !== ItemPricing::SCOPE_SIZE;
-            $shouldWrite = abs($oldEffective - $target) > 0.001 || ($clearParent && $inheritsParent);
-
-            if ($shouldWrite) {
-                if ($dryRun) {
-                    $updated++;
-                } else {
-                    ItemPricing::apply($item, $field, ItemPricing::SCOPE_SIZE, $target);
-                    $updated++;
+                if ($shouldWrite) {
+                    if ($dryRun) {
+                        $updatedByField[$field]++;
+                    } else {
+                        ItemPricing::apply($item, $field, ItemPricing::SCOPE_SIZE, $target);
+                        $updatedByField[$field]++;
+                    }
                 }
             }
         }
 
         $this->table(
-            ['item_id', 'code', 'size', 'effective_before', 'target', 'note'],
+            ['field', 'item_id', 'code', 'size', 'effective_before', 'target', 'note'],
             $rows,
         );
 
         if (! $dryRun && $clearParent) {
-            ItemPricing::applyForParent($parentId, [
-                $field => [
+            $parentRows = [];
+            foreach (array_keys($fieldMaps) as $field) {
+                $parentRows[$field] = [
                     'scope' => ItemPricing::SCOPE_GROUP,
                     'value' => 0,
-                ],
-            ], cascadeOverrides: false);
-            $this->info("Cleared parent #{$parentId} {$field} default (set to 0).");
+                ];
+            }
+            ItemPricing::applyForParent($parentId, $parentRows, cascadeOverrides: false);
+            $this->info('Cleared parent #'.$parentId.' defaults for: '.implode(', ', array_keys($fieldMaps)).'.');
         }
 
         ItemPricing::flushRequestCache();
 
-        $verb = $dryRun ? 'to update' : 'updated';
-        $this->info("Parent #{$parentId}: {$items->count()} SKU(s), {$updated} {$verb}, {$skipped} skipped.");
+        $summary = collect($updatedByField)
+            ->map(fn (int $count, string $field) => "{$field}: {$count}".($dryRun ? ' to update' : ' updated'))
+            ->implode(', ');
+        $this->info("Parent #{$parentId}: {$items->count()} SKU(s), {$summary}, {$skipped} skipped row(s).");
 
         return self::SUCCESS;
+    }
+
+    /**
+     * @return array<string, array<string, float>>
+     */
+    private function resolveFieldMaps(): array
+    {
+        $mapRaw = trim((string) $this->option('map'));
+        $resellerRaw = trim((string) $this->option('reseller-map'));
+        $field = (string) $this->option('field');
+
+        $out = [];
+
+        if ($resellerRaw !== '') {
+            $out['reseller_price'] = $this->parseMap($resellerRaw);
+        }
+
+        if ($mapRaw === '') {
+            return $out;
+        }
+
+        $sellField = $resellerRaw !== '' ? 'price' : $field;
+        $out[$sellField] = $this->parseMap($mapRaw);
+
+        return $out;
     }
 
     /**

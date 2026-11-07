@@ -21,7 +21,7 @@ beforeEach(function () {
 
 function createParentSkuMatrix($test): ItemParent
 {
-    $parent = ItemParent::query()->create(['price' => 69000]);
+    $parent = ItemParent::query()->create(['price' => 69000, 'reseller_price' => 25000]);
     $group = ItemGroup::factory()->create([
         'master' => 'CX99001-01',
         'variant' => '01',
@@ -91,5 +91,32 @@ test('apply parent size prices requires map option', function () {
     ]);
 
     expect($exit)->toBe(1);
-    expect(Artisan::output())->toContain('--map');
+    expect(Artisan::output())->toContain('reseller-map');
+});
+
+test('apply parent size prices can set sell and reseller maps in one run', function () {
+    $parent = createParentSkuMatrix($this);
+
+    $exit = Artisan::call('app:apply-parent-size-prices', [
+        'parent' => $parent->id,
+        '--map' => 'LIGHT:49000,MEDIUM:59000,XHEAVY:79000',
+        '--reseller-map' => 'LIGHT:15000,MEDIUM:17000,XHEAVY:27000',
+    ]);
+
+    expect($exit)->toBe(0);
+
+    $bySize = fn (string $code) => Item::query()
+        ->where('code', 'AJD-CX99001-01-'.$code)
+        ->firstOrFail()
+        ->fresh(['group.parent', 'tags']);
+
+    expect($bySize('LIGHT')->effectivePrice())->toBe(49000.0)
+        ->and($bySize('LIGHT')->catalogResellerPrice())->toBe(15000.0)
+        ->and($bySize('MEDIUM')->catalogResellerPrice())->toBe(17000.0)
+        ->and($bySize('XHEAVY')->catalogResellerPrice())->toBe(27000.0)
+        ->and($bySize('HEAVY')->catalogResellerPrice())->toBe(25000.0);
+
+    $parent->refresh();
+    expect((float) $parent->price)->toBe(0.0)
+        ->and((float) $parent->reseller_price)->toBe(0.0);
 });
