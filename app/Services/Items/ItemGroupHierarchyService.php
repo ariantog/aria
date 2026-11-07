@@ -273,7 +273,7 @@ class ItemGroupHierarchyService
             return null;
         }
 
-        $parent = ItemParent::query()->where('parent_key', $parentKey)->first();
+        $parent = ItemParent::query()->where('parent_key', $parentKey)->orderBy('id')->first();
 
         if ($parent !== null) {
             return (int) $parent->id;
@@ -489,9 +489,11 @@ class ItemGroupHierarchyService
     }
 
     /**
+     * Colorway groups that belong to this parent key (active SKUs only).
+     *
      * @return Collection<int, ItemGroup>
      */
-    protected function groupsForParentKey(string $parentKey): Collection
+    public function groupsForParentKey(string $parentKey): Collection
     {
         $parts = explode(':', $parentKey);
         $itemType = ItemType::from((int) ($parts[0] ?? ItemType::ITEM->value));
@@ -553,6 +555,52 @@ class ItemGroupHierarchyService
         }
 
         return $query->orderBy('variant')->get();
+    }
+
+    /**
+     * Backfill path: same as {@see groupsForParentKey()} but falls back to master/pcode
+     * match when every SKU is soft-deleted (legacy catalog still on item_group).
+     *
+     * @return Collection<int, ItemGroup>
+     */
+    public function groupsForParentKeyRelaxed(string $parentKey): Collection
+    {
+        $groups = $this->groupsForParentKey($parentKey);
+        if ($groups->isNotEmpty()) {
+            return $groups;
+        }
+
+        $parentKey = trim($parentKey);
+        if ($parentKey === '') {
+            return collect();
+        }
+
+        $parts = explode(':', $parentKey);
+        $itemType = ItemType::tryFrom((int) ($parts[0] ?? 0)) ?? ItemType::ITEM;
+
+        if ($itemType === ItemType::ASSET_LANCAR) {
+            $master = strtoupper($parts[1] ?? '');
+
+            return ItemGroup::query()
+                ->whereRaw('UPPER(TRIM(item_group.master)) = ?', [$master])
+                ->with(['items' => fn ($q) => $q->orderBy('id')])
+                ->orderBy('variant')
+                ->get();
+        }
+
+        $typeCode = strtoupper($parts[1] ?? '');
+        $master = $this->identityBuilder->canonicalManufacturedMaster((string) ($parts[2] ?? ''))
+            ?? strtoupper((string) ($parts[2] ?? ''));
+
+        return ItemGroup::query()
+            ->where(function (Builder $masterQuery) use ($master) {
+                $masterQuery->whereRaw('UPPER(TRIM(item_group.master)) = ?', [$master])
+                    ->orWhereRaw("UPPER(REPLACE(TRIM(item_group.master), '/', '-')) = ?", [$master])
+                    ->orWhereRaw("UPPER(REPLACE(TRIM(item_group.master), '/', '-')) LIKE ?", [$master.'-%']);
+            })
+            ->with(['items' => fn ($q) => $q->orderBy('id')])
+            ->orderBy('variant')
+            ->get();
     }
 
     /**
