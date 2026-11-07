@@ -4,7 +4,9 @@ namespace App\Support;
 
 use App\Models\Item;
 use App\Models\ItemGroup;
+use App\Services\Items\ItemGroupHierarchyService;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
 
 class ItemImageResolver
 {
@@ -54,24 +56,11 @@ class ItemImageResolver
      * 1. Current item_group id (canonical type-code-color image)
      * 2. Item id (legacy asset lancar per-SKU uploads)
      * 3. Any sibling SKU in the same group
+     * 4. Other colorway groups / SKUs under the same item_parents row (parent detail scope)
      */
     public function resolveUrlForItem(Item $item): string
     {
-        $candidates = [];
-
-        if ((int) $item->group_id > 0) {
-            $candidates[] = (int) $item->group_id;
-        }
-
-        $candidates[] = (int) $item->id;
-
-        if ($item->relationLoaded('group') && $item->group?->relationLoaded('items')) {
-            foreach ($item->group->items as $sibling) {
-                $candidates[] = (int) $sibling->id;
-            }
-        }
-
-        return $this->resolveUrlFromCandidateIds($candidates);
+        return $this->resolveUrlFromCandidateIds($this->uniqueCandidateIdsForItem($item));
     }
 
     /**
@@ -393,7 +382,53 @@ class ItemImageResolver
             }
         }
 
-        return $this->uniqueIds($candidates);
+        return $this->uniqueIds(array_merge($candidates, $this->parentColorwayCandidateIds($item)));
+    }
+
+    /**
+     * Group / SKU ids for other colorways under the same parent (matches parent detail image scope).
+     *
+     * @return list<int>
+     */
+    protected function parentColorwayCandidateIds(Item $item): array
+    {
+        if ((int) $item->group_id <= 0 || ! $item->exists) {
+            return [];
+        }
+
+        if (! Schema::hasTable('item_parents')) {
+            return [];
+        }
+
+        $item->loadMissing(['group', 'tags']);
+
+        $parentId = (int) ($item->group?->parent_id ?? 0);
+        if ($parentId <= 0) {
+            $parentId = (int) (app(ItemGroupHierarchyService::class)->parentIdForItem($item) ?? 0);
+        }
+
+        if ($parentId <= 0) {
+            return [];
+        }
+
+        $ownGroupId = (int) $item->group_id;
+        $candidates = [];
+
+        foreach (app(ItemGroupHierarchyService::class)->groupsForParentId($parentId) as $group) {
+            if ((int) $group->id === $ownGroupId) {
+                continue;
+            }
+
+            $candidates[] = (int) $group->id;
+
+            if ($group->relationLoaded('items')) {
+                foreach ($group->items as $otherItem) {
+                    $candidates[] = (int) $otherItem->id;
+                }
+            }
+        }
+
+        return $candidates;
     }
 
     /**
