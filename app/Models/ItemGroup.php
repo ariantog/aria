@@ -7,6 +7,7 @@ use App\Support\FillsProductionColumnDefaults;
 use App\Support\ItemImageResolver;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ItemGroup extends Model
@@ -20,6 +21,7 @@ class ItemGroup extends Model
     protected $appends = ['image_url', 'in_warehouse_qty'];
 
     protected $fillable = [
+        'parent_id',
         'name',
         'alias',
         'description',
@@ -60,6 +62,11 @@ class ItemGroup extends Model
     public function items(): HasMany
     {
         return $this->hasMany(Item::class, 'group_id');
+    }
+
+    public function parent(): BelongsTo
+    {
+        return $this->belongsTo(ItemParent::class, 'parent_id');
     }
 
     public function getImageUrlAttribute(): string

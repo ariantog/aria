@@ -337,11 +337,12 @@ Route::middleware(['auth', 'verified', 'active', 'enforce.readonly'])->group(fun
 
     // Item Group Routes
     Route::get('items-group', [App\Http\Controllers\ItemsController::class, 'group'])->name('items.group');
-    Route::get('items-group/parent/{group}', [App\Http\Controllers\ItemsController::class, 'groupParentDetail'])->whereNumber('group')->name('items.group-parent-detail');
-    Route::get('items-group/parent/{group}/export', [App\Http\Controllers\ItemsController::class, 'exportGroupParent'])->whereNumber('group')->name('items.group-parent-export');
-    Route::put('items-group/parent/{group}/name', [App\Http\Controllers\ItemsController::class, 'updateGroupParentName'])->whereNumber('group')->name('items.group-parent-update-name');
-    Route::put('items-group/parent/{group}/descriptions', [App\Http\Controllers\ItemsController::class, 'updateGroupParentDescriptions'])->whereNumber('group')->name('items.group-parent-update-descriptions');
-    Route::put('items-group/parent/{group}/pricing', [App\Http\Controllers\ItemsController::class, 'updateGroupParentPricing'])->whereNumber('group')->name('items.group-parent-update-pricing');
+    Route::get('items-group/parent/{parent}', [App\Http\Controllers\ItemsController::class, 'groupParentDetail'])->whereNumber('parent')->name('items.group-parent-detail');
+    Route::get('items-group/parent/{parent}/export', [App\Http\Controllers\ItemsController::class, 'exportGroupParent'])->whereNumber('parent')->name('items.group-parent-export');
+    Route::put('items-group/parent/{parent}/name', [App\Http\Controllers\ItemsController::class, 'updateGroupParentName'])->whereNumber('parent')->name('items.group-parent-update-name');
+    Route::put('items-group/parent/{parent}/descriptions', [App\Http\Controllers\ItemsController::class, 'updateGroupParentDescriptions'])->whereNumber('parent')->name('items.group-parent-update-descriptions');
+    Route::put('items-group/parent/{parent}/pricing', [App\Http\Controllers\ItemsController::class, 'updateGroupParentPricing'])->whereNumber('parent')->name('items.group-parent-update-pricing');
+    Route::get('items-group/parent-by-group/{group}', [App\Http\Controllers\ItemsController::class, 'redirectGroupParentFromColorway'])->whereNumber('group')->name('items.group-parent-detail-legacy');
     Route::get('items-group/parent/{parentSlug}', [App\Http\Controllers\ItemsController::class, 'redirectLegacyGroupParent'])->name('items.group-parent-legacy');
     Route::get('items-group/colorway/{group}/edit', [App\Http\Controllers\ItemsController::class, 'colorwayEdit'])->name('items.colorway-edit');
     Route::put('items-group/colorway/{group}', [App\Http\Controllers\ItemsController::class, 'colorwayUpdate'])->name('items.colorway-update');

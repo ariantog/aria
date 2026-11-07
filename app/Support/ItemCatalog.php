@@ -87,21 +87,28 @@ final class ItemCatalog
      */
     private static function resolveCatalogText(Item $item, string $field): string
     {
-        $item->loadMissing('group');
+        $item->loadMissing('group.parent');
 
-        $groupText = $item->hasCatalogGroup()
-            ? trim((string) ($item->group->{$field} ?? ''))
+        $parentText = trim((string) ($item->group?->parent?->{$field} ?? ''));
+
+        $groupText = self::groupColumnExists($field)
+            ? trim((string) ($item->group?->{$field} ?? ''))
             : '';
 
         $itemText = $field === 'description'
             ? self::leftoverDescription($item)
             : self::leftoverDescription2($item);
 
-        if ($groupText !== '') {
-            if ($itemText !== '' && strtoupper($itemText) !== strtoupper($groupText)) {
-                return $itemText;
-            }
+        if ($itemText !== '' && ($parentText === '' || strtoupper($itemText) !== strtoupper($parentText))
+            && ($groupText === '' || strtoupper($itemText) !== strtoupper($groupText))) {
+            return $itemText;
+        }
 
+        if ($parentText !== '') {
+            return $parentText;
+        }
+
+        if ($groupText !== '') {
             return $groupText;
         }
 
@@ -120,7 +127,7 @@ final class ItemCatalog
 
     public static function syncParentDescriptions(string $parentKey, string $description, string $description2): void
     {
-        if (! self::hasColumn('item_parent_prices', 'description')) {
+        if (! self::hasColumn('item_parents', 'description') && ! self::hasColumn('item_parent_prices', 'description')) {
             return;
         }
 
@@ -129,12 +136,24 @@ final class ItemCatalog
             return;
         }
 
-        $record = ItemParentPrice::query()->firstOrNew(['parent_key' => $parentKey]);
+        $record = \App\Models\ItemParent::query()->firstOrNew(['parent_key' => $parentKey]);
         $record->description = strtoupper(trim($description));
         $record->description2 = strtoupper(trim($description2));
         $record->save();
 
         self::$parentRecordCache[$parentKey] = $record->fresh();
+    }
+
+    public static function syncParentDescriptionsById(int $parentId, string $description, string $description2): void
+    {
+        if ($parentId <= 0) {
+            return;
+        }
+
+        $record = \App\Models\ItemParent::query()->findOrFail($parentId);
+        $record->description = strtoupper(trim($description));
+        $record->description2 = strtoupper(trim($description2));
+        $record->save();
     }
 
     public static function resellerPrice(Item $item): float
@@ -297,6 +316,16 @@ final class ItemCatalog
         }
 
         $group->save();
+
+        $parentId = (int) ($group->parent_id ?? 0);
+        if ($parentId > 0
+            && (array_key_exists('description', $attributes) || array_key_exists('description2', $attributes))) {
+            self::syncParentDescriptionsById(
+                $parentId,
+                (string) ($group->description ?? ''),
+                (string) ($group->description2 ?? ''),
+            );
+        }
     }
 
     /**

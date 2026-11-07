@@ -470,7 +470,14 @@ class Item extends Model
             return null;
         }
 
-        return route('items.group-parent-detail', $this->group_id);
+        $this->loadMissing('group');
+        $parentId = (int) ($this->group?->parent_id ?? 0);
+
+        if ($parentId > 0) {
+            return route('items.group-parent-detail', $parentId);
+        }
+
+        return route('items.group-parent-detail-legacy', $this->group_id);
     }
 
     public function colorwayEditUrl(): ?string

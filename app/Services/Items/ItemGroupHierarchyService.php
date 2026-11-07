@@ -5,6 +5,7 @@ namespace App\Services\Items;
 use App\Enums\ItemType;
 use App\Models\Item;
 use App\Models\ItemGroup;
+use App\Models\ItemParent;
 use App\Models\ItemParentPrice;
 use App\Models\Tag;
 use App\Services\JubelioService;
@@ -163,9 +164,12 @@ class ItemGroupHierarchyService
                     ? $master
                     : trim(($sample ? $this->identityBuilder->manufacturedTypeCode($sample) : 'UNK').' '.$master);
 
+                $parentId = $this->parentIdForParentKey($parentKey) ?? 0;
+
                 return [
                     'parent_key' => $parentKey,
-                    'parent_group_id' => (int) $row->sample_group_id,
+                    'parent_id' => $parentId,
+                    'parent_group_id' => $parentId > 0 ? $parentId : (int) $row->sample_group_id,
                     'label' => $label,
                     'product_name' => $this->resolveListProductName(
                         (string) ($row->product_name ?? ''),
@@ -202,7 +206,11 @@ class ItemGroupHierarchyService
         $sample = $items->first();
         $itemType = $sample->type;
         $label = $this->identityBuilder->itemParentLabel($sample);
-        $productName = $this->resolveProductName($groups, $parentKey, $itemType);
+        $parentRecord = ItemParent::query()->where('parent_key', $parentKey)->first();
+        $productName = trim((string) ($parentRecord?->product_name ?? ''));
+        if ($productName === '') {
+            $productName = $this->resolveProductName($groups, $parentKey, $itemType);
+        }
         $usesPlaceholder = $itemType === ItemType::ITEM
             && $productName !== ''
             && strtoupper($productName) === strtoupper($this->identityBuilder->manufacturedParentMaster($sample));
@@ -218,15 +226,22 @@ class ItemGroupHierarchyService
 
         $warehouseNames = array_column($warehouseBreakdown, 'name');
 
+        $legacyParentId = $this->parentIdForParentKey($parentKey) ?? 0;
+
         return [
+            'parent_id' => $legacyParentId,
             'parent_key' => $parentKey,
             'anchor_group_id' => (int) ($groups->min('id') ?? 0),
             'label' => $label,
             'item_type' => $itemType,
             'is_asset' => $itemType === ItemType::ASSET_LANCAR,
             'product_name' => $productName,
-            'description' => \App\Support\ItemCatalog::parentDescriptionForKey($parentKey),
-            'description2' => \App\Support\ItemCatalog::parentDescription2ForKey($parentKey),
+            'description' => trim((string) ($parentRecord?->description ?? '')) !== ''
+                ? trim((string) $parentRecord->description)
+                : \App\Support\ItemCatalog::parentDescriptionForKey($parentKey),
+            'description2' => trim((string) ($parentRecord?->description2 ?? '')) !== ''
+                ? trim((string) $parentRecord->description2)
+                : \App\Support\ItemCatalog::parentDescription2ForKey($parentKey),
             'uses_placeholder' => $usesPlaceholder,
             'image_url' => $this->imageResolver->resolveUrlForGroups($groups),
             'group_ids' => $groups->pluck('id')->all(),
@@ -252,11 +267,128 @@ class ItemGroupHierarchyService
         return $id !== null ? (int) $id : null;
     }
 
+    public function parentIdForParentKey(string $parentKey): ?int
+    {
+        if (! \Illuminate\Support\Facades\Schema::hasTable('item_parents')) {
+            return null;
+        }
+
+        $parent = ItemParent::query()->where('parent_key', $parentKey)->first();
+
+        if ($parent !== null) {
+            return (int) $parent->id;
+        }
+
+        $group = $this->groupsForParentKey($parentKey)->first();
+
+        return $group !== null && (int) $group->parent_id > 0
+            ? (int) $group->parent_id
+            : null;
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, ItemGroup>
+     */
+    public function groupsForParentId(int $parentId): Collection
+    {
+        if ($parentId <= 0) {
+            return collect();
+        }
+
+        return ItemGroup::query()
+            ->where('parent_id', $parentId)
+            ->with([
+                'items' => fn ($q) => $q
+                    ->whereNull('deleted_at')
+                    ->with([
+                        'tags',
+                        'warehouseItems' => fn ($wq) => $wq
+                            ->forAvailableStock()
+                            ->with('warehouse'),
+                    ]),
+            ])
+            ->orderBy('variant')
+            ->get();
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function groupIdsForParentId(int $parentId): array
+    {
+        return $this->groupsForParentId($parentId)->pluck('id')->map(fn ($id) => (int) $id)->all();
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function parentDetailForParent(ItemParent $parent, bool $fetchJubelio = true): ?array
+    {
+        $groups = $this->groupsForParentId((int) $parent->id);
+        if ($groups->isEmpty()) {
+            return null;
+        }
+
+        $items = $groups->flatMap(fn (ItemGroup $group) => $group->items);
+        if ($items->isEmpty()) {
+            return null;
+        }
+
+        $sample = $items->first();
+        $itemType = $sample->type;
+        $label = $this->identityBuilder->itemParentLabel($sample);
+        $productName = trim((string) ($parent->product_name ?? ''));
+        if ($productName === '') {
+            $productName = $this->resolveProductName($groups, (string) ($parent->parent_key ?? ''), $itemType);
+        }
+        $usesPlaceholder = $itemType === ItemType::ITEM
+            && $productName !== ''
+            && strtoupper($productName) === strtoupper($this->identityBuilder->manufacturedParentMaster($sample));
+
+        $jubelioStocks = $fetchJubelio
+            ? $this->jubelioService->fetchItemStocks(
+                $items->pluck('jubelio_item_id')->filter(fn ($id) => (int) $id > 0)->unique()->values()->all()
+            )
+            : [];
+
+        $colors = $this->buildColorSectionsFromGroups($groups, $jubelioStocks, $items);
+        $warehouseBreakdown = $this->aggregateWarehouseBreakdown($items);
+        $warehouseNames = array_column($warehouseBreakdown, 'name');
+
+        return [
+            'parent_id' => (int) $parent->id,
+            'parent_key' => (string) ($parent->parent_key ?? ''),
+            'anchor_group_id' => (int) ($groups->min('id') ?? 0),
+            'label' => $label,
+            'item_type' => $itemType,
+            'is_asset' => $itemType === ItemType::ASSET_LANCAR,
+            'product_name' => $productName,
+            'description' => trim((string) ($parent->description ?? '')),
+            'description2' => trim((string) ($parent->description2 ?? '')),
+            'uses_placeholder' => $usesPlaceholder,
+            'image_url' => $this->imageResolver->resolveUrlForGroups($groups),
+            'group_ids' => $groups->pluck('id')->all(),
+            'colors' => $colors,
+            'total_warehouse_qty' => $this->sumWarehouseBreakdown($warehouseBreakdown),
+            'warehouse_breakdown' => $warehouseBreakdown,
+            'warehouse_names' => $warehouseNames,
+        ];
+    }
+
     /**
      * @return array<string, mixed>|null
      */
     public function parentDetailForAnchorGroup(ItemGroup $anchorGroup, bool $fetchJubelio = true): ?array
     {
+        $parentId = (int) $anchorGroup->parent_id;
+        if ($parentId > 0) {
+            $parent = ItemParent::query()->find($parentId);
+
+            return $parent !== null
+                ? $this->parentDetailForParent($parent, $fetchJubelio)
+                : null;
+        }
+
         $sample = $anchorGroup->items()
             ->whereNull('deleted_at')
             ->with(['tags', 'group'])

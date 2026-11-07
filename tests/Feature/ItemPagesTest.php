@@ -20,22 +20,20 @@ test('items index page can be rendered', function () {
 });
 
 test('items index shows effective price from parent group when sku price is zero', function () {
+    $parent = \App\Models\ItemParent::query()->create([
+        'parent_key' => '1:AJD:CX-EFFECTIVE',
+        'price' => 275_000,
+    ]);
     $group = \App\Models\ItemGroup::factory()->create([
+        'parent_id' => $parent->id,
         'master' => 'CX-EFFECTIVE-01',
         'variant' => '01',
-        'price' => 275_000,
     ]);
     $item = Item::factory()->create([
         'group_id' => $group->id,
         'pcode' => 'CX-EFFECTIVE-01',
         'price' => 0,
         'code' => 'AJD-CX-EFFECTIVE-01-S',
-    ]);
-
-    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey($item);
-    \App\Models\ItemParentPrice::query()->create([
-        'parent_key' => $parentKey,
-        'price' => 275_000,
     ]);
 
     $this->actingAs($this->user)

@@ -10,7 +10,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(Tests\TestCase::class, RefreshDatabase::class);
 
-test('resolveBareTitle falls back sku alias then colorway name then parent product name', function () {
+test('resolveBareTitle falls back sku alias then parent product name', function () {
     $group = ItemGroup::query()->create([
         'master' => 'CX90233-23',
         'variant' => '23',
@@ -19,31 +19,29 @@ test('resolveBareTitle falls back sku alias then colorway name then parent produ
         'description2' => '',
     ]);
 
+    $type = Tag::factory()->create(['type' => Tag::TYPE_TYPE, 'code' => 'AJD', 'name' => 'Jacket']);
     $item = Item::factory()->create([
         'group_id' => $group->id,
         'type' => ItemType::ITEM,
         'pcode' => 'CX90233-23',
         'alias' => '',
     ]);
+    $item->tags()->attach($type->id);
 
-    expect(ItemProductTitle::resolveBareTitle($item))->toBe('COLORWAY TITLE');
+    $parent = \App\Support\ItemPricing::ensureParentForItem($item->load(['group', 'tags']));
+    $parent->update(['product_name' => 'PARENT TITLE']);
+    ItemProductTitle::flushRequestCache();
 
-    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey($item);
-    ItemParentPrice::query()->create([
-        'parent_key' => $parentKey,
-        'product_name' => 'PARENT TITLE',
-    ]);
-    $group->update(['name' => 'CX90233-23']);
-
-    expect(ItemProductTitle::resolveBareTitle($item->fresh(['group'])))->toBe('PARENT TITLE');
+    expect(ItemProductTitle::resolveBareTitle($item->fresh(['group.parent'])))->toBe('PARENT TITLE');
 
     $item->update(['alias' => 'SKU TITLE']);
 
-    expect(ItemProductTitle::resolveBareTitle($item->fresh(['group'])))->toBe('SKU TITLE');
+    expect(ItemProductTitle::resolveBareTitle($item->fresh(['group.parent'])))->toBe('SKU TITLE');
 });
 
 test('buildDisplayName appends warna and size for manufactured items', function () {
-    $group = ItemGroup::factory()->create(['name' => 'RUNNING SHIRT']);
+    $type = Tag::factory()->create(['type' => Tag::TYPE_TYPE, 'code' => 'AJD', 'name' => 'Jacket']);
+    $group = ItemGroup::factory()->create(['master' => 'CX90233-23', 'variant' => '23', 'name' => 'RUNNING SHIRT']);
     $warna = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLUE', 'name' => 'Blue']);
     $size = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'M', 'name' => 'M']);
 
@@ -52,9 +50,12 @@ test('buildDisplayName appends warna and size for manufactured items', function 
         'type' => ItemType::ITEM,
         'pcode' => 'CX90233-23',
     ]);
-    $item->tags()->sync([$warna->id, $size->id]);
+    $item->tags()->sync([$type->id, $warna->id, $size->id]);
 
-    expect(ItemProductTitle::buildDisplayName($item->fresh(['group', 'tags'])))
+    $parent = \App\Support\ItemPricing::ensureParentForItem($item->load(['group', 'tags']));
+    $parent->update(['product_name' => 'RUNNING SHIRT']);
+
+    expect(ItemProductTitle::buildDisplayName($item->fresh(['group.parent', 'tags'])))
         ->toBe('RUNNING SHIRT - BLUE - M');
 });
 
@@ -65,23 +66,26 @@ test('syncParentProductName refreshes in-request parent cache for rebuilds', fun
         'name' => 'CX90233-23',
     ]);
 
+    $type = Tag::factory()->create(['type' => Tag::TYPE_TYPE, 'code' => 'AJD', 'name' => 'Jacket']);
     $item = Item::factory()->create([
         'group_id' => $group->id,
         'type' => ItemType::ITEM,
         'pcode' => 'CX90233-23',
     ]);
+    $item->tags()->attach($type->id);
 
-    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey($item);
-    ItemParentPrice::query()->create([
+    $parentKey = app(\App\Services\Items\ItemIdentityBuilder::class)->itemParentKey($item->load('tags'));
+    $parent = ItemParentPrice::query()->create([
         'parent_key' => $parentKey,
         'product_name' => 'OLD PARENT',
     ]);
+    $group->update(['parent_id' => $parent->id]);
 
     expect(ItemProductTitle::parentProductNameForKey($parentKey))->toBe('OLD PARENT');
 
     ItemProductTitle::syncParentProductName($parentKey, 'NEW PARENT');
 
-    expect(ItemProductTitle::resolveBareTitle($item->fresh(['group'])))->toBe('NEW PARENT');
+    expect(ItemProductTitle::resolveBareTitle($item->fresh(['group.parent'])))->toBe('NEW PARENT');
 });
 
 test('resolveBareTitle uses type-parent master for manufactured pcode fallback not colorway pcode', function () {

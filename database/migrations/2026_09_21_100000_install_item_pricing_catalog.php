@@ -22,15 +22,18 @@ return new class extends Migration
             });
         }
 
-        if (! Schema::hasTable('item_parent_prices')) {
-            Schema::create('item_parent_prices', function (Blueprint $table) {
+        if (! Schema::hasTable('item_parents') && ! Schema::hasTable('item_parent_prices')) {
+            Schema::create('item_parents', function (Blueprint $table) {
                 $table->increments('id');
-                $table->string('parent_key', 120);
+                $table->string('parent_key', 120)->nullable();
+                $table->string('product_name', 255)->default('');
+                $table->string('description', 200)->default('');
+                $table->string('description2', 250)->default('');
                 $table->decimal('price', 20, 2)->default(0);
                 $table->decimal('reseller_price', 20, 2)->default(0);
                 $table->decimal('cost', 20, 2)->default(0);
                 $table->decimal('cost_cnh', 20, 2)->default(0);
-                $table->unique('parent_key', 'item_parent_prices_key_uq');
+                $table->unique('parent_key', 'item_parents_key_uq');
             });
         }
     }

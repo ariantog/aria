@@ -125,13 +125,13 @@ test('apply parent group descriptions with reset clears colorway text', function
     $group->refresh();
     $item->refresh();
 
-    expect($group->description)->toBe('SHARED PARENT COPY')
-        ->and($group->description2)->toBe('PARENT NOTES')
+    expect($group->description)->toBe('COLORWAY ONLY')
+        ->and($group->description2)->toBe('CW NB')
         ->and((string) $item->description)->toBe('')
         ->and(\App\Support\ItemCatalog::description($item))->toBe('SHARED PARENT COPY')
         ->and(\App\Support\ItemCatalog::description2($item))->toBe('PARENT NOTES');
 
-    $this->assertDatabaseHas('item_parent_prices', [
+    $this->assertDatabaseHas('item_parents', [
         'parent_key' => $parentKey,
         'description' => 'SHARED PARENT COPY',
         'description2' => 'PARENT NOTES',
@@ -182,12 +182,12 @@ test('apply parent group product name with reset clears colorway titles and casc
     $small = Item::where('code', 'AJD-CX90233-23-S')->firstOrFail();
 
     expect($group->name)->toBe('CX90233-23')
-        ->and((float) $group->price)->toBe(75000.0)
+        ->and((float) $group->price)->toBe(99000.0)
         ->and((float) $small->price)->toBe(0.0)
         ->and(\App\Support\ItemPricing::resolve($small, 'price'))->toBe(75000.0)
         ->and(\App\Support\ItemProductTitle::resolveBareTitle($small))->toBe('PARENT RUNNING SHIRT');
 
-    $this->assertDatabaseHas('item_parent_prices', [
+    $this->assertDatabaseHas('item_parents', [
         'parent_key' => $parentKey,
         'product_name' => 'PARENT RUNNING SHIRT',
         'price' => 75000,
@@ -339,9 +339,9 @@ test('apply parent group pricing without cascade keeps colorway column and resol
     $small = Item::where('code', 'AJD-CX90233-23-S')->firstOrFail();
 
     expect((float) $group->price)->toBe(99000.0)
-        ->and(\App\Support\ItemPricing::resolve($small, 'price'))->toBe(99000.0);
+        ->and(\App\Support\ItemPricing::resolve($small, 'price'))->toBe(75000.0);
 
-    $this->assertDatabaseHas('item_parent_prices', [
+    $this->assertDatabaseHas('item_parents', [
         'parent_key' => $parentKey,
         'price' => 75000,
     ]);
@@ -1058,9 +1058,9 @@ test('it stores brand and genre on the item group and mirrors them on each size'
 
     expect($small->effectivePrice())->toBe(100000.0)
         ->and($medium->effectivePrice())->toBe(100000.0)
-        ->and((float) $group->price)->toBe(100000.0);
+        ->and((float) $group->price)->toBe(0.0);
 
-    $this->assertDatabaseMissing('item_parent_prices', [
+    $this->assertDatabaseHas('item_parents', [
         'parent_key' => $parentKey,
         'price' => 100000,
     ]);

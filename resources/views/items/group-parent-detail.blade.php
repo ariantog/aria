@@ -82,7 +82,7 @@ $idr = fn ($v) => 'Rp '.format_amount($v, 0);
                         <div>
                             <p class="mb-2 text-sm font-semibold uppercase tracking-wider text-gray-500">Parent product name</p>
                             <p class="mb-3 text-sm text-gray-600">Sets the default bare title for every colorway that does not have its own product name. SKU display names are rebuilt from catalog + tags.</p>
-                            <form method="POST" action="{{ route('items.group-parent-update-name', $detail['anchor_group_id']) }}" class="space-y-4"
+                            <form method="POST" action="{{ route('items.group-parent-update-name', $detail['parent_id']) }}" class="space-y-4"
                                   onsubmit="return confirm(this.querySelector('[name=reset_colorway_titles]')?.checked
                                       ? 'Reset every colorway title to inherit this parent name? Custom colorway names will be cleared.'
                                       : 'Save parent product name? Colorways that already have their own title are kept.');">
@@ -114,7 +114,7 @@ $idr = fn ($v) => 'Rp '.format_amount($v, 0);
                         <div>
                             <p class="mb-2 text-sm font-semibold uppercase tracking-wider text-gray-500">Parent group descriptions</p>
                             <p class="mb-3 text-sm text-gray-600">Default description and notes for every colorway that leaves those fields blank. Per-colorway and per-SKU overrides are kept unless you reset them.</p>
-                            <form method="POST" action="{{ route('items.group-parent-update-descriptions', $detail['anchor_group_id']) }}" class="space-y-4"
+                            <form method="POST" action="{{ route('items.group-parent-update-descriptions', $detail['parent_id']) }}" class="space-y-4"
                                   onsubmit="return confirm(this.querySelector('[name=reset_colorway_descriptions]')?.checked
                                       ? 'Reset every colorway description to inherit this parent text? Custom colorway and mirrored SKU text will be cleared.'
                                       : 'Save parent group descriptions? Colorways that already have their own text are kept.');">
@@ -151,7 +151,7 @@ $idr = fn ($v) => 'Rp '.format_amount($v, 0);
                         <div>
                             <p class="mb-2 text-sm font-semibold uppercase tracking-wider text-gray-500">Parent group pricing</p>
                             <p class="mb-3 text-sm text-gray-600">Amount <strong>0</strong> means no parent default (colorways and SKUs keep their own values). Amounts &gt; 0 are stored on the parent; optionally clear lower overrides so every colorway inherits them.</p>
-                            <form method="POST" action="{{ route('items.group-parent-update-pricing', $detail['anchor_group_id']) }}" class="space-y-4"
+                            <form method="POST" action="{{ route('items.group-parent-update-pricing', $detail['parent_id']) }}" class="space-y-4"
                                   onsubmit="return confirm(this.querySelector('[name=cascade_pricing]')?.checked
                                       ? 'Save parent pricing and clear colorway/SKU price overrides for fields with amount &gt; 0?'
                                       : 'Save parent pricing defaults only? Colorway and SKU overrides are not changed.');">
@@ -186,7 +186,7 @@ $idr = fn ($v) => 'Rp '.format_amount($v, 0);
                         <label class="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
                             <input type="checkbox" x-model="showZero" class="rounded border-gray-300"> Show 0 Quantity
                         </label>
-                        <a href="{{ route('items.group-parent-export', $detail['anchor_group_id']) }}"
+                        <a href="{{ route('items.group-parent-export', $detail['parent_id']) }}"
                            class="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
                             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                             Export Excel

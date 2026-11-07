@@ -4,7 +4,9 @@ use App\Enums\ItemType;
 use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\ItemGroup;
+use App\Models\ItemParent;
 use App\Models\ItemParentPrice;
+use App\Support\ItemPricing;
 use App\Models\Tag;
 use App\Models\User;
 use App\Models\WarehouseItem;
@@ -179,11 +181,12 @@ it('renders parent detail with color sections and size rows', function () {
 });
 
 it('parent detail includes effective sell price per sku and shows it on the page', function () {
+    $parent = ItemParent::query()->create(['parent_key' => '1:AJD:CX93024', 'price' => 199_000]);
     $pinkGroup = ItemGroup::factory()->create([
+        'parent_id' => $parent->id,
         'master' => 'CX93024',
         'variant' => '05',
         'name' => 'RUNNING SHIRT',
-        'price' => 199_000,
     ]);
 
     $pinkS = Item::factory()->create([
@@ -196,13 +199,12 @@ it('parent detail includes effective sell price per sku and shows it on the page
     ]);
     $pinkS->tags()->attach([$this->typeTag->id, $this->pinkTag->id, $this->sizeS->id]);
 
-    $parentKey = $this->builder->itemParentKey($pinkS->load('tags', 'group'));
-    $detail = $this->hierarchy->parentDetail($parentKey, fetchJubelio: false);
+    $detail = $this->hierarchy->parentDetailForParent($parent, fetchJubelio: false);
 
     expect($detail['colors'][0]['size_rows'][0]['price'])->toBe(199_000.0);
 
     $this->actingAs($this->user)
-        ->get(route('items.group-parent-detail', $pinkGroup->id))
+        ->get(route('items.group-parent-detail', $parent->id))
         ->assertOk()
         ->assertSee('>Price<', false)
         ->assertSee('data-testid="group-parent-row-price-'.$pinkS->id.'"', false)
@@ -334,7 +336,9 @@ it('parent detail product name uses parent catalog title not colorway pcode plac
 });
 
 it('saves parent group descriptions from the parent detail page', function () {
+    $parent = ItemParent::query()->create(['parent_key' => '1:AJD:CX88001']);
     $group = ItemGroup::factory()->create([
+        'parent_id' => $parent->id,
         'master' => 'CX88001',
         'variant' => '01',
         'description' => 'OLD COLORWAY',
@@ -350,17 +354,17 @@ it('saves parent group descriptions from the parent detail page', function () {
     $item->tags()->attach([$this->typeTag->id, $this->pinkTag->id, $this->sizeS->id]);
 
     $this->actingAs($this->user)
-        ->put(route('items.group-parent-update-descriptions', $group->id), [
+        ->put(route('items.group-parent-update-descriptions', $parent->id), [
             'description' => 'Parent shared text',
             'description2' => 'Parent NB',
             'reset_colorway_descriptions' => '1',
         ])
-        ->assertRedirect(route('items.group-parent-detail', $group->id));
+        ->assertRedirect(route('items.group-parent-detail', $parent->id));
 
-    $group->refresh();
+    $parent->refresh();
 
-    expect($group->description)->toBe('PARENT SHARED TEXT')
-        ->and(\App\Support\ItemCatalog::description($item->fresh(['group'])))->toBe('PARENT SHARED TEXT');
+    expect($parent->description)->toBe('PARENT SHARED TEXT')
+        ->and(\App\Support\ItemCatalog::description($item->fresh(['group.parent'])))->toBe('PARENT SHARED TEXT');
 });
 
 it('renders group list and parent detail pages', function () {
@@ -374,13 +378,16 @@ it('renders group list and parent detail pages', function () {
     ]);
     $item->tags()->attach([$this->blackTag->id, $this->sizeS->id]);
 
+    ItemPricing::ensureParentForItem($item->load('tags', 'group'));
+    $parentId = (int) $group->fresh()->parent_id;
+
     $this->actingAs($this->user)
         ->get(route('items.group'))
         ->assertOk()
         ->assertSee('GLOVE-01', false);
 
     $this->actingAs($this->user)
-        ->get(route('items.group-parent-detail', $group->id))
+        ->get(route('items.group-parent-detail', $parentId))
         ->assertOk()
         ->assertSee('BLACK', false)
         ->assertSee('id="color-black"', false)
@@ -404,8 +411,11 @@ it('exports parent group stock to excel', function () {
     ]);
     $item->tags()->attach([$this->blackTag->id, $this->sizeS->id]);
 
+    ItemPricing::ensureParentForItem($item->load('tags', 'group'));
+    $parentId = (int) $group->fresh()->parent_id;
+
     $response = $this->actingAs($this->user)
-        ->get(route('items.group-parent-export', $group->id));
+        ->get(route('items.group-parent-export', $parentId));
 
     $response->assertOk();
     expect($response->headers->get('content-type'))->toContain('spreadsheetml.sheet');

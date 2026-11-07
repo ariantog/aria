@@ -4,16 +4,14 @@ namespace App\Support;
 
 use App\Models\Item;
 use App\Models\ItemGroup;
-use App\Models\ItemParentPrice;
-use App\Services\Items\ItemGroupHierarchyService;
+use App\Models\ItemParent;
 use App\Services\Items\ItemIdentityBuilder;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Item prices resolve in order: this SKU → colorway (item_group).
+ * Item prices resolve: this SKU → parent (item_parents via item_group.parent_id).
  *
- * Parent group rows (item_parent_prices) are not used for reads. A stored value of 0 on the SKU
- * or colorway row means "inherit from the next level" (SKU 0 → colorway; colorway 0 → unset).
+ * A stored value of 0 on the SKU means inherit from parent. Colorway (item_group) does not store prices.
  */
 final class ItemPricing
 {
@@ -34,23 +32,22 @@ final class ItemPricing
     /** @var array<string, bool> */
     private static array $columnExists = [];
 
-    /** @var array<string, ItemParentPrice|null> */
-    private static array $parentRecordCache = [];
+    /** @var array<int, ItemParent|null> */
+    private static array $parentRecordByIdCache = [];
 
     public static function flushRequestCache(): void
     {
-        self::$parentRecordCache = [];
+        self::$parentRecordByIdCache = [];
         self::$columnExists = [];
     }
 
-    public static function parentGroupHasStoredPricing(string $parentKey): bool
+    public static function parentGroupHasStoredPricing(int $parentId): bool
     {
-        $parentKey = trim($parentKey);
-        if ($parentKey === '') {
+        if ($parentId <= 0) {
             return false;
         }
 
-        $record = self::parentRecordByKey($parentKey);
+        $record = self::parentRecordById($parentId);
         if ($record === null) {
             return false;
         }
@@ -67,11 +64,16 @@ final class ItemPricing
     public static function resolve(Item $item, string $field): float
     {
         self::assertField($field);
-        $item->loadMissing('group');
+        $item->loadMissing('group.parent');
 
         $sizeValue = self::readItemColumn($item, $field);
         if (self::isSet($sizeValue)) {
             return $sizeValue;
+        }
+
+        $parentValue = self::readParentColumn($item->group?->parent, $field);
+        if (self::isSet($parentValue)) {
+            return $parentValue;
         }
 
         return self::readGroupColumn($item->group, $field);
@@ -80,14 +82,15 @@ final class ItemPricing
     public static function detectScope(Item $item, string $field): string
     {
         self::assertField($field);
-        $item->loadMissing('group');
+        $item->loadMissing('group.parent');
 
         if (self::isSet(self::readItemColumn($item, $field))) {
             return self::SCOPE_SIZE;
         }
 
-        if ($item->hasCatalogGroup() && self::isSet(self::readGroupColumn($item->group, $field))) {
-            return self::SCOPE_COLORWAY;
+        $parent = $item->group?->parent;
+        if ($parent !== null && self::isSet(self::readParentColumn($parent, $field))) {
+            return self::SCOPE_GROUP;
         }
 
         return self::SCOPE_SIZE;
@@ -113,8 +116,6 @@ final class ItemPricing
     }
 
     /**
-     * SKU edit form: always save on this SKU; inputs show stored SKU amount or inherited effective amount.
-     *
      * @return array<string, array{scope: string, value: float, effective: float}>
      */
     public static function formStateForSkuEdit(Item $item): array
@@ -164,23 +165,23 @@ final class ItemPricing
 
         match ($scope) {
             self::SCOPE_SIZE => self::writeSize($item, $field, $value),
-            self::SCOPE_COLORWAY => self::writeColorway($item, $field, $value),
-            self::SCOPE_GROUP => self::writeGroup($item, $field, $value),
-            default => self::writeColorway($item, $field, $value),
+            self::SCOPE_COLORWAY => self::writeColorwaySizes($item, $field, $value),
+            self::SCOPE_GROUP => self::writeParentFromItem($item, $field, $value),
+            default => self::writeSize($item, $field, $value),
         };
     }
 
     /**
      * @return array<string, array{scope: string, value: float, effective: float}>
      */
-    public static function formStateForParent(string $parentKey, ?Item $sample = null): array
+    public static function formStateForParent(int $parentId, ?Item $sample = null): array
     {
-        $record = ItemParentPrice::query()->where('parent_key', $parentKey)->first();
+        $record = self::parentRecordById($parentId);
         $state = [];
 
         foreach (self::FIELDS as $field) {
             $stored = $record !== null ? self::readParentColumn($record, $field) : 0.0;
-            $scope = self::isSet($stored) ? self::SCOPE_GROUP : self::SCOPE_COLORWAY;
+            $scope = self::isSet($stored) ? self::SCOPE_GROUP : self::SCOPE_SIZE;
             $effective = $sample !== null ? self::resolve($sample, $field) : $stored;
 
             $state[$field] = [
@@ -195,12 +196,18 @@ final class ItemPricing
 
     /**
      * @param  array<string, array{scope?: mixed, value?: mixed}>  $rows
-     * @param  bool  $cascadeOverrides  When true, fields saved with value &gt; 0 are copied to every colorway and SKU overrides are zeroed.
      */
-    public static function applyForParent(string $parentKey, array $rows, bool $cascadeOverrides = false): void
+    public static function applyForParent(int $parentId, array $rows, bool $cascadeOverrides = false): void
     {
-        $hierarchy = app(ItemGroupHierarchyService::class);
-        $groupIds = $hierarchy->groupIdsForParentKey($parentKey);
+        if ($parentId <= 0) {
+            return;
+        }
+
+        $groupIds = ItemGroup::query()
+            ->where('parent_id', $parentId)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
 
         foreach (self::FIELDS as $field) {
             if (! array_key_exists($field, $rows)) {
@@ -219,13 +226,12 @@ final class ItemPricing
                 continue;
             }
 
-            $record = ItemParentPrice::query()->firstOrNew(['parent_key' => $parentKey]);
+            $record = ItemParent::query()->findOrFail($parentId);
             self::writeParentColumn($record, $field, $value);
             $record->save();
-            self::$parentRecordCache[$parentKey] = $record;
+            self::$parentRecordByIdCache[$parentId] = $record->fresh();
 
             if ($value > 0 && $cascadeOverrides && $groupIds !== []) {
-                ItemGroup::query()->whereIn('id', $groupIds)->update([$field => $value]);
                 Item::query()->whereIn('group_id', $groupIds)->update([$field => 0]);
             }
         }
@@ -237,7 +243,10 @@ final class ItemPricing
         $item->save();
     }
 
-    private static function writeColorway(Item $item, string $field, float $value): void
+    /**
+     * Colorway editor: apply one amount to every SKU in the colorway (not item_group).
+     */
+    private static function writeColorwaySizes(Item $item, string $field, float $value): void
     {
         $item->loadMissing('group');
         $group = $item->group;
@@ -248,28 +257,36 @@ final class ItemPricing
             return;
         }
 
-        self::writeGroupColumn($group, $field, $value);
-        $group->save();
+        if ((int) ($group->parent_id ?? 0) > 0) {
+            self::writeParentFromItem($item, $field, $value);
+
+            return;
+        }
 
         Item::query()
             ->where('group_id', $group->id)
-            ->update([$field => 0]);
+            ->update([$field => $value]);
     }
 
-    private static function writeGroup(Item $item, string $field, float $value): void
+    private static function writeParentFromItem(Item $item, string $field, float $value): void
     {
-        $item->loadMissing(['group', 'tags']);
+        $item->loadMissing('group');
+        $parentId = (int) ($item->group?->parent_id ?? 0);
 
-        $parentKey = app(ItemIdentityBuilder::class)->itemParentKey($item);
-        $record = ItemParentPrice::query()->firstOrNew(['parent_key' => $parentKey]);
+        if ($parentId <= 0) {
+            self::writeSize($item, $field, $value);
+
+            return;
+        }
+
+        $record = ItemParent::query()->findOrFail($parentId);
         self::writeParentColumn($record, $field, $value);
         $record->save();
-        self::$parentRecordCache[$parentKey] = $record;
+        self::$parentRecordByIdCache[$parentId] = $record->fresh();
 
-        $groupIds = app(ItemGroupHierarchyService::class)->groupIdsForParentKey($parentKey);
+        $groupIds = ItemGroup::query()->where('parent_id', $parentId)->pluck('id')->all();
 
         if ($groupIds !== []) {
-            ItemGroup::query()->whereIn('id', $groupIds)->update([$field => 0]);
             Item::query()->whereIn('group_id', $groupIds)->update([$field => 0]);
         }
     }
@@ -278,28 +295,63 @@ final class ItemPricing
     {
         return match ($scope) {
             self::SCOPE_SIZE => self::readItemColumn($item, $field),
-            self::SCOPE_COLORWAY => $item->hasCatalogGroup()
-                ? self::readGroupColumn($item->group, $field)
-                : 0.0,
-            self::SCOPE_GROUP => self::readParentColumn(self::parentRecord($item), $field),
-            default => 0.0,
+            self::SCOPE_GROUP => self::readParentColumn($item->group?->parent, $field),
+            default => self::readItemColumn($item, $field),
         };
     }
 
-    private static function parentRecord(Item $item): ?ItemParentPrice
+    private static function parentRecordById(int $parentId): ?ItemParent
     {
-        return self::parentRecordByKey(app(ItemIdentityBuilder::class)->itemParentKey($item));
-    }
-
-    private static function parentRecordByKey(string $parentKey): ?ItemParentPrice
-    {
-        if (! array_key_exists($parentKey, self::$parentRecordCache)) {
-            self::$parentRecordCache[$parentKey] = ItemParentPrice::query()
-                ->where('parent_key', $parentKey)
-                ->first();
+        if ($parentId <= 0) {
+            return null;
         }
 
-        return self::$parentRecordCache[$parentKey];
+        if (! array_key_exists($parentId, self::$parentRecordByIdCache)) {
+            self::$parentRecordByIdCache[$parentId] = ItemParent::query()->find($parentId);
+        }
+
+        return self::$parentRecordByIdCache[$parentId];
+    }
+
+    public static function parentIdForItem(Item $item): int
+    {
+        $item->loadMissing('group');
+
+        return (int) ($item->group?->parent_id ?? 0);
+    }
+
+    public static function ensureParentForItem(Item $item): ItemParent
+    {
+        $item->loadMissing(['group', 'tags']);
+        $parentId = self::parentIdForItem($item);
+
+        if ($parentId > 0) {
+            return ItemParent::query()->findOrFail($parentId);
+        }
+
+        $parentKey = app(ItemIdentityBuilder::class)->itemParentKey($item);
+        $record = null;
+
+        if (Schema::hasColumn('item_parents', 'parent_key')) {
+            $record = ItemParent::query()->where('parent_key', $parentKey)->first();
+        }
+
+        if ($record === null) {
+            $record = new ItemParent;
+            if (Schema::hasColumn('item_parents', 'parent_key')) {
+                $record->parent_key = $parentKey;
+            }
+            $record->save();
+        }
+
+        if ($item->group !== null && (int) $item->group->parent_id !== (int) $record->id) {
+            $item->group->parent_id = (int) $record->id;
+            $item->group->save();
+        }
+
+        self::$parentRecordByIdCache[(int) $record->id] = $record->fresh();
+
+        return $record;
     }
 
     private static function isSet(float $value): bool
@@ -323,6 +375,15 @@ final class ItemPricing
         }
     }
 
+    private static function readParentColumn(?ItemParent $record, string $field): float
+    {
+        if ($record === null) {
+            return 0.0;
+        }
+
+        return (float) ($record->{$field} ?? 0);
+    }
+
     private static function readGroupColumn(?ItemGroup $group, string $field): float
     {
         if ($group === null || ! self::hasColumn($group->getTable(), $field)) {
@@ -332,23 +393,7 @@ final class ItemPricing
         return (float) ($group->{$field} ?? 0);
     }
 
-    private static function writeGroupColumn(ItemGroup $group, string $field, float $value): void
-    {
-        if (self::hasColumn($group->getTable(), $field)) {
-            $group->{$field} = $value;
-        }
-    }
-
-    private static function readParentColumn(?ItemParentPrice $record, string $field): float
-    {
-        if ($record === null) {
-            return 0.0;
-        }
-
-        return (float) ($record->{$field} ?? 0);
-    }
-
-    private static function writeParentColumn(ItemParentPrice $record, string $field, float $value): void
+    private static function writeParentColumn(ItemParent $record, string $field, float $value): void
     {
         $record->{$field} = $value;
     }
