@@ -404,7 +404,9 @@ it('renders group list and parent detail pages', function () {
 });
 
 it('parent detail by id merges colorways from parent_key and resolves their images', function () {
-    Config::set('core-nation.item_image_path', storage_path('framework/testing/parent-image/'));
+    $imageRoot = storage_path('framework/testing/parent-image');
+    File::deleteDirectory($imageRoot);
+    Config::set('core-nation.item_image_path', $imageRoot.DIRECTORY_SEPARATOR);
     Config::set('core-nation.item_image_url', 'http://localhost/test-asset/');
     File::ensureDirectoryExists(config('core-nation.item_image_path'));
 
@@ -437,6 +439,14 @@ it('parent detail by id merges colorways from parent_key and resolves their imag
     $legacyItem->tags()->attach([$this->typeTag->id, $this->blackTag->id, $this->sizeM->id]);
 
     $resolver = app(ItemImageResolver::class);
+
+    foreach ([$linkedGroup->id, $legacyGroup->id, $linkedItem->id, $legacyItem->id] as $candidateId) {
+        $path = $resolver->resolveExistingDiskPathForId((int) $candidateId);
+        if ($path !== null && is_file($path)) {
+            unlink($path);
+        }
+    }
+
     $diskPath = $resolver->diskPathForId((int) $legacyGroup->id);
     File::ensureDirectoryExists(dirname($diskPath));
     File::put($diskPath, 'colorway-two-image');
@@ -446,7 +456,7 @@ it('parent detail by id merges colorways from parent_key and resolves their imag
     expect($detail['colors'])->toHaveCount(2)
         ->and($detail['image_url'])->toBe($resolver->publicUrlForId($legacyGroup->id));
 
-    File::deleteDirectory(storage_path('framework/testing/parent-image'));
+    File::deleteDirectory($imageRoot);
 });
 
 it('exports parent group stock to excel', function () {
