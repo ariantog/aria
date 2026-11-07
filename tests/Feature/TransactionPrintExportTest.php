@@ -428,6 +428,7 @@ it('transaction detail description falls back to group when item description is 
         'code' => 'AJD-DESC-FALLBACK-M',
         'description' => '',
     ]);
+    seedParentCatalogFromGroup($group, $item);
 
     $transaction = Transaction::factory()->create(['invoice' => 'TX-DESC-FALLBACK']);
     TransactionDetail::factory()->create([
@@ -453,6 +454,7 @@ it('print invoice respects view column query params', function () {
         'code' => 'AJD-PRINT-COL-M',
         'description' => '',
     ]);
+    seedParentCatalogFromGroup($group, $item);
 
     $transaction = Transaction::factory()->create(['invoice' => 'TX-PRINT-COLS']);
     TransactionDetail::factory()->create([

@@ -731,10 +731,6 @@ class ItemsController extends Controller
 
         abort_if($sample === null, 404);
 
-        $anchorGroupId = $this->groupHierarchy->anchorGroupIdForParentKey(
-            $this->identityBuilder->itemParentKey($sample)
-        ) ?? $group->id;
-
         $parentId = (int) ($group->parent_id ?? 0);
         if ($parentId <= 0) {
             ItemPricing::ensureParentForItem($sample);
@@ -965,11 +961,12 @@ class ItemsController extends Controller
         try {
             $this->itemService->renameGroupProductName($group, $request->input('name'));
 
-            $sample = $group->items()->with('tags')->first();
-            $redirect = $sample && (int) $group->id > 0
-                ? route('items.group-parent-detail', $this->groupHierarchy->anchorGroupIdForParentKey(
-                    $this->identityBuilder->itemParentKey($sample)
-                ) ?? $group->id)
+            $sample = $group->items()->with(['tags', 'group'])->first();
+            $parentId = $sample !== null
+                ? $this->groupHierarchy->parentIdForItem($sample)
+                : null;
+            $redirect = $parentId !== null
+                ? route('items.group-parent-detail', $parentId)
                 : route('items.group');
 
             return redirect()

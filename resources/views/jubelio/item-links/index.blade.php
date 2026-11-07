@@ -87,7 +87,7 @@ $itemsTabUrl = route('jubelio.item-links.index', array_filter([
                                 @endif
                             </td>
                             <td class="px-6 py-3 text-right">
-                                <a href="{{ route('jubelio.item-links.group', $parent['parent_group_id']) }}"
+                                <a href="{{ route('jubelio.item-links.group', $parent['legacy_colorway_group_id']) }}"
                                    class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
                                     Cek SKU
                                 </a>

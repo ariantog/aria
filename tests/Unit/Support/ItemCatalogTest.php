@@ -10,6 +10,22 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(Tests\TestCase::class, RefreshDatabase::class);
 
+function attachParentCatalog(ItemGroup $group, Item $item, array $parentAttrs = []): \App\Models\ItemParent
+{
+    $parent = ensureItemParentForGroup($group, $item);
+    if ($parentAttrs !== []) {
+        foreach ($parentAttrs as $key => $value) {
+            $parent->{$key} = $value;
+        }
+        $parent->save();
+    }
+    $group->load('parent');
+    $item->load('group.parent');
+    ItemCatalog::flushRequestCache();
+
+    return $parent;
+}
+
 test('leftover item columns are listed so they can be dropped later', function () {
     expect(ItemCatalog::MIRROR_ITEM_COLUMNS)->toBeTrue()
         ->and(ItemCatalog::LEFTOVER_ITEM_COLUMNS)->toContain('description', 'description2', 'reseller_price', 'brand', 'genre', 'variant');
@@ -85,20 +101,20 @@ test('catalog description does not inherit parent when colorway text is empty', 
 });
 
 test('catalog reads keep working when leftover item columns are empty', function () {
-    $group = ItemGroup::factory()->make([
-        'description' => 'GROUP DESC',
-        'description2' => 'GROUP NB',
-        'brand' => ItemBrand::CX0,
-        'genre' => 42,
-    ]);
-    $item = Item::factory()->make([
-        'group_id' => 11,
+    $group = ItemGroup::factory()->create();
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
         'description' => '',
         'description2' => '',
         'brand' => ItemBrand::NO_BRAND,
         'genre' => 0,
     ]);
-    $item->setRelation('group', $group);
+    attachParentCatalog($group, $item, [
+        'description' => 'GROUP DESC',
+        'description2' => 'GROUP NB',
+        'brand' => ItemBrand::CX0,
+        'genre' => 42,
+    ]);
 
     expect(ItemCatalog::description($item))->toBe('GROUP DESC')
         ->and(ItemCatalog::description2($item))->toBe('GROUP NB')
@@ -106,22 +122,23 @@ test('catalog reads keep working when leftover item columns are empty', function
         ->and(ItemCatalog::genre($item))->toBe(42);
 });
 
-test('scanText prefers item description and falls back to group catalog', function () {
-    $group = ItemGroup::factory()->make([
-        'description' => 'MIKRO MOTIF CAMO HIJAU',
-        'description2' => '',
-    ]);
-    $item = Item::factory()->make([
-        'group_id' => 11,
+test('scanText prefers item description and falls back to parent catalog', function () {
+    $group = ItemGroup::factory()->create();
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
         'description' => 'PUTIH',
         'description2' => '',
     ]);
-    $item->setRelation('group', $group);
+    attachParentCatalog($group, $item, [
+        'description' => 'MIKRO MOTIF CAMO HIJAU',
+        'description2' => '',
+    ]);
 
     expect(ItemCatalog::scanText($item))->toBe('PUTIH');
 
     $item->description = '';
-    $item->setRelation('group', $group);
+    $item->save();
+    $item->load('group.parent');
 
     expect(ItemCatalog::scanText($item))->toBe('MIKRO MOTIF CAMO HIJAU')
         ->and(ItemCatalog::leftoverDescription($item))->toBe('');
@@ -178,10 +195,15 @@ test('clearStaleDescriptionMirrorsForColorway clears mirrors but keeps empty and
         'description2' => 'LOCAL NB',
     ]);
 
+    attachParentCatalog($group, $mirrorItem, [
+        'description' => 'SHARED DESC',
+        'description2' => 'SHARED NB',
+    ]);
+
     ItemCatalog::applyToGroup($group, [
         'description' => 'UPDATED SHARED DESC',
         'description2' => 'UPDATED SHARED NB',
-    ]);
+    ], $mirrorItem);
 
     ItemCatalog::clearStaleDescriptionMirrorsForColorway($group, [
         'description' => 'SHARED DESC',
@@ -204,14 +226,15 @@ test('clearStaleDescriptionMirrorsForColorway clears mirrors but keeps empty and
 });
 
 test('syncDescriptionMirrorsForGroup clears mirrored sku text when override is cleared on save', function () {
-    $group = ItemGroup::factory()->create([
-        'description' => 'FLEECE DARK GREY',
-        'description2' => '',
-    ]);
+    $group = ItemGroup::factory()->create();
     $item = Item::factory()->create([
         'group_id' => $group->id,
         'description' => 'FLEECE DARK GREY',
         'description2' => 'OLD NB',
+    ]);
+    attachParentCatalog($group, $item, [
+        'description' => 'FLEECE DARK GREY',
+        'description2' => '',
     ]);
 
     $input = (object) [
@@ -242,9 +265,14 @@ test('clearStaleDescriptionMirrorsForColorway only processes fields included in 
         'description2' => 'LOCAL NB',
     ]);
 
+    attachParentCatalog($group, $item, [
+        'description' => 'SHARED DESC',
+        'description2' => 'SHARED NB',
+    ]);
+
     ItemCatalog::applyToGroup($group, [
         'description' => 'NEW SHARED DESC',
-    ]);
+    ], $item);
 
     ItemCatalog::clearStaleDescriptionMirrorsForColorway($group, [
         'description' => 'SHARED DESC',
@@ -252,6 +280,7 @@ test('clearStaleDescriptionMirrorsForColorway only processes fields included in 
     ], ['description']);
 
     $item->refresh();
+    $item->load('group.parent');
 
     expect((string) $item->description)->toBe('')
         ->and($item->description2)->toBe('LOCAL NB')
@@ -285,14 +314,15 @@ test('syncDescriptionMirrorsForGroup keeps local sku override when item_descript
 });
 
 test('syncDescriptionMirrorsForGroup keeps local sku NB when item_description2 is omitted', function () {
-    $group = ItemGroup::factory()->create([
-        'description' => 'FLEECE DARK GREY',
-        'description2' => 'SHARED NB',
-    ]);
+    $group = ItemGroup::factory()->create();
     $item = Item::factory()->create([
         'group_id' => $group->id,
         'description' => '',
         'description2' => 'SIZE NB',
+    ]);
+    attachParentCatalog($group, $item, [
+        'description' => 'FLEECE DARK GREY',
+        'description2' => 'SHARED NB',
     ]);
 
     $input = (object) [
@@ -300,7 +330,7 @@ test('syncDescriptionMirrorsForGroup keeps local sku NB when item_description2 i
         'description2' => 'UPDATED SHARED NB',
     ];
 
-    ItemCatalog::applyToGroup($group, ['description2' => 'UPDATED SHARED NB']);
+    ItemCatalog::applyToGroup($group, ['description2' => 'UPDATED SHARED NB'], $item);
     ItemCatalog::syncDescriptionMirrorsForGroup($group, $input, $item, [
         'description' => 'FLEECE DARK GREY',
         'description2' => 'SHARED NB',
@@ -312,11 +342,13 @@ test('syncDescriptionMirrorsForGroup keeps local sku NB when item_description2 i
         ->and(ItemCatalog::description2($item))->toBe('SIZE NB');
 });
 
-test('catalog description prefers group over mirrored duplicate item text', function () {
-    $group = ItemGroup::factory()->make([
+test('catalog description prefers parent over mirrored duplicate item text', function () {
+    $parent = new \App\Models\ItemParent([
         'description' => 'FLEECE DARK GREY',
         'description2' => 'SHARED NB',
     ]);
+    $group = ItemGroup::factory()->make();
+    $group->setRelation('parent', $parent);
     $item = Item::factory()->make([
         'group_id' => 11,
         'description' => 'FLEECE DARK GREY',
@@ -329,14 +361,18 @@ test('catalog description prefers group over mirrored duplicate item text', func
 });
 
 test('dedupeItemDescriptionsFromGroup clears mirrored text but keeps local overrides', function () {
-    $group = ItemGroup::factory()->make([
-        'description' => 'SHARED DESC',
-        'description2' => 'SHARED NB',
-    ]);
-    $item = Item::factory()->make([
+    $group = ItemGroup::factory()->create();
+    $item = Item::factory()->create([
+        'group_id' => $group->id,
         'description' => 'SHARED DESC',
         'description2' => 'LOCAL NB',
     ]);
+    ensureItemParentForGroup($group, $item);
+    ItemCatalog::applyToGroup($group, [
+        'description' => 'SHARED DESC',
+        'description2' => 'SHARED NB',
+    ], $item);
+    $group->load('parent');
 
     ItemCatalog::dedupeItemDescriptionsFromGroup($item, $group);
 
@@ -353,7 +389,6 @@ test('sellPriceForReseller falls back sku, colorway, then normal price', functio
     $group = ItemGroup::factory()->create([
         'master' => 'CX90001-01',
         'variant' => '01',
-        'reseller_price' => 120000,
     ]);
     $item = Item::factory()->create([
         'type' => \App\Enums\ItemType::ITEM,
@@ -363,17 +398,20 @@ test('sellPriceForReseller falls back sku, colorway, then normal price', functio
         'reseller_price' => 95000,
     ]);
     $item->tags()->attach($typeTag->id);
+    attachParentCatalog($group, $item, ['reseller_price' => 120000]);
 
     expect(ItemCatalog::sellPriceForReseller($item))->toBe(95000.0);
 
     $item->update(['reseller_price' => 0]);
 
-    expect(ItemCatalog::sellPriceForReseller($item->fresh(['group', 'tags'])))->toBe(120000.0);
+    expect(ItemCatalog::sellPriceForReseller($item->fresh(['group.parent', 'tags'])))->toBe(120000.0);
 
-    $group->update(['reseller_price' => 0]);
+    $parent = $group->fresh('parent')->parent;
+    $parent->reseller_price = 0;
+    $parent->save();
     \App\Support\ItemPricing::flushRequestCache();
 
-    expect(ItemCatalog::sellPriceForReseller($item->fresh(['group', 'tags'])))->toBe(150000.0);
+    expect(ItemCatalog::sellPriceForReseller($item->fresh(['group.parent', 'tags'])))->toBe(150000.0);
 });
 
 test('resellerPrice prefers item override then colorway default', function () {
@@ -385,7 +423,6 @@ test('resellerPrice prefers item override then colorway default', function () {
     $group = ItemGroup::factory()->create([
         'master' => 'CX90002-01',
         'variant' => '01',
-        'reseller_price' => 120000,
     ]);
     $item = Item::factory()->create([
         'type' => \App\Enums\ItemType::ITEM,
@@ -394,12 +431,13 @@ test('resellerPrice prefers item override then colorway default', function () {
         'reseller_price' => 95000,
     ]);
     $item->tags()->attach($typeTag->id);
+    attachParentCatalog($group, $item, ['reseller_price' => 120000]);
 
     expect(ItemCatalog::resellerPrice($item))->toBe(95000.0);
 
     $item->update(['reseller_price' => 0]);
 
-    expect(ItemCatalog::resellerPrice($item->fresh(['group', 'tags'])))->toBe(120000.0);
+    expect(ItemCatalog::resellerPrice($item->fresh(['group.parent', 'tags'])))->toBe(120000.0);
 });
 
 test('brand constraint matches group brand when the item mirror is stale', function () {

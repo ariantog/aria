@@ -47,6 +47,8 @@ it('shows item name in the name column instead of catalog description', function
         'description2' => '',
     ]);
 
+    seedParentCatalogFromGroup($group, $item);
+
     WarehouseItem::create([
         'warehouse_id' => $warehouse->id,
         'item_id' => $item->id,
@@ -532,6 +534,7 @@ it('shows colorway group price when type tag code differs from sku code prefix',
         'price' => 0,
     ]);
     $item->tags()->attach($typeTag->id);
+    seedParentCatalogFromGroup($group, $item);
 
     WarehouseItem::create([
         'warehouse_id' => $warehouse->id,

@@ -43,10 +43,7 @@ test('items index shows effective price from parent group when sku price is zero
 });
 
 test('items index shows database columns and collapsible filters', function () {
-    $group = \App\Models\ItemGroup::factory()->create([
-        'description' => 'Item description text',
-        'description2' => 'Internal note',
-    ]);
+    $group = \App\Models\ItemGroup::factory()->create();
     $item = Item::factory()->create([
         'group_id' => $group->id,
         'name' => 'DISPLAY NAME - NAVY - S',
@@ -54,6 +51,11 @@ test('items index shows database columns and collapsible filters', function () {
         'description' => '',
         'description2' => '',
     ]);
+    ensureItemParentForGroup($group, $item);
+    \App\Support\ItemCatalog::applyToGroup($group, [
+        'description' => 'Item description text',
+        'description2' => 'Internal note',
+    ], $item);
 
     $this->actingAs($this->user)
         ->get(route('items.index'))
@@ -68,8 +70,8 @@ test('items index shows database columns and collapsible filters', function () {
         ->assertSee($item->fresh(['group', 'tags'])->groupParentUrl(), false)
         ->assertSee('AJD-FILTER-COL-S', false)
         ->assertSee('DISPLAY NAME - NAVY - S', false)
-        ->assertSee('Item description text', false)
-        ->assertSee('Internal note', false)
+        ->assertSee('ITEM DESCRIPTION TEXT', false)
+        ->assertSee('INTERNAL NOTE', false)
         ->assertDontSee('Stale item description', false)
         ->assertSee('data-testid="items-index-filters-toggle"', false)
         ->assertSee('aria-items-index-filters-open', false);
@@ -357,11 +359,13 @@ test('catalogDescription prefers items.description over item_group when set', fu
         ->and($item->catalogDescription2())->toBe('ITEM NB');
 });
 
-test('catalogDescription prefers item_group when leftover item text mirrors the group', function () {
-    $group = \App\Models\ItemGroup::factory()->make([
+test('catalogDescription prefers parent when leftover item text mirrors the parent', function () {
+    $parent = new \App\Models\ItemParent([
         'description' => 'MIKRO MOTIF CAMO HIJAU',
         'description2' => 'GROUP NB',
     ]);
+    $group = \App\Models\ItemGroup::factory()->make();
+    $group->setRelation('parent', $parent);
     $item = Item::factory()->make([
         'group_id' => 24961,
         'description' => 'MIKRO MOTIF CAMO HIJAU',
@@ -374,11 +378,13 @@ test('catalogDescription prefers item_group when leftover item text mirrors the 
         ->and($item->catalogDescription2())->toBe('GROUP NB');
 });
 
-test('catalogDescription falls back to item_group when items.description is empty', function () {
-    $group = \App\Models\ItemGroup::factory()->make([
+test('catalogDescription falls back to parent when items.description is empty', function () {
+    $parent = new \App\Models\ItemParent([
         'description' => 'GROUP DESC',
         'description2' => 'GROUP NB',
     ]);
+    $group = \App\Models\ItemGroup::factory()->make();
+    $group->setRelation('parent', $parent);
     $item = Item::factory()->make([
         'group_id' => 24961,
         'description' => '',

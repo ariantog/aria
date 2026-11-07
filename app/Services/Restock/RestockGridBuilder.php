@@ -434,19 +434,7 @@ class RestockGridBuilder
             return null;
         }
 
-        $anchorId = app(ItemGroupHierarchyService::class)
-            ->anchorGroupIdForParentKey($this->identityBuilder->itemParentKey($item));
-
-        if ($anchorId === null) {
-            $fallbackGroupId = $cells
-                ->first(fn (RestockCell $cell) => $cell->item && (int) $cell->item->group_id > 0)
-                ?->item
-                ?->group_id;
-
-            $anchorId = $fallbackGroupId > 0 ? (int) $fallbackGroupId : null;
-        }
-
-        return $anchorId !== null ? route('items.group-parent-detail', $anchorId) : null;
+        return $item->groupParentUrl();
     }
 
     /**

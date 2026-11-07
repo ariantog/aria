@@ -116,11 +116,7 @@ class RestockSheetService
           ->first() ?? $group?->name ?? $parentPcode;
 
         $firstItem = $items->first();
-        $groupUrl = $firstItem !== null
-          ? route('items.group-parent-detail', $this->identityBuilder->parentKeyToSlug(
-            $this->identityBuilder->itemParentKey($firstItem)
-          ))
-          : null;
+        $groupUrl = $firstItem?->groupParentUrl();
 
         return [
           'pcode' => $parentPcode,
