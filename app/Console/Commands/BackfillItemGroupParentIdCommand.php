@@ -21,10 +21,11 @@ class BackfillItemGroupParentIdCommand extends Command
     protected $signature = 'items:backfill-group-parent-id
                             {--dry-run : Report changes without writing}
                             {--limit=0 : Max parents (copy-catalog) or colorway groups (link pass) to process (0 = all)}
-                            {--parent-id= : With --copy-catalog, only this item_parents.id}
+                            {--parent-id= : With --copy-catalog, only this item_parents.id (verify parent_key in output)}
+                            {--parent-key= : With --copy-catalog, target this item_parents.parent_key (e.g. 2:KNEESUPPORT-05)}
                             {--copy-catalog : Copy empty parent catalog fields from item_group legacy columns}';
 
-    protected $description = 'Link item_group.parent_id to item_parents; optionally copy legacy group catalog onto parent rows.';
+    protected $description = 'Repair item_group.parent_id from SKU parent_key, then optionally copy legacy catalog onto item_parents.';
 
     public function handle(
         ItemIdentityBuilder $identityBuilder,
@@ -46,64 +47,11 @@ class BackfillItemGroupParentIdCommand extends Command
         $copyCatalog = (bool) $this->option('copy-catalog');
         $limit = max(0, (int) $this->option('limit'));
 
-        $query = ItemGroup::query()
-            ->where(function ($q) {
-                $q->whereNull('parent_id')->orWhere('parent_id', 0);
-            })
-            ->whereHas('items', fn ($q) => $q->whereNull('deleted_at'))
-            ->orderBy('id');
-
-        if ($limit > 0) {
-            $query->limit($limit);
-        }
-
-        $groups = $query->get();
-        $linked = 0;
-        $parentsCreated = 0;
+        $repairStats = $this->repairMislinkedParentIds($dryRun, $limit, $identityBuilder);
+        $linked = $repairStats['repaired'];
+        $parentsCreated = $repairStats['parents_created'];
+        $groupsNeedingLink = $repairStats['scanned'];
         $catalogCopied = 0;
-
-        foreach ($groups as $group) {
-            $sample = $this->sampleItemForGroup($group);
-
-            if ($sample === null) {
-                continue;
-            }
-
-            $parentKey = $identityBuilder->itemParentKey($sample);
-            $parent = ItemParent::query()->where('parent_key', $parentKey)->orderBy('id')->first();
-
-            if ($parent === null) {
-                if ($dryRun) {
-                    $this->line("Would create item_parents for key {$parentKey} (group #{$group->id})");
-                    $parentsCreated++;
-                    $linked++;
-
-                    continue;
-                }
-
-                $parent = ItemPricing::ensureParentForItem($sample);
-                $parentsCreated++;
-                $linked++;
-
-                continue;
-            }
-
-            if ((int) $group->parent_id === (int) $parent->id) {
-                continue;
-            }
-
-            if ($dryRun) {
-                $this->line("Would set group #{$group->id} → parent #{$parent->id}");
-                $linked++;
-
-                continue;
-            }
-
-            $group->parent_id = (int) $parent->id;
-            $group->save();
-
-            $linked++;
-        }
 
         if ($copyCatalog) {
             $relinked = $this->consolidateDuplicateParentKeys($dryRun);
@@ -126,8 +74,8 @@ class BackfillItemGroupParentIdCommand extends Command
                 ->whereHas('items', fn ($iq) => $iq->whereNull('deleted_at')))
             ->count();
 
-        $this->info('Groups needing parent_id link: '.$groups->count()
-            .'; linked this run: '.$linked
+        $this->info('Colorway groups scanned for parent_id repair: '.$groupsNeedingLink
+            .'; parent_id fixed this run: '.$linked
             .'; parents created: '.$parentsCreated
             .($copyCatalog
                 ? '; catalog parents updated: '.$catalogCopied.($dryRun ? ' (dry-run)' : '')
@@ -136,15 +84,88 @@ class BackfillItemGroupParentIdCommand extends Command
         $this->line("Colorway groups already on parent_id (>0): {$alreadyLinked}");
         $this->line("item_parents with ≥1 linked colorway: {$parentsWithGroups}");
 
-        if ($groups->count() === 0 && $linked === 0 && (! $copyCatalog || $catalogCopied === 0)) {
+        if ($groupsNeedingLink === 0 && $linked === 0 && (! $copyCatalog || $catalogCopied === 0)) {
             $this->comment(
                 $copyCatalog
-                    ? 'No parent rows were updated. Confirm item_group still has legacy catalog and parent_id points at item_parents.id.'
-                    : 'Nothing to link — every colorway with items already has parent_id. Use --copy-catalog to lift legacy group catalog onto item_parents.'
+                    ? 'No parent catalog rows updated. Use --parent-key=2:KNEESUPPORT-05 (not a random parent id). Run repair output above for wrong parent_id on item_group.'
+                    : 'No colorway groups to scan. Use --copy-catalog to lift legacy group catalog onto item_parents.'
             );
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * @return array{scanned: int, repaired: int, parents_created: int}
+     */
+    protected function repairMislinkedParentIds(bool $dryRun, int $limit, ItemIdentityBuilder $identityBuilder): array
+    {
+        $scanned = 0;
+        $repaired = 0;
+        $parentsCreated = 0;
+
+        $query = ItemGroup::query()
+            ->whereHas('items')
+            ->with(['items' => fn ($q) => $q->with(['tags', 'group'])->orderBy('id')])
+            ->orderBy('id');
+
+        if ($limit > 0) {
+            $query->limit($limit);
+        }
+
+        foreach ($query->cursor() as $group) {
+            $scanned++;
+
+            $sample = $this->sampleItemPreferringActive(collect([$group]));
+            if ($sample === null) {
+                continue;
+            }
+
+            $sample->loadMissing(['group', 'tags']);
+            $parentKey = $identityBuilder->itemParentKey($sample);
+            $parent = ItemParent::query()->where('parent_key', $parentKey)->orderBy('id')->first();
+
+            if ($parent === null) {
+                if ($dryRun) {
+                    $this->line("Would create item_parents for key {$parentKey} (group #{$group->id}, parent_id={$group->parent_id})");
+                    $parentsCreated++;
+                    $repaired++;
+
+                    continue;
+                }
+
+                $parent = ItemPricing::ensureParentForItem($sample);
+                $parentsCreated++;
+
+                if ((int) $group->parent_id !== (int) $parent->id) {
+                    $repaired++;
+                }
+
+                continue;
+            }
+
+            if ((int) $group->parent_id === (int) $parent->id) {
+                continue;
+            }
+
+            if ($dryRun) {
+                $this->line(
+                    "Would repair group #{$group->id}: parent_id {$group->parent_id} → {$parent->id} ({$parentKey})"
+                );
+                $repaired++;
+
+                continue;
+            }
+
+            ItemGroup::query()->whereKey($group->id)->update(['parent_id' => (int) $parent->id]);
+            $repaired++;
+        }
+
+        return [
+            'scanned' => $scanned,
+            'repaired' => $repaired,
+            'parents_created' => $parentsCreated,
+        ];
     }
 
     protected function copyCatalogForLinkedParents(
@@ -154,11 +175,27 @@ class BackfillItemGroupParentIdCommand extends Command
         ItemIdentityBuilder $identityBuilder,
     ): int {
         $onlyParentId = max(0, (int) $this->option('parent-id'));
+        $onlyParentKey = trim((string) $this->option('parent-key'));
 
         $parentQuery = ItemParent::query()->orderBy('id');
 
-        if ($onlyParentId > 0) {
+        if ($onlyParentKey !== '') {
+            $parentQuery->where('parent_key', $onlyParentKey);
+            $resolved = (clone $parentQuery)->orderBy('id')->first();
+            if ($resolved === null) {
+                $this->error("No item_parents row for parent_key \"{$onlyParentKey}\".");
+
+                return 0;
+            }
+            $this->line("Targeting parent #{$resolved->id} ({$onlyParentKey}) — use parent_key, not an unrelated numeric id.");
+        } elseif ($onlyParentId > 0) {
             $parentQuery->whereKey($onlyParentId);
+            $resolved = ItemParent::query()->find($onlyParentId);
+            if ($resolved !== null) {
+                $this->line(
+                    "Targeting parent #{$onlyParentId} (parent_key: ".($resolved->parent_key ?? '—').')'
+                );
+            }
         } else {
             $parentQuery->where(function ($query) {
                 $query->whereNull('product_name')
