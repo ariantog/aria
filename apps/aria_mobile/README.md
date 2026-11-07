@@ -53,6 +53,8 @@ The workflow **Flutter debug APK** (`.github/workflows/flutter-apk.yml`) builds 
 
 Download the artifact from the finished run’s **Summary** page. Install with `adb install app-debug.apk` or share the file; debug builds are for testing, not Play Store.
 
+**Pre-fill API URL in CI builds:** add a repository variable `ARIA_MOBILE_BASE_URL` (Settings → Secrets and variables → Actions → Variables), e.g. `https://staging.example.com`. The workflow passes it as `--dart-define=ARIA_DEFAULT_BASE_URL=...` when building. On a manual **Run workflow** you can pass **base_url** instead to override for that run only.
+
 For a **signed release** APK/AAB, add keystore secrets and a separate job (Gradle signing or `flutter build apk --release` with env vars) — ask the maintainer before storing signing keys in GitHub.
 
 ## Authentication
