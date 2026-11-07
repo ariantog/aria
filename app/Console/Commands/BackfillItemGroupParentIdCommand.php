@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\ItemBrand;
 use App\Models\Item;
 use App\Models\ItemGroup;
 use App\Models\ItemParent;
@@ -18,7 +19,7 @@ class BackfillItemGroupParentIdCommand extends Command
                             {--limit=0 : Max colorway groups to process (0 = all)}
                             {--copy-catalog : Copy empty parent catalog fields from item_group legacy columns}';
 
-    protected $description = 'Link each item_group row to item_parents via parent_id (run once on production after migration).';
+    protected $description = 'Link item_group.parent_id to item_parents; optionally copy legacy group catalog onto parent rows.';
 
     public function handle(ItemIdentityBuilder $identityBuilder): int
     {
@@ -52,6 +53,7 @@ class BackfillItemGroupParentIdCommand extends Command
         $groups = $query->get();
         $linked = 0;
         $parentsCreated = 0;
+        $catalogCopied = 0;
 
         foreach ($groups as $group) {
             $sample = Item::query()
@@ -79,7 +81,7 @@ class BackfillItemGroupParentIdCommand extends Command
 
                 $parent = ItemPricing::ensureParentForItem($sample);
                 if ($copyCatalog) {
-                    $this->copyLegacyGroupCatalogToParent($group, $parent, $dryRun);
+                    $catalogCopied += $this->copyLegacyGroupCatalogToParent($group, $parent, $dryRun);
                 }
                 $parentsCreated++;
                 $linked++;
@@ -88,11 +90,18 @@ class BackfillItemGroupParentIdCommand extends Command
             }
 
             if ((int) $group->parent_id === (int) $parent->id) {
+                if ($copyCatalog) {
+                    $catalogCopied += $this->copyLegacyGroupCatalogToParent($group, $parent, $dryRun);
+                }
+
                 continue;
             }
 
             if ($dryRun) {
                 $this->line("Would set group #{$group->id} → parent #{$parent->id}");
+                if ($copyCatalog) {
+                    $catalogCopied += $this->copyLegacyGroupCatalogToParent($group, $parent, $dryRun);
+                }
                 $linked++;
 
                 continue;
@@ -102,18 +111,64 @@ class BackfillItemGroupParentIdCommand extends Command
             $group->save();
 
             if ($copyCatalog) {
-                $this->copyLegacyGroupCatalogToParent($group, $parent, $dryRun);
+                $catalogCopied += $this->copyLegacyGroupCatalogToParent($group, $parent, $dryRun);
             }
 
             $linked++;
         }
 
-        $this->info("Groups processed: {$groups->count()}; linked: {$linked}; parents created: {$parentsCreated}".($dryRun ? ' (dry-run)' : ''));
+        if ($copyCatalog) {
+            $alreadyLinkedQuery = ItemGroup::query()
+                ->where('parent_id', '>', 0)
+                ->whereHas('items', fn ($q) => $q->whereNull('deleted_at'))
+                ->orderBy('id');
+
+            if ($limit > 0) {
+                $alreadyLinkedQuery->limit($limit);
+            }
+
+            $idsNeedingLink = $groups->pluck('id')->all();
+
+            foreach ($alreadyLinkedQuery->get() as $group) {
+                if (in_array($group->id, $idsNeedingLink, true)) {
+                    continue;
+                }
+
+                $parent = ItemParent::query()->find((int) $group->parent_id);
+                if ($parent === null) {
+                    continue;
+                }
+
+                $catalogCopied += $this->copyLegacyGroupCatalogToParent($group, $parent, $dryRun);
+            }
+        }
+
+        $alreadyLinked = ItemGroup::query()
+            ->where('parent_id', '>', 0)
+            ->whereHas('items', fn ($q) => $q->whereNull('deleted_at'))
+            ->count();
+
+        $this->info('Groups needing parent_id link: '.$groups->count()
+            .'; linked this run: '.$linked
+            .'; parents created: '.$parentsCreated
+            .($copyCatalog
+                ? '; catalog copy updates: '.$catalogCopied.($dryRun ? ' (dry-run)' : '')
+                : '')
+            .($dryRun ? ' (dry-run)' : ''));
+        $this->line("Colorway groups already on parent_id (>0): {$alreadyLinked}");
+
+        if ($groups->count() === 0 && $linked === 0 && (! $copyCatalog || $catalogCopied === 0)) {
+            $this->comment(
+                $copyCatalog
+                    ? 'Nothing to link (parent_id already set). If legacy catalog still lives on item_group, re-run with --copy-catalog after migration 2026_11_07_120000 (url/brand/genre on item_parents).'
+                    : 'Nothing to link — every colorway with items already has parent_id. Use --copy-catalog to lift legacy group catalog onto item_parents.'
+            );
+        }
 
         return self::SUCCESS;
     }
 
-    protected function copyLegacyGroupCatalogToParent(ItemGroup $group, ItemParent $parent, bool $dryRun): void
+    protected function copyLegacyGroupCatalogToParent(ItemGroup $group, ItemParent $parent, bool $dryRun): int
     {
         $attributes = [];
 
@@ -131,10 +186,13 @@ class BackfillItemGroupParentIdCommand extends Command
             $attributes['url'] = (string) $group->url;
         }
 
+        $parentBrand = $this->catalogBrandId($parent->brand);
+        $groupBrand = $this->catalogBrandId($group->brand);
+
         if (ItemCatalog::parentColumnExists('brand')
-            && (int) ($parent->brand ?? 0) === 0
-            && (int) ($group->brand ?? 0) > 0) {
-            $attributes['brand'] = (int) ($group->brand ?? 0);
+            && $parentBrand === 0
+            && $groupBrand > 0) {
+            $attributes['brand'] = $groupBrand;
         }
 
         if (ItemCatalog::parentColumnExists('genre')
@@ -158,18 +216,31 @@ class BackfillItemGroupParentIdCommand extends Command
         }
 
         if ($attributes === []) {
-            return;
+            return 0;
         }
 
         if ($dryRun) {
-            $this->line("Would copy catalog from group #{$group->id} → parent #{$parent->id}");
+            $this->line("Would copy catalog from group #{$group->id} → parent #{$parent->id} (".implode(', ', array_keys($attributes)).')');
 
-            return;
+            return 1;
         }
 
         $sample = $group->items()->whereNull('deleted_at')->orderBy('id')->first();
         if ($sample !== null) {
             ItemCatalog::applySharedCatalog($group, $sample, $attributes);
+
+            return 1;
         }
+
+        return 0;
+    }
+
+    protected function catalogBrandId(mixed $brand): int
+    {
+        if ($brand instanceof ItemBrand) {
+            return $brand->value;
+        }
+
+        return (int) ($brand ?? 0);
     }
 }
