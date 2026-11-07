@@ -623,7 +623,8 @@ test('items show page links group and tags to filtered lists', function () {
     ]);
     $item->tags()->attach([$typeTag->id, $warnaTag->id]);
 
-    $groupUrl = route('items.group-parent-detail', $group->id);
+    $parent = ensureItemParentForGroup($group, $item);
+    $groupUrl = route('items.group-parent-detail', $parent->id);
 
     $colorwayEditUrl = route('items.colorway-edit', $group->id);
 

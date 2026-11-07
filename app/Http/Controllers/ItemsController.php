@@ -228,14 +228,10 @@ class ItemsController extends Controller
             $shopeeFetchFailed = $shopeeData['fetch_failed'];
         }
 
-        $parentKey = $this->identityBuilder->itemParentKey($item);
-        $anchorGroupId = (int) $item->group_id > 0
-            ? ($this->groupHierarchy->anchorGroupIdForParentKey($parentKey) ?? (int) $item->group_id)
-            : null;
         $canViewGroup = Gate::check(ItemGroup::getPermissions()['view']);
         $canEditColorway = Gate::check(ItemGroup::getPermissions()['edit']);
-        $parentGroupUrl = $anchorGroupId && $canViewGroup
-            ? route('items.group-parent-detail', $anchorGroupId)
+        $parentGroupUrl = (int) $item->group_id > 0 && $canViewGroup
+            ? $item->groupParentUrl()
             : null;
         $colorwayEditUrl = (int) $item->group_id > 0 && $canEditColorway
             ? route('items.colorway-edit', $item->group_id)
@@ -365,9 +361,6 @@ class ItemsController extends Controller
 
         $parentKey = $this->identityBuilder->itemParentKey($item);
         $parentRecord = \App\Models\ItemParentPrice::query()->where('parent_key', $parentKey)->first();
-        $anchorGroupId = $item->group_id > 0
-            ? ($this->groupHierarchy->anchorGroupIdForParentKey($parentKey) ?? $item->group_id)
-            : null;
 
         return view('items.edit', array_merge($this->formProps($item->type), [
             'item' => $item,
@@ -378,7 +371,7 @@ class ItemsController extends Controller
             'parentProductName' => $titleForm['parent_title'] !== ''
                 ? $titleForm['parent_title']
                 : trim((string) ($parentRecord?->product_name ?? '')),
-            'parentGroupUrl' => $anchorGroupId ? route('items.group-parent-detail', $anchorGroupId) : null,
+            'parentGroupUrl' => $item->group_id > 0 ? $item->groupParentUrl() : null,
             'colorwayEditUrl' => $item->group_id > 0
                 ? route('items.colorway-edit', $item->group_id)
                 : null,
