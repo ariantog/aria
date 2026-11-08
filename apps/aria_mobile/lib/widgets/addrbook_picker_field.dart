@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../api/aria_api.dart';
+import 'transaction_form_fields.dart';
 
 /// Search + pick an addrbook row (customers table) for mobile party fields.
 class AddrbookPickerField extends StatefulWidget {
@@ -107,11 +108,14 @@ class _AddrbookPickerFieldState extends State<AddrbookPickerField> {
   Widget build(BuildContext context) {
     final hint = widget.selectedId != null ? '${widget.selectedName ?? ""} (#${widget.selectedId})' : 'Tap to search';
 
-    return ListTile(
-      title: Text(widget.label),
-      subtitle: Text(hint),
-      trailing: const Icon(Icons.search),
-      onTap: _open,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: kTransactionFormFieldGap),
+      child: ListTile(
+        title: Text(widget.label),
+        subtitle: Text(hint),
+        trailing: const Icon(Icons.search),
+        onTap: _open,
+      ),
     );
   }
 }

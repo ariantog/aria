@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 
 import '../api/aria_api.dart';
 import '../widgets/addrbook_picker_field.dart';
+import '../widgets/transaction_form_fields.dart';
 
 class TransferFormScreen extends StatefulWidget {
   const TransferFormScreen({super.key, required this.api, this.preferences});
@@ -116,10 +117,7 @@ class _TransferFormScreenState extends State<TransferFormScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          TextField(
-            controller: _date,
-            decoration: const InputDecoration(labelText: 'Date', border: OutlineInputBorder()),
-          ),
+          TransactionOutlineField(controller: _date, label: 'Date'),
           AddrbookPickerField(
             api: widget.api,
             lookupType: 'transfer',
@@ -144,19 +142,17 @@ class _TransferFormScreenState extends State<TransferFormScreen> {
               _receiverName = name;
             }),
           ),
-          TextField(
+          TransactionOutlineField(
             controller: _total,
-            decoration: const InputDecoration(labelText: 'Amount', border: OutlineInputBorder()),
+            label: 'Amount',
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
           ),
-          TextField(
-            controller: _invoice,
-            decoration: const InputDecoration(labelText: 'Reference (optional)', border: OutlineInputBorder()),
-          ),
-          TextField(
+          TransactionOutlineField(controller: _invoice, label: 'Reference (optional)'),
+          TransactionOutlineField(
             controller: _description,
-            decoration: const InputDecoration(labelText: 'Description (optional)', border: OutlineInputBorder()),
+            label: 'Description (optional)',
+            gapAfter: 0,
           ),
           if (_error != null)
             Padding(
