@@ -81,6 +81,13 @@ Each run sets `versionCode` from `GITHUB_RUN_NUMBER` so newer artifacts upgrade 
 
 **Pre-fill API URL in CI builds:** add a repository variable `ARIA_MOBILE_BASE_URL` (Settings → Secrets and variables → Actions → Variables), e.g. `https://staging.example.com`. The workflow passes it as `--dart-define=ARIA_DEFAULT_BASE_URL=...` when building. On a manual **Run workflow** you can pass **base_url** instead to override for that run only.
 
+For a **signed release** APK/AAB, add keystore secrets and a separate job (Gradle signing or `flutter build apk --release` with env vars) — ask the maintainer before storing signing keys in GitHub.
+
+## UX & design docs
+
+- **App shell / home (Material 3, mockup-based):** [`doc/mobile-app-design-direction.md`](doc/mobile-app-design-direction.md)
+- **Transaction forms:** [`doc/mobile-transaction-form-ux.md`](doc/mobile-transaction-form-ux.md)
+
 ## Authentication
 
 Uses username + password (same as web Fortify). If the account has two-factor authentication enabled, the app prompts for a TOTP code or a recovery code.

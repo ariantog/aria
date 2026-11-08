@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 
 import '../api/aria_api.dart';
 import '../widgets/addrbook_picker_field.dart';
+import '../widgets/transaction_form_fields.dart';
 
 class CashFormScreen extends StatefulWidget {
   const CashFormScreen({super.key, required this.api, required this.cashIn, this.preferences});
@@ -113,10 +114,7 @@ class _CashFormScreenState extends State<CashFormScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          TextField(
-            controller: _date,
-            decoration: const InputDecoration(labelText: 'Date', border: OutlineInputBorder()),
-          ),
+          TransactionOutlineField(controller: _date, label: 'Date'),
           AddrbookPickerField(
             api: widget.api,
             lookupType: widget.cashIn ? 'cash-in' : 'cash-out',
@@ -141,19 +139,17 @@ class _CashFormScreenState extends State<CashFormScreen> {
               _partyName = name;
             }),
           ),
-          TextField(
+          TransactionOutlineField(
             controller: _total,
-            decoration: const InputDecoration(labelText: 'Amount', border: OutlineInputBorder()),
+            label: 'Amount',
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
           ),
-          TextField(
-            controller: _invoice,
-            decoration: const InputDecoration(labelText: 'Invoice (optional)', border: OutlineInputBorder()),
-          ),
-          TextField(
+          TransactionOutlineField(controller: _invoice, label: 'Invoice (optional)'),
+          TransactionOutlineField(
             controller: _note,
-            decoration: const InputDecoration(labelText: 'Note (optional)', border: OutlineInputBorder()),
+            label: 'Note (optional)',
+            gapAfter: 0,
           ),
           if (_error != null)
             Padding(
