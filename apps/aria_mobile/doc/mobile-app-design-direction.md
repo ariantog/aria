@@ -1,7 +1,7 @@
 # Aria mobile — app design direction (Material 3)
 
 **Audience:** Product + Flutter implementation  
-**Visual references:** maintainer mockups (dark dashboard, rounded cards, quick-action grid). Reference images live in Project Context `media/mobile-dashboard-mockup-*.jpg`.
+**Visual references:** maintainer mockups in Project Context `media/mobile-dashboard-mockup-*.jpg` (dark dashboard, rounded cards, quick-action grid).
 
 **Stack:** Flutter **Material 3** (`useMaterial3: true`, `NavigationBar`, `Card`, `FilledButton`, outline text fields). Match Aria web **teal** accents; support light / dark / system via existing `PATCH …/preferences/appearance`.
 
@@ -37,8 +37,8 @@ flowchart TB
     More[More]
   end
   Home --> QA[Quick actions]
-  Home --> CF[Cash snapshot]
-  Home --> Recent[Recent txns]
+  Home --> KPIs[Ops KPI cards]
+  Home --> POS[POS only: cash / sales]
   QA --> Forms[Create forms]
   Inv --> Move[Move / stock lookup]
   More --> Theme[Theme / logout / future Reports]
@@ -48,63 +48,78 @@ flowchart TB
 
 | Tab | Purpose |
 |-----|---------|
-| **Home** | Snapshot + quick actions + recent activity (mockup-style) |
+| **Home** | **Standard:** ops KPI dashboard + quick actions. **POS:** mockup sales/cash home |
 | **Transactions** | Existing list + detail (filter by type later) |
 | **Inventory** | Shortcuts: scan item, move, low-stock count (start with move + barcode lookup) |
 | **More** | Theme, logout, placeholders for Reports / Users |
 
-Replace today’s 2-tab shell (`Dashboard` / `Transactions`) with this structure; merge current `DashboardScreen` KPI text into **Home** cards.
+Replace today’s 2-tab shell (`Dashboard` / `Transactions`) with this structure.
 
 ---
 
-## Home screen — what to display (Aria-specific)
+## Home modes: **Standard** (default) vs **POS**
 
-Mockups show **USD total balance** and **Expense**; adapt as follows:
+User-selectable in **More → Mode aplikasi** (v1: `SharedPreferences`; optional later: `preferences.mobile_home_mode` on server).
 
-### Hero card (top)
+| Mode | Who | Home emphasis |
+|------|-----|----------------|
+| **Standard** | Warehouse, admin, mixed roles | **Simplified Aria dashboard** — same KPI families as web / current `DashboardScreen` |
+| **POS** | Counter / retail sell | Mockup-style **sales & cash** snapshot + sell-first quick actions |
 
-**Option A (recommended v1):** **“Hari ini” (today)** — data already in `GET /api/mobile/v1/dashboard` → `kpis.activity_today`:
+Do **not** show daily **cash totals, sell/buy amounts, cash-flow chart, or “recent sales” money list** on Home unless mode = **POS**.
 
-| UI label | Source | Notes |
-|----------|--------|--------|
-| **Kas masuk hari ini** | `cash_in_total` | Format IDR (`NumberFormat.currency(locale: 'id_ID', symbol: 'Rp')`) |
-| **Kas keluar hari ini** | `cash_out_total` | Same |
-| **Net kas hari ini** | `cash_in_total - cash_out_total` | Hero number (replaces mockup “Total balance”) |
-| Optional chips | `sell_count` / `buy_count` | “Jual N · Beli M” |
+---
 
-**Option B (later):** user-pinned **bank balance** (requires mobile endpoint + hidden-balance ACL). Do not fake a single “total balance” without API.
+## Home — Standard (default)
 
-Hero styling: mockup **green/teal gradient card**, eye icon toggles masking amounts (local pref).
+Align with web dashboard ops panels; data from `GET /api/mobile/v1/dashboard` (`MobileDashboardPresenter`).
 
-### Quick actions (2×2 or horizontal scroll)
+### Layout (M3 cards, no finance hero)
 
-Map mockup tiles to Aria actions (permission-gated):
+1. **Greeting** — `Welcome, {name}` (compact `AppBar` or first line).
+2. **KPI stack** (permission-gated; hide empty panels):
+   - **Queue** — pending jobs, level
+   - **Jubelio** — connection, pending / error orders
+   - **Stock alerts** — unread count
+   - **Book closing** — days until closing
+   - **Restock** — alert count (if allowed)
+   - **Produksi** — recent count (if allowed)
+3. **Optional compact “Aktivitas”** — **counts only** (`sell_count`, `buy_count`); **omit** `sell_total`, `buy_total`, `cash_in_total`, `cash_out_total` in Standard mode.
+4. **Quick actions** — one row of permitted create shortcuts (same routes as today); equal weight, **not** sell-only.
+5. **No** weekly cash chart, **no** mockup balance hero, **no** recent-transaction amount strip on Home (use **Transactions** tab for history).
 
-| Tile | Icon color (M3 tonal) | Route |
-|------|----------------------|--------|
-| **Jual / POS** | Primary (teal) | `SellFormScreen` — emphasize scan |
-| **Beli** | Tertiary / orange tonal | `BuyFormScreen` |
-| **Kas masuk** | Secondary | `CashFormScreen(cashIn: true)` |
-| **Kas keluar** | Error tonal (not “Expense” label) | `CashFormScreen(cashIn: false)` |
+Pull-to-refresh; reuse existing `DashboardScreen` data mapping, restyled only.
 
-Second row (scroll or “More actions” sheet): **Transfer**, **Pindah stok (move)**.
+### FAB (Standard)
 
-### Cash flow section
+Keep **“Buat”** sheet with all permitted transaction types.
 
-Mockup: weekly dual bar chart. **v1:** “Minggu ini” using **seven daily buckets** — needs small API extension or client aggregation from `GET /transactions`. **v0 fallback:** single card **“Aktivitas hari ini”** with the same numbers as hero (no chart).
+---
 
-### Recent transactions
+## Home — POS mode
 
-- Leading: type icon in rounded square
-- Title: counterparty or warehouse name
-- Subtitle: `invoice` · time
-- Trailing: display `abs()` amount with color by txn type
+Use maintainer mockups when `mobile_home_mode == pos`. Retail / counter context only.
 
-Source: `GET /api/mobile/v1/transactions?per_page=5`.
+### Hero (POS only)
 
-### FAB
+From `kpis.activity_today` when `can.activity`:
 
-Extended FAB **“Buat”** → `CreateTransactionSheet`.
+| UI label | Source |
+|----------|--------|
+| **Penjualan hari ini** | `sell_total` + `sell_count` |
+| **Kas masuk / keluar hari ini** | `cash_in_total` / `cash_out_total` |
+| **Net kas hari ini** | in − out (hero number) |
+
+IDR formatting; optional amount masking (eye icon, local pref). Gradient card per mockup.
+
+### Quick actions (POS)
+
+**Jual** largest / first → `SellFormScreen` (scanner primary). Then Beli, Kas masuk, Kas keluar as needed; transfer/move in overflow sheet.
+
+### Cash flow & recent (POS only)
+
+- **Minggu ini** bar chart when data available (API week buckets or client roll-up); v0 = hero only.
+- **Recent sales** — `GET /transactions?per_page=5&type=sell` (filter when API supports; else client-filter), mockup list rows.
 
 ---
 
@@ -125,9 +140,9 @@ See [`mobile-transaction-form-ux.md`](mobile-transaction-form-ux.md). **POS** = 
 ## Implementation order
 
 1. Theme + tokens  
-2. Home redesign (hero, quick actions, recent txns)  
+2. Home redesign — Standard KPI dashboard (default) + POS mode toggle + POS home variant  
 3. Four-tab navigation  
 4. Inventory tab shortcuts  
 5. Form sectioning + sticky submit  
-6. Weekly cash chart (API or client)  
+6. Weekly cash chart (**POS mode only**)  
 7. Reports / users (Phase 2)
