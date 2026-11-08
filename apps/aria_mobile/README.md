@@ -57,6 +57,11 @@ Download the artifact from the finished run’s **Summary** page. Install with `
 
 For a **signed release** APK/AAB, add keystore secrets and a separate job (Gradle signing or `flutter build apk --release` with env vars) — ask the maintainer before storing signing keys in GitHub.
 
+## UX & design docs
+
+- **App shell / home (Material 3, mockup-based):** [`doc/mobile-app-design-direction.md`](doc/mobile-app-design-direction.md)
+- **Transaction forms:** [`doc/mobile-transaction-form-ux.md`](doc/mobile-transaction-form-ux.md)
+
 ## Authentication
 
 Uses username + password (same as web Fortify). If the account has two-factor authentication enabled, the app prompts for a TOTP code or a recovery code.
