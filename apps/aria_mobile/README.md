@@ -83,6 +83,9 @@ Each run sets `versionCode` from `GITHUB_RUN_NUMBER` so newer artifacts upgrade 
 
 For a **signed release** APK/AAB, add keystore secrets and a separate job (Gradle signing or `flutter build apk --release` with env vars) — ask the maintainer before storing signing keys in GitHub.
 
+## Transaction form UX (proposal)
+
+Maintainer review doc for future mobile form layout (wizard vs collapsible sections): [`doc/mobile-transaction-form-ux.md`](doc/mobile-transaction-form-ux.md).
 ## UX & design docs
 
 - **App shell / home (Material 3, mockup-based):** [`doc/mobile-app-design-direction.md`](doc/mobile-app-design-direction.md)
