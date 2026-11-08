@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 
 import '../api/aria_api.dart';
 import '../widgets/addrbook_picker_field.dart';
+import '../widgets/transaction_form_fields.dart';
 import 'scanner_screen.dart';
 
 class _Line {
@@ -165,10 +166,7 @@ class _MoveFormScreenState extends State<MoveFormScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          TextField(
-            controller: _date,
-            decoration: const InputDecoration(labelText: 'Date (Y-m-d)', border: OutlineInputBorder()),
-          ),
+          TransactionOutlineField(controller: _date, label: 'Date (Y-m-d)'),
           AddrbookPickerField(
             api: widget.api,
             lookupType: 'move',
@@ -193,13 +191,11 @@ class _MoveFormScreenState extends State<MoveFormScreen> {
               _receiverName = name;
             }),
           ),
-          TextField(
-            controller: _invoice,
-            decoration: const InputDecoration(labelText: 'Reference (optional)', border: OutlineInputBorder()),
-          ),
-          TextField(
+          TransactionOutlineField(controller: _invoice, label: 'Reference (optional)'),
+          TransactionOutlineField(
             controller: _note,
-            decoration: const InputDecoration(labelText: 'Note (optional)', border: OutlineInputBorder()),
+            label: 'Note (optional)',
+            gapAfter: 0,
           ),
           const SizedBox(height: 8),
           Wrap(
@@ -248,7 +244,7 @@ class _MoveFormScreenState extends State<MoveFormScreen> {
                       children: [
                         Expanded(
                           child: TextField(
-                            decoration: const InputDecoration(labelText: 'Qty', border: OutlineInputBorder()),
+                            decoration: transactionFormDecoration('Qty'),
                             keyboardType: const TextInputType.numberWithOptions(decimal: true),
                             controller: TextEditingController(text: _lines[i].quantity.toString()),
                             onChanged: (v) => _lines[i].quantity = double.tryParse(v) ?? _lines[i].quantity,

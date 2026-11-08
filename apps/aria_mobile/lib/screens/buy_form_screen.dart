@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 
 import '../api/aria_api.dart';
 import '../widgets/addrbook_picker_field.dart';
+import '../widgets/transaction_form_fields.dart';
 import 'scanner_screen.dart';
 
 class _Line {
@@ -173,10 +174,7 @@ class _BuyFormScreenState extends State<BuyFormScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          TextField(
-            controller: _date,
-            decoration: const InputDecoration(labelText: 'Date (Y-m-d)', border: OutlineInputBorder()),
-          ),
+          TransactionOutlineField(controller: _date, label: 'Date (Y-m-d)'),
           AddrbookPickerField(
             api: widget.api,
             lookupType: 'buy',
@@ -201,25 +199,24 @@ class _BuyFormScreenState extends State<BuyFormScreen> {
               _receiverName = name;
             }),
           ),
-          TextField(
-            controller: _invoice,
-            decoration: const InputDecoration(labelText: 'Invoice (optional)', border: OutlineInputBorder()),
-          ),
-          TextField(
-            controller: _note,
-            decoration: const InputDecoration(labelText: 'Note (optional)', border: OutlineInputBorder()),
-          ),
-          TextField(
-            controller: _discountPercent,
-            decoration: const InputDecoration(labelText: 'Invoice discount %', border: OutlineInputBorder()),
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-          ),
-          TextField(
-            controller: _adjustment,
-            decoration: const InputDecoration(labelText: 'Adjustment (optional)', border: OutlineInputBorder()),
-            keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.-]'))],
+          TransactionOutlineField(controller: _invoice, label: 'Invoice (optional)'),
+          TransactionOutlineField(controller: _note, label: 'Note (optional)'),
+          TransactionInvoiceOptionsCard(
+            children: [
+              TransactionOutlineField(
+                controller: _discountPercent,
+                label: 'Invoice discount %',
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+              ),
+              TransactionOutlineField(
+                controller: _adjustment,
+                label: 'Adjustment (optional)',
+                keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.-]'))],
+                gapAfter: 0,
+              ),
+            ],
           ),
           const SizedBox(height: 8),
           Wrap(
@@ -275,7 +272,7 @@ class _BuyFormScreenState extends State<BuyFormScreen> {
                       children: [
                         Expanded(
                           child: TextField(
-                            decoration: const InputDecoration(labelText: 'Qty', border: OutlineInputBorder()),
+                            decoration: transactionFormDecoration('Qty'),
                             keyboardType: const TextInputType.numberWithOptions(decimal: true),
                             controller: TextEditingController(text: _lines[i].quantity.toString()),
                             onChanged: (v) => _lines[i].quantity = double.tryParse(v) ?? _lines[i].quantity,
@@ -284,7 +281,7 @@ class _BuyFormScreenState extends State<BuyFormScreen> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: TextField(
-                            decoration: const InputDecoration(labelText: 'Cost', border: OutlineInputBorder()),
+                            decoration: transactionFormDecoration('Cost'),
                             keyboardType: const TextInputType.numberWithOptions(decimal: true),
                             controller: TextEditingController(text: _lines[i].price.toString()),
                             onChanged: (v) => _lines[i].price = double.tryParse(v) ?? _lines[i].price,
