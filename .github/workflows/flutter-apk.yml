@@ -16,7 +16,7 @@ on:
       - 'apps/aria_mobile/**'
       - '.github/workflows/flutter-apk.yml'
 
-# Building a signed release APK needs keystore secrets; this workflow builds a debug APK for sideloading.
+# Debug APK for sideloading — team debug keystore + monotonic versionCode (GITHUB_RUN_NUMBER).
 jobs:
   apk:
     runs-on: ubuntu-latest
@@ -35,10 +35,10 @@ jobs:
         run: flutter pub get
 
       - name: Generate Android project
-        run: flutter create --platforms=android .
+        run: flutter create --org com.ariantog --project-name aria_mobile --platforms=android .
 
-      - name: Apply Android manifest (camera permission)
-        run: cp android_manifests/main/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
+      - name: Apply Android overlays
+        run: bash tool/apply_android_overlay.sh
 
       - name: Build debug APK
         env:
@@ -46,12 +46,12 @@ jobs:
           VAR_BASE_URL: ${{ vars.ARIA_MOBILE_BASE_URL }}
         run: |
           BASE_URL="${INPUT_BASE_URL:-$VAR_BASE_URL}"
+          BUILD_ARGS=(flutter build apk --debug "--build-number=${GITHUB_RUN_NUMBER}")
           if [ -n "${BASE_URL}" ]; then
             echo "Baking default base URL into APK (dart-define)."
-            flutter build apk --debug --dart-define="ARIA_DEFAULT_BASE_URL=${BASE_URL}"
-          else
-            flutter build apk --debug
+            BUILD_ARGS+=(--dart-define="ARIA_DEFAULT_BASE_URL=${BASE_URL}")
           fi
+          "${BUILD_ARGS[@]}"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
