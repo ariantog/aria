@@ -509,6 +509,8 @@ it('shows a cash in form on invoice maker when no sell is linked yet', function 
         ->assertOk()
         ->assertSee('data-testid="sell-cash-in-card"', false)
         ->assertSee('data-testid="sell-cash-in-amount"', false)
+        ->assertSee('id="sell-cash-in-amount"', false)
+        ->assertSee('text-right text-sm font-mono tabular-nums', false)
         ->assertSee('data-testid="sell-cash-in-bank"', false)
         ->assertSee('data-testid="sell-cash-in-sender"', false)
         ->assertSee('data-testid="sell-cash-in-submit"', false)
