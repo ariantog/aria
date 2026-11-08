@@ -1,7 +1,9 @@
 # Aria mobile — transaction form UX proposal
 
 **Audience:** Product / maintainer review (Flutter app `apps/aria_mobile/`).  
-**Status:** Proposal — not implemented beyond label-spacing fix (PR #1014).
+**Status:** Label-spacing shipped (PR #1014). **App shell / home:** see [`mobile-app-design-direction.md`](mobile-app-design-direction.md).
+
+**Parent scope:** Phase 1 = cash (in/out/transfer) + inventory (buy/sell/move/POS). Phase 2 = reports, users.
 
 ## Current pain
 
