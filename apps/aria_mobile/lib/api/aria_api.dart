@@ -34,6 +34,42 @@ class AriaApi {
     return _decodeObject(r);
   }
 
+  Future<Map<String, dynamic>> getDashboard() async {
+    final r = await http.get(_u('/dashboard'), headers: _headers);
+    return _decodeObject(r);
+  }
+
+  Future<Map<String, dynamic>> getTransactions({
+    int page = 1,
+    String? from,
+    String? to,
+    int? type,
+    String? invoice,
+    String? total,
+    String sort = 'date',
+    String direction = 'desc',
+    int perPage = 100,
+  }) async {
+    final q = <String, String>{
+      'page': '$page',
+      'sort': sort,
+      'direction': direction,
+      'per_page': '$perPage',
+      if (from != null && from.isNotEmpty) 'from': from,
+      if (to != null && to.isNotEmpty) 'to': to,
+      if (type != null) 'type': '$type',
+      if (invoice != null && invoice.isNotEmpty) 'invoice': invoice,
+      if (total != null && total.isNotEmpty) 'total': total,
+    };
+    final r = await http.get(_u('/transactions', q), headers: _headers);
+    return _decodeObject(r);
+  }
+
+  Future<Map<String, dynamic>> getTransaction(int id) async {
+    final r = await http.get(_u('/transactions/$id'), headers: _headers);
+    return _decodeObject(r);
+  }
+
   Future<Map<String, dynamic>?> lookupItemBarcode(String barcode) async {
     final r = await http.get(
       _u('/items/barcode-lookup', {'barcode': barcode}),

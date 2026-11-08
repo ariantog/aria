@@ -2,9 +2,11 @@
 
 use App\Http\Controllers\Mobile\MobileAddrbookController;
 use App\Http\Controllers\Mobile\MobileAuthController;
+use App\Http\Controllers\Mobile\MobileDashboardController;
 use App\Http\Controllers\Mobile\MobileItemController;
 use App\Http\Controllers\Mobile\MobilePreferencesController;
 use App\Http\Controllers\Mobile\MobileTransactionController;
+use App\Http\Controllers\Mobile\MobileTransactionListController;
 use App\Http\Controllers\Mobile\MobileUserController;
 use App\Http\Controllers\Readonly\ReadonlyItemExportController;
 use App\Http\Controllers\Readonly\ReadonlyStockExportController;
@@ -29,9 +31,15 @@ Route::prefix('mobile/v1')->group(function (): void {
         Route::get('me', [MobileUserController::class, 'show']);
         Route::patch('preferences/appearance', [MobilePreferencesController::class, 'updateAppearance']);
 
+        Route::get('dashboard', [MobileDashboardController::class, 'show']);
+
         Route::get('items/by-code', [MobileItemController::class, 'byCode']);
         Route::get('items/by-id', [MobileItemController::class, 'byId']);
         Route::get('items/barcode-lookup', [MobileItemController::class, 'barcodeLookup']);
+
+        Route::get('transactions', [MobileTransactionListController::class, 'index']);
+        Route::get('transactions/{transaction}', [MobileTransactionListController::class, 'show'])
+            ->whereNumber('transaction');
 
         Route::get('addrbook/{type}', [MobileAddrbookController::class, 'search'])
             ->whereIn('type', ['sell', 'move', 'buy', 'return', 'return-supplier', 'cash-in', 'cash-out', 'transfer']);

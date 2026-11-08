@@ -48,6 +48,14 @@ class User extends Authenticatable
         return self::isSuperadmin($this);
     }
 
+    /**
+     * Permissions are stored on the web guard (session UI); Sanctum API uses the same rows.
+     */
+    public function getDefaultGuardName(): string
+    {
+        return 'web';
+    }
+
     public function hasPermissionTo($permission, $guardName = null): bool
     {
         if ($this->is_superadmin) {
