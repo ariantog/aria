@@ -24,6 +24,7 @@ use App\Services\SellCashInPresenter;
 use App\Services\StandaloneInvoiceSettlement;
 use App\Services\TransactionInvoiceService;
 use App\Services\TransactionListExportService;
+use App\Services\TransactionListFilterService;
 use App\Services\TransactionReturnDraftService;
 use App\Services\TransactionService;
 use App\Services\UserPreferenceService;
@@ -39,13 +40,17 @@ use Illuminate\Support\Facades\Schema;
 
 class TransactionsController extends Controller
 {
+    public function __construct(
+        protected TransactionListFilterService $listFilter,
+    ) {}
+
     public function index(Request $request)
     {
         Gate::authorize(Transaction::getPermissions()['view']);
         $sort = $request->input('sort', 'date');
         $direction = $request->input('direction', 'desc');
-        $perPage = $this->resolvePerPage($request);
-        $transactions = $this->filteredTransactionsQuery($request);
+        $perPage = $this->listFilter->resolvePerPage($request);
+        $transactions = $this->listFilter->filteredTransactionsQuery($request, Auth::user());
         if (in_array($sort, ['date', 'invoice', 'type', 'total', 'total_items'], true)) {
             $transactions->orderBy($sort, $direction)->orderBy('id', 'desc');
         } else {
@@ -67,8 +72,8 @@ class TransactionsController extends Controller
         Gate::authorize(Transaction::getPermissions()['view']);
         $sort = $request->input('sort', 'date');
         $direction = $request->input('direction', 'desc');
-        $perPage = $this->resolvePerPage($request);
-        $transactions = $this->filteredTransactionsQuery($request);
+        $perPage = $this->listFilter->resolvePerPage($request);
+        $transactions = $this->listFilter->filteredTransactionsQuery($request, Auth::user());
         if (in_array($sort, ['date', 'invoice', 'type', 'total', 'total_items'], true)) {
             $transactions->orderBy($sort, $direction)->orderBy('id', 'desc');
         } else {
@@ -981,24 +986,6 @@ class TransactionsController extends Controller
         abort_unless($targetType === $type, 422, 'This transaction cannot be used for this form.');
 
         return $draftService->buildPrefill($transaction);
-    }
-
-    private function filteredTransactionsQuery(Request $request): Builder
-    {
-        return Transaction::with(['sender', 'receiver'])
-            ->visibleToUser(Auth::user())
-            ->when($request->invoice, fn ($q, $v) => $q->where('invoice', 'like', "%{$v}%"))
-            ->when($request->type, fn ($q, $v) => $q->where('type', $v))
-            ->when($request->filled('total'), fn ($q) => $q->where('total', '=', $request->input('total')))
-            ->when($request->from, fn ($q, $v) => $q->whereDate('date', '>=', $v))
-            ->when($request->to, fn ($q, $v) => $q->whereDate('date', '<=', $v));
-    }
-
-    private function resolvePerPage(Request $request): int
-    {
-        $perPage = (int) $request->input('per_page', 100);
-
-        return in_array($perPage, [100, 200, 300], true) ? $perPage : 100;
     }
 
     private function transactionPermissions(): array

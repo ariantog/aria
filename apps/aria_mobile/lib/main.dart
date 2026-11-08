@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/shell_screen.dart';
 import 'theme/appearance_prefs.dart';
 
 void main() {
@@ -96,7 +96,7 @@ class _AuthGateState extends State<_AuthGate> {
     if (_token == null || _token!.isEmpty || _baseUrl == null || _baseUrl!.isEmpty) {
       return LoginScreen(onLoggedIn: () => _load());
     }
-    return HomeScreen(
+    return ShellScreen(
       baseUrl: _baseUrl!,
       token: _token!,
       onServerAppearance: widget.onServerAppearance,

@@ -24,6 +24,23 @@ If the user has Fortify 2FA enabled, a first response may be `428` with `{ "two_
 | GET | `/me` | Bearer — returns user, roles, permissions, `mobile_actions`, and `preferences` (transaction defaults + `appearance`) |
 | PATCH | `/preferences/appearance` | Bearer — body: `appearance`: `light` \| `dark` \| `system` (same as web settings) |
 
+## Dashboard
+
+| Method | Path | Auth | Notes |
+|--------|------|------|-------|
+| GET | `/dashboard` | Bearer | Permission-gated KPI subset from web `DashboardService` (`can.*` flags). Response includes `can`, `has_ops_panel`, `has_daily_panel`, and `kpis` (e.g. `activity_today`, `queue`, `jubelio`, `stock_alerts`, `book_closing` when allowed). |
+
+## Transactions (read-only)
+
+| Method | Path | Auth | Query |
+|--------|------|------|-------|
+| GET | `/transactions` | Bearer + `transactions-list` | `page`, `from`, `to`, `type`, `invoice`, `total`, `sort`, `direction`, `per_page` (100/200/300) |
+| GET | `/transactions/{id}` | Bearer + `transactions-show` | — |
+
+List rows use `visibleToUser` / ACL like web. Each row includes `type` (`id`, `slug`, `label`), `sender` / `receiver` (`id`, `name`), and signed header `total` (never `real_total`). Bank running balances on list parties follow web hidden-balance rules (superadmin exempt).
+
+Detail returns `transaction` with header amounts from `total` only, optional line `details`, and party balances hidden for bank contacts when the user has `addrbook-bank-account-hidden-balance` (unless superadmin).
+
 ## Lookups
 
 | Method | Path | Query |
