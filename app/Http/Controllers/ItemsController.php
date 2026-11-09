@@ -394,6 +394,7 @@ class ItemsController extends Controller
             'item_description2' => $isAsset ? ['nullable', 'string'] : ['nullable'],
             'url' => ['nullable', 'string', 'max:255'],
             'restock_urgent_threshold' => ['nullable', 'integer', 'min:1'],
+            'ongkir' => ['nullable', 'numeric', 'min:0'],
             'tags.sizes' => ['required'],
         ], $this->pricingValidationRules()), [
             'product_name.required' => 'Product name is required.',

@@ -131,6 +131,7 @@ class ItemService
             }
 
             $this->persistItemLocalAttributes($item, $input);
+            $this->persistItemOngkir($item, $input);
             $this->applyInventorySettings($item, $input);
             $this->persistItemPricing($item, $input, forCreate: false);
             $item->save();
@@ -943,6 +944,9 @@ class ItemService
         $item->restock_urgent_threshold = $this->normalizeRestockUrgentThreshold(
             $input->restock_urgent_threshold ?? $item->restock_urgent_threshold
         );
+        if (! $isUpdate) {
+            $this->persistItemOngkir($item, $input);
+        }
         $item->size = $sizeTag?->id ?? 0;
         $mirror = [
             'brand' => ItemBrand::fromPcode($pcode),
@@ -1992,6 +1996,15 @@ class ItemService
         ItemCatalog::mirrorToItem($item, $attributes);
     }
 
+    protected function persistItemOngkir(Item $item, object $input): void
+    {
+        if (! property_exists($input, 'ongkir') && ! isset($input->ongkir)) {
+            return;
+        }
+
+        $item->ongkir = max(0, (float) ($input->ongkir ?? 0));
+    }
+
     protected function applySkuOverrides(Item $item, object $input): void
     {
         $overrides = $input->sku_overrides ?? null;
@@ -2033,6 +2046,10 @@ class ItemService
 
         if (array_key_exists('restock_urgent_threshold', $row) && $row['restock_urgent_threshold'] !== '' && $row['restock_urgent_threshold'] !== null) {
             $item->restock_urgent_threshold = $this->normalizeRestockUrgentThreshold($row['restock_urgent_threshold']);
+        }
+
+        if (array_key_exists('ongkir', $row) && $row['ongkir'] !== '' && $row['ongkir'] !== null) {
+            $item->ongkir = max(0, (float) ($row['ongkir'] ?? 0));
         }
 
         if ($local !== []) {

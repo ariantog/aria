@@ -5,10 +5,11 @@
         'reseller_price' => ['label' => 'Reseller price', 'step' => 'any', 'decimals' => 0],
         'cost' => ['label' => 'Cost price (IDR)', 'step' => 'any', 'decimals' => 0],
         'cost_cnh' => ['label' => 'Cost price (CNY)', 'step' => 'any', 'decimals' => 2],
+        'ongkir' => ['label' => 'Ongkir (shipping)', 'step' => 'any', 'decimals' => 0],
     ];
 
     if (! ($isAsset ?? false)) {
-        $fields = array_intersect_key($fields, array_flip(['price', 'reseller_price']));
+        $fields = array_intersect_key($fields, array_flip(['price', 'reseller_price', 'ongkir']));
     }
 @endphp
 

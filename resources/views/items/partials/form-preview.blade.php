@@ -47,6 +47,15 @@
                                                data-testid="item-form-sku-override-price"
                                                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                                     </div>
+                                    <div>
+                                        <label class="mb-1 block text-xs font-medium text-gray-700">Ongkir (shipping)</label>
+                                        <input type="number" step="any" min="0"
+                                               :name="`sku_overrides[${row.sku}][ongkir]`"
+                                               :value="skuOverrideValue(row.sku, 'ongkir')"
+                                               :placeholder="defaultOngkir ? `Default: ${defaultOngkir}` : 'Use default ongkir'"
+                                               data-testid="item-form-sku-override-ongkir"
+                                               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                                    </div>
                                     @if($isAsset ?? false)
                                     <div>
                                         <label class="mb-1 block text-xs font-medium text-gray-700">Cost price (IDR)</label>

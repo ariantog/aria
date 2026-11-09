@@ -7,6 +7,7 @@
         'url' => old('url'),
         'restock_urgent_threshold' => old('restock_urgent_threshold'),
         'product_name' => old('product_name'),
+        'ongkir' => old('ongkir'),
     ];
     $fi['description'] = $fi['description'] ?? old('description');
     $fi['description2'] = $fi['description2'] ?? old('description2');
@@ -15,6 +16,7 @@
     $fi['url'] = $fi['url'] ?? old('url');
     $fi['restock_urgent_threshold'] = $fi['restock_urgent_threshold'] ?? old('restock_urgent_threshold');
     $fi['product_name'] = $fi['product_name'] ?? old('product_name');
+    $fi['ongkir'] = $fi['ongkir'] ?? old('ongkir');
     $editingItem = isset($item);
     $isCreateForm = ! $editingItem;
     $catalogMode = $catalogMode ?? 'full';
@@ -76,8 +78,8 @@
                 'sharedTone' => 'sku',
                 'sharedTitle' => 'Stored on this SKU',
                 'sharedHint' => $showSkuDescriptions
-                    ? 'Optional description overrides and restock threshold for this size only.'
-                    : 'Restock urgency for this size only.',
+                    ? 'Per-SKU description overrides, ongkir, and restock threshold.'
+                    : 'Ongkir and restock urgency for this size only.',
                 'sharedTestId' => 'item-form-sku-details-banner',
             ])
             @if($showSkuDescriptions)
@@ -96,6 +98,14 @@
                 @error('item_description2')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
             </div>
             @endif
+            <div>
+                <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-ongkir">Ongkir (shipping)</label>
+                <input type="number" id="item-form-ongkir" name="ongkir" step="any" min="0"
+                       value="{{ $fi['ongkir'] ?? '' }}" placeholder="0"
+                       data-testid="item-form-ongkir"
+                       class="w-full max-w-xs rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500 @error('ongkir') border-red-500 @enderror">
+                @error('ongkir')<p class="mt-1 text-xs text-red-500">{{ $message }}</p>@enderror
+            </div>
             <div>
                 <label class="mb-1 block text-sm font-medium text-gray-700" for="item-form-restock-threshold">Restock urgent threshold</label>
                 <input type="number" id="item-form-restock-threshold" name="restock_urgent_threshold" min="1" step="1"
@@ -176,7 +186,7 @@
         <p class="text-sm text-gray-600" data-testid="item-form-pricing-colorway-hint">
             Price and reseller amounts for manufactured SKUs are edited in the
             <a href="{{ $colorwayEditUrl }}" class="font-medium text-indigo-700 underline hover:text-indigo-900">colorway editor</a>
-            SKU matrix.
+            SKU matrix. Ongkir is stored on this SKU (field above).
         </p>
         @endif
     </div>

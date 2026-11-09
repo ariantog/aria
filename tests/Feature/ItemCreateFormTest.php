@@ -248,6 +248,42 @@ it('repopulates item create form after service error', function () {
         ->assertSee('data-testid="form-errors"', false);
 });
 
+it('persists ongkir from single sku edit', function () {
+    $typeTag = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ITEM->value,
+        'code' => 'AJD',
+        'name' => 'Jacket',
+    ]);
+    $sizeTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'S', 'name' => 'S']);
+    $warnaTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLUE', 'name' => 'BLUE']);
+    $jahitTag = Tag::factory()->create(['type' => Tag::TYPE_JAHIT, 'code' => 'J1', 'name' => 'J1']);
+    $item = \App\Models\Item::factory()->create([
+        'type' => ItemType::ITEM,
+        'pcode' => 'CX94002-01',
+        'code' => 'AJD-CX94002-01-S',
+        'ongkir' => 0,
+    ]);
+    $item->tags()->attach([$typeTag->id, $sizeTag->id, $warnaTag->id, $jahitTag->id]);
+
+    $this->actingAs($this->user)
+        ->put(route('items.update', $item), [
+            'type' => ItemType::ITEM->value,
+            'pcode' => 'CX94002-01',
+            'ongkir' => 18500,
+            'catalog_tab' => 'size',
+            'tags' => [
+                'types' => [$typeTag->id],
+                'sizes' => [$sizeTag->id],
+                'warna' => $warnaTag->id,
+                'jahit' => $jahitTag->id,
+            ],
+        ])
+        ->assertRedirect($item->fresh()->showUrl());
+
+    expect((float) $item->fresh()->ongkir)->toBe(18500.0);
+});
+
 it('allows asset lancar create without cost price', function () {
     $assetType = Tag::factory()->create([
         'type' => Tag::TYPE_TYPE,
