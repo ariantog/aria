@@ -359,13 +359,58 @@ class JubelioStockCheckService
             return null;
         }
 
+        $matches = [];
         foreach ($stockRow['location_stocks'] ?? [] as $locStock) {
             if ((int) ($locStock['location_id'] ?? 0) === $locationId) {
-                return $locStock;
+                $matches[] = $locStock;
             }
         }
 
-        return null;
+        if ($matches === []) {
+            return null;
+        }
+
+        if (count($matches) === 1) {
+            return $matches[0];
+        }
+
+        return $this->aggregateLocationStockRows($matches);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     * @return array<string, mixed>
+     */
+    private function aggregateLocationStockRows(array $rows): array
+    {
+        $onHand = 0.0;
+        $onOrder = 0.0;
+        $reserved = 0.0;
+        $availableSum = 0.0;
+        $hasAvailable = false;
+
+        foreach ($rows as $row) {
+            $onHand += max(0, (float) ($row['on_hand'] ?? 0));
+            $onOrder += max(0, (float) ($row['on_order'] ?? 0));
+            $reserved += max(0, (float) ($row['reserved'] ?? 0));
+            if (array_key_exists('available', $row)) {
+                $hasAvailable = true;
+                $availableSum += (float) $row['available'];
+            }
+        }
+
+        $merged = [
+            'location_id' => (int) ($rows[0]['location_id'] ?? 0),
+            'on_hand' => $onHand,
+            'on_order' => $onOrder,
+            'reserved' => $reserved,
+        ];
+
+        if ($hasAvailable) {
+            $merged['available'] = $availableSum;
+        }
+
+        return $merged;
     }
 
     /**
@@ -384,6 +429,19 @@ class JubelioStockCheckService
         $available = array_key_exists('available', $locationStock)
             ? (float) $locationStock['available']
             : $onHand - $reserved;
+
+        // all-stocks often returns reserved 0 on a location row while the Jubelio UI still shows
+        // rsv when on_order > 0 — commitment is on_hand − on_order − available.
+        if (
+            $reserved < 0.0001
+            && $onOrder > 0.0001
+            && array_key_exists('available', $locationStock)
+        ) {
+            $inferredReserved = max(0, $onHand - $onOrder - $available);
+            if ($inferredReserved > 0.0001) {
+                $reserved = $inferredReserved;
+            }
+        }
 
         return [
             'on_hand' => $onHand,

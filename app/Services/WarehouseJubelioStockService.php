@@ -50,9 +50,9 @@ class WarehouseJubelioStockService
             }
 
             $ariaQty = (float) ($item->pivot->quantity ?? 0);
-            $comparable = $row['comparable'] ?? $row['available'];
+            $onHand = $row['on_hand'] ?? null;
 
-            $stocks[$item->id]['mismatch'] = $comparable !== null && $ariaQty !== $comparable;
+            $stocks[$item->id]['mismatch'] = $onHand !== null && $ariaQty !== $onHand;
         }
 
         return [
@@ -144,7 +144,6 @@ class WarehouseJubelioStockService
                 'on_order' => $quantities['on_order'] ?? null,
                 'reserved' => $quantities['reserved'] ?? null,
                 'available' => $quantities['available'] ?? null,
-                'parity_total' => $quantities['comparable'] ?? null,
                 'mismatch' => false,
             ];
         }

@@ -126,6 +126,38 @@ it('flags a mismatch when aria qty differs from jubelio parity total', function 
     expect((float) $discrepancy->jubelio_qty)->toBe(51.0);
 });
 
+it('infers reserved from on_hand minus on_order minus available when api omits reserved', function () {
+    $service = app(JubelioStockCheckService::class);
+
+    $quantities = $service->resolveLocationQuantities([
+        'on_hand' => 11,
+        'on_order' => 4,
+        'reserved' => 0,
+        'available' => 0,
+    ]);
+
+    expect($quantities['reserved'])->toBe(7.0)
+        ->and($quantities['comparable'])->toBe(22.0);
+});
+
+it('aggregates multiple location stock rows for the same location id', function () {
+    $service = app(JubelioStockCheckService::class);
+
+    $row = $service->locationStockFor([
+        'location_stocks' => [
+            ['location_id' => 10, 'on_hand' => 5, 'on_order' => 1, 'reserved' => 2, 'available' => 3],
+            ['location_id' => 10, 'on_hand' => 6, 'on_order' => 0, 'reserved' => 3, 'available' => 3],
+        ],
+    ], 10);
+
+    $quantities = $service->resolveLocationQuantities($row);
+
+    expect($quantities['on_hand'])->toBe(11.0)
+        ->and($quantities['on_order'])->toBe(1.0)
+        ->and($quantities['reserved'])->toBe(5.0)
+        ->and($quantities['available'])->toBe(6.0);
+});
+
 it('ariaParityTotal sums non-negative on_hand on_order and reserved', function () {
     $service = app(JubelioStockCheckService::class);
 
