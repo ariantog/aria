@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Support\FillsProductionColumnDefaults;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ItemParent extends Model
 {
+    use FillsProductionColumnDefaults;
+
     public $timestamps = false;
 
     protected $table = 'item_parents';

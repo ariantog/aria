@@ -76,6 +76,13 @@ class ProductionColumnDefaults
             'brand' => 0,
             'genre' => 0,
         ],
+        'item_parents' => [
+            'description' => '',
+            'description2' => '',
+            'url' => '',
+            'brand' => 0,
+            'genre' => 0,
+        ],
         'transactions' => [
             'description' => '',
             'detail_ids' => '',

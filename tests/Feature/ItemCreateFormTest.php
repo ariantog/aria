@@ -248,6 +248,36 @@ it('repopulates item create form after service error', function () {
         ->assertSee('data-testid="form-errors"', false);
 });
 
+it('allows asset lancar create without cost price', function () {
+    $assetType = Tag::factory()->create([
+        'type' => Tag::TYPE_TYPE,
+        'item_type' => ItemType::ASSET_LANCAR->value,
+        'code' => 'WRISTSTRAP',
+        'name' => 'Wrist Strap',
+    ]);
+    $sizeTag = Tag::factory()->create(['type' => Tag::TYPE_SIZE, 'code' => 'S', 'name' => 'S']);
+    $warnaTag = Tag::factory()->create(['type' => Tag::TYPE_WARNA, 'code' => 'BLACK', 'name' => 'BLACK']);
+
+    $this->actingAs($this->user)
+        ->post(route('assetlancar.store'), [
+            'type' => ItemType::ASSET_LANCAR->value,
+            'pcode' => 'WRISTSTRAP-07',
+            'tags' => [
+                'types' => [$assetType->id],
+                'sizes' => [$sizeTag->id],
+                'warna' => [$warnaTag->id],
+            ],
+        ])
+        ->assertRedirect(route('assetlancar.index'))
+        ->assertSessionHas('success');
+
+    $item = \App\Models\Item::where('code', 'WRISTSTRAP-07-BLACK-S')->firstOrFail();
+    $parent = $item->group->parent ?? \App\Support\ItemPricing::ensureParentForItem($item);
+
+    expect((float) $item->cost)->toBe(0.0)
+        ->and(trim((string) $parent->description))->toBe('');
+});
+
 it('renders asset lancar create page', function () {
     $this->actingAs($this->user)
         ->get(route('assetlancar.create'))

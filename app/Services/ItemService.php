@@ -1088,8 +1088,10 @@ class ItemService
             }
         }
 
-        if ($type === ItemType::ITEM) {
-            return $pcode;
+        if ($type === ItemType::ITEM || ($type === ItemType::ASSET_LANCAR && $item === null)) {
+            return $type === ItemType::ITEM
+                ? $pcode
+                : strtoupper(trim($pcode));
         }
 
         $fallback = trim((string) ($existing?->name ?? ''));
