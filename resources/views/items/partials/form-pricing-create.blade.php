@@ -15,7 +15,7 @@
 <fieldset class="space-y-4 rounded-lg border border-indigo-200 bg-indigo-50/40 p-4" data-testid="item-pricing-create">
     <legend class="px-1 text-xs font-semibold uppercase tracking-wide text-indigo-800">Pricing</legend>
     <p class="px-1 text-xs leading-relaxed text-gray-600">
-        First colorway for a parent saves amounts on the <strong>parent group</strong>; later colorways store amounts on each <strong>new SKU</strong>. Parent defaults apply when a SKU has no override.
+        The <strong>first</strong> pcode under a parent saves amounts on the parent group; additional colorways store on each <strong>new SKU</strong> unless you override in the summary preview. Prices are not stored on <span class="font-mono">item_group</span>.
     </p>
 
     <div class="grid gap-4 sm:grid-cols-2">

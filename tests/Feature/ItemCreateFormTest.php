@@ -197,7 +197,6 @@ it('repopulates item create form after validation errors', function () {
             'pcode' => 'INVALID',
             'product_name' => 'Slash Running Shirt',
             'price' => 150000,
-            'description' => 'Test desc',
             'tags' => [
                 'sizes' => [],
             ],
@@ -210,8 +209,7 @@ it('repopulates item create form after validation errors', function () {
         ->assertOk()
         ->assertSee('data-testid="form-errors"', false)
         ->assertSee('Slash Running Shirt', false)
-        ->assertSee('INVALID', false)
-        ->assertSee('Test desc', false);
+        ->assertSee('INVALID', false);
 });
 
 it('repopulates item create form after service error', function () {

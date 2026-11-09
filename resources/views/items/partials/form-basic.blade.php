@@ -68,7 +68,7 @@
                 @if($editingItem && $colorwayEditUrl)
                     Change pcode on the <a href="{{ $colorwayEditUrl }}" class="font-medium text-blue-600 underline hover:text-blue-800">colorway editor</a>.
                 @else
-                    Product name and catalog fields are under <span class="font-medium">Catalog &amp; pricing</span>.
+                    Colorway title and default pricing are under <span class="font-medium">Catalog &amp; pricing</span>; shared descriptions are edited on the parent group page after save.
                 @endif
             </p>
         </div>

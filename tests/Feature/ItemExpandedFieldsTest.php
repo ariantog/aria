@@ -15,7 +15,7 @@ it('shows url and restock threshold fields on item create page', function () {
     $this->actingAs($this->user)
         ->get(route('items.create'))
         ->assertOk()
-        ->assertSee('Product URL', false)
+        ->assertSee('Parent group URL', false)
         ->assertSee('Restock urgent threshold', false)
         ->assertSee('name="url"', false)
         ->assertSee('name="restock_urgent_threshold"', false);

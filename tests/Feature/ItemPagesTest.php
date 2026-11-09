@@ -735,13 +735,21 @@ test('item create and edit forms mark shared colorway attributes', function () {
         ->get(route('items.create'))
         ->assertOk()
         ->assertSee('data-testid="item-catalog-panel"', false)
-        ->assertSee('data-testid="item-form-shared-details"', false)
+        ->assertSee('data-testid="item-form-create-catalog-hint"', false)
+        ->assertSee('data-testid="item-form-colorway-title"', false)
         ->assertSee('data-testid="item-pricing-create"', false)
         ->assertSee('data-testid="item-form-pricing-price-value"', false)
-        ->assertSee('item_group.name', false)
+        ->assertDontSee('data-testid="item-form-description"', false)
+        ->assertDontSee('Description (this colorway)', false)
         ->assertDontSee('data-testid="item-catalog-tabs"', false)
         ->assertDontSee('data-testid="item-catalog-scope-toolbar"', false)
         ->assertDontSee('each row keeps its own price', false);
+
+    $this->actingAs($this->user)
+        ->get(route('assetlancar.create'))
+        ->assertOk()
+        ->assertSee('data-testid="item-form-create-catalog-hint"', false)
+        ->assertDontSee('data-testid="item-form-description"', false);
 
     $this->actingAs($this->user)
         ->get(route('items.edit', $item))
