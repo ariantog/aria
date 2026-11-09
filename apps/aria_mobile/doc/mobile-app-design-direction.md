@@ -1,28 +1,29 @@
 # Aria mobile — app design direction (Material 3)
 
 **Audience:** Product + Flutter implementation  
-**Visual references:** maintainer mockups in Project Context `media/mobile-dashboard-mockup-*.jpg` (dark dashboard, rounded cards, quick-action grid).
 
-**Stack:** Flutter **Material 3** (`useMaterial3: true`, `NavigationBar`, `Card`, `FilledButton`, outline text fields). Match Aria web **teal** accents; support light / dark / system via existing `PATCH …/preferences/appearance`.
+**Visual references:** dark dashboard mockups (rounded cards, quick-action grid). Images: Project Context `media/mobile-dashboard-mockup-teal.jpg`, `media/mobile-dashboard-mockup-green-header.jpg`.
+
+**Stack:** Flutter **Material 3** (`useMaterial3: true`, `NavigationBar`, `Card`, `FilledButton`, outline text fields). Teal accents aligned with web Aria; appearance via `PATCH /api/mobile/v1/preferences/appearance`.
+
+**Companion doc:** [`mobile-transaction-form-ux.md`](mobile-transaction-form-ux.md) (field layout; separate from home shell).
 
 ---
 
 ## Product scope
 
-### Phase 1 — ship now (core ops)
+### Phase 1 — core ops
 
 | Domain | Actions | Mobile entry |
 |--------|---------|----------------|
-| **Cash management** | Cash in, cash out, transfer | Quick actions + FAB sheet + dedicated forms |
-| **Inventory management** | Buy, sell, move stock | Same; **sell + barcode scan** = dock **POS** (not a separate product yet) |
+| **Cash management** | Cash in, cash out, transfer | Quick actions + FAB + forms |
+| **Inventory management** | Buy, sell, move stock | Same; **POS** = sell + barcode (mode toggle, not a second app) |
 
-Permissions continue to gate UI (`mobile_actions` from `/api/mobile/v1/me`).
+UI gated by `mobile_actions` from `GET /api/mobile/v1/me`.
 
 ### Phase 2 — later
 
-- **Reports** (read-only summaries; reuse reporting permissions)
-- **User / ACL** (admin-only; unlikely on shared floor devices)
-- **Jubelio queue**, restock alerts, produksi — optional tiles when KPI already on dashboard API
+Reports (read-only), user/ACL (admin), optional Jubelio/restock/produksi tiles when dashboard KPIs allow.
 
 ---
 
@@ -36,113 +37,132 @@ flowchart TB
     Inv[Inventory]
     More[More]
   end
+  Home --> Standard[Standard: ops KPIs]
+  Home --> POS[POS: sales and cash]
   Home --> QA[Quick actions]
-  Home --> KPIs[Ops KPI cards]
-  Home --> POS[POS only: cash / sales]
   QA --> Forms[Create forms]
-  Inv --> Move[Move / stock lookup]
-  More --> Theme[Theme / logout / future Reports]
+  Inv --> Scan[Scan / move]
+  More --> Mode[Mode aplikasi Standard or POS]
 ```
-
-**Phase 1 tabs (4):**
 
 | Tab | Purpose |
 |-----|---------|
-| **Home** | **Standard:** ops KPI dashboard + quick actions. **POS:** mockup sales/cash home |
-| **Transactions** | Existing list + detail (filter by type later) |
-| **Inventory** | Shortcuts: scan item, move, low-stock count (start with move + barcode lookup) |
-| **More** | Theme, logout, placeholders for Reports / Users |
+| **Home** | **Standard (default):** simplified Aria dashboard. **POS:** mockup sales/cash home |
+| **Transactions** | List + detail |
+| **Inventory** | Scan, move, stock shortcuts |
+| **More** | Theme, **Mode aplikasi**, logout; future reports/users |
 
-Replace today’s 2-tab shell (`Dashboard` / `Transactions`) with this structure.
+Replace the current 2-tab shell (`Dashboard` / `Transactions`) with this 4-tab shell when implementing.
 
 ---
 
-## Home modes: **Standard** (default) vs **POS**
+## Home modes (single source of truth)
 
-User-selectable in **More → Mode aplikasi** (v1: `SharedPreferences`; optional later: `preferences.mobile_home_mode` on server).
+| Setting | Storage (v1) | Who |
+|---------|----------------|-----|
+| **Standard** (default) | `SharedPreferences` `mobile_home_mode=standard` | Warehouse, admin, mixed roles |
+| **POS** | `mobile_home_mode=pos` | Counter / retail |
 
-| Mode | Who | Home emphasis |
-|------|-----|----------------|
-| **Standard** | Warehouse, admin, mixed roles | **Simplified Aria dashboard** — same KPI families as web / current `DashboardScreen` |
-| **POS** | Counter / retail sell | Mockup-style **sales & cash** snapshot + sell-first quick actions |
+Toggle: **More → Mode aplikasi**. Optional later: `preferences.mobile_home_mode` on server.
 
-Do **not** show daily **cash totals, sell/buy amounts, cash-flow chart, or “recent sales” money list** on Home unless mode = **POS**.
+**Rule:** Do **not** show daily **cash totals, sell/buy amounts, cash-flow chart, or recent sales with amounts** on Home in **Standard** mode. Those belong to **POS** mode only (or the Transactions tab for history).
 
 ---
 
 ## Home — Standard (default)
 
-Align with web dashboard ops panels; data from `GET /api/mobile/v1/dashboard` (`MobileDashboardPresenter`).
+Data: `GET /api/mobile/v1/dashboard` → `MobileDashboardPresenter` (same families as web ops dashboard / today’s `DashboardScreen`).
 
-### Layout (M3 cards, no finance hero)
+1. **Greeting** — welcome + username.
+2. **KPI cards** (permission-gated, hide if empty): Queue, Jubelio, Stock alerts, Book closing, Restock, Produksi.
+3. **Aktivitas (optional)** — **counts only** (`sell_count`, `buy_count`). Do **not** show `sell_total`, `buy_total`, `cash_in_total`, `cash_out_total`.
+4. **Quick actions** — equal-weight shortcuts for each permitted create action (sell, buy, move, cash in/out, transfer).
+5. **Excluded:** finance hero, weekly chart, recent txn amount list (use **Transactions** tab).
 
-1. **Greeting** — `Welcome, {name}` (compact `AppBar` or first line).
-2. **KPI stack** (permission-gated; hide empty panels):
-   - **Queue** — pending jobs, level
-   - **Jubelio** — connection, pending / error orders
-   - **Stock alerts** — unread count
-   - **Book closing** — days until closing
-   - **Restock** — alert count (if allowed)
-   - **Produksi** — recent count (if allowed)
-3. **Optional compact “Aktivitas”** — **counts only** (`sell_count`, `buy_count`); **omit** `sell_total`, `buy_total`, `cash_in_total`, `cash_out_total` in Standard mode.
-4. **Quick actions** — one row of permitted create shortcuts (same routes as today); equal weight, **not** sell-only.
-5. **No** weekly cash chart, **no** mockup balance hero, **no** recent-transaction amount strip on Home (use **Transactions** tab for history).
+Pull-to-refresh; M3 card styling only — no new KPI semantics.
 
-Pull-to-refresh; reuse existing `DashboardScreen` data mapping, restyled only.
-
-### FAB (Standard)
-
-Keep **“Buat”** sheet with all permitted transaction types.
+**FAB:** “Buat” → `CreateTransactionSheet` (all permitted types).
 
 ---
 
 ## Home — POS mode
 
-Use maintainer mockups when `mobile_home_mode == pos`. Retail / counter context only.
+Uses mockup layout when `mobile_home_mode == pos`.
 
-### Hero (POS only)
+### Hero (from `kpis.activity_today` when allowed)
 
-From `kpis.activity_today` when `can.activity`:
+| Label | Fields |
+|-------|--------|
+| Penjualan hari ini | `sell_total`, `sell_count` |
+| Kas masuk / keluar hari ini | `cash_in_total`, `cash_out_total` |
+| Net kas hari ini | in − out |
 
-| UI label | Source |
-|----------|--------|
-| **Penjualan hari ini** | `sell_total` + `sell_count` |
-| **Kas masuk / keluar hari ini** | `cash_in_total` / `cash_out_total` |
-| **Net kas hari ini** | in − out (hero number) |
-
-IDR formatting; optional amount masking (eye icon, local pref). Gradient card per mockup.
+IDR formatting; optional hide amounts (eye icon, local pref). Teal/green gradient card per mockup.
 
 ### Quick actions (POS)
 
-**Jual** largest / first → `SellFormScreen` (scanner primary). Then Beli, Kas masuk, Kas keluar as needed; transfer/move in overflow sheet.
+**Jual** first and prominent → `SellFormScreen` (scanner primary). Other actions in secondary row or overflow.
 
-### Cash flow & recent (POS only)
+### Cash flow and recent (POS only)
 
-- **Minggu ini** bar chart when data available (API week buckets or client roll-up); v0 = hero only.
-- **Recent sales** — `GET /transactions?per_page=5&type=sell` (filter when API supports; else client-filter), mockup list rows.
-
----
-
-## Forms & POS
-
-See [`mobile-transaction-form-ux.md`](mobile-transaction-form-ux.md). **POS** = sell flow with scanner as primary CTA and preference prefill.
+- **Minggu ini** chart when daily series exist (API or client roll-up); v0 may omit chart.
+- **Recent sales** — last sells with amounts; filter client- or server-side when available.
 
 ---
 
-## Material 3 implementation notes
+## Forms and POS entry
 
-- `ColorScheme.fromSeed(seedColor: Color(0xFF0D9488))`
-- Card radius 16, min touch target 48dp
-- Indonesian-first labels
+- **Forms:** [`mobile-transaction-form-ux.md`](mobile-transaction-form-ux.md) — spacing shipped; next: collapsible sections + sticky submit.
+- **POS sell:** preference prefill, scanner-first, landscape two-column line fields when width > 600dp.
+
+---
+
+## Material 3 (Flutter)
+
+```dart
+ThemeData(
+  useMaterial3: true,
+  colorScheme: ColorScheme.fromSeed(
+    seedColor: const Color(0xFF0D9488),
+    brightness: brightness,
+  ),
+)
+```
+
+Card radius ~16; min touch target 48dp; Indonesian labels (`Jual`, `Beli`, `Kas masuk`); IDR number format.
+
+Amount colors on screen are **display only** — server sign convention unchanged.
+
+---
+
+## API notes
+
+| Need | Available today | Notes |
+|------|-----------------|-------|
+| Ops KPIs (Standard home) | `GET /dashboard` | Restyle only |
+| Cash/sell totals | `activity_today` | Show on Home **only in POS mode** |
+| `mobile_home_mode` | — | Local v1 |
+| Weekly cash chart | — | POS mode; needs daily series |
+| Recent txns | `GET /transactions` | Standard: Transactions tab; POS: home strip |
 
 ---
 
 ## Implementation order
 
 1. Theme + tokens  
-2. Home redesign — Standard KPI dashboard (default) + POS mode toggle + POS home variant  
+2. Standard home (default) + POS home branch + mode toggle  
 3. Four-tab navigation  
 4. Inventory tab shortcuts  
-5. Form sectioning + sticky submit  
-6. Weekly cash chart (**POS mode only**)  
-7. Reports / users (Phase 2)
+5. Form sections + sticky submit  
+6. POS weekly chart (when data exists)  
+7. Phase 2 reports/users  
+
+---
+
+## Repo paths
+
+| Area | Path |
+|------|------|
+| Shell / dashboard today | `lib/screens/shell_screen.dart`, `dashboard_screen.dart` |
+| Mobile API | `doc/mobile-api.md` |
+| Form spacing | `lib/widgets/transaction_form_fields.dart` |

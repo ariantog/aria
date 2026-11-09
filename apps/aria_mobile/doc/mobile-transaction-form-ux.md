@@ -1,25 +1,28 @@
 # Aria mobile — transaction form UX proposal
 
-**Audience:** Product / maintainer review (Flutter app `apps/aria_mobile/`).  
-**Status:** Label-spacing shipped (PR #1014). **App shell / home:** see [`mobile-app-design-direction.md`](mobile-app-design-direction.md).
+**Audience:** Product / maintainer review  
 
-**Parent scope:** Phase 1 = cash (in/out/transfer) + inventory (buy/sell/move/POS). Phase 2 = reports, users.
+**Status:** Label-spacing shipped (PR #1014). Home shell and POS vs Standard: [`mobile-app-design-direction.md`](mobile-app-design-direction.md).
+
+**Scope:** Phase 1 forms for cash (in/out/transfer) and inventory (buy/sell/move). POS mode affects **home**, not a separate sell form — sell form gets scanner-first emphasis when `mobile_home_mode == pos`.
+
+---
 
 ## Current pain
 
-Warehouse and floor staff enter **buy, sell, move, cash, and transfer** on phones that are often held in **landscape** outdoors or at a loading dock.
-
 | Issue | What users see |
 |-------|----------------|
-| **Stacked outline fields with no vertical rhythm** | Material floating labels on back-to-back `TextField`s collide; long labels (“Invoice discount %”, “Adjustment (optional)”) overlap the field above. |
-| **Flat information hierarchy** | Date, parties, invoice metadata, discount, lines, and submit share one scroll with equal visual weight — no cues for “required first” vs “optional later”. |
-| **Mixed control types without grouping** | Party pickers (`ListTile` + search sheet) sit between outline fields; the flow reads as one long form, not “who → what → how much”. |
-| **Landscape width underused** | Wide screens still use a single column; two-column header rows are rare, so thumb reach and scanning stay poor. |
-| **Line items as repeated cards** | Each SKU is a mini-form (qty/price + delete); with many lines the submit button drifts far below the fold. |
+| Stacked outline fields | Floating labels collide in landscape |
+| Flat hierarchy | Party, lines, invoice options, submit all look equally important |
+| Mixed controls | Addrbook pickers between outline fields without grouping |
+| Landscape | Single column; thumb reach poor |
+| Line cards | Many SKUs push submit far below fold |
 
-Dark theme with teal accents is already in use; spacing fixes must stay legible in both themes.
+Teal/dark theme must keep contrast after spacing fixes.
 
-## References (external patterns)
+---
+
+## References
 
 1. [Material Design 3 — Text fields](https://m3.material.io/components/text-fields/overview)
 2. [Flutter — Build and display a form](https://docs.flutter.dev/cookbook/forms)
@@ -27,18 +30,46 @@ Dark theme with teal accents is already in use; spacing fixes must stay legible 
 4. [Shopify POS](https://www.shopify.com/pos/features)
 5. [Stripe Dashboard mobile](https://stripe.com/docs/dashboard/mobile)
 
-## Proposed layout directions
+---
 
-### Direction A — Stepped wizard (Party → Lines → Totals)
+## Direction A — Wizard (Party → Lines → Totals)
 
-Best for scan-heavy sell/move; extra navigation cost for cash/transfer.
+Good for scan-heavy sell/move; extra taps for cash/transfer.
 
-### Direction B — Single scroll with collapsed sections + sticky submit
+## Direction B — Collapsible sections + sticky submit (recommended)
 
-**Recommended** for mixed txn types; aligns with shipped **Invoice options** card on buy/sell.
+Matches web mental model; **Invoice options** card already on buy/sell.
 
-## Recommendation (short)
+```
++----------------------------------+
+| Sell                    [Submit] |
++----------------------------------+
+| v Party & date                   |
+| v Lines                          |
+| > Invoice options (collapsed)    |
++----------------------------------+
+```
 
-1. **Spacing + section card** — shipped.
-2. **Pilot Direction B** on buy/sell with sticky footer totals preview.
-3. **Fast sell wizard** only if data shows scroll abandonment.
+---
+
+## Recommendation
+
+1. **Spacing + Invoice options card** — done (`transaction_form_fields.dart`).
+2. **Direction B** on buy/sell: sticky footer with line count + payable preview (client estimate; server authoritative).
+3. **Wizard (A)** only for optional “fast sell” entry if analytics warrant it.
+
+---
+
+## Out of scope here
+
+PPN/entity rules, offline retry UX, full addrbook picker redesign.
+
+---
+
+## Code map
+
+| Item | Path |
+|------|------|
+| Shared field spacing | `lib/widgets/transaction_form_fields.dart` |
+| Invoice options card | `lib/screens/buy_form_screen.dart`, `sell_form_screen.dart` |
+| Web reference | `resources/views/transactions/create.blade.php`, `cash.blade.php` |
