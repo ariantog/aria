@@ -90,17 +90,16 @@ class ItemJubelioStockService
 
             $ariaQty = (float) $warehouseItem->quantity;
             $available = $quantities['available'] ?? null;
-            $comparable = $quantities['comparable'] ?? $available;
+            $onHand = $quantities['on_hand'] ?? null;
 
             $byWarehouse[$warehouseId] = [
                 'linked' => true,
                 'location_name' => (string) $sync->jubelio_location_name,
-                'on_hand' => $quantities['on_hand'] ?? null,
+                'on_hand' => $onHand,
                 'on_order' => $quantities['on_order'] ?? null,
                 'reserved' => $quantities['reserved'] ?? null,
                 'available' => $available,
-                'parity_total' => $comparable,
-                'mismatch' => $comparable !== null && $ariaQty !== $comparable,
+                'mismatch' => $onHand !== null && $ariaQty !== $onHand,
             ];
         }
 
