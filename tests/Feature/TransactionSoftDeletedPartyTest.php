@@ -116,5 +116,6 @@ it('shows soft-deleted parties on jubelio transaction sync list', function () {
         ->get(route('jubelio.transaction.sync', ['invoice' => 'INV-SOFTDEL-PARTY-1']))
         ->assertSuccessful()
         ->assertSee('Gudang SoftDel Txn')
-        ->assertSee('Pelanggan SoftDel Txn');
+        ->assertSee('Pelanggan SoftDel Txn')
+        ->assertSee(route('transactions.show', $this->transaction->id), false);
 });

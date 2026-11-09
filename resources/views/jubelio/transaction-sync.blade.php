@@ -60,6 +60,7 @@ $activeDisplay = $filters['display'] ?? 'N';
                     <tr>
                         <th class="px-6 py-4">Date</th>
                         <th class="max-w-[150px] px-6 py-4">Invoice</th>
+                        <th class="px-6 py-4">Txn</th>
                         <th class="px-6 py-4">Type</th>
                         <th class="max-w-[150px] px-6 py-4">Description</th>
                         <th class="px-6 py-4">Sender</th>
@@ -79,6 +80,9 @@ $activeDisplay = $filters['display'] ?? 'N';
                         </td>
                         <td class="max-w-[150px] px-6 py-4 font-bold break-words text-blue-600">
                             <a href="{{ route('jubelio.transaction.detail-sync', $item->id) }}" class="hover:underline">{{ $item->invoice }}</a>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <a href="{{ route('transactions.show', $item->id) }}" class="font-mono text-xs text-blue-600 hover:underline">#{{ $item->id }}</a>
                         </td>
                         <td class="px-6 py-4 text-[10px] font-bold whitespace-nowrap uppercase">
                             <span class="inline-flex rounded border border-gray-200 bg-white px-2 py-0.5">{{ $item->type_name }}</span>
@@ -110,7 +114,7 @@ $activeDisplay = $filters['display'] ?? 'N';
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="7" class="px-6 py-8 text-center font-medium text-gray-400 italic">No transactions pending synchronization.</td>
+                        <td colspan="8" class="px-6 py-8 text-center font-medium text-gray-400 italic">No transactions pending synchronization.</td>
                     </tr>
                     @endforelse
                 </tbody>
