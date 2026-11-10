@@ -820,8 +820,9 @@ class ItemService
                         }
 
                         if ($catalogTab === 'group') {
-                            $parentId = ItemPricing::parentIdForItem($item);
-                            if ($parentId > 0 && ! in_array($parentId, $parentCatalogSynced, true)) {
+                            $item->loadMissing('group');
+                            $parentId = (int) ItemPricing::ensureParentForItem($item)->id;
+                            if (! in_array($parentId, $parentCatalogSynced, true)) {
                                 $this->persistParentCatalogOnCreate($group, $item, $input, $typeTag);
                                 $parentCatalogSynced[] = $parentId;
                             }
@@ -1134,9 +1135,9 @@ class ItemService
     /**
      * Bare product title already stored for this pcode, if any.
      */
-    public function productNameForPcode(ItemType $type, string $pcode): ?string
+    public function productNameForPcode(ItemType $type, string $pcode, ?int $excludeItemId = null): ?string
     {
-        return $this->catalogHintsForPcode($type, $pcode)['product_name'] ?? null;
+        return $this->catalogHintsForPcode($type, $pcode, excludeItemId: $excludeItemId)['product_name'] ?? null;
     }
 
     /**
@@ -1155,6 +1156,7 @@ class ItemService
         string $pcode,
         ?string $typeCode = null,
         bool $storedColorwayTitleOnly = false,
+        ?int $excludeItemId = null,
     ): ?array {
         $pcode = strtoupper(trim($pcode));
 
@@ -1175,6 +1177,7 @@ class ItemService
                     $query->orWhereRaw('UPPER(REPLACE(TRIM(pcode), "/", "-")) = ?', [$normalizedPcode]);
                 }
             })
+            ->when($excludeItemId !== null, fn (Builder $query) => $query->where('id', '!=', $excludeItemId))
             ->with(['group', 'tags'])
             ->orderByDesc('id')
             ->first();
@@ -1891,11 +1894,18 @@ class ItemService
         ItemCatalog::syncDescriptionMirrorsForGroup($group, $input, $item, $previousGroupText);
 
         if ($this->inputIncludes($input, 'product_name')) {
+            $itemType = $this->resolveItemType($item->getAttributes()['type'] ?? $item->type);
+            $pcode = strtoupper(trim((string) $item->pcode));
             $productName = trim((string) ($input->product_name ?? ''));
-            if ($productName !== '' && ! $this->isPcodeLikeProductName($productName, (string) $item->pcode, $item)) {
+
+            if ($productName === '') {
+                $productName = trim((string) ($this->productNameForPcode($itemType, $pcode, $item->id) ?? ''));
+            }
+
+            if ($productName !== '' && ! $this->isPcodeLikeProductName($productName, $pcode, $item)) {
                 $parent = ItemPricing::ensureParentForItem($item);
                 $title = $this->identityBuilder->productDisplayName(
-                    $this->resolveItemType($item->getAttributes()['type'] ?? $item->type),
+                    $itemType,
                     $productName,
                     (string) ($group->variant ?? ''),
                     (string) ($group->master ?? ''),
