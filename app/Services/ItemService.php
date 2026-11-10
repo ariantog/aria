@@ -759,7 +759,11 @@ class ItemService
             ? 'group'
             : $this->normalizeCatalogTab($input->catalog_tab);
         $catalogInput = $this->inputForCatalogScope($input, $catalogTab);
-        $groupName = $this->groupNameFromInput($catalogInput, $inputType, $pcode);
+        $groupName = $catalogTab === 'group'
+            ? ($inputType === ItemType::ITEM
+                ? $this->identityBuilder->normalizeManufacturedPcode($pcode)
+                : strtoupper(trim($pcode)))
+            : $this->groupNameFromInput($catalogInput, $inputType, $pcode);
 
         if ($inputType === ItemType::ITEM && count($tags['warna']) !== 1) {
             throw new Exception('Manufactured items require exactly one WARNA tag.');
@@ -1900,7 +1904,18 @@ class ItemService
             }
         }
 
-        $this->syncItemNamesForGroup($group->refresh());
+        $this->refreshItemDisplayNamesForGroup($group->refresh());
+    }
+
+    /** Regenerate items.name for SKUs in a colorway without syncing parent from group.name. */
+    protected function refreshItemDisplayNamesForGroup(ItemGroup $group): void
+    {
+        $items = Item::with('tags')->where('group_id', $group->id)->get();
+
+        foreach ($items as $item) {
+            $item->name = ItemProductTitle::buildDisplayName($item);
+            $item->save();
+        }
     }
 
     protected function persistGroupCatalogAttributes(ItemGroup $group, Item $item, object $input, ?Tag $typeTag): void

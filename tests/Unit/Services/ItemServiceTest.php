@@ -403,10 +403,15 @@ test('it creates manufactured item with unified code and display name', function
     expect($this->itemService->create($input, $tags))->toBeTrue();
 
     $this->assertDatabaseHas('item_group', [
-        'name' => 'SLASH RUNNING SHIRT',
+        'name' => 'CX90233-23',
         'master' => 'CX90233-23',
         'variant' => '23',
     ]);
+
+    $item = Item::where('code', 'AJD-CX90233-23-S')->firstOrFail();
+    $parent = \App\Support\ItemPricing::ensureParentForItem($item->loadMissing(['group', 'tags']));
+
+    expect(strtoupper(trim((string) $parent->product_name)))->toBe('SLASH RUNNING SHIRT');
 
     $this->assertDatabaseHas('items', [
         'pcode' => 'CX90233-23',
@@ -1411,7 +1416,7 @@ test('item update from sku catalog tab preserves colorway title and ignores stal
     $this->assertDatabaseHas('item_group', [
         'master' => 'CX93249-03',
         'variant' => '03',
-        'name' => 'ESSENTIAL SHORTS',
+        'name' => 'CX93249-03',
     ]);
 });
 
@@ -1517,15 +1522,20 @@ test('two manufactured colorways can share the same product title without a suff
         'jahit' => [$this->jahitTag->id],
     ]);
 
+    $item = Item::where('code', 'AJD-CX90233-23-S')->firstOrFail();
+    $parent = \App\Support\ItemPricing::ensureParentForItem($item->loadMissing(['group', 'tags']));
+
+    expect(strtoupper(trim((string) $parent->product_name)))->toBe('ESSENTIAL SHORTS');
+
     $this->assertDatabaseHas('item_group', [
         'master' => 'CX90233-23',
         'variant' => '23',
-        'name' => 'ESSENTIAL SHORTS',
+        'name' => 'CX90233-23',
     ]);
     $this->assertDatabaseHas('item_group', [
         'master' => 'CX90233-24',
         'variant' => '24',
-        'name' => 'ESSENTIAL SHORTS',
+        'name' => 'CX90233-24',
     ]);
 });
 
