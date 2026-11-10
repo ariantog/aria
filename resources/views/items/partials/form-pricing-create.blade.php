@@ -5,17 +5,18 @@
         'reseller_price' => ['label' => 'Reseller price', 'step' => 'any', 'decimals' => 0],
         'cost' => ['label' => 'Cost price (IDR)', 'step' => 'any', 'decimals' => 0],
         'cost_cnh' => ['label' => 'Cost price (CNY)', 'step' => 'any', 'decimals' => 2],
+        'ongkir' => ['label' => 'Ongkir (shipping)', 'step' => 'any', 'decimals' => 0],
     ];
 
     if (! ($isAsset ?? false)) {
-        $fields = array_intersect_key($fields, array_flip(['price', 'reseller_price']));
+        $fields = array_intersect_key($fields, array_flip(['price', 'reseller_price', 'ongkir']));
     }
 @endphp
 
 <fieldset class="space-y-4 rounded-lg border border-indigo-200 bg-indigo-50/40 p-4" data-testid="item-pricing-create">
     <legend class="px-1 text-xs font-semibold uppercase tracking-wide text-indigo-800">Pricing</legend>
     <p class="px-1 text-xs leading-relaxed text-gray-600">
-        First colorway for a parent saves amounts on the <strong>parent group</strong>; later colorways store amounts on each <strong>new SKU</strong>. Parent defaults apply when a SKU has no override.
+        The <strong>first</strong> pcode under a parent saves amounts on the parent group; additional colorways store on each <strong>new SKU</strong> unless you override in the summary preview. Prices are not stored on <span class="font-mono">item_group</span>.
     </p>
 
     <div class="grid gap-4 sm:grid-cols-2">

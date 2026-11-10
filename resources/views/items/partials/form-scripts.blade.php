@@ -79,6 +79,7 @@ function itemForm() {
         defaultCost: @js($formItem['cost'] ?? ''),
         defaultCostCnh: @js($formItem['cost_cnh'] ?? ''),
         defaultResellerPrice: @js($formItem['reseller_price'] ?? ''),
+        defaultOngkir: @js($formItem['ongkir'] ?? ''),
         skuOverrides: @js(old('sku_overrides', [])),
         typeCode: '???',
         warnaCode: '???',
@@ -712,7 +713,7 @@ function itemForm() {
         previewOverrideOpen(sku) {
             const row = this.skuOverrideRow(sku);
 
-            return ['price', 'cost', 'cost_cnh', 'reseller_price', 'description', 'description2']
+            return ['price', 'cost', 'cost_cnh', 'reseller_price', 'ongkir', 'description', 'description2']
                 .some((field) => String(row[field] ?? '').trim() !== '');
         },
     };

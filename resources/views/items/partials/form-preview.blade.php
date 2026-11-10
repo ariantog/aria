@@ -47,6 +47,15 @@
                                                data-testid="item-form-sku-override-price"
                                                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                                     </div>
+                                    <div>
+                                        <label class="mb-1 block text-xs font-medium text-gray-700">Ongkir (shipping)</label>
+                                        <input type="number" step="any" min="0"
+                                               :name="`sku_overrides[${row.sku}][ongkir]`"
+                                               :value="skuOverrideValue(row.sku, 'ongkir')"
+                                               :placeholder="defaultOngkir ? `Default: ${defaultOngkir}` : 'Use default ongkir'"
+                                               data-testid="item-form-sku-override-ongkir"
+                                               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                                    </div>
                                     @if($isAsset ?? false)
                                     <div>
                                         <label class="mb-1 block text-xs font-medium text-gray-700">Cost price (IDR)</label>
@@ -81,7 +90,7 @@
                                         <textarea rows="2"
                                                   :name="`sku_overrides[${row.sku}][description]`"
                                                   x-init="$el.value = skuOverrideValue(row.sku, 'description') || ''"
-                                                  placeholder="Override shared description for this SKU only"
+                                                  placeholder="SKU description override (parent group is the default)"
                                                   data-testid="item-form-sku-override-description"
                                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"></textarea>
                                     </div>
@@ -90,7 +99,7 @@
                                         <textarea rows="2"
                                                   :name="`sku_overrides[${row.sku}][description2]`"
                                                   x-init="$el.value = skuOverrideValue(row.sku, 'description2') || ''"
-                                                  placeholder="Override shared notes for this SKU only"
+                                                  placeholder="SKU notes override (parent group is the default)"
                                                   data-testid="item-form-sku-override-description2"
                                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"></textarea>
                                     </div>

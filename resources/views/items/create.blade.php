@@ -14,6 +14,7 @@
         'reseller_price' => old('reseller_price'),
         'url' => old('url'),
         'restock_urgent_threshold' => old('restock_urgent_threshold'),
+        'ongkir' => old('ongkir'),
     ];
 @endphp
 @section('title', $duplicateFrom ? 'Duplicate SKU' : ($isAsset ? 'Create New Asset' : 'Create New Item'))

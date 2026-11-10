@@ -15,7 +15,7 @@ it('shows url and restock threshold fields on item create page', function () {
     $this->actingAs($this->user)
         ->get(route('items.create'))
         ->assertOk()
-        ->assertSee('Product URL', false)
+        ->assertSee('Parent group URL', false)
         ->assertSee('Restock urgent threshold', false)
         ->assertSee('name="url"', false)
         ->assertSee('name="restock_urgent_threshold"', false);
@@ -307,7 +307,8 @@ it('shows separate global and per-sku description fields on asset lancar edit pa
         ->assertSee('name="item_description"', false)
         ->assertSee('data-testid="item-form-pricing-reseller_price-scope-size"', false)
         ->assertSee('data-testid="item-form-sku-details"', false)
-        ->assertSee('Optional description overrides', false)
+        ->assertSee('Per-SKU description overrides', false)
+        ->assertSee('data-testid="item-form-ongkir"', false)
         ->assertSee('SKU DESC', false)
         ->assertDontSee('name="description"', false);
 });
