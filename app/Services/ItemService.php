@@ -756,7 +756,7 @@ class ItemService
         }
 
         $catalogTab = trim((string) ($input->catalog_tab ?? '')) === ''
-            ? 'colorway'
+            ? 'group'
             : $this->normalizeCatalogTab($input->catalog_tab);
         $catalogInput = $this->inputForCatalogScope($input, $catalogTab);
         $groupName = $this->groupNameFromInput($catalogInput, $inputType, $pcode);
@@ -776,6 +776,7 @@ class ItemService
         return DB::transaction(function () use ($input, $catalogInput, $catalogTab, $tags, $file, $inputType, $groupName, $pcode) {
             $totalCreated = 0;
             $pricedGroupIds = [];
+            $parentCatalogSynced = [];
             $firstItemWithImage = null;
             $warnaIds = $tags['warna'];
             $typeLoops = ! empty($tags['types']) ? $tags['types'] : [0];
@@ -810,11 +811,17 @@ class ItemService
                         );
 
                         if (! in_array($group->id, $pricedGroupIds, true)) {
-                            $this->persistItemPricing($item, $input, forCreate: true);
+                            $this->persistItemPricing($item, $input, forCreate: true, catalogTab: $catalogTab);
                             $pricedGroupIds[] = $group->id;
                         }
 
-                        if ($catalogTab === 'colorway') {
+                        if ($catalogTab === 'group') {
+                            $parentId = ItemPricing::parentIdForItem($item);
+                            if ($parentId > 0 && ! in_array($parentId, $parentCatalogSynced, true)) {
+                                $this->persistParentCatalogOnCreate($group, $item, $input, $typeTag);
+                                $parentCatalogSynced[] = $parentId;
+                            }
+                        } elseif ($catalogTab === 'colorway') {
                             $this->persistGroupCatalogAttributes($group, $item, $catalogInput, $typeTag);
                         }
 
@@ -1843,6 +1850,59 @@ class ItemService
         $sibling->tags()->sync($tagIds);
     }
 
+    protected function persistParentCatalogOnCreate(ItemGroup $group, Item $item, object $input, ?Tag $typeTag): void
+    {
+        $item->loadMissing(['group', 'tags']);
+        $group->loadMissing('parent');
+
+        $attributes = [
+            'brand' => $item->brand instanceof ItemBrand
+                ? $item->brand
+                : ItemBrand::fromPcode((string) $item->pcode),
+            'genre' => (int) ($typeTag?->id ?? $item->catalogGenre()),
+        ];
+
+        if ($this->inputIncludes($input, 'description')) {
+            $attributes['description'] = $input->description;
+        }
+
+        if ($this->inputIncludes($input, 'description2')) {
+            $attributes['description2'] = $input->description2;
+        }
+
+        if (isset($input->reseller_price)) {
+            $attributes['reseller_price'] = $input->reseller_price;
+        }
+
+        if (isset($input->url)) {
+            $attributes['url'] = $this->normalizeUrl($input->url);
+        }
+
+        $previousGroupText = [
+            'description' => trim((string) ($group->parent?->description ?? $group->description ?? '')),
+            'description2' => trim((string) ($group->parent?->description2 ?? $group->description2 ?? '')),
+        ];
+
+        ItemCatalog::applySharedCatalog($group, $item, $attributes);
+        ItemCatalog::syncDescriptionMirrorsForGroup($group, $input, $item, $previousGroupText);
+
+        if ($this->inputIncludes($input, 'product_name')) {
+            $productName = trim((string) ($input->product_name ?? ''));
+            if ($productName !== '' && ! $this->isPcodeLikeProductName($productName, (string) $item->pcode, $item)) {
+                $parent = ItemPricing::ensureParentForItem($item);
+                $title = $this->identityBuilder->productDisplayName(
+                    $this->resolveItemType($item->getAttributes()['type'] ?? $item->type),
+                    $productName,
+                    (string) ($group->variant ?? ''),
+                    (string) ($group->master ?? ''),
+                );
+                ItemProductTitle::syncParentProductNameById((int) $parent->id, $title);
+            }
+        }
+
+        $this->syncItemNamesForGroup($group->refresh());
+    }
+
     protected function persistGroupCatalogAttributes(ItemGroup $group, Item $item, object $input, ?Tag $typeTag): void
     {
         $attributes = [
@@ -1878,7 +1938,7 @@ class ItemService
         ItemCatalog::syncDescriptionMirrorsForGroup($group, $input, $item, $previousGroupText);
     }
 
-    protected function persistItemPricing(Item $item, object $input, bool $forCreate = false): void
+    protected function persistItemPricing(Item $item, object $input, bool $forCreate = false, ?string $catalogTab = null): void
     {
         if (isset($input->pricing) && is_array($input->pricing)) {
             $pricingRows = [];
@@ -1904,7 +1964,7 @@ class ItemService
 
         $legacyRows = [];
         $legacyScope = $forCreate
-            ? $this->resolveCreatePricingScope($item)
+            ? $this->resolveCreatePricingScope($item, $catalogTab)
             : ItemPricing::SCOPE_SIZE;
 
         foreach (ItemPricing::FIELDS as $field) {
@@ -1937,10 +1997,16 @@ class ItemService
         }
     }
 
-    protected function resolveCreatePricingScope(Item $item): string
+    protected function resolveCreatePricingScope(Item $item, ?string $catalogTab = null): string
     {
         $item->loadMissing('group');
         $parentId = ItemPricing::parentIdForItem($item);
+
+        if ($catalogTab === 'group') {
+            return ItemPricing::parentGroupHasStoredPricing($parentId)
+                ? ItemPricing::SCOPE_SIZE
+                : ItemPricing::SCOPE_GROUP;
+        }
 
         return ItemPricing::parentGroupHasStoredPricing($parentId)
             ? ItemPricing::SCOPE_SIZE

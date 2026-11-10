@@ -5,18 +5,19 @@
         'reseller_price' => ['label' => 'Reseller price', 'step' => 'any', 'decimals' => 0],
         'cost' => ['label' => 'Cost price (IDR)', 'step' => 'any', 'decimals' => 0],
         'cost_cnh' => ['label' => 'Cost price (CNY)', 'step' => 'any', 'decimals' => 2],
-        'ongkir' => ['label' => 'Ongkir (shipping)', 'step' => 'any', 'decimals' => 0],
     ];
 
     if (! ($isAsset ?? false)) {
-        $fields = array_intersect_key($fields, array_flip(['price', 'reseller_price', 'ongkir']));
+        $fields = array_intersect_key($fields, array_flip(['price', 'reseller_price']));
+    } else {
+        unset($fields['ongkir']);
     }
 @endphp
 
 <fieldset class="space-y-4 rounded-lg border border-indigo-200 bg-indigo-50/40 p-4" data-testid="item-pricing-create">
     <legend class="px-1 text-xs font-semibold uppercase tracking-wide text-indigo-800">Pricing</legend>
     <p class="px-1 text-xs leading-relaxed text-gray-600">
-        The <strong>first</strong> pcode under a parent saves amounts on the parent group; additional colorways store on each <strong>new SKU</strong> unless you override in the summary preview. Prices are not stored on <span class="font-mono">item_group</span>.
+        Default amounts are stored on the <strong>parent group</strong> for every SKU in this batch. Override price, cost, or reseller in the summary preview dropdown when a size needs its own amount. Ongkir is per SKU only (preview dropdown).
     </p>
 
     <div class="grid gap-4 sm:grid-cols-2">
