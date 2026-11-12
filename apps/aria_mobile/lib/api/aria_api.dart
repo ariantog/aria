@@ -187,6 +187,10 @@ class AriaApi {
         'remember_defaults': rememberDefaults,
       }),
     );
+    final j = _decodeJson(r);
+    if (j is Map<String, dynamic> && j.containsKey('skipped')) {
+      return j;
+    }
     return _decodeObject(r);
   }
 

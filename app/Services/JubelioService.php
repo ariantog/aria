@@ -660,6 +660,25 @@ class JubelioService
             if ($match !== null) {
                 return $match;
             }
+
+            $match = $this->pickSalesOrderByDetailTracking($rows, $needle, $storeId);
+            if ($match !== null) {
+                return $match;
+            }
+        }
+
+        foreach (['q', 'search', 'keyword'] as $param) {
+            $response = $this->fetchSalesOrdersQuery(1, 50, [$param => $needle]);
+            if ($response === null) {
+                continue;
+            }
+
+            $rows = is_array($response['data'] ?? null) ? $response['data'] : [];
+            $match = $this->pickSalesOrderRowByTracking($rows, $needle, $storeId)
+                ?? $this->pickSalesOrderByDetailTracking($rows, $needle, $storeId);
+            if ($match !== null) {
+                return $match;
+            }
         }
 
         return null;
@@ -713,6 +732,87 @@ class JubelioService
         }
 
         return $candidates[0];
+    }
+
+    /**
+     * List rows from a tracking filter may omit AWB fields — confirm via order detail (max 3 rows).
+     *
+     * @param  list<array<string, mixed>>  $rows
+     * @return array{salesorder_no: string, salesorder_id: string|int|null}|null
+     */
+    private function pickSalesOrderByDetailTracking(array $rows, string $needle, ?int $storeId, int $maxFetches = 3): ?array
+    {
+        $checked = 0;
+
+        foreach ($rows as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            if ($storeId !== null && $storeId > 0) {
+                $rowStore = (int) ($row['store_id'] ?? $row['jubelio_store_id'] ?? 0);
+                if ($rowStore > 0 && $rowStore !== $storeId) {
+                    continue;
+                }
+            }
+
+            $orderId = $row['salesorder_id'] ?? null;
+            if ($orderId === null || $orderId === '') {
+                continue;
+            }
+
+            if ($checked >= $maxFetches) {
+                break;
+            }
+            $checked++;
+
+            $detail = $this->fetchSalesOrder($orderId);
+            if (! is_array($detail)) {
+                continue;
+            }
+
+            if (! $this->salesOrderPayloadTrackingMatches($detail, $needle)) {
+                continue;
+            }
+
+            $invoice = trim((string) ($detail['salesorder_no'] ?? $row['salesorder_no'] ?? ''));
+            if ($invoice === '') {
+                continue;
+            }
+
+            return [
+                'salesorder_no' => $invoice,
+                'salesorder_id' => $detail['salesorder_id'] ?? $orderId,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function salesOrderPayloadTrackingMatches(array $payload, string $needle): bool
+    {
+        if ($this->salesOrderRowTrackingMatches($payload, $needle)) {
+            return true;
+        }
+
+        foreach (['shipments', 'shipment', 'packages', 'package'] as $nestedKey) {
+            $nested = $payload[$nestedKey] ?? null;
+            if (! is_array($nested)) {
+                continue;
+            }
+
+            $items = array_is_list($nested) ? $nested : [$nested];
+            foreach ($items as $item) {
+                if (is_array($item) && $this->salesOrderRowTrackingMatches($item, $needle)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**

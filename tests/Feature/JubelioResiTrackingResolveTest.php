@@ -81,7 +81,8 @@ it('skips tiktok resi when tracking is not found in jubelio', function () {
         'barcodes' => ['UNKNOWN-AWB'],
     ]);
 
-    $response->assertStatus(422)
+    $response->assertOk()
+        ->assertJsonPath('message', 'Resi tidak ditemukan di Jubelio.')
         ->assertJsonPath('skipped.0.reason', 'Resi tidak ditemukan di Jubelio.');
 
     expect(Jubelioorder::count())->toBe(0);
@@ -111,5 +112,47 @@ it('resolves tracking via jubelio sales order query only', function () {
     expect($match)->toBe([
         'salesorder_no' => 'TP-ORDER-501',
         'salesorder_id' => 501,
+    ]);
+});
+
+it('confirms tracking via sales order detail when list row omits awb', function () {
+    $service = Mockery::mock(JubelioService::class)->makePartial();
+    $service->shouldReceive('fetchSalesOrdersQuery')
+        ->once()
+        ->with(1, 50, ['tracking_no' => 'JNE111222'])
+        ->andReturn([
+            'totalCount' => 1,
+            'data' => [
+                [
+                    'salesorder_id' => 777,
+                    'salesorder_no' => 'TT-DETAIL-777',
+                    'store_id' => 3,
+                ],
+            ],
+        ]);
+    $service->shouldReceive('fetchSalesOrdersQuery')
+        ->with(1, 50, ['trackingNo' => 'JNE111222'])
+        ->andReturn(['data' => [], 'totalCount' => 0]);
+    $service->shouldReceive('fetchSalesOrdersQuery')
+        ->with(1, 50, ['airwaybill_no' => 'JNE111222'])
+        ->andReturn(['data' => [], 'totalCount' => 0]);
+    $service->shouldReceive('fetchSalesOrder')
+        ->once()
+        ->with(777)
+        ->andReturn([
+            'salesorder_id' => 777,
+            'salesorder_no' => 'TT-DETAIL-777',
+            'shipments' => [
+                ['tracking_no' => 'JNE111222'],
+            ],
+        ]);
+
+    $this->instance(JubelioService::class, $service);
+
+    $match = $service->findSalesOrderByTrackingNo('JNE111222', 3);
+
+    expect($match)->toBe([
+        'salesorder_no' => 'TT-DETAIL-777',
+        'salesorder_id' => 777,
     ]);
 });
