@@ -164,6 +164,32 @@ class AriaApi {
     await http.post(_u('/auth/logout'), headers: _headers);
   }
 
+  Future<Map<String, dynamic>> getResiScanOptions() async {
+    final r = await http.get(_u('/jubelio/resi-scan/options'), headers: _headers);
+    return _decodeObject(r);
+  }
+
+  Future<Map<String, dynamic>> submitResiScan({
+    required int warehouseId,
+    required String marketplace,
+    required List<String> barcodes,
+    bool rememberDefaults = false,
+  }) async {
+    final headers = Map<String, String>.from(_headers);
+    headers['Content-Type'] = 'application/json';
+    final r = await http.post(
+      _u('/jubelio/resi-scan'),
+      headers: headers,
+      body: jsonEncode({
+        'warehouse_id': warehouseId,
+        'marketplace': marketplace,
+        'barcodes': barcodes,
+        'remember_defaults': rememberDefaults,
+      }),
+    );
+    return _decodeObject(r);
+  }
+
   Future<Map<String, dynamic>> patchAppearance(String appearance) async {
     final headers = Map<String, String>.from(_headers);
     headers['Content-Type'] = 'application/json';
