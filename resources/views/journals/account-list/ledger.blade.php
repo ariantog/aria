@@ -4,79 +4,77 @@
 
 @section('content')
 @php
+$ledgerUrl = route('account-list.ledger', $account);
+$exportCsvUrl = route('account-list.ledger.export', array_merge(
+    ['account_list' => $account->id],
+    request()->query(),
+));
 $breadcrumbs = [
     ['title' => 'Journals', 'href' => route('operations.index')],
     ['title' => 'Account List', 'href' => route('account-list.index')],
-    ['title' => 'Ledger: ' . $account->name, 'href' => route('account-list.ledger', $account->id)],
+    ['title' => 'Ledger: ' . $account->name, 'href' => $ledgerUrl],
 ];
-$fmt = fn($v) => format_currency($v ?? 0);
+$balance = $account->stat->balance ?? 0;
 @endphp
 
-<div class="flex flex-col gap-4 overflow-x-auto p-4">
-    <div class="mb-4 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-        <div class="flex items-center gap-4">
-            <a href="{{ route('account-list.index') }}" class="flex h-10 w-10 items-center justify-center rounded-md border border-gray-300 hover:bg-gray-50">
-                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
-            </a>
-            <div>
-                <h2 class="text-2xl font-bold tracking-tight text-gray-900">Daftar Operasi / Ledger: {{ $account->name }}</h2>
-                <p class="mt-1 text-sm text-gray-500">Operation: {{ $account->operation->name ?? 'Uncategorized' }} | Current Balance: <span class="font-semibold text-gray-700">{{ $fmt($account->stat->balance ?? 0) }}</span></p>
-            </div>
-        </div>
+<div class="flex flex-col gap-3 p-3 sm:p-4">
+  <div class="flex flex-col justify-between gap-4 md:flex-row md:items-end">
+    <div>
+      <div class="mb-1 flex items-center gap-2">
+        <a href="{{ route('account-list.index') }}" class="text-gray-400 hover:text-gray-700">
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        </a>
+        <span class="font-mono text-sm text-gray-400">#{{ $account->id }}</span>
+      </div>
+      <h2 class="text-2xl font-bold tracking-tight text-gray-900">Transaction History</h2>
+      <p class="mt-0.5 text-sm text-gray-500">
+        Full history for <span class="font-medium text-blue-600">{{ $account->name }}</span>
+        @if($account->operation)
+          <span class="text-gray-400">·</span> {{ $account->operation->name }}
+        @endif
+      </p>
+      <p class="mt-1 text-sm text-gray-500">
+        Current balance: <span class="font-semibold tabular-nums text-gray-900">{{ format_amount($balance) }}</span>
+      </p>
     </div>
+  </div>
 
-    <form method="GET" action="{{ route('account-list.ledger', $account->id) }}" class="mb-4 flex flex-col items-end gap-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row">
-        <div class="w-full space-y-2 sm:w-auto">
-            <label class="text-sm font-medium">From Date</label>
-            <input type="date" name="from" value="{{ $filters['from'] ?? '' }}" class="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm">
-        </div>
-        <div class="w-full space-y-2 sm:w-auto">
-            <label class="text-sm font-medium">To Date</label>
-            <input type="date" name="to" value="{{ $filters['to'] ?? '' }}" class="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm">
-        </div>
-        <button type="submit" class="inline-flex w-full items-center justify-center gap-2 rounded-md bg-gray-800 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 sm:w-auto">
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L14 13.414V19a1 1 0 01-.293.707l-2 2A1 1 0 0110 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/></svg>
-            Filter Ledger
-        </button>
-    </form>
-
-    <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50/50">
-                    <tr>
-                        <th class="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Date</th>
-                        <th class="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Invoice / Ref</th>
-                        <th class="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Debit (In)</th>
-                        <th class="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Credit (Out)</th>
-                        <th class="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Recorded Balance</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-200 bg-white">
-                    @forelse($transactions as $trx)
-                    @php
-                        $isReceiver = $trx->receiver_id === $account->id;
-                        $debit = $isReceiver ? $trx->total : 0;
-                        $credit = !$isReceiver ? $trx->total : 0;
-                        $recordedBalance = $isReceiver ? $trx->receiver_balance : $trx->sender_balance;
-                    @endphp
-                    <tr class="hover:bg-gray-50/50">
-                        <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-900">{{ \Carbon\Carbon::parse($trx->date)->format('d/m/Y') }}</td>
-                        <td class="px-6 py-4 text-sm text-gray-900">
-                            <div class="font-semibold">{{ $trx->invoice ?: 'N/A' }}</div>
-                            <div class="text-xs text-gray-500">{{ $trx->reference_number }}</div>
-                        </td>
-                        <td class="whitespace-nowrap px-6 py-4 text-right text-sm font-medium text-green-600">{{ $debit > 0 ? $fmt($debit) : '-' }}</td>
-                        <td class="whitespace-nowrap px-6 py-4 text-right text-sm font-medium text-red-600">{{ $credit > 0 ? $fmt($credit) : '-' }}</td>
-                        <td class="whitespace-nowrap px-6 py-4 text-right text-sm font-semibold text-gray-900">{{ $fmt($recordedBalance) }}</td>
-                    </tr>
-                    @empty
-                    <tr><td colspan="5" class="px-6 py-12 text-center text-sm text-gray-500">No transactions found for this period.</td></tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-        @include('partials.pagination', ['paginator' => $transactions, 'label' => 'transactions'])
+  <form method="GET" action="{{ $ledgerUrl }}" class="flex flex-wrap items-end gap-2 rounded-xl border border-gray-200 bg-white p-3">
+    <div class="flex flex-col gap-1">
+      <label class="text-xs font-medium uppercase text-gray-500">From Date</label>
+      <input type="date" name="from" value="{{ $filters['from'] ?? '' }}" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
     </div>
+    <div class="flex flex-col gap-1">
+      <label class="text-xs font-medium uppercase text-gray-500">To Date</label>
+      <input type="date" name="to" value="{{ $filters['to'] ?? '' }}" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+    </div>
+    <div class="flex flex-col gap-1">
+      <label class="text-xs font-medium uppercase text-gray-500">Type</label>
+      <select name="type" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+        <option value="">All Types</option>
+        @foreach($transactionTypes as $t)
+          <option value="{{ $t['id'] }}" @selected((string) ($filters['type'] ?? '') === (string) $t['id'])>{{ $t['name'] }}</option>
+        @endforeach
+      </select>
+    </div>
+    <div class="flex flex-col gap-1">
+      <label class="text-xs font-medium uppercase text-gray-500">Order By</label>
+      <select name="order_date" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+        <option value="date" @selected(($filters['order_date'] ?? 'date') === 'date')>Transaction Date</option>
+        <option value="created_at" @selected(($filters['order_date'] ?? '') === 'created_at')>Created At</option>
+      </select>
+    </div>
+    <div class="flex gap-2">
+      <button type="submit" class="rounded-lg bg-blue-700 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-800">Search</button>
+      <a href="{{ $ledgerUrl }}" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50">Reset</a>
+    </div>
+  </form>
+
+  @include('transactions.partials.list-table', [
+    'rows' => $transactions,
+    'can' => $can,
+    'highlightId' => $account->id,
+    'exportCsvUrl' => $exportCsvUrl,
+  ])
 </div>
 @endsection
