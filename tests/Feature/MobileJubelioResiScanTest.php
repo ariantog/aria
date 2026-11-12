@@ -97,19 +97,24 @@ it('skips duplicate invoices on resi scan submit', function () {
     config(['services.jubelio.active' => true]);
 
     $this->mock(JubelioService::class, function (MockInterface $mock) {
-        $mock->shouldReceive('findSalesOrderByTrackingNo')
+        $mock->shouldReceive('resolveSalesOrderByTracking')
             ->twice()
             ->andReturnUsing(function (string $tracking) {
                 return match ($tracking) {
                     'DUP-TEST' => [
+                        'status' => 'found',
                         'salesorder_no' => 'TT-DUP-TEST',
                         'salesorder_id' => 'dup-so',
                     ],
                     'NEW-TT-001' => [
+                        'status' => 'found',
                         'salesorder_no' => 'TT-NEW-TT-001',
                         'salesorder_id' => 'new-so',
                     ],
-                    default => null,
+                    default => [
+                        'status' => 'not_found',
+                        'message' => 'Resi tidak ditemukan di Jubelio.',
+                    ],
                 };
             });
     });

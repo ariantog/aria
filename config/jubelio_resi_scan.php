@@ -9,6 +9,9 @@
 return [
     'source' => 3,
 
+    /** Window for Jubelio `q` search on sales orders (targeted, not paginated list scan). */
+    'tracking_search_days' => 21,
+
     'marketplaces' => [
         'shopee' => [
             'label' => 'Shopee',
