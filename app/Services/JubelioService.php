@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Services\Jubelio\JubelioTrackingLookup;
 use App\Models\Jubeliosync;
 use App\Models\Setting;
 use Carbon\Carbon;
