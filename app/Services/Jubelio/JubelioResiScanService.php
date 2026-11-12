@@ -222,7 +222,7 @@ class JubelioResiScanService
                 'source' => (int) config('jubelio_resi_scan.source', 3),
                 'invoice' => $invoice,
                 'type' => 'SELL',
-                'order_status' => 'SHIPPED',
+                'order_status' => JubelioOrderReadyToShip::STATUS,
                 'run_count' => 0,
                 'warehouse_id' => (int) $sync->warehouse_id,
                 'jubelio_store_id' => (int) $sync->jubelio_store_id,

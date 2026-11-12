@@ -11,6 +11,7 @@ use App\Models\TransactionDetail;
 use App\Models\WarehouseItem;
 use App\Services\Jubelio\JubelioOrderLineQuantity;
 use App\Services\Jubelio\JubelioOrderPayloadService;
+use App\Services\Jubelio\JubelioOrderReadyToShip;
 use App\Services\Jubelio\JubelioOrderQueueEligibility;
 use App\Services\Jubelio\JubelioOrderSyncStatus;
 use App\Services\Jubelio\JubelioSellInvoiceGuard;
@@ -48,6 +49,10 @@ class ProcessJubelioOrder
 
         if ($order->isSuccessful()) {
             return ['success' => true, 'message' => 'Transaksi sudah berhasil diposting sebelumnya.'];
+        }
+
+        if (JubelioOrderReadyToShip::isHeldForCourier($order)) {
+            return ['success' => false, 'message' => 'Order menunggu pickup kurir (READY TO SHIP).'];
         }
 
         if ($order->type === 'SELL' && $order->invoice !== null && $order->invoice !== '') {

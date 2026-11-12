@@ -98,6 +98,14 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
                         <dd class="text-sm font-medium"><span class="inline-flex rounded bg-gray-100 px-2 py-0.5 text-xs">{{ $order->order_status }}</span></dd>
                     </div>
                     <div>
+                        <dt class="text-sm text-gray-400">Source</dt>
+                        <dd class="text-sm font-medium">{{ $order->sourceLabel() }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm text-gray-400">Scanned by</dt>
+                        <dd class="text-sm font-medium" data-testid="jubelio-scanned-by">{{ $order->scannedByLabel() }}</dd>
+                    </div>
+                    <div>
                         <dt class="text-sm text-gray-400">Sync Status</dt>
                         <dd class="text-sm font-medium">
                             @include('jubelio.partials.sync-status-badge', ['status' => $order->status, 'errorType' => $order->error_type, 'executeBy' => $order->user->name ?? null, 'orderType' => $order->type, 'error' => $order->error])
