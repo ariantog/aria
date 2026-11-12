@@ -9,10 +9,6 @@
 return [
     'source' => 3,
 
-    /** Recent window when scanning sales-order list pages for a tracking match (API filter is tried first). */
-    'tracking_lookup_days' => 14,
-    'tracking_lookup_max_pages' => 5,
-
     'marketplaces' => [
         'shopee' => [
             'label' => 'Shopee',

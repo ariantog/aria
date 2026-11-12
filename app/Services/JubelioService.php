@@ -634,49 +634,14 @@ class JubelioService
      *
      * @return array{salesorder_no: string, salesorder_id: string|int|null}|null
      */
-    public function findSalesOrderByTrackingNo(string $trackingNo, ?int $storeId = null, int $days = 14, int $maxPages = 5): ?array
+    public function findSalesOrderByTrackingNo(string $trackingNo, ?int $storeId = null): ?array
     {
         $needle = $this->normalizeTrackingNumber($trackingNo);
         if ($needle === '') {
             return null;
         }
 
-        $direct = $this->findSalesOrderByTrackingQuery($needle, $storeId);
-        if ($direct !== null) {
-            return $direct;
-        }
-
-        $days = max(1, min($days, (int) config('services.jubelio.order_queue_max_age_days', 30)));
-        $maxPages = max(1, min($maxPages, 20));
-
-        $to = Carbon::now()->utc();
-        $from = $to->copy()->subDays($days);
-        $dateFrom = $from->format('Y-m-d\TH:i:s\Z');
-        $dateTo = $to->format('Y-m-d\TH:i:s\Z');
-
-        for ($page = 1; $page <= $maxPages; $page++) {
-            $response = $this->fetchSalesOrders($page, 200, $dateFrom, $dateTo);
-            if ($response === null) {
-                break;
-            }
-
-            $rows = is_array($response['data'] ?? null) ? $response['data'] : [];
-            if ($rows === []) {
-                break;
-            }
-
-            $match = $this->pickSalesOrderRowByTracking($rows, $needle, $storeId);
-            if ($match !== null) {
-                return $match;
-            }
-
-            $totalCount = (int) ($response['totalCount'] ?? 0);
-            if ($totalCount <= $page * 200) {
-                break;
-            }
-        }
-
-        return null;
+        return $this->findSalesOrderByTrackingQuery($needle, $storeId);
     }
 
     /**

@@ -32,7 +32,7 @@ it('resolves tiktok resi to jubelio salesorder_no via tracking lookup', function
     $this->mock(JubelioService::class, function (MockInterface $mock) {
         $mock->shouldReceive('findSalesOrderByTrackingNo')
             ->once()
-            ->with('JP1234567890', 88, \Mockery::type('int'), \Mockery::type('int'))
+            ->with('JP1234567890', 88)
             ->andReturn([
                 'salesorder_no' => 'TT-586928090015303551-32327',
                 'salesorder_id' => 'so-tt-1',
@@ -87,22 +87,11 @@ it('skips tiktok resi when tracking is not found in jubelio', function () {
     expect(Jubelioorder::count())->toBe(0);
 });
 
-it('matches tracking numbers on jubelio sales order list rows', function () {
+it('resolves tracking via jubelio sales order query only', function () {
     $service = Mockery::mock(JubelioService::class)->makePartial();
     $service->shouldReceive('fetchSalesOrdersQuery')
         ->once()
         ->with(1, 50, ['tracking_no' => 'JNE998877'])
-        ->andReturn(['data' => [], 'totalCount' => 0]);
-    $service->shouldReceive('fetchSalesOrdersQuery')
-        ->once()
-        ->with(1, 50, ['trackingNo' => 'JNE998877'])
-        ->andReturn(['data' => [], 'totalCount' => 0]);
-    $service->shouldReceive('fetchSalesOrdersQuery')
-        ->once()
-        ->with(1, 50, ['airwaybill_no' => 'JNE998877'])
-        ->andReturn(['data' => [], 'totalCount' => 0]);
-    $service->shouldReceive('fetchSalesOrders')
-        ->once()
         ->andReturn([
             'totalCount' => 1,
             'data' => [
@@ -117,7 +106,7 @@ it('matches tracking numbers on jubelio sales order list rows', function () {
 
     $this->instance(JubelioService::class, $service);
 
-    $match = $service->findSalesOrderByTrackingNo('jne 998877', 12, 14, 1);
+    $match = $service->findSalesOrderByTrackingNo('jne 998877', 12);
 
     expect($match)->toBe([
         'salesorder_no' => 'TP-ORDER-501',

@@ -26,15 +26,7 @@ class JubelioResiInvoiceResolver
             return null;
         }
 
-        $days = (int) config('jubelio_resi_scan.tracking_lookup_days', 14);
-        $maxPages = (int) config('jubelio_resi_scan.tracking_lookup_max_pages', 5);
-
-        $match = $this->jubelioService->findSalesOrderByTrackingNo(
-            $rawBarcode,
-            $jubelioStoreId,
-            $days,
-            $maxPages,
-        );
+        $match = $this->jubelioService->findSalesOrderByTrackingNo($rawBarcode, $jubelioStoreId);
 
         if ($match === null) {
             return null;
