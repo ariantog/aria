@@ -31,7 +31,11 @@ The app calls `{baseUrl}/api/mobile/v1/...`.
 **Optional compile-time default (not in AndroidManifest):** Flutter does not read HTTP URLs from the manifest unless you add native code. For an internal build you can bake a default in at compile time:
 
 ```bash
-flutter run --dart-define=ARIA_DEFAULT_BASE_URL=https://your-aria-host.example
+The default production host is baked in (`https://aria3.corenationactive.com`). Override for local dev:
+
+```bash
+flutter run --dart-define=ARIA_DEFAULT_BASE_URL=http://10.0.2.2:5000
+```
 ```
 
 That fills the base URL field when no value is saved yet; the user can still change it (stored in SharedPreferences).

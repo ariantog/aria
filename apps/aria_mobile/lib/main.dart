@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'config/app_config.dart';
 import 'screens/login_screen.dart';
 import 'screens/shell_screen.dart';
 import 'theme/appearance_prefs.dart';
@@ -79,9 +80,13 @@ class _AuthGateState extends State<_AuthGate> {
 
   Future<void> _load() async {
     final p = await SharedPreferences.getInstance();
+    final savedUrl = p.getString('aria_base_url')?.trim();
+    final defaultUrl = AppConfig.defaultBaseUrl.trim();
     setState(() {
       _token = p.getString('aria_token');
-      _baseUrl = p.getString('aria_base_url');
+      _baseUrl = (savedUrl != null && savedUrl.isNotEmpty)
+          ? savedUrl
+          : (defaultUrl.isNotEmpty ? defaultUrl : null);
       _loading = false;
     });
   }
