@@ -255,7 +255,10 @@ class JubelioResiScanService
                     throw new InvalidArgumentException('Jubelio tidak aktif — tidak bisa mencari nomor resi.');
                 }
 
-                throw new InvalidArgumentException('Resi tidak ditemukan di Jubelio.');
+                $reason = $this->invoiceResolver->lastLookupMessage()
+                    ?? 'Resi tidak ditemukan di Jubelio.';
+
+                throw new InvalidArgumentException($reason);
             }
 
             return [

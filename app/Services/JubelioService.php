@@ -18,6 +18,14 @@ class JubelioService
 
     public const MAX_ALL_STOCKS_IDS = 200;
 
+    private bool $ordersQueryTokenMissing = false;
+
+    private bool $ordersQueryAuthDenied = false;
+
+    private bool $ordersQuerySawHttpSuccess = false;
+
+    private bool $ordersQueryTransportError = false;
+
     /**
      * Authenticate with Jubelio API.
      *
@@ -581,8 +589,84 @@ class JubelioService
      * @param  array<string, scalar|null>  $query
      * @return array<string, mixed>|null
      */
+    public function resetOrdersQueryProbe(): void
+    {
+        $this->ordersQueryTokenMissing = false;
+        $this->ordersQueryAuthDenied = false;
+        $this->ordersQuerySawHttpSuccess = false;
+        $this->ordersQueryTransportError = false;
+    }
+
+    /**
+     * @return array{status: 'not_found'|'token_missing'|'auth_denied'|'api_error', message: string}
+     */
+    public function ordersQueryFailureResult(): array
+    {
+        if ($this->ordersQueryTokenMissing && ! $this->ordersQuerySawHttpSuccess) {
+            return [
+                'status' => 'token_missing',
+                'message' => 'Token Jubelio tidak tersedia. Periksa koneksi Jubelio di System Settings.',
+            ];
+        }
+
+        if ($this->ordersQueryAuthDenied && ! $this->ordersQuerySawHttpSuccess) {
+            return [
+                'status' => 'auth_denied',
+                'message' => 'API Jubelio menolak akses (401/403). Periksa akun dan hak akses API.',
+            ];
+        }
+
+        if ($this->ordersQueryTransportError && ! $this->ordersQuerySawHttpSuccess) {
+            return [
+                'status' => 'api_error',
+                'message' => 'Gagal menghubungi API Jubelio. Coba lagi atau periksa koneksi.',
+            ];
+        }
+
+        return [
+            'status' => 'not_found',
+            'message' => 'Resi tidak ditemukan di Jubelio.',
+        ];
+    }
+
     public function fetchSalesOrdersQuery(int $page, int $pageSize, array $query = []): ?array
     {
+        return $this->fetchJubelioList(
+            'https://api2.jubelio.com/sales/orders/',
+            $page,
+            $pageSize,
+            $query,
+            'sales orders',
+        );
+    }
+
+    /**
+     * @param  array<string, scalar|null>  $query
+     * @return array<string, mixed>|null
+     */
+    public function fetchReadyToPickOrders(int $page, int $pageSize, array $query = []): ?array
+    {
+        return $this->fetchJubelioList(
+            'https://api2.jubelio.com/sales/orders/ready-to-pick/',
+            $page,
+            $pageSize,
+            $query,
+            'ready-to-pick orders',
+        );
+    }
+
+    /**
+     * @param  array<string, scalar|null>  $query
+     * @return array<string, mixed>|null
+     */
+    private function fetchJubelioList(string $url, int $page, int $pageSize, array $query, string $label): ?array
+    {
+        if ($this->authenticatedRequest() === null) {
+            $this->ordersQueryTokenMissing = true;
+
+            return null;
+        }
+
         try {
             $params = array_merge([
                 'page' => $page,
@@ -590,29 +674,37 @@ class JubelioService
             ], $query);
 
             $response = $this->sendAuthenticated(
-                fn (PendingRequest $http) => $http->timeout(20)->connectTimeout(5)->get(
-                    'https://api2.jubelio.com/sales/orders/',
-                    $params,
-                ),
+                fn (PendingRequest $http) => $http->timeout(20)->connectTimeout(5)->get($url, $params),
             );
 
             if (! $response) {
+                $this->ordersQueryTransportError = true;
+
                 return null;
             }
 
             if ($response->successful()) {
+                $this->ordersQuerySawHttpSuccess = true;
                 $data = $response->json();
 
                 return is_array($data) ? $data : null;
             }
 
-            Log::error('Jubelio fetch sales orders failed.', [
+            if ($this->isUnauthorized($response)) {
+                $this->ordersQueryAuthDenied = true;
+            } else {
+                $this->ordersQueryTransportError = true;
+            }
+
+            Log::error('Jubelio fetch '.$label.' failed.', [
                 'page' => $page,
                 'status' => $response->status(),
-                'response' => $response->body(),
+                'response' => Str::limit($response->body(), 400),
+                'query' => $query,
             ]);
         } catch (\Exception $e) {
-            Log::error('Jubelio fetch sales orders error: '.$e->getMessage(), ['page' => $page]);
+            $this->ordersQueryTransportError = true;
+            Log::error('Jubelio fetch '.$label.' error: '.$e->getMessage(), ['page' => $page]);
         }
 
         return null;
@@ -636,212 +728,92 @@ class JubelioService
      */
     public function findSalesOrderByTrackingNo(string $trackingNo, ?int $storeId = null): ?array
     {
-        $needle = $this->normalizeTrackingNumber($trackingNo);
-        if ($needle === '') {
+        $result = app(JubelioTrackingLookup::class)->resolve($trackingNo, $storeId);
+        if (($result['status'] ?? '') !== 'found') {
             return null;
         }
 
-        return $this->findSalesOrderByTrackingQuery($needle, $storeId);
+        return [
+            'salesorder_no' => $result['salesorder_no'],
+            'salesorder_id' => $result['salesorder_id'],
+        ];
     }
 
     /**
-     * @return array{salesorder_no: string, salesorder_id: string|int|null}|null
+     * @return array{
+     *   status: 'found',
+     *   salesorder_no: string,
+     *   salesorder_id: string|int|null,
+     * }|array{
+     *   status: 'not_found'|'token_missing'|'auth_denied'|'api_error',
+     *   message: string,
+     * }
      */
-    private function findSalesOrderByTrackingQuery(string $needle, ?int $storeId): ?array
+    public function resolveSalesOrderByTracking(string $trackingNo, ?int $storeId = null): array
     {
-        foreach (['tracking_no', 'trackingNo', 'airwaybill_no'] as $param) {
-            $response = $this->fetchSalesOrdersQuery(1, 50, [$param => $needle]);
-            if ($response === null) {
-                continue;
-            }
-
-            $rows = is_array($response['data'] ?? null) ? $response['data'] : [];
-            $match = $this->pickSalesOrderRowByTracking($rows, $needle, $storeId);
-            if ($match !== null) {
-                return $match;
-            }
-
-            $match = $this->pickSalesOrderByDetailTracking($rows, $needle, $storeId);
-            if ($match !== null) {
-                return $match;
-            }
-        }
-
-        foreach (['q', 'search', 'keyword'] as $param) {
-            $response = $this->fetchSalesOrdersQuery(1, 50, [$param => $needle]);
-            if ($response === null) {
-                continue;
-            }
-
-            $rows = is_array($response['data'] ?? null) ? $response['data'] : [];
-            $match = $this->pickSalesOrderRowByTracking($rows, $needle, $storeId)
-                ?? $this->pickSalesOrderByDetailTracking($rows, $needle, $storeId);
-            if ($match !== null) {
-                return $match;
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * @param  list<array<string, mixed>>  $rows
-     * @return array{salesorder_no: string, salesorder_id: string|int|null}|null
-     */
-    private function pickSalesOrderRowByTracking(array $rows, string $needle, ?int $storeId): ?array
-    {
-        $candidates = [];
-
-        foreach ($rows as $row) {
-            if (! is_array($row)) {
-                continue;
-            }
-
-            if ($storeId !== null && $storeId > 0) {
-                $rowStore = (int) ($row['store_id'] ?? $row['jubelio_store_id'] ?? 0);
-                if ($rowStore > 0 && $rowStore !== $storeId) {
-                    continue;
-                }
-            }
-
-            if (! $this->salesOrderRowTrackingMatches($row, $needle)) {
-                continue;
-            }
-
-            $invoice = trim((string) ($row['salesorder_no'] ?? ''));
-            if ($invoice === '') {
-                continue;
-            }
-
-            $candidates[] = [
-                'salesorder_no' => $invoice,
-                'salesorder_id' => $row['salesorder_id'] ?? null,
-            ];
-        }
-
-        if ($candidates === []) {
-            return null;
-        }
-
-        if (count($candidates) > 1) {
-            Log::warning('Jubelio tracking lookup matched multiple orders.', [
-                'tracking' => $needle,
-                'store_id' => $storeId,
-                'invoices' => array_column($candidates, 'salesorder_no'),
-            ]);
-        }
-
-        return $candidates[0];
-    }
-
-    /**
-     * List rows from a tracking filter may omit AWB fields — confirm via order detail (max 3 rows).
-     *
-     * @param  list<array<string, mixed>>  $rows
-     * @return array{salesorder_no: string, salesorder_id: string|int|null}|null
-     */
-    private function pickSalesOrderByDetailTracking(array $rows, string $needle, ?int $storeId, int $maxFetches = 3): ?array
-    {
-        $checked = 0;
-
-        foreach ($rows as $row) {
-            if (! is_array($row)) {
-                continue;
-            }
-
-            if ($storeId !== null && $storeId > 0) {
-                $rowStore = (int) ($row['store_id'] ?? $row['jubelio_store_id'] ?? 0);
-                if ($rowStore > 0 && $rowStore !== $storeId) {
-                    continue;
-                }
-            }
-
-            $orderId = $row['salesorder_id'] ?? null;
-            if ($orderId === null || $orderId === '') {
-                continue;
-            }
-
-            if ($checked >= $maxFetches) {
-                break;
-            }
-            $checked++;
-
-            $detail = $this->fetchSalesOrder($orderId);
-            if (! is_array($detail)) {
-                continue;
-            }
-
-            if (! $this->salesOrderPayloadTrackingMatches($detail, $needle)) {
-                continue;
-            }
-
-            $invoice = trim((string) ($detail['salesorder_no'] ?? $row['salesorder_no'] ?? ''));
-            if ($invoice === '') {
-                continue;
-            }
-
-            return [
-                'salesorder_no' => $invoice,
-                'salesorder_id' => $detail['salesorder_id'] ?? $orderId,
-            ];
-        }
-
-        return null;
-    }
-
-    /**
-     * @param  array<string, mixed>  $payload
-     */
-    private function salesOrderPayloadTrackingMatches(array $payload, string $needle): bool
-    {
-        if ($this->salesOrderRowTrackingMatches($payload, $needle)) {
-            return true;
-        }
-
-        foreach (['shipments', 'shipment', 'packages', 'package'] as $nestedKey) {
-            $nested = $payload[$nestedKey] ?? null;
-            if (! is_array($nested)) {
-                continue;
-            }
-
-            $items = array_is_list($nested) ? $nested : [$nested];
-            foreach ($items as $item) {
-                if (is_array($item) && $this->salesOrderRowTrackingMatches($item, $needle)) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
+        return app(JubelioTrackingLookup::class)->resolve($trackingNo, $storeId);
     }
 
     /**
      * @param  array<string, mixed>  $row
      */
-    private function salesOrderRowTrackingMatches(array $row, string $needle): bool
+    public function trackingValueMatchesRow(array $row, string $needle): bool
     {
+        return $this->trackingValueMatchesPayload($row, $needle, 0);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    public function trackingValueMatchesPayload(array $payload, string $needle, int $depth = 0): bool
+    {
+        if ($depth > 8) {
+            return false;
+        }
+
         $keys = [
             'tracking_no',
             'trackingNo',
             'airwaybill_no',
             'awb_no',
+            'awb',
+            'resi',
             'courier_tracking_no',
             'shipment_tracking_no',
+            'waybill_no',
+            'logistics_tracking_no',
             'serial_number',
         ];
 
         foreach ($keys as $key) {
-            if (! isset($row[$key])) {
+            if (! isset($payload[$key])) {
                 continue;
             }
 
-            $normalized = $this->normalizeTrackingNumber((string) $row[$key]);
-            if ($normalized !== '' && $normalized === $needle) {
+            $normalized = $this->normalizeTrackingNumber((string) $payload[$key]);
+            if ($normalized !== '' && $this->trackingEquals($normalized, $needle)) {
+                return true;
+            }
+        }
+
+        foreach ($payload as $value) {
+            if (is_array($value) && $this->trackingValueMatchesPayload($value, $needle, $depth + 1)) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    private function trackingEquals(string $a, string $b): bool
+    {
+        if ($a === $b) {
+            return true;
+        }
+
+        $strip = static fn (string $v): string => preg_replace('/[^A-Z0-9]/', '', $v) ?? $v;
+
+        return $strip($a) !== '' && $strip($a) === $strip($b);
     }
 
     public function normalizeTrackingNumber(string $value): string

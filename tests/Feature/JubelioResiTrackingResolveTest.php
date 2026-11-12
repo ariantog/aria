@@ -4,6 +4,7 @@ use App\Models\Addrbook;
 use App\Models\Jubelioorder;
 use App\Models\Jubeliosync;
 use App\Models\User;
+use App\Services\Jubelio\JubelioTrackingLookup;
 use App\Services\JubelioService;
 use Mockery\MockInterface;
 use Spatie\Permission\Models\Permission;
@@ -30,10 +31,11 @@ it('resolves tiktok resi to jubelio salesorder_no via tracking lookup', function
     ]);
 
     $this->mock(JubelioService::class, function (MockInterface $mock) {
-        $mock->shouldReceive('findSalesOrderByTrackingNo')
+        $mock->shouldReceive('resolveSalesOrderByTracking')
             ->once()
             ->with('JP1234567890', 88)
             ->andReturn([
+                'status' => 'found',
                 'salesorder_no' => 'TT-586928090015303551-32327',
                 'salesorder_id' => 'so-tt-1',
             ]);
@@ -70,9 +72,12 @@ it('skips tiktok resi when tracking is not found in jubelio', function () {
     ]);
 
     $this->mock(JubelioService::class, function (MockInterface $mock) {
-        $mock->shouldReceive('findSalesOrderByTrackingNo')
+        $mock->shouldReceive('resolveSalesOrderByTracking')
             ->once()
-            ->andReturn(null);
+            ->andReturn([
+                'status' => 'not_found',
+                'message' => 'Resi tidak ditemukan di Jubelio.',
+            ]);
     });
 
     $response = $this->actingAs($user, 'sanctum')->postJson('/api/mobile/v1/jubelio/resi-scan', [
@@ -89,7 +94,10 @@ it('skips tiktok resi when tracking is not found in jubelio', function () {
 });
 
 it('resolves tracking via jubelio sales order query only', function () {
+    config(['jubelio_resi_scan.tracking_search_days' => 21]);
+
     $service = Mockery::mock(JubelioService::class)->makePartial();
+    $service->shouldReceive('resetOrdersQueryProbe')->once();
     $service->shouldReceive('fetchSalesOrdersQuery')
         ->once()
         ->with(1, 50, ['tracking_no' => 'JNE998877'])
@@ -105,18 +113,18 @@ it('resolves tracking via jubelio sales order query only', function () {
             ],
         ]);
 
-    $this->instance(JubelioService::class, $service);
+    $result = (new JubelioTrackingLookup($service))->resolve('jne 998877', 12);
 
-    $match = $service->findSalesOrderByTrackingNo('jne 998877', 12);
-
-    expect($match)->toBe([
-        'salesorder_no' => 'TP-ORDER-501',
-        'salesorder_id' => 501,
-    ]);
+    expect($result['status'])->toBe('found')
+        ->and($result['salesorder_no'])->toBe('TP-ORDER-501')
+        ->and($result['salesorder_id'])->toBe(501);
 });
 
 it('confirms tracking via sales order detail when list row omits awb', function () {
+    config(['jubelio_resi_scan.tracking_search_days' => 21]);
+
     $service = Mockery::mock(JubelioService::class)->makePartial();
+    $service->shouldReceive('resetOrdersQueryProbe')->once();
     $service->shouldReceive('fetchSalesOrdersQuery')
         ->once()
         ->with(1, 50, ['tracking_no' => 'JNE111222'])
@@ -147,12 +155,9 @@ it('confirms tracking via sales order detail when list row omits awb', function 
             ],
         ]);
 
-    $this->instance(JubelioService::class, $service);
+    $result = (new JubelioTrackingLookup($service))->resolve('JNE111222', 3);
 
-    $match = $service->findSalesOrderByTrackingNo('JNE111222', 3);
-
-    expect($match)->toBe([
-        'salesorder_no' => 'TT-DETAIL-777',
-        'salesorder_id' => 777,
-    ]);
+    expect($result['status'])->toBe('found')
+        ->and($result['salesorder_no'])->toBe('TT-DETAIL-777')
+        ->and($result['salesorder_id'])->toBe(777);
 });
