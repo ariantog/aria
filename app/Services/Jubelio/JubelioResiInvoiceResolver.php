@@ -29,6 +29,12 @@ class JubelioResiInvoiceResolver
         $match = $this->jubelioService->findSalesOrderByTrackingNo($rawBarcode, $jubelioStoreId);
 
         if ($match === null) {
+            Log::info('Jubelio resi tracking lookup missed.', [
+                'marketplace' => $marketplaceKey,
+                'store_id' => $jubelioStoreId,
+                'tracking' => $rawBarcode,
+            ]);
+
             return null;
         }
 

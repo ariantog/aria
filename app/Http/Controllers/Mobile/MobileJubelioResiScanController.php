@@ -98,13 +98,27 @@ class MobileJubelioResiScanController extends Controller
 
         $createdCount = count($result['created']);
         $skippedCount = count($result['skipped']);
+        $firstSkipReason = $skippedCount > 0
+            ? trim((string) ($result['skipped'][0]['reason'] ?? ''))
+            : '';
+
+        if ($createdCount > 0) {
+            $message = "{$createdCount} resi diantri.".($skippedCount > 0 ? " {$skippedCount} dilewati." : '');
+            $status = 201;
+        } elseif ($skippedCount > 0) {
+            $message = $skippedCount === 1 && $firstSkipReason !== ''
+                ? $firstSkipReason
+                : "Tidak ada resi baru yang diantri. {$skippedCount} dilewati.";
+            $status = 200;
+        } else {
+            $message = 'Tidak ada resi baru yang diantri.';
+            $status = 422;
+        }
 
         return response()->json([
             'created' => $result['created'],
             'skipped' => $result['skipped'],
-            'message' => $createdCount > 0
-                ? "{$createdCount} resi diantri.".($skippedCount > 0 ? " {$skippedCount} dilewati." : '')
-                : 'Tidak ada resi baru yang diantri.',
-        ], $createdCount > 0 ? 201 : 422);
+            'message' => $message,
+        ], $status);
     }
 }

@@ -45,7 +45,7 @@ it('queues shipped sell orders from mobile resi scan with marketplace prefix', f
         'remember_defaults' => true,
     ]);
 
-    $response->assertCreated()
+    $response->assertStatus(201)
         ->assertJsonPath('created.0.invoice', 'SP-250302JA65X2S0')
         ->assertJsonPath('created.1.invoice', 'SP-ALREADY-PREFIXED');
 
