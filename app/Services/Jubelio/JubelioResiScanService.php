@@ -16,6 +16,7 @@ class JubelioResiScanService
     public function __construct(
         private JubelioSellInvoiceGuard $sellInvoiceGuard,
         private LocationAccessService $locationAccess,
+        private JubelioResiInvoiceResolver $invoiceResolver,
     ) {}
 
     /**
@@ -195,7 +196,12 @@ class JubelioResiScanService
             }
 
             try {
-                $invoice = $this->formatInvoice($marketplaceKey, $rawString);
+                $resolved = $this->resolveInvoiceForBarcode(
+                    $marketplaceKey,
+                    $rawString,
+                    (int) $sync->jubelio_store_id,
+                );
+                $invoice = $resolved['invoice'];
             } catch (InvalidArgumentException $e) {
                 $skipped[] = ['raw' => $rawString, 'invoice' => null, 'reason' => $e->getMessage()];
 
@@ -215,7 +221,7 @@ class JubelioResiScanService
                 continue;
             }
 
-            $jubelioOrderId = $this->placeholderJubelioOrderId($invoice);
+            $jubelioOrderId = $this->placeholderJubelioOrderId($invoice, $resolved['jubelio_order_id'] ?? null);
 
             $order = Jubelioorder::create([
                 'jubelio_order_id' => $jubelioOrderId,
@@ -237,8 +243,39 @@ class JubelioResiScanService
         return ['created' => $created, 'skipped' => $skipped];
     }
 
-    public function placeholderJubelioOrderId(string $invoice): string
+    /**
+     * @return array{invoice: string, jubelio_order_id: string|int|null}
+     */
+    public function resolveInvoiceForBarcode(string $marketplaceKey, string $rawBarcode, int $jubelioStoreId): array
     {
+        if ($this->invoiceResolver->marketplaceResolvesViaTracking($marketplaceKey)) {
+            $resolved = $this->invoiceResolver->resolveInvoice($marketplaceKey, $rawBarcode, $jubelioStoreId);
+            if ($resolved === null) {
+                if (! (bool) config('services.jubelio.active', false)) {
+                    throw new InvalidArgumentException('Jubelio tidak aktif — tidak bisa mencari nomor resi.');
+                }
+
+                throw new InvalidArgumentException('Resi tidak ditemukan di Jubelio.');
+            }
+
+            return [
+                'invoice' => $resolved['invoice'],
+                'jubelio_order_id' => $resolved['salesorder_id'],
+            ];
+        }
+
+        return [
+            'invoice' => $this->formatInvoice($marketplaceKey, $rawBarcode),
+            'jubelio_order_id' => null,
+        ];
+    }
+
+    public function placeholderJubelioOrderId(string $invoice, string|int|null $jubelioSalesOrderId = null): string
+    {
+        if ($jubelioSalesOrderId !== null && trim((string) $jubelioSalesOrderId) !== '') {
+            return (string) $jubelioSalesOrderId;
+        }
+
         return 'mobile-scan:'.Str::lower($invoice);
     }
 

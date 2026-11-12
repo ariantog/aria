@@ -9,6 +9,10 @@
 return [
     'source' => 3,
 
+    /** Recent window when scanning sales-order list pages for a tracking match (API filter is tried first). */
+    'tracking_lookup_days' => 14,
+    'tracking_lookup_max_pages' => 5,
+
     'marketplaces' => [
         'shopee' => [
             'label' => 'Shopee',
@@ -19,11 +23,13 @@ return [
             'label' => 'TikTok Shop',
             'invoice_prefix' => 'TT',
             'store_name_patterns' => ['tiktok'],
+            'resolve_invoice_from_tracking' => true,
         ],
         'tokopedia' => [
             'label' => 'Tokopedia',
             'invoice_prefix' => 'TP',
             'store_name_patterns' => ['tokopedia'],
+            'resolve_invoice_from_tracking' => true,
         ],
         'lazada' => [
             'label' => 'Lazada',
