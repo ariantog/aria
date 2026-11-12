@@ -5,6 +5,8 @@ use App\Models\Jubelioorder;
 use App\Models\Jubeliosync;
 use App\Models\User;
 use App\Services\Jubelio\JubelioResiScanService;
+use App\Services\JubelioService;
+use Mockery\MockInterface;
 use Spatie\Permission\Models\Permission;
 
 beforeEach(function () {
@@ -91,6 +93,26 @@ it('skips duplicate invoices on resi scan submit', function () {
         'run_count' => 0,
         'status' => 0,
     ]);
+
+    config(['services.jubelio.active' => true]);
+
+    $this->mock(JubelioService::class, function (MockInterface $mock) {
+        $mock->shouldReceive('findSalesOrderByTrackingNo')
+            ->twice()
+            ->andReturnUsing(function (string $tracking) {
+                return match ($tracking) {
+                    'DUP-TEST' => [
+                        'salesorder_no' => 'TT-DUP-TEST',
+                        'salesorder_id' => 'dup-so',
+                    ],
+                    'NEW-TT-001' => [
+                        'salesorder_no' => 'TT-NEW-TT-001',
+                        'salesorder_id' => 'new-so',
+                    ],
+                    default => null,
+                };
+            });
+    });
 
     $response = $this->actingAs($user, 'sanctum')->postJson('/api/mobile/v1/jubelio/resi-scan', [
         'warehouse_id' => $warehouse->id,

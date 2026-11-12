@@ -578,20 +578,21 @@ class JubelioService
     }
 
     /**
+     * @param  array<string, scalar|null>  $query
      * @return array<string, mixed>|null
      */
-    public function fetchSalesOrders(int $page, int $pageSize, string $dateFrom, string $dateTo): ?array
+    public function fetchSalesOrdersQuery(int $page, int $pageSize, array $query = []): ?array
     {
         try {
+            $params = array_merge([
+                'page' => $page,
+                'pageSize' => $pageSize,
+            ], $query);
+
             $response = $this->sendAuthenticated(
                 fn (PendingRequest $http) => $http->timeout(20)->connectTimeout(5)->get(
                     'https://api2.jubelio.com/sales/orders/',
-                    [
-                        'page' => $page,
-                        'pageSize' => $pageSize,
-                        'transactionDateFrom' => $dateFrom,
-                        'transactionDateTo' => $dateTo,
-                    ],
+                    $params,
                 ),
             );
 
@@ -615,6 +616,139 @@ class JubelioService
         }
 
         return null;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function fetchSalesOrders(int $page, int $pageSize, string $dateFrom, string $dateTo): ?array
+    {
+        return $this->fetchSalesOrdersQuery($page, $pageSize, [
+            'transactionDateFrom' => $dateFrom,
+            'transactionDateTo' => $dateTo,
+        ]);
+    }
+
+    /**
+     * Resolve Jubelio salesorder_no from a courier tracking / resi barcode.
+     *
+     * @return array{salesorder_no: string, salesorder_id: string|int|null}|null
+     */
+    public function findSalesOrderByTrackingNo(string $trackingNo, ?int $storeId = null): ?array
+    {
+        $needle = $this->normalizeTrackingNumber($trackingNo);
+        if ($needle === '') {
+            return null;
+        }
+
+        return $this->findSalesOrderByTrackingQuery($needle, $storeId);
+    }
+
+    /**
+     * @return array{salesorder_no: string, salesorder_id: string|int|null}|null
+     */
+    private function findSalesOrderByTrackingQuery(string $needle, ?int $storeId): ?array
+    {
+        foreach (['tracking_no', 'trackingNo', 'airwaybill_no'] as $param) {
+            $response = $this->fetchSalesOrdersQuery(1, 50, [$param => $needle]);
+            if ($response === null) {
+                continue;
+            }
+
+            $rows = is_array($response['data'] ?? null) ? $response['data'] : [];
+            $match = $this->pickSalesOrderRowByTracking($rows, $needle, $storeId);
+            if ($match !== null) {
+                return $match;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     * @return array{salesorder_no: string, salesorder_id: string|int|null}|null
+     */
+    private function pickSalesOrderRowByTracking(array $rows, string $needle, ?int $storeId): ?array
+    {
+        $candidates = [];
+
+        foreach ($rows as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            if ($storeId !== null && $storeId > 0) {
+                $rowStore = (int) ($row['store_id'] ?? $row['jubelio_store_id'] ?? 0);
+                if ($rowStore > 0 && $rowStore !== $storeId) {
+                    continue;
+                }
+            }
+
+            if (! $this->salesOrderRowTrackingMatches($row, $needle)) {
+                continue;
+            }
+
+            $invoice = trim((string) ($row['salesorder_no'] ?? ''));
+            if ($invoice === '') {
+                continue;
+            }
+
+            $candidates[] = [
+                'salesorder_no' => $invoice,
+                'salesorder_id' => $row['salesorder_id'] ?? null,
+            ];
+        }
+
+        if ($candidates === []) {
+            return null;
+        }
+
+        if (count($candidates) > 1) {
+            Log::warning('Jubelio tracking lookup matched multiple orders.', [
+                'tracking' => $needle,
+                'store_id' => $storeId,
+                'invoices' => array_column($candidates, 'salesorder_no'),
+            ]);
+        }
+
+        return $candidates[0];
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     */
+    private function salesOrderRowTrackingMatches(array $row, string $needle): bool
+    {
+        $keys = [
+            'tracking_no',
+            'trackingNo',
+            'airwaybill_no',
+            'awb_no',
+            'courier_tracking_no',
+            'shipment_tracking_no',
+            'serial_number',
+        ];
+
+        foreach ($keys as $key) {
+            if (! isset($row[$key])) {
+                continue;
+            }
+
+            $normalized = $this->normalizeTrackingNumber((string) $row[$key]);
+            if ($normalized !== '' && $normalized === $needle) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function normalizeTrackingNumber(string $value): string
+    {
+        $trimmed = preg_replace('/\s+/u', '', trim($value)) ?? trim($value);
+
+        return strtoupper($trimmed);
     }
 
     /**
