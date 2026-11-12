@@ -15,6 +15,7 @@ use App\Services\Jubelio\JubelioAdjustmentHint;
 use App\Services\Jubelio\JubelioOrderSyncStatus;
 use App\Services\Jubelio\JubelioOrderShowPresenter;
 use App\Services\Jubelio\JubelioOrderQueueEligibility;
+use App\Services\Jubelio\JubelioOrderReadyToShip;
 use App\Services\Jubelio\JubelioSellInvoiceGuard;
 use App\Services\Jubelio\JubelioOrderWarehouseResolver;
 use App\Services\Jubelio\JubelioTransactionSyncPresenter;
@@ -225,7 +226,7 @@ class JubelioController extends Controller
     {
         Gate::authorize(Jubelio::getPermissions()['view']);
 
-        $order = $jubelio->load(['user', 'trx']);
+        $order = $jubelio->load(['user', 'trx', 'scanner']);
         $presented = $presenter->present($order);
 
         return view('jubelio.show', [
@@ -408,17 +409,50 @@ class JubelioController extends Controller
                 && Carbon::parse($transactionDate)->lt(Carbon::parse($cutoff))) {
                 return response()->json(['status' => 'ok', 'message' => 'Before threshold.']);
             }
+            $invoice = (string) $d['salesorder_no'];
+            $resolver = app(JubelioOrderWarehouseResolver::class);
+
+            $scannedOrder = Jubelioorder::query()
+                ->where('type', 'SELL')
+                ->where('invoice', $invoice)
+                ->first();
+
+            if ($scannedOrder !== null && JubelioOrderReadyToShip::isReadyToShipStatus($scannedOrder->order_status)) {
+                $payload = $d;
+                if (! Jubeliosync::hasMappedStoreLocationPair(
+                    (int) ($d['store_id'] ?? 0),
+                    (int) ($d['location_id'] ?? 0),
+                )) {
+                    $apiPayload = app(JubelioService::class)->fetchSalesOrder((string) ($d['salesorder_id'] ?? ''));
+                    if (is_array($apiPayload)) {
+                        $payload = array_merge($d, $apiPayload);
+                    }
+                }
+
+                $warehouseColumns = $resolver->sellWarehouseColumnsFromPayload($payload);
+                $webhookStatus = strtoupper(trim((string) ($d['status'] ?? 'SHIPPED')));
+
+                $scannedOrder->update([
+                    'jubelio_order_id' => (string) ($d['salesorder_id'] ?? $scannedOrder->jubelio_order_id),
+                    'order_status' => $webhookStatus === 'COMPLETED' ? 'COMPLETED' : 'SHIPPED',
+                    'jubelio_store_id' => $warehouseColumns['jubelio_store_id'],
+                    'jubelio_location_id' => $warehouseColumns['jubelio_location_id'],
+                    'warehouse_id' => $warehouseColumns['warehouse_id'],
+                ]);
+
+                return response()->json(['status' => 'ok', 'message' => 'Scanned order promoted to shipped']);
+            }
+
             $invoiceGuard = app(JubelioSellInvoiceGuard::class);
-            if ($invoiceGuard->sellInvoiceTaken((string) $d['salesorder_no'])) {
+            if ($invoiceGuard->sellInvoiceTaken($invoice)) {
                 return response()->json([
                     'status' => 'ok',
-                    'message' => $invoiceGuard->sellInvoiceInTransactions((string) $d['salesorder_no'])
+                    'message' => $invoiceGuard->sellInvoiceInTransactions($invoice)
                         ? 'Invoice sudah ada'
                         : 'Already exists',
                 ]);
             }
 
-            $resolver = app(JubelioOrderWarehouseResolver::class);
             $payload = $d;
             if (! Jubeliosync::hasMappedStoreLocationPair(
                 (int) ($d['store_id'] ?? 0),

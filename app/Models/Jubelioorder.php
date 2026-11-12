@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Services\Jubelio\JubelioOrderPayloadPresenter;
+use App\Services\Jubelio\JubelioOrderReadyToShip;
 use App\Services\Jubelio\JubelioOrderPayloadService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -109,7 +110,24 @@ class Jubelioorder extends Model
     {
         return in_array($this->type, ['SELL', 'RETURN'], true)
             && ! $this->isSuccessful()
-            && ! $this->isPermanentlySkipped();
+            && ! $this->isPermanentlySkipped()
+            && ! JubelioOrderReadyToShip::isHeldForCourier($this);
+    }
+
+    public function sourceLabel(): string
+    {
+        return JubelioOrderReadyToShip::sourceLabel((int) $this->source);
+    }
+
+    public function scannedByLabel(): string
+    {
+        if ((int) $this->user_id > 0) {
+            return $this->scanner?->name
+                ?? $this->scanner?->username
+                ?? 'User #'.$this->user_id;
+        }
+
+        return 'Webhook';
     }
 
     public function isPermanentlySkipped(): bool

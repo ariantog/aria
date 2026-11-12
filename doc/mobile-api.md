@@ -34,7 +34,7 @@ Requires `jubelio-view`. Exposed in `mobile_actions` as `scan_resi` when allowed
 | PATCH | `/jubelio/resi-scan/defaults` | `warehouse_id`, `marketplace` |
 | POST | `/jubelio/resi-scan` | `warehouse_id`, `marketplace` (`shopee`, `tiktok`, …), `barcodes[]` (raw tracking numbers without prefix), optional `remember_defaults` |
 
-Creates `jubelioorders` rows (`type=SELL`, `order_status=SHIPPED`, `source=3`) with marketplace invoice prefix (e.g. `SP-{barcode}`), `user_id` = scanner, and warehouse/store/location from `jubeliosyncs`. Duplicates (already in `jubelioorders` or sell `transactions`) are returned in `skipped` without inserting.
+Creates `jubelioorders` rows (`type=SELL`, `order_status=READY TO SHIP`, `source=3`) — cron does not post these until Jubelio webhook promotes the row to `SHIPPED`. with marketplace invoice prefix (e.g. `SP-{barcode}`), `user_id` = scanner, and warehouse/store/location from `jubeliosyncs`. Duplicates (already in `jubelioorders` or sell `transactions`) are returned in `skipped` without inserting.
 
 ## Dashboard
 

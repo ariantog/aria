@@ -50,7 +50,7 @@ it('queues shipped sell orders from mobile resi scan with marketplace prefix', f
     $order = Jubelioorder::where('invoice', 'SP-250302JA65X2S0')->first();
     expect($order)->not->toBeNull()
         ->and($order->type)->toBe('SELL')
-        ->and($order->order_status)->toBe('SHIPPED')
+        ->and($order->order_status)->toBe('READY TO SHIP')
         ->and((int) $order->source)->toBe(3)
         ->and((int) $order->user_id)->toBe($user->id)
         ->and((int) $order->warehouse_id)->toBe($warehouse->id)

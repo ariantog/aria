@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Actions\Jubelio\ProcessJubelioOrder;
 use App\Models\Jubelioorder;
+use App\Services\Jubelio\JubelioOrderReadyToShip;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -41,10 +42,12 @@ class OrderJubelioToAria extends Command
             $this->info('Reset data selesai.');
         }
 
-        $query = Jubelioorder::whereIn('type', ['SELL', 'RETURN'])
-            ->where('status', 0)
-            ->where('run_count', 0)
-            ->whereNull('execute_by');
+        $query = JubelioOrderReadyToShip::scopeExcludingCourierHold(
+            Jubelioorder::whereIn('type', ['SELL', 'RETURN'])
+                ->where('status', 0)
+                ->where('run_count', 0)
+                ->whereNull('execute_by'),
+        );
 
         if ($this->option('all')) {
             $this->info('Processing ALL pending orders using chunks...');
