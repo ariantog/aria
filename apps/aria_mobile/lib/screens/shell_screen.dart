@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../api/aria_api.dart';
 import 'create_transaction_sheet.dart';
 import 'dashboard_screen.dart';
+import 'resi_scan_screen.dart';
 import 'transactions_list_screen.dart';
 
 class ShellScreen extends StatefulWidget {
@@ -83,6 +84,78 @@ class _ShellScreenState extends State<ShellScreen> {
     }
   }
 
+  Widget? _buildFab() {
+    final actions = _mobileActions();
+    final canCreate = actions.any((a) =>
+        ['sell', 'buy', 'move', 'cash_in', 'cash_out', 'transfer'].contains(a));
+    final canScan = actions.contains('scan_resi');
+
+    if (!canCreate && !canScan) {
+      return null;
+    }
+
+    if (canCreate && canScan) {
+      return FloatingActionButton.extended(
+        onPressed: _openCreateMenu,
+        icon: const Icon(Icons.add),
+        label: const Text('Actions'),
+      );
+    }
+
+    if (canScan) {
+      return FloatingActionButton.extended(
+        onPressed: _openResiScan,
+        icon: const Icon(Icons.qr_code_scanner),
+        label: const Text('Scan resi'),
+      );
+    }
+
+    return FloatingActionButton.extended(
+      onPressed: _openCreate,
+      icon: const Icon(Icons.add),
+      label: const Text('Create'),
+    );
+  }
+
+  void _openResiScan() {
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (c) => ResiScanScreen(api: _api),
+      ),
+    );
+  }
+
+  void _openCreateMenu() {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.qr_code_scanner),
+              title: const Text('Scan resi'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _openResiScan();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.point_of_sale),
+              title: const Text('Create transaction'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _openCreate();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _openCreate() {
     showModalBottomSheet<void>(
       context: context,
@@ -143,13 +216,7 @@ class _ShellScreenState extends State<ShellScreen> {
         index: _tabIndex,
         children: pages,
       ),
-      floatingActionButton: _mobileActions().isEmpty
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: _openCreate,
-              icon: const Icon(Icons.add),
-              label: const Text('Create'),
-            ),
+      floatingActionButton: _buildFab(),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tabIndex,
         onDestinationSelected: (i) => setState(() => _tabIndex = i),

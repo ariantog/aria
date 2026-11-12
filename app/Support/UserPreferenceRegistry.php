@@ -19,6 +19,10 @@ class UserPreferenceRegistry
 
     public const WAREHOUSE_COMPARE_MAX_WAREHOUSES = 10;
 
+    public const MOBILE_RESI_SCAN_WAREHOUSE_SLUG = 'mobile.jubelio_resi_scan.warehouse_id';
+
+    public const MOBILE_RESI_SCAN_MARKETPLACE_SLUG = 'mobile.jubelio_resi_scan.marketplace';
+
     /**
      * @return list<string>
      */

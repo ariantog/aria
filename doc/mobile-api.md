@@ -24,6 +24,18 @@ If the user has Fortify 2FA enabled, a first response may be `428` with `{ "two_
 | GET | `/me` | Bearer — returns user, roles, permissions, `mobile_actions`, and `preferences` (transaction defaults + `appearance`) |
 | PATCH | `/preferences/appearance` | Bearer — body: `appearance`: `light` \| `dark` \| `system` (same as web settings) |
 
+## Jubelio resi scan (barcode → queue)
+
+Requires `jubelio-view`. Exposed in `mobile_actions` as `scan_resi` when allowed. User preferences `preferences.resi_scan` on `/me` mirror saved defaults.
+
+| Method | Path | Body / notes |
+|--------|------|----------------|
+| GET | `/jubelio/resi-scan/options` | Warehouses with Jubelio mappings, marketplace list, saved defaults |
+| PATCH | `/jubelio/resi-scan/defaults` | `warehouse_id`, `marketplace` |
+| POST | `/jubelio/resi-scan` | `warehouse_id`, `marketplace` (`shopee`, `tiktok`, …), `barcodes[]` (raw tracking numbers without prefix), optional `remember_defaults` |
+
+Creates `jubelioorders` rows (`type=SELL`, `order_status=SHIPPED`, `source=3`) with marketplace invoice prefix (e.g. `SP-{barcode}`), `user_id` = scanner, and warehouse/store/location from `jubeliosyncs`. Duplicates (already in `jubelioorders` or sell `transactions`) are returned in `skipped` without inserting.
+
 ## Dashboard
 
 | Method | Path | Auth | Notes |

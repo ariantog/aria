@@ -125,11 +125,19 @@ class Jubelioorder extends Model
     }
 
     /**
-     * Get the user that executed the order.
+     * User who ran manual Process / cron execute_by (legacy relation name).
      */
     public function user(): HasOne
     {
         return $this->hasOne(User::class, 'id', 'execute_by');
+    }
+
+    /**
+     * User who queued the order via mobile resi scan (when applicable).
+     */
+    public function scanner(): HasOne
+    {
+        return $this->hasOne(User::class, 'id', 'user_id');
     }
 
     /**

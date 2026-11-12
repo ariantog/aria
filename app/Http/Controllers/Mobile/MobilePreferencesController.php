@@ -78,6 +78,10 @@ class MobilePreferencesController extends Controller
             'cash_out_bank' => $preferences->defaultCashAccount($user, false),
             'transfer' => $transfer,
             'prefill' => $prefill,
+            'resi_scan' => [
+                'warehouse_id' => (int) ($preferences->get($user, UserPreferenceRegistry::MOBILE_RESI_SCAN_WAREHOUSE_SLUG) ?? 0) ?: null,
+                'marketplace' => $preferences->get($user, UserPreferenceRegistry::MOBILE_RESI_SCAN_MARKETPLACE_SLUG),
+            ],
         ];
     }
 
