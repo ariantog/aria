@@ -4,6 +4,6 @@ class AppConfig {
   /// Example: `--dart-define=ARIA_DEFAULT_BASE_URL=https://aria.example.com`
   static const String defaultBaseUrl = String.fromEnvironment(
     'ARIA_DEFAULT_BASE_URL',
-    defaultValue: '',
+    defaultValue: 'https://aria3.corenationactive.com',
   );
 }

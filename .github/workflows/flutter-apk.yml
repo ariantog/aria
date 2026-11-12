@@ -41,17 +41,17 @@ jobs:
         run: bash tool/apply_android_overlay.sh
 
       - name: Build debug APK
+        shell: bash
         env:
           INPUT_BASE_URL: ${{ github.event.inputs.base_url }}
           VAR_BASE_URL: ${{ vars.ARIA_MOBILE_BASE_URL }}
+          DEFAULT_BASE_URL: https://aria3.corenationactive.com
         run: |
-          BASE_URL="${INPUT_BASE_URL:-$VAR_BASE_URL}"
-          BUILD_ARGS=(flutter build apk --debug "--build-number=${GITHUB_RUN_NUMBER}")
-          if [ -n "${BASE_URL}" ]; then
-            echo "Baking default base URL into APK (dart-define)."
-            BUILD_ARGS+=(--dart-define="ARIA_DEFAULT_BASE_URL=${BASE_URL}")
-          fi
-          "${BUILD_ARGS[@]}"
+          BASE_URL="${INPUT_BASE_URL:-${VAR_BASE_URL:-$DEFAULT_BASE_URL}}"
+          echo "Baking default base URL into APK: ${BASE_URL}"
+          flutter build apk --debug \
+            --build-number="${GITHUB_RUN_NUMBER}" \
+            --dart-define="ARIA_DEFAULT_BASE_URL=${BASE_URL}"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

@@ -107,7 +107,7 @@ class _LoginScreenState extends State<LoginScreen> {
               controller: _baseUrl,
               decoration: const InputDecoration(
                 labelText: 'Aria base URL',
-                hintText: 'https://your-host or http://10.0.2.2:8000',
+                hintText: 'https://aria3.corenationactive.com',
                 border: OutlineInputBorder(),
               ),
               keyboardType: TextInputType.url,
