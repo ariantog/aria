@@ -2,6 +2,7 @@
 
 use App\Models\Addrbook;
 use App\Models\Operation;
+use App\Models\Transaction;
 use App\Models\User;
 
 beforeEach(function () {
@@ -79,6 +80,45 @@ test('can view ledger for account', function () {
 
     $response = $this->actingAs($this->user)->get("/journals/account-list/{$account->id}/ledger");
     $response->assertStatus(200);
+});
+
+test('ledger page uses the shared transactions list with csv export', function () {
+    $operation = Operation::create(['name' => 'Operational Expenses']);
+    $account = Addrbook::create([
+        'name' => 'Biaya Toko',
+        'type' => Addrbook::TYPE_ACCOUNT,
+        'parent_id' => $operation->id,
+    ]);
+    $bank = Addrbook::factory()->bank()->create(['name' => 'BCA Ops']);
+
+    Transaction::factory()->create([
+        'type' => Transaction::TYPE_CASH_OUT,
+        'invoice' => 'LEDGER-CSV-001',
+        'sender_id' => $bank->id,
+        'receiver_id' => $account->id,
+        'total' => 250_000,
+        'real_total' => 250_000,
+        'description' => 'Biaya listrik',
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('account-list.ledger', $account))
+        ->assertOk()
+        ->assertSee('Transaction History', false)
+        ->assertSee('data-testid="copy-transactions-table"', false)
+        ->assertSee('data-testid="export-transactions-csv-link"', false)
+        ->assertSee('LEDGER-CSV-001', false)
+        ->assertSee('Biaya Toko', false);
+
+    $csv = $this->actingAs($this->user)
+        ->get(route('account-list.ledger.export', ['account_list' => $account->id]))
+        ->assertOk()
+        ->assertHeader('content-type', 'text/csv; charset=UTF-8');
+
+    expect($csv->streamedContent())
+        ->toContain('LEDGER-CSV-001')
+        ->toContain('Biaya listrik')
+        ->toContain('Cash Out');
 });
 
 test('account list shows operation from legacy parent_id', function () {

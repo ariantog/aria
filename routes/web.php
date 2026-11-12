@@ -419,6 +419,7 @@ Route::middleware(['auth', 'verified', 'active', 'enforce.readonly'])->group(fun
         'account-list' => 'account_list',
     ]);
     Route::get('journals/account-list/{account_list}/ledger', [\App\Http\Controllers\Journal\AccountListController::class, 'ledger'])->name('account-list.ledger');
+    Route::get('journals/account-list/{account_list}/ledger/export', [\App\Http\Controllers\Journal\AccountListController::class, 'ledgerExport'])->name('account-list.ledger.export');
 
     // Production Module
     Route::prefix('produksi')->name('produksi.')->group(function () {

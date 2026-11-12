@@ -7,7 +7,8 @@ use App\Models\Addrbook;
 use App\Models\AddrbookStat;
 use App\Models\Operation;
 use App\Models\Transaction;
-use Carbon\Carbon;
+use App\Services\TransactionListExportService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -94,35 +95,66 @@ class AccountListController extends Controller
     {
         Gate::authorize(Operation::getPermissions()['account-list']);
 
-        $accountId = $account_list->id;
+        $account = $account_list->load('operation', 'stat');
+        $query = $this->ledgerTransactionsQuery($request, $account);
 
-        $from = $request->from;
-        $to = $request->to;
-
-        $query = Transaction::orderBy('date', 'desc')->orderBy('id', 'desc');
-
-        if ($from && $to) {
-            $query->whereBetween('date', [$from, $to]);
-        } else {
-            $fromDate = Carbon::now()->subYear(1)->toDateString();
-            $toDate = Carbon::now()->toDateString();
-            $query->whereBetween('date', [$fromDate, $toDate]);
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json($query->paginate((int) $request->input('size', 50))->withQueryString());
         }
 
-        $query->where(function ($q) use ($accountId) {
-            $q->where('sender_id', $accountId)->orWhere('receiver_id', $accountId);
-        });
-
-        $transactions = $query->paginate(50)->withQueryString();
+        $user = $request->user();
 
         return view('journals.account-list.ledger', [
-            'account' => $account_list->load('operation', 'stat'),
-            'transactions' => $transactions,
-            'filters' => [
-                'from' => $from,
-                'to' => $to,
+            'account' => $account,
+            'transactions' => $query->paginate(50)->withQueryString(),
+            'transactionTypes' => Transaction::getTypes(),
+            'filters' => $request->only(['from', 'to', 'type', 'order_date']),
+            'can' => [
+                'edit_transaction' => $user?->can(Transaction::getPermissions()['edit']) ?? false,
+                'delete_transaction' => $user?->can(Transaction::getPermissions()['delete']) ?? false,
+                'bank_hidden_balance' => ! ($user?->is_superadmin ?? false) && ($user?->can('addrbook-bank-account-hidden-balance') ?? false),
             ],
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
+    }
+
+    public function ledgerExport(Request $request, Addrbook $account_list, TransactionListExportService $exportService)
+    {
+        Gate::authorize(Operation::getPermissions()['account-list']);
+
+        $account = $account_list->load('operation');
+        $user = $request->user();
+        $hideBank = ! ($user?->is_superadmin ?? false) && ($user?->can('addrbook-bank-account-hidden-balance') ?? false);
+
+        $slug = str($account->name)->slug()->limit(40, '');
+
+        return $exportService->downloadCsv(
+            $this->ledgerTransactionsQuery($request, $account)->cursor(),
+            sprintf('ledger-%s-%s.csv', $slug, now()->format('Y-m-d-His')),
+            $hideBank,
+        );
+    }
+
+    protected function ledgerTransactionsQuery(Request $request, Addrbook $account): Builder
+    {
+        $accountId = $account->id;
+
+        $query = Transaction::query()
+            ->where(fn ($q) => $q
+                ->where('sender_id', $accountId)
+                ->orWhere('receiver_id', $accountId))
+            ->visibleToUser($request->user())
+            ->with(['sender', 'receiver', 'user'])
+            ->when($request->query('from'), fn ($q) => $q->whereDate('date', '>=', $request->query('from')))
+            ->when($request->query('to'), fn ($q) => $q->whereDate('date', '<=', $request->query('to')))
+            ->when($request->query('type'), fn ($q) => $q->where('type', $request->query('type')));
+
+        if ($request->query('order_date', 'date') === 'created_at') {
+            $query->orderBy('created_at', 'desc');
+        } else {
+            $query->orderBy('date', 'desc')->orderBy('id', 'desc');
+        }
+
+        return $query;
     }
 }
