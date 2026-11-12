@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Mobile;
 
 use App\Http\Controllers\Controller;
+use App\Models\Jubelio;
 use App\Models\Transaction;
 use App\Services\UserPreferenceService;
 use Illuminate\Http\JsonResponse;
@@ -57,6 +58,10 @@ class MobileUserController extends Controller
         }
         if ($user->can($perms['type-move'])) {
             $actions[] = 'move';
+        }
+
+        if ($user->can(Jubelio::getPermissions()['view'])) {
+            $actions[] = 'scan_resi';
         }
 
         return array_values(array_unique($actions));

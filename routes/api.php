@@ -4,6 +4,7 @@ use App\Http\Controllers\Mobile\MobileAddrbookController;
 use App\Http\Controllers\Mobile\MobileAuthController;
 use App\Http\Controllers\Mobile\MobileDashboardController;
 use App\Http\Controllers\Mobile\MobileItemController;
+use App\Http\Controllers\Mobile\MobileJubelioResiScanController;
 use App\Http\Controllers\Mobile\MobilePreferencesController;
 use App\Http\Controllers\Mobile\MobileTransactionController;
 use App\Http\Controllers\Mobile\MobileTransactionListController;
@@ -30,6 +31,10 @@ Route::prefix('mobile/v1')->group(function (): void {
         Route::post('auth/logout', [MobileAuthController::class, 'logout']);
         Route::get('me', [MobileUserController::class, 'show']);
         Route::patch('preferences/appearance', [MobilePreferencesController::class, 'updateAppearance']);
+
+        Route::get('jubelio/resi-scan/options', [MobileJubelioResiScanController::class, 'options']);
+        Route::patch('jubelio/resi-scan/defaults', [MobileJubelioResiScanController::class, 'updateDefaults']);
+        Route::post('jubelio/resi-scan', [MobileJubelioResiScanController::class, 'store']);
 
         Route::get('dashboard', [MobileDashboardController::class, 'show']);
 
