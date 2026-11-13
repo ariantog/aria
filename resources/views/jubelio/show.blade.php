@@ -67,6 +67,18 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
                     Refresh payload
                 </button>
             </form>
+
+            @if(($canDelete ?? false) && $order->canDeleteFromQueue())
+            <form method="POST" action="{{ route('jubelio.destroy', $order) }}" onsubmit="return confirm('Hapus order antrian {{ $order->invoice }}? Scan salah bisa diulang setelah dihapus.')">
+                @csrf
+                @method('DELETE')
+                <button type="submit"
+                        class="inline-flex items-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
+                        data-testid="jubelio-delete-order">
+                    Hapus dari antrian
+                </button>
+            </form>
+            @endif
         </div>
     </div>
 

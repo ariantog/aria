@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Transaction;
 use App\Services\Jubelio\JubelioOrderPayloadPresenter;
 use App\Services\Jubelio\JubelioOrderReadyToShip;
 use App\Services\Jubelio\JubelioOrderPayloadService;
@@ -140,6 +141,20 @@ class Jubelioorder extends Model
     {
         return ! $this->isSuccessful()
             && ($this->status === 1 || ($this->status === 2 && $this->error_type === 2));
+    }
+
+    /**
+     * Queue row may be removed when no Aria transaction was posted for this invoice.
+     */
+    public function canDeleteFromQueue(): bool
+    {
+        if (trim((string) $this->invoice) === '') {
+            return false;
+        }
+
+        return ! Transaction::query()
+            ->where('invoice', $this->invoice)
+            ->exists();
     }
 
     /**

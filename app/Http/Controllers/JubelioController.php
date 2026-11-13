@@ -208,6 +208,7 @@ class JubelioController extends Controller
         });
 
         return view('jubelio.index', [
+            'canDelete' => auth()->user()?->can(Jubelio::getPermissions()['delete']) ?? false,
             'orders' => $orders,
             'stats' => [
                 'pending' => (int) $stats->pending,
@@ -235,8 +236,39 @@ class JubelioController extends Controller
             'items' => $presented['items'],
             'parties' => $presented['parties'],
             'transactionsUrl' => $order->transactionsSearchUrl(),
+            'canDelete' => auth()->user()?->can(Jubelio::getPermissions()['delete']) ?? false,
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
+    }
+
+    public function destroy(Request $request, Jubelioorder $jubelio): RedirectResponse
+    {
+        Gate::authorize(Jubelio::getPermissions()['delete']);
+
+        if (! $jubelio->canDeleteFromQueue()) {
+            return $this->redirectAfterJubelioOrderDelete($request)
+                ->with('error', 'Order tidak bisa dihapus — sudah ada transaksi Aria untuk invoice ini.');
+        }
+
+        $invoice = $jubelio->invoice;
+        $jubelio->delete();
+
+        return $this->redirectAfterJubelioOrderDelete($request)
+            ->with('success', 'Order antrian '.$invoice.' dihapus.');
+    }
+
+    private function redirectAfterJubelioOrderDelete(Request $request): RedirectResponse
+    {
+        if ($request->boolean('return_to_index')) {
+            return redirect()->route('jubelio.index', array_filter([
+                'status' => $request->input('return_status'),
+                'invoice' => $request->input('return_invoice'),
+                'warehouse_id' => $request->input('return_warehouse_id'),
+                'page' => $request->input('return_page'),
+            ], fn ($value) => $value !== null && $value !== ''));
+        }
+
+        return redirect()->route('jubelio.index');
     }
 
     public function payload(Jubelioorder $jubelio): JsonResponse
