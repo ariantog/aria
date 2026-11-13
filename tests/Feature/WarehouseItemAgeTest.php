@@ -104,6 +104,69 @@ it('shows calendar age from last buy or move into the warehouse', function () {
         ->and($meta[$legacyItem->id]['inbound_age_days'])->toBeGreaterThan(600);
 });
 
+it('defaults to since sell descending and sorts never-sold before oldest sells', function () {
+    $this->travelTo('2026-06-15');
+    User::factory()->create();
+    $user = User::factory()->create();
+    $user->givePermissionTo('addrbook-warehouse-items');
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $customer = Addrbook::factory()->customer()->create();
+    $neverSold = Item::factory()->create(['code' => 'SELL-NEVER', 'name' => 'Never sold']);
+    $oldSell = Item::factory()->create(['code' => 'SELL-OLD', 'name' => 'Old sell']);
+    $recentSell = Item::factory()->create(['code' => 'SELL-REC', 'name' => 'Recent sell']);
+
+    foreach ([$neverSold, $oldSell, $recentSell] as $sku) {
+        WarehouseItem::create([
+            'warehouse_id' => $warehouse->id,
+            'item_id' => $sku->id,
+            'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+            'quantity' => 1,
+        ]);
+    }
+
+    $seedSell = function (Item $item, string $date) use ($warehouse, $customer): void {
+        $txn = Transaction::factory()->create([
+            'type' => Transaction::TYPE_SELL,
+            'date' => $date,
+            'sender_id' => $warehouse->id,
+            'receiver_id' => $customer->id,
+        ]);
+        DB::table('transaction_details')->insert([
+            'transaction_id' => $txn->id,
+            'item_id' => $item->id,
+            'quantity' => 1,
+            'price' => 100,
+            'discount' => 0,
+            'total' => 100,
+            'date' => $date,
+            'transaction_type' => Transaction::TYPE_SELL,
+            'sender_id' => $warehouse->id,
+            'receiver_id' => $customer->id,
+            'transaction_disc' => 0,
+        ]);
+    };
+
+    $seedSell($oldSell, '2026-01-01');
+    $seedSell($recentSell, '2026-06-01');
+
+    $defaultHtml = $this->actingAs($user)
+        ->get(route('addrbook.type.item-age', ['warehouse', $warehouse->id]))
+        ->assertOk()
+        ->getContent();
+
+    expect(strpos($defaultHtml, 'SELL-NEVER'))->toBeLessThan(strpos($defaultHtml, 'SELL-OLD'))
+        ->and(strpos($defaultHtml, 'SELL-OLD'))->toBeLessThan(strpos($defaultHtml, 'SELL-REC'));
+
+    $sortedHtml = $this->actingAs($user)
+        ->get(route('addrbook.type.item-age', ['warehouse', $warehouse->id, 'sort' => 'sincesellasc']))
+        ->assertOk()
+        ->getContent();
+
+    expect(strpos($sortedHtml, 'SELL-REC'))->toBeLessThan(strpos($sortedHtml, 'SELL-OLD'))
+        ->and(strpos($sortedHtml, 'SELL-OLD'))->toBeLessThan(strpos($sortedHtml, 'SELL-NEVER'));
+});
+
 it('sorts by age descending with unknown inbound first', function () {
     $this->travelTo('2026-06-15');
     User::factory()->create();
