@@ -183,6 +183,7 @@ $td = 'px-1.5 py-2 align-top';
                         <td class="{{ $td }}" data-testid="jubelio-orders-sync-status">
                             <div class="flex min-w-0 flex-col items-start gap-0.5">
                                 @include('jubelio.partials.sync-status-badge', ['status' => $order->status, 'errorType' => $order->error_type, 'executeBy' => $order->user->name ?? null, 'orderType' => $order->type, 'error' => $order->error])
+                                <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                                 <form method="POST" action="{{ route('jubelio.refresh-payload', $order) }}" class="inline">
                                     @csrf
                                     <input type="hidden" name="return_to_index" value="1">
@@ -197,6 +198,23 @@ $td = 'px-1.5 py-2 align-top';
                                         ↻ Refresh
                                     </button>
                                 </form>
+                                @if(($canDelete ?? false) && $order->canDeleteFromQueue())
+                                <form method="POST" action="{{ route('jubelio.destroy', $order) }}" class="inline" onsubmit="return confirm('Hapus {{ $order->invoice }} dari antrian?')">
+                                    @csrf
+                                    @method('DELETE')
+                                    <input type="hidden" name="return_to_index" value="1">
+                                    <input type="hidden" name="return_status" value="{{ $filters['status'] ?? '' }}">
+                                    <input type="hidden" name="return_invoice" value="{{ $filters['invoice'] ?? '' }}">
+                                    <input type="hidden" name="return_warehouse_id" value="{{ $filters['warehouse_id'] ?? '' }}">
+                                    <input type="hidden" name="return_page" value="{{ $orders->currentPage() }}">
+                                    <button type="submit"
+                                            class="text-[10px] font-medium text-red-600 hover:text-red-800"
+                                            data-testid="jubelio-delete-order-{{ $order->id }}">
+                                        Hapus
+                                    </button>
+                                </form>
+                                @endif
+                                </div>
                                 @if($order->hasStockError())
                                 @include('jubelio.partials.stock-error-items', ['stockErrorItems' => $order->stockErrorItemsList()])
                                 @elseif(\App\Services\Jubelio\JubelioOrderSyncStatus::shouldShowErrorLine($order))

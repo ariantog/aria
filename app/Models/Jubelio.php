@@ -14,6 +14,7 @@ class Jubelio
     {
         return [
             'view' => 'jubelio-view',
+            'delete' => 'jubelio-delete',
             'sync' => 'jubelio-sync',
             'stock-check' => 'jubelio-stock-check',
         ];
