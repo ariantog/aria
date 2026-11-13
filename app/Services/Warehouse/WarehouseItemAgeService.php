@@ -67,7 +67,7 @@ class WarehouseItemAgeService
                 });
         }
 
-        $this->applySort($query, (string) $request->input('sort', 'staledesc'), $staleCutoff);
+        $this->applySort($query, (string) $request->input('sort', 'sinceselldesc'), $staleCutoff);
 
         return $query->paginate(self::PER_PAGE)->withQueryString();
     }
@@ -220,6 +220,12 @@ class WarehouseItemAgeService
             'inboundasc' => $query
                 ->orderByRaw('CASE WHEN inbound.last_inbound_date IS NULL OR inbound.last_inbound_date = ? THEN 1 ELSE 0 END', ['0000-00-00'])
                 ->orderBy('inbound.last_inbound_date'),
+            'sinceselldesc' => $query
+                ->orderByRaw('CASE WHEN sold.last_sold_date IS NULL OR sold.last_sold_date = ? THEN 0 ELSE 1 END', ['0000-00-00'])
+                ->orderBy('sold.last_sold_date'),
+            'sincesellasc' => $query
+                ->orderByRaw('CASE WHEN sold.last_sold_date IS NULL OR sold.last_sold_date = ? THEN 1 ELSE 0 END', ['0000-00-00'])
+                ->orderByDesc('sold.last_sold_date'),
             default => $query
                 ->orderByRaw(
                     'CASE WHEN inbound.last_inbound_date IS NOT NULL AND inbound.last_inbound_date <= ? AND (sold.last_sold_date IS NULL OR sold.last_sold_date = ? OR sold.last_sold_date < ?) THEN 0 ELSE 1 END',

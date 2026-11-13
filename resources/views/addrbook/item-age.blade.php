@@ -10,7 +10,7 @@ $breadcrumbs = [
     ['title' => $addrbook->name, 'href' => '/' . $addrbook->type_slug . '/' . $addrbook->id],
     ['title' => 'Item age', 'href' => $baseUrl],
 ];
-$currentSort = $filters['sort'] ?? 'staledesc';
+$currentSort = $filters['sort'] ?? 'sinceselldesc';
 $sortLink = function (string $sort) use ($filters, $baseUrl) {
     $query = array_merge($filters, ['sort' => $sort]);
 
@@ -79,7 +79,7 @@ $healthBase = route('reports.inventory-health');
                     <th class="px-4 py-3"><a href="{{ $sortLink('inbounddesc') }}" class="hover:text-gray-800">Last inbound</a></th>
                     <th class="px-4 py-3 text-right"><a href="{{ $sortLink('agedesc') }}" class="hover:text-gray-800">Inbound age</a></th>
                     <th class="px-4 py-3"><a href="{{ $sortLink('solddesc') }}" class="hover:text-gray-800">Last sold</a></th>
-                    <th class="px-4 py-3 text-right">Since sell</th>
+                    <th class="px-4 py-3 text-right"><a href="{{ $sortLink('sinceselldesc') }}" class="hover:text-gray-800">Since sell</a></th>
                     <th class="px-4 py-3"><a href="{{ $sortLink('staledesc') }}" class="hover:text-gray-800">Stale</a></th>
                     <th class="px-4 py-3"></th>
                 </tr>
