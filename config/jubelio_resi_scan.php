@@ -17,6 +17,7 @@ return [
             'label' => 'Shopee',
             'invoice_prefix' => 'SP',
             'store_name_patterns' => ['shopee'],
+            'resolve_invoice_from_tracking' => true,
         ],
         'tiktok' => [
             'label' => 'TikTok Shop',

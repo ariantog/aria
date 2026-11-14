@@ -22,7 +22,7 @@ it('requires jubelio-view permission for resi scan options', function () {
         ->assertForbidden();
 });
 
-it('queues shipped sell orders from mobile resi scan with marketplace prefix', function () {
+it('queues sell orders from mobile shopee resi scan via jubelio awb lookup', function () {
     $user = User::factory()->create();
     $user->givePermissionTo('jubelio-view');
 
@@ -38,16 +38,41 @@ it('queues shipped sell orders from mobile resi scan with marketplace prefix', f
         'bin_id' => 0,
     ]);
 
+    config(['services.jubelio.active' => true]);
+
+    $this->mock(JubelioService::class, function (MockInterface $mock) {
+        $mock->shouldReceive('resolveSalesOrderByTracking')
+            ->twice()
+            ->andReturnUsing(function (string $tracking) {
+                return match ($tracking) {
+                    'SPX1234567890' => [
+                        'status' => 'found',
+                        'salesorder_no' => 'SP-250302JA65X2S0',
+                        'salesorder_id' => 'so-shopee-1',
+                    ],
+                    'JNE9988776655' => [
+                        'status' => 'found',
+                        'salesorder_no' => 'SP-SECOND-ORDER',
+                        'salesorder_id' => 'so-shopee-2',
+                    ],
+                    default => [
+                        'status' => 'not_found',
+                        'message' => 'Resi tidak ditemukan di Jubelio.',
+                    ],
+                };
+            });
+    });
+
     $response = $this->actingAs($user, 'sanctum')->postJson('/api/mobile/v1/jubelio/resi-scan', [
         'warehouse_id' => $warehouse->id,
         'marketplace' => 'shopee',
-        'barcodes' => ['250302JA65X2S0', 'SP-ALREADY-PREFIXED'],
+        'barcodes' => ['SPX1234567890', 'JNE9988776655'],
         'remember_defaults' => true,
     ]);
 
     $response->assertStatus(201)
         ->assertJsonPath('created.0.invoice', 'SP-250302JA65X2S0')
-        ->assertJsonPath('created.1.invoice', 'SP-ALREADY-PREFIXED');
+        ->assertJsonPath('created.1.invoice', 'SP-SECOND-ORDER');
 
     $order = Jubelioorder::where('invoice', 'SP-250302JA65X2S0')->first();
     expect($order)->not->toBeNull()

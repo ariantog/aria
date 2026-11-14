@@ -32,11 +32,11 @@ Requires `jubelio-view`. Exposed in `mobile_actions` as `scan_resi` when allowed
 |--------|------|----------------|
 | GET | `/jubelio/resi-scan/options` | Warehouses with Jubelio mappings, marketplace list, saved defaults |
 | PATCH | `/jubelio/resi-scan/defaults` | `warehouse_id`, `marketplace` |
-| POST | `/jubelio/resi-scan` | `warehouse_id`, `marketplace` (`shopee`, `tiktok`, …), `barcodes[]` (courier resi / AWB; Shopee may use marketplace order id), optional `remember_defaults` |
+| POST | `/jubelio/resi-scan` | `warehouse_id`, `marketplace` (`shopee`, `tiktok`, …), `barcodes[]` (courier resi / AWB), optional `remember_defaults` |
 
-For **TikTok** and **Tokopedia**, each barcode is resolved via Jubelio (tracking query params, then `q` + date window, then ready-to-pick). AWB may only appear on full order detail — Aria fetches detail to confirm. Requires `JUBELIO_ACTIVE=true` and a valid Jubelio token (System Settings). Skip reasons distinguish **not found** vs **token/API errors** (e.g. `Token Jubelio tidak tersedia…`, `API Jubelio menolak akses (401/403)…`).
+For **Shopee**, **TikTok**, and **Tokopedia**, each barcode is resolved via Jubelio (tracking query params, then `q` + date window, then ready-to-pick). AWB may only appear on full order detail — Aria fetches detail to confirm. Requires `JUBELIO_ACTIVE=true` and a valid Jubelio token (System Settings). Skip reasons distinguish **not found** vs **token/API errors** (e.g. `Token Jubelio tidak tersedia…`, `API Jubelio menolak akses (401/403)…`). Other marketplaces still use invoice prefix rules (`LZ-`, `BL-`, …).
 
-Creates `jubelioorders` rows (`type=SELL`, `order_status=READY TO SHIP`, `source=3`) — cron does not post these until Jubelio webhook promotes the row to `SHIPPED`. with marketplace invoice prefix (e.g. `SP-{barcode}`), `user_id` = scanner, and warehouse/store/location from `jubeliosyncs`. Duplicates (already in `jubelioorders` or sell `transactions`) are returned in `skipped` without inserting.
+Creates `jubelioorders` rows (`type=SELL`, `order_status=READY TO SHIP`, `source=3`) — cron does not post these until Jubelio webhook promotes the row to `SHIPPED`. Resolved `salesorder_no` is stored as `invoice`; `user_id` = scanner; warehouse/store/location from `jubeliosyncs`. Duplicates (already in `jubelioorders` or sell `transactions`) are returned in `skipped` without inserting.
 
 ## Dashboard
 
