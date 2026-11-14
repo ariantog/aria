@@ -12,6 +12,8 @@ use App\Models\Jubelioreturn;
 use App\Models\Jubeliosync;
 use App\Models\Transaction;
 use App\Services\Jubelio\JubelioAdjustmentHint;
+use App\Services\Jubelio\JubelioOrderIndexService;
+use App\Services\Jubelio\JubelioOrdersExportService;
 use App\Services\Jubelio\JubelioOrderSyncStatus;
 use App\Services\Jubelio\JubelioOrderShowPresenter;
 use App\Services\Jubelio\JubelioOrderQueueEligibility;
@@ -131,85 +133,30 @@ class JubelioController extends Controller
         ]);
     }
 
-    public function index(Request $request): View
+    public function index(Request $request, JubelioOrderIndexService $indexService): View
     {
         Gate::authorize(Jubelio::getPermissions()['view']);
 
         $resolver = app(JubelioOrderWarehouseResolver::class);
         $mappedWarehouses = $resolver->mappedWarehousesForFilter();
-        $allowedWarehouseIds = $mappedWarehouses->pluck('id')->all();
-        $warehouseId = (int) $request->query('warehouse_id', 0);
-        if ($warehouseId > 0 && ! in_array($warehouseId, $allowedWarehouseIds, true)) {
-            $warehouseId = 0;
-        }
-
-        $q = Jubelioorder::query()->with('user')->orderBy('updated_at', 'desc');
-        if ($request->status == 'warning') {
-            $q->where('status', 2)->where('error_type', 2);
-        } elseif ($request->status == 'success') {
-            $q->where('status', 2)->where('error_type', 10);
-        } elseif ($request->status == 'error') {
-            $q->where('status', 1)->whereIn('error_type', JubelioOrderSyncStatus::ATTENTION_ERROR_TYPES);
-        } elseif ($request->status == 'pending') {
-            $q->where('status', 0);
-        } elseif ($request->status === 'all') {
-            // No sync-status filter — show every jubelioorders row (optionally scoped by invoice / gudang).
-        } elseif (! $request->invoice && $warehouseId <= 0) {
-            $q->where('status', 0);
-        }
-        $q->when($request->invoice, fn ($q) => $q->where('invoice', 'like', '%'.$request->invoice.'%'));
-
-        if ($warehouseId > 0) {
-            $resolver->applyWarehouseFilter($q, $warehouseId);
-        }
+        $perPage = $indexService->resolvePerPage($request);
 
         $attentionErrorTypes = implode(',', JubelioOrderSyncStatus::ATTENTION_ERROR_TYPES);
         $stats = Jubelioorder::selectRaw("COUNT(CASE WHEN status=0 THEN 1 END) as pending, COUNT(CASE WHEN status=2 AND error_type=10 THEN 1 END) as success, COUNT(CASE WHEN status=2 AND error_type=2 THEN 1 END) as warning, COUNT(CASE WHEN status=1 AND error_type IN ({$attentionErrorTypes}) THEN 1 END) as error, COUNT(*) as total")->first();
-        $syncIndex = $resolver->syncIndex();
-        $syncsByWarehouseId = $resolver->syncsGroupedByWarehouse();
-        $orders = $q->paginate(15)->withQueryString();
-        $warehouseIds = $orders->getCollection()
-            ->pluck('warehouse_id')
-            ->map(fn ($id) => (int) $id)
-            ->filter(fn (int $id) => $id > 0)
-            ->unique()
-            ->values()
-            ->all();
-        $warehousesById = $warehouseIds === []
-            ? collect()
-            : Addrbook::withTrashed()->whereIn('id', $warehouseIds)->get()->keyBy('id');
+        $orders = $indexService->buildIndexQuery($request)->paginate($perPage)->withQueryString();
 
         $refreshedOrderId = (int) session('jubelio_refreshed_order_id', 0);
         $refreshedSummary = session('jubelio_refreshed_summary');
-
-        $orders->getCollection()->transform(function (Jubelioorder $order) use (
-            $resolver,
-            $syncIndex,
-            $warehousesById,
-            $syncsByWarehouseId,
-            $refreshedOrderId,
-            $refreshedSummary,
-        ) {
-            $resolved = $resolver->resolveForIndex($order, $syncIndex, $warehousesById, $syncsByWarehouseId);
-            $order->jubelio_warehouse = $resolved['jubelio_warehouse'];
-            $order->aria_warehouse = $resolved['aria_warehouse'];
-            $order->aria_warehouse_url = $resolved['aria_warehouse_url'];
-            $order->payload_store_id = $resolved['payload_store_id'];
-            $order->payload_location_id = $resolved['payload_location_id'];
-            $order->list_summary = $resolved['summary'];
-
-            if ($refreshedOrderId > 0
-                && $order->id === $refreshedOrderId
-                && is_array($refreshedSummary)) {
-                $order->list_summary = array_merge($order->list_summary, $refreshedSummary);
-            }
-
-            return $order;
-        });
+        $indexService->decorateOrdersForIndex(
+            $orders,
+            $refreshedOrderId > 0 ? $refreshedOrderId : null,
+            is_array($refreshedSummary) ? $refreshedSummary : null,
+        );
 
         return view('jubelio.index', [
             'canDelete' => auth()->user()?->can(Jubelio::getPermissions()['delete']) ?? false,
             'orders' => $orders,
+            'perPage' => $perPage,
             'stats' => [
                 'pending' => (int) $stats->pending,
                 'success' => (int) $stats->success,
@@ -218,9 +165,25 @@ class JubelioController extends Controller
                 'total' => (int) $stats->total,
             ],
             'mappedWarehouses' => $mappedWarehouses,
-            'filters' => $request->only(['status', 'invoice', 'warehouse_id']),
+            'filters' => $request->only(['status', 'invoice', 'warehouse_id', 'per_page']),
             'flash' => ['success' => session('success'), 'error' => session('error') ?? session('errorMessage')],
         ]);
+    }
+
+    public function export(Request $request, JubelioOrderIndexService $indexService, JubelioOrdersExportService $exportService)
+    {
+        Gate::authorize(Jubelio::getPermissions()['view']);
+
+        $orders = $indexService->buildIndexQuery($request)->get();
+        $refreshedOrderId = (int) session('jubelio_refreshed_order_id', 0);
+        $refreshedSummary = session('jubelio_refreshed_summary');
+        $indexService->decorateOrdersForIndex(
+            $orders,
+            $refreshedOrderId > 0 ? $refreshedOrderId : null,
+            is_array($refreshedSummary) ? $refreshedSummary : null,
+        );
+
+        return $exportService->download($orders);
     }
 
     public function show(Jubelioorder $jubelio, JubelioOrderShowPresenter $presenter): View
@@ -265,6 +228,7 @@ class JubelioController extends Controller
                 'invoice' => $request->input('return_invoice'),
                 'warehouse_id' => $request->input('return_warehouse_id'),
                 'page' => $request->input('return_page'),
+                'per_page' => $request->input('return_per_page'),
             ], fn ($value) => $value !== null && $value !== ''));
         }
 
@@ -307,6 +271,7 @@ class JubelioController extends Controller
                 'invoice' => $request->input('return_invoice'),
                 'warehouse_id' => $request->input('return_warehouse_id'),
                 'page' => $request->input('return_page'),
+                'per_page' => $request->input('return_per_page'),
             ], fn ($value) => $value !== null && $value !== ''));
         }
 

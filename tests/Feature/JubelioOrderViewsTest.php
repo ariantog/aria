@@ -1506,6 +1506,87 @@ it('describes sell sync failure when jubelio sales order api returns empty', fun
         ->and($order->status)->toBe(1);
 });
 
+it('exposes copy rows and export on jubelio orders index', function () {
+    $user = User::factory()->create();
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'copy-export-1',
+        'source' => 1,
+        'invoice' => 'INV-COPY-EXPORT',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 0,
+        'status' => 0,
+    ]);
+
+    test()->mock(JubelioService::class, function (MockInterface $mock) {
+        $mock->shouldNotReceive('fetchSalesOrder');
+        $mock->shouldNotReceive('fetchSalesReturn');
+    });
+
+    $this->actingAs($user)
+        ->get(route('jubelio.index', ['invoice' => 'INV-COPY-EXPORT']))
+        ->assertSuccessful()
+        ->assertSee('Export Excel', false)
+        ->assertSee('data-testid="copy-jubelio-orders-table"', false)
+        ->assertSee('data-copy-col="invoice"', false)
+        ->assertSee('copyRowsTable()', false)
+        ->assertSee('data-testid="jubelio-per-page"', false);
+});
+
+it('respects per_page on jubelio orders index', function () {
+    $user = User::factory()->create();
+
+    foreach (range(1, 20) as $i) {
+        Jubelioorder::create([
+            'jubelio_order_id' => 'per-page-'.$i,
+            'source' => 1,
+            'invoice' => 'INV-PER-PAGE-'.$i,
+            'type' => 'SELL',
+            'order_status' => 'SHIPPED',
+            'run_count' => 0,
+            'status' => 0,
+        ]);
+    }
+
+    test()->mock(JubelioService::class, function (MockInterface $mock) {
+        $mock->shouldNotReceive('fetchSalesOrder');
+        $mock->shouldNotReceive('fetchSalesReturn');
+    });
+
+    $this->actingAs($user)
+        ->get(route('jubelio.index', ['status' => 'pending', 'per_page' => 50]))
+        ->assertSuccessful();
+
+    expect(Jubelioorder::query()->count())->toBe(20);
+});
+
+it('exports jubelio orders matching index filters to excel', function () {
+    $user = User::factory()->create();
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'export-xlsx-1',
+        'source' => 1,
+        'invoice' => 'INV-EXPORT-XLSX',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 0,
+        'status' => 0,
+    ]);
+
+    test()->mock(JubelioService::class, function (MockInterface $mock) {
+        $mock->shouldNotReceive('fetchSalesOrder');
+        $mock->shouldNotReceive('fetchSalesReturn');
+    });
+
+    $response = $this->actingAs($user)
+        ->get(route('jubelio.export', ['invoice' => 'INV-EXPORT-XLSX']));
+
+    $response->assertSuccessful();
+    expect($response->headers->get('content-type'))
+        ->toContain('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+});
+
 it('shows api gagal badge for sell orders with payload sync error on index', function () {
     $user = User::factory()->create();
 

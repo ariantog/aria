@@ -9,9 +9,19 @@ $breadcrumbs = [
 ];
 $th = 'px-1.5 py-2 text-[10px] font-semibold tracking-wide text-gray-500 uppercase';
 $td = 'px-1.5 py-2 align-top';
+$perPage = $perPage ?? (int) request()->query('per_page', 15);
+$exportQuery = array_filter(
+    array_merge(request()->query(), [
+        'status' => $filters['status'] ?? request()->query('status'),
+        'invoice' => $filters['invoice'] ?? null,
+        'warehouse_id' => $filters['warehouse_id'] ?? null,
+        'per_page' => $perPage,
+    ]),
+    fn ($value) => $value !== null && $value !== '',
+);
 @endphp
 
-<div class="flex flex-col gap-4 p-2 sm:gap-6 sm:p-4">
+<div class="flex flex-col gap-4 p-2 sm:gap-6 sm:p-4" x-data="jubelioOrdersIndex()">
     {{-- Header --}}
     <div class="flex flex-col justify-between gap-3 md:flex-row md:items-end">
         <h1 class="flex items-center gap-2 text-2xl font-bold">
@@ -21,6 +31,7 @@ $td = 'px-1.5 py-2 align-top';
 
         <form method="GET" action="{{ route('jubelio.index') }}" class="flex w-full flex-wrap items-end gap-2 md:w-auto">
             <input type="hidden" name="status" value="{{ $filters['status'] ?? '' }}">
+            <input type="hidden" name="per_page" value="{{ $perPage }}">
             <label class="flex min-w-[10rem] flex-1 flex-col gap-0.5 md:flex-none">
                 <span class="text-[10px] font-semibold uppercase text-gray-500">Gudang</span>
                 <select name="warehouse_id"
@@ -74,7 +85,7 @@ $td = 'px-1.5 py-2 align-top';
             $isActive = $activeStatus === $c['status']
                 || ($c['status'] === 'pending' && $activeStatus === '');
         @endphp
-        <a href="{{ route('jubelio.index', ['status' => $c['status'], 'invoice' => $filters['invoice'] ?? null, 'warehouse_id' => $filters['warehouse_id'] ?? null]) }}"
+        <a href="{{ route('jubelio.index', array_filter(['status' => $c['status'], 'invoice' => $filters['invoice'] ?? null, 'warehouse_id' => $filters['warehouse_id'] ?? null, 'per_page' => $perPage], fn ($v) => $v !== null && $v !== '')) }}"
            class="flex items-center justify-between rounded-lg border-l-4 {{ $c['border'] }} {{ $c['bg'] }} p-3 shadow-sm transition-all hover:opacity-90 md:p-4 {{ $isActive ? $c['ring'] : '' }}">
             <div>
                 <p class="text-[10px] font-semibold tracking-wider uppercase opacity-70 md:text-xs">{{ $c['title'] }}</p>
@@ -86,8 +97,24 @@ $td = 'px-1.5 py-2 align-top';
 
     {{-- Table --}}
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div class="flex flex-wrap items-center justify-end gap-2 border-b border-gray-100 px-3 py-2">
+            <button type="button"
+                    @click="copyRowsTable()"
+                    data-testid="copy-jubelio-orders-table"
+                    title="Copy table for Excel"
+                    class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                <span x-text="copyFeedback ? 'Copied!' : 'Copy rows'"></span>
+            </button>
+            <a href="{{ route('jubelio.export', $exportQuery) }}"
+               data-testid="jubelio-orders-export"
+               class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                Export Excel
+            </a>
+        </div>
         <div class="min-w-0">
-            <table class="w-full table-fixed text-left text-xs" data-testid="jubelio-orders-table">
+            <table x-ref="ordersTable" class="w-full table-fixed text-left text-xs" data-testid="jubelio-orders-table">
                 <colgroup>
                     <col class="w-[12%]">
                     <col class="w-[16%]">
@@ -100,14 +127,14 @@ $td = 'px-1.5 py-2 align-top';
                 </colgroup>
                 <thead class="bg-gray-50">
                     <tr>
-                        <th class="{{ $th }}">Date</th>
-                        <th class="{{ $th }}">Invoice</th>
-                        <th class="{{ $th }}">Store</th>
-                        <th class="{{ $th }}">Warehouse</th>
-                        <th class="{{ $th }} text-center">Type</th>
-                        <th class="{{ $th }} text-center">Qty</th>
-                        <th class="{{ $th }} text-right">Total</th>
-                        <th class="{{ $th }}">Sync Status</th>
+                        <th class="{{ $th }}" data-copy-col="updated_at">Date</th>
+                        <th class="{{ $th }}" data-copy-col="invoice">Invoice</th>
+                        <th class="{{ $th }}" data-copy-col="store">Store</th>
+                        <th class="{{ $th }}" data-copy-col="warehouse">Warehouse</th>
+                        <th class="{{ $th }} text-center" data-copy-col="type">Type</th>
+                        <th class="{{ $th }} text-center" data-copy-col="qty">Qty</th>
+                        <th class="{{ $th }} text-right" data-copy-col="total">Total</th>
+                        <th class="{{ $th }}" data-copy-col="sync_status">Sync Status</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
@@ -115,9 +142,24 @@ $td = 'px-1.5 py-2 align-top';
                     @php
                         $summary = $order->list_summary ?? $order->payloadSummary();
                         $payloadDate = $summary['transaction_date'];
+                        $syncLabel = \App\Services\Jubelio\JubelioOrderSyncStatus::badgeLabel(
+                            (int) $order->status,
+                            $order->error_type !== null ? (int) $order->error_type : null,
+                            $order->type ?? 'SELL',
+                            $order->error,
+                        );
+                        $jubelioWh = $order->jubelio_warehouse ?: ($summary['location_name'] ?: '—');
+                        $ariaWh = $order->aria_warehouse ?: '—';
+                        $copyDate = \Carbon\Carbon::parse($order->updated_at)->format('d/m H:i')
+                            .($payloadDate ? ' / '.\Carbon\Carbon::parse($payloadDate)->format('d/m H:i') : '');
+                        $copyInvoice = trim($order->invoice.' '.($order->order_status ?? ''));
+                        $copyStore = trim(($summary['store_name'] ?: '—').($summary['customer_name'] ? ' | '.$summary['customer_name'] : ''));
+                        $copyWarehouse = 'J: '.$jubelioWh.' | A: '.$ariaWh;
+                        $copyQty = $summary['item_count'] > 0 ? format_copy_number($summary['item_count']) : '';
+                        $copyTotal = $summary['real_total'] !== null ? format_copy_number($summary['real_total']) : '';
                     @endphp
                     <tr class="hover:bg-gray-50">
-                        <td class="{{ $td }}">
+                        <td class="{{ $td }}" data-copy-col="updated_at" data-copy-value="{{ $copyDate }}">
                             <div class="flex flex-col leading-tight">
                                 <span class="text-[10px] font-bold text-gray-800">{{ \Carbon\Carbon::parse($order->updated_at)->format('d/m H:i') }}</span>
                                 @if($payloadDate)
@@ -125,7 +167,7 @@ $td = 'px-1.5 py-2 align-top';
                                 @endif
                             </div>
                         </td>
-                        <td class="{{ $td }}">
+                        <td class="{{ $td }}" data-copy-col="invoice" data-copy-value="{{ $copyInvoice }}">
                             <a href="{{ route('jubelio.show', $order->id) }}" class="break-all font-medium text-blue-600 hover:underline">{{ $order->invoice }}</a>
                             <div class="mt-0.5 text-[10px] text-gray-400">{{ $order->order_status }}</div>
                             <a href="{{ $order->transactionsSearchUrl() }}"
@@ -134,13 +176,13 @@ $td = 'px-1.5 py-2 align-top';
                                 Cek transaksi
                             </a>
                         </td>
-                        <td class="{{ $td }}">
+                        <td class="{{ $td }}" data-copy-col="store" data-copy-value="{{ $copyStore }}">
                             <div class="break-words font-medium text-gray-800">{{ $summary['store_name'] ?: '—' }}</div>
                             @if($summary['customer_name'])
                             <div class="mt-0.5 break-words text-[10px] text-gray-500">{{ $summary['customer_name'] }}</div>
                             @endif
                         </td>
-                        <td class="{{ $td }}">
+                        <td class="{{ $td }}" data-copy-col="warehouse" data-copy-value="{{ $copyWarehouse }}">
                             <div class="space-y-0.5 break-words">
                                 <div class="text-gray-800">
                                     <span class="text-[9px] font-bold uppercase text-gray-400">J</span>
@@ -167,20 +209,20 @@ $td = 'px-1.5 py-2 align-top';
                                 </div>
                             </div>
                         </td>
-                        <td class="{{ $td }} text-center">
+                        <td class="{{ $td }} text-center" data-copy-col="type" data-copy-value="{{ $order->type }}">
                             <span class="rounded bg-gray-100 px-1 py-px text-[9px] font-bold uppercase leading-none">{{ $order->type }}</span>
                         </td>
-                        <td class="{{ $td }} text-center font-mono text-[11px] text-gray-700">
+                        <td class="{{ $td }} text-center font-mono text-[11px] text-gray-700" data-copy-col="qty" data-copy-value="{{ $copyQty }}">
                             {{ $summary['item_count'] > 0 ? format_amount($summary['item_count'], 0) : '—' }}
                         </td>
-                        <td class="{{ $td }} text-right font-mono text-[11px] text-gray-800">
+                        <td class="{{ $td }} text-right font-mono text-[11px] text-gray-800" data-copy-col="total" data-copy-value="{{ $copyTotal }}">
                             @if($summary['real_total'] !== null)
                                 {{ format_amount($summary['real_total']) }}
                             @else
                                 —
                             @endif
                         </td>
-                        <td class="{{ $td }}" data-testid="jubelio-orders-sync-status">
+                        <td class="{{ $td }}" data-testid="jubelio-orders-sync-status" data-copy-col="sync_status" data-copy-value="{{ $syncLabel }}">
                             <div class="flex min-w-0 flex-col items-start gap-0.5">
                                 @include('jubelio.partials.sync-status-badge', ['status' => $order->status, 'errorType' => $order->error_type, 'executeBy' => $order->user->name ?? null, 'orderType' => $order->type, 'error' => $order->error])
                                 <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
@@ -191,6 +233,7 @@ $td = 'px-1.5 py-2 align-top';
                                     <input type="hidden" name="return_invoice" value="{{ $filters['invoice'] ?? '' }}">
                                     <input type="hidden" name="return_warehouse_id" value="{{ $filters['warehouse_id'] ?? '' }}">
                                     <input type="hidden" name="return_page" value="{{ $orders->currentPage() }}">
+                                    <input type="hidden" name="return_per_page" value="{{ $perPage }}">
                                     <button type="submit"
                                             class="text-[10px] font-medium text-gray-500 hover:text-blue-600"
                                             title="Ambil ulang payload dari Jubelio API dan perbarui mapping gudang"
@@ -207,6 +250,7 @@ $td = 'px-1.5 py-2 align-top';
                                     <input type="hidden" name="return_invoice" value="{{ $filters['invoice'] ?? '' }}">
                                     <input type="hidden" name="return_warehouse_id" value="{{ $filters['warehouse_id'] ?? '' }}">
                                     <input type="hidden" name="return_page" value="{{ $orders->currentPage() }}">
+                                    <input type="hidden" name="return_per_page" value="{{ $perPage }}">
                                     <button type="submit"
                                             class="text-[10px] font-medium text-red-600 hover:text-red-800"
                                             data-testid="jubelio-delete-order-{{ $order->id }}">
@@ -231,7 +275,65 @@ $td = 'px-1.5 py-2 align-top';
                 </tbody>
             </table>
         </div>
-        @include('partials.pagination', ['paginator' => $orders, 'label' => 'orders'])
+        <div class="flex flex-col gap-3 border-t border-gray-200 bg-gray-50/40 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+            <div class="text-gray-500">
+                Showing <span class="font-medium">{{ $orders->firstItem() ?? 0 }}</span>
+                to <span class="font-medium">{{ $orders->lastItem() ?? 0 }}</span>
+                of <span class="font-medium">{{ $orders->total() }}</span> orders
+            </div>
+            <form method="GET" action="{{ route('jubelio.index') }}" class="flex flex-wrap items-center gap-2" data-testid="jubelio-per-page-form">
+                <input type="hidden" name="status" value="{{ $filters['status'] ?? '' }}">
+                <input type="hidden" name="invoice" value="{{ $filters['invoice'] ?? '' }}">
+                <input type="hidden" name="warehouse_id" value="{{ $filters['warehouse_id'] ?? '' }}">
+                <label class="flex items-center gap-2 text-xs font-medium uppercase text-gray-500">
+                    Rows / page
+                    <select name="per_page"
+                            class="rounded-md border border-gray-300 bg-white px-2 py-1 text-sm normal-case text-gray-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                            data-testid="jubelio-per-page"
+                            onchange="this.form.submit()">
+                        @foreach(\App\Services\Jubelio\JubelioOrderIndexService::PER_PAGE_OPTIONS as $size)
+                            <option value="{{ $size }}" @selected($perPage === $size)>{{ $size }}</option>
+                        @endforeach
+                    </select>
+                </label>
+            </form>
+            @if($orders->hasPages())
+            <div class="flex items-center gap-1">
+                @php $window = $orders->getUrlRange(max(1, $orders->currentPage() - 2), min($orders->lastPage(), $orders->currentPage() + 2)); @endphp
+                <a href="{{ $orders->previousPageUrl() ?: '#' }}"
+                   class="rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs {{ $orders->onFirstPage() ? 'pointer-events-none opacity-40' : 'hover:bg-gray-50' }}">Prev</a>
+                @foreach($window as $page => $url)
+                    <a href="{{ $url }}"
+                       class="rounded-md border px-2.5 py-1 text-xs {{ $page == $orders->currentPage() ? 'border-blue-700 bg-blue-700 text-white' : 'border-gray-200 bg-white hover:bg-gray-50' }}">{{ $page }}</a>
+                @endforeach
+                <a href="{{ $orders->nextPageUrl() ?: '#' }}"
+                   class="rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs {{ $orders->hasMorePages() ? 'hover:bg-gray-50' : 'pointer-events-none opacity-40' }}">Next</a>
+            </div>
+            @endif
+        </div>
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+function jubelioOrdersIndex() {
+    return {
+        copyFeedback: false,
+        copyFeedbackTimer: null,
+        showCopyFeedback() {
+            this.copyFeedback = true;
+            clearTimeout(this.copyFeedbackTimer);
+            this.copyFeedbackTimer = setTimeout(() => {
+                this.copyFeedback = false;
+            }, 2000);
+        },
+        async copyRowsTable() {
+            if (await ariaCopyTable(this.$refs.ordersTable)) {
+                this.showCopyFeedback();
+            }
+        },
+    };
+}
+</script>
+@endpush
