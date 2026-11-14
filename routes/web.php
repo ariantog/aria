@@ -120,6 +120,7 @@ Route::middleware(['auth', 'verified', 'active', 'enforce.readonly'])->group(fun
     Route::get('jubelio/token', [App\Http\Controllers\JubelioTokenController::class, 'index'])->name('jubelio.token.index');
     Route::post('jubelio/token/refresh', [App\Http\Controllers\JubelioTokenController::class, 'refresh'])->name('jubelio.token.refresh');
     Route::post('jubelio/token/check', [App\Http\Controllers\JubelioTokenController::class, 'check'])->name('jubelio.token.check');
+    Route::get('jubelio/export', [App\Http\Controllers\JubelioController::class, 'export'])->name('jubelio.export');
     Route::get('jubelio/{jubelio}/payload', [App\Http\Controllers\JubelioController::class, 'payload'])->name('jubelio.payload');
     Route::post('jubelio/{jubelio}/refresh-payload', [App\Http\Controllers\JubelioController::class, 'refreshPayload'])->name('jubelio.refresh-payload');
     Route::post('jubelio/{jubelio}/process', [App\Http\Controllers\JubelioController::class, 'processOrder'])->name('jubelio.process');
