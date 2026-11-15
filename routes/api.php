@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\JubelioProxyController;
 use App\Http\Controllers\Mobile\MobileAddrbookController;
 use App\Http\Controllers\Mobile\MobileAuthController;
 use App\Http\Controllers\Mobile\MobileDashboardController;
@@ -13,6 +14,14 @@ use App\Http\Controllers\Mobile\MobileUserController;
 use App\Http\Controllers\Readonly\ReadonlyItemExportController;
 use App\Http\Controllers\Readonly\ReadonlyStockExportController;
 use Illuminate\Support\Facades\Route;
+
+Route::middleware(['auth.jubelio-proxy', 'throttle.jubelio-proxy'])->group(function (): void {
+    Route::post('jubelio-proxy', [JubelioProxyController::class, 'store'])
+        ->name('api.jubelio-proxy.store');
+    Route::get('jubelio-proxy/{api}', [JubelioProxyController::class, 'show'])
+        ->where('api', '[a-z0-9._-]+')
+        ->name('api.jubelio-proxy.show');
+});
 
 Route::middleware(['auth.readonly-export', 'active', 'can:export-readonly', 'enforce.readonly', 'throttle:readonly-export'])->group(function (): void {
     Route::get('readonly/items', [ReadonlyItemExportController::class, 'indexJson'])

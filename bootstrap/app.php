@@ -40,6 +40,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'enforce.readonly' => \App\Http\Middleware\EnforceReadonlyExportAccount::class,
             'auth.readonly-export' => \App\Http\Middleware\AuthenticateReadonlyExport::class,
             'tiktok.mock-api' => \App\Http\Middleware\VerifyTikTokShopMockApiToken::class,
+            'auth.jubelio-proxy' => \App\Http\Middleware\AuthenticateJubelioProxyClient::class,
+            'throttle.jubelio-proxy' => \App\Http\Middleware\ThrottleJubelioProxyClient::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
