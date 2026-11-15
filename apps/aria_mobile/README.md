@@ -76,7 +76,11 @@ adb install -r build/app/outputs/flutter-apk/app-debug.apk
 
 The workflow **Flutter debug APK** (`.github/workflows/flutter-apk.yml`) builds a **debug** APK on GitHub and uploads it as an artifact named `aria-mobile-debug-apk`.
 
-- **Manual run:** repo → **Actions** → **Flutter debug APK** → **Run workflow**.
+- **On PRs** that touch `apps/aria_mobile/**` (compile check + APK artifact).
+- **On push to `main`** when mobile files change.
+- **Manual run:** repo → **Actions** → **Flutter debug APK** → **Run workflow** → pick your **branch** (e.g. a PR branch) → Run.
+
+Commit `apps/aria_mobile/pubspec.lock` whenever `pubspec.yaml` dependencies change so CI and teammates resolve the same versions.
 - **Automatic run:** pushes to `main` / `develop` / `master` that touch `apps/aria_mobile/**`.
 
 Each run sets `versionCode` from `GITHUB_RUN_NUMBER` so newer artifacts upgrade in place. Download the artifact from the finished run’s **Summary** page.

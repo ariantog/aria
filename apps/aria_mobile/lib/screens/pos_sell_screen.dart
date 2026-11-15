@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -233,7 +235,9 @@ class _PosSellScreenState extends State<PosSellScreen> {
                   try {
                     final bytes = await widget.api.fetchReceiptPdf(transactionId);
                     if (ctx.mounted) {
-                      await Printing.layoutPdf(onLayout: (_) async => bytes);
+                      await Printing.layoutPdf(
+                        onLayout: (_) async => Uint8List.fromList(bytes),
+                      );
                     }
                   } catch (e) {
                     if (ctx.mounted) {
@@ -248,7 +252,7 @@ class _PosSellScreenState extends State<PosSellScreen> {
                 const SizedBox(height: 8),
                 OutlinedButton.icon(
                   onPressed: () async {
-                    final uri = Uri.parse(waUrl);
+                    final uri = Uri.parse(waUrl!);
                     if (await canLaunchUrl(uri)) {
                       await launchUrl(uri, mode: LaunchMode.externalApplication);
                     }
