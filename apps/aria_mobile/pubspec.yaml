@@ -16,6 +16,8 @@ dependencies:
   permission_handler: ^11.3.1
   intl: ^0.19.0
   uuid: ^4.5.1
+  printing: ^5.13.4
+  url_launcher: ^6.3.1
 
 dev_dependencies:
   flutter_test:

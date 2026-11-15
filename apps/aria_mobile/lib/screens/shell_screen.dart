@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../api/aria_api.dart';
 import 'create_transaction_sheet.dart';
 import 'dashboard_screen.dart';
+import 'pos_sell_screen.dart';
 import 'resi_scan_screen.dart';
 import 'transactions_list_screen.dart';
 
@@ -86,12 +87,21 @@ class _ShellScreenState extends State<ShellScreen> {
 
   Widget? _buildFab() {
     final actions = _mobileActions();
+    final canPos = actions.contains('pos');
     final canCreate = actions.any((a) =>
         ['sell', 'buy', 'move', 'cash_in', 'cash_out', 'transfer'].contains(a));
     final canScan = actions.contains('scan_resi');
 
     if (!canCreate && !canScan) {
       return null;
+    }
+
+    if (canPos) {
+      return FloatingActionButton.extended(
+        onPressed: _openPosSell,
+        icon: const Icon(Icons.storefront),
+        label: const Text('POS'),
+      );
     }
 
     if (canCreate && canScan) {
@@ -117,6 +127,15 @@ class _ShellScreenState extends State<ShellScreen> {
     );
   }
 
+  void _openPosSell() {
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (c) => PosSellScreen(api: _api, preferences: _prefs()),
+      ),
+    );
+  }
+
   void _openResiScan() {
     Navigator.push(
       context,
@@ -134,6 +153,15 @@ class _ShellScreenState extends State<ShellScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (_mobileActions().contains('pos'))
+              ListTile(
+                leading: const Icon(Icons.storefront),
+                title: const Text('POS — Sell'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _openPosSell();
+                },
+              ),
             ListTile(
               leading: const Icon(Icons.qr_code_scanner),
               title: const Text('Scan resi'),

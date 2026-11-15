@@ -1,5 +1,9 @@
 # Aria Mobile (Flutter)
 
+## POS v1 (sell)
+
+Counter **POS — Sell** (`lib/screens/pos_sell_screen.dart`): scanner-first sell, per-user defaults (`preferences.pos`), 58mm receipt download + print (`printing`), optional WhatsApp link, Jubelio push reminder (no reserve). See `doc/pos-mobile-kickoff.md` and `doc/mobile-api.md`.
+
 Native client for Aria ERP. Talks to the same Laravel host via `/api/mobile/v1` (Bearer Sanctum token).
 
 **Android package name (applicationId):** `com.ariantog.aria_mobile` — fixed via `flutter create --org com.ariantog --project-name aria_mobile` plus the tracked Gradle overlay. Do not change casually; a different id is a different app on the device.
