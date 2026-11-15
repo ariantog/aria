@@ -11,6 +11,10 @@ use App\Http\Requests\StoreItemTransactionRequest;
 use App\Http\Requests\StoreTransferRequest;
 use App\Models\Transaction;
 use App\Services\BookClosingService;
+use App\Services\TransactionInvoiceService;
+use App\Services\UserPreferenceService;
+use App\Support\Mobile\MobilePosSupport;
+use App\Support\UserPreferenceRegistry;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
 
@@ -20,6 +24,8 @@ class MobileTransactionController extends Controller
         StoreItemTransactionRequest $request,
         CreateItemTransaction $action,
         BookClosingService $bookClosingService,
+        UserPreferenceService $preferences,
+        TransactionInvoiceService $invoiceService,
     ): JsonResponse {
         $type = (string) $request->input('type');
         Transaction::authorizeTypeAccess($type);
@@ -35,11 +41,34 @@ class MobileTransactionController extends Controller
         }
 
         $transaction = $action->execute($request);
+        $user = $request->user();
 
-        return response()->json([
+        if ($type === 'sell' && $request->boolean('remember_defaults')) {
+            $senderId = (int) $request->validated('sender_id');
+            $receiverId = (int) $request->validated('receiver_id');
+            $preferences->set($user, UserPreferenceRegistry::MOBILE_POS_SENDER_ID_SLUG, $senderId);
+            $preferences->set($user, UserPreferenceRegistry::MOBILE_POS_RECEIVER_ID_SLUG, $receiverId);
+            $waPhone = $request->input('whatsapp_phone');
+            if (is_string($waPhone) && preg_match('/^[0-9]{8,15}$/', $waPhone)) {
+                $preferences->set($user, UserPreferenceRegistry::MOBILE_POS_WHATSAPP_PHONE_SLUG, $waPhone);
+            }
+        }
+
+        $payload = [
             'id' => $transaction->id,
             'message' => 'Transaction created.',
-        ], 201);
+        ];
+
+        if ($type === 'sell' && $request->boolean('pos')) {
+            $wa = $request->input('whatsapp_phone');
+            if (! is_string($wa) || $wa === '') {
+                $stored = $preferences->get($user, UserPreferenceRegistry::MOBILE_POS_WHATSAPP_PHONE_SLUG);
+                $wa = is_string($stored) ? $stored : null;
+            }
+            $payload['pos'] = MobilePosSupport::posExtras($transaction->fresh(['details.item', 'sender', 'receiver']), $wa, $invoiceService);
+        }
+
+        return response()->json($payload, 201);
     }
 
     public function storeCashIn(

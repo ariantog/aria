@@ -1,161 +1,97 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
     <meta charset="utf-8">
-    <title>Invoice #{{ $transaction->invoice }}</title>
+    <title>Receipt {{ $transaction->invoice }}</title>
     <style>
         @page {
-            size: A4 portrait;
+            size: 58mm auto;
             margin: 0;
         }
 
-        html, body {
+        body {
             margin: 0;
-            padding: 20mm;
-            font-family: Arial, sans-serif;
-            font-size: 12px;
-            color: #333;
+            padding: 2mm;
+            width: 58mm;
+            font-family: DejaVu Sans Mono, monospace;
+            font-size: 10px;
+            line-height: 1.35;
+            color: #000;
         }
 
-        .header, .footer {
-            width: 100%;
-            margin-bottom: 20px;
+        .center {
+            text-align: center;
         }
 
-        .header h2 {
-            margin: 0;
+        .receipt-line {
+            font-family: DejaVu Sans Mono, monospace;
+            white-space: pre;
+            font-size: 9px;
         }
 
-        .section {
-            margin-bottom: 20px;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            page-break-inside: avoid;
-        }
-
-        th, td {
-            padding: 8px;
-            border: 1px solid #ccc;
-            text-align: left;
-            word-wrap: break-word;
-        }
-
-        tr, td, th {
-            page-break-inside: avoid;
-            page-break-after: auto;
-        }
-
-        .text-right {
-            text-align: right;
+        hr {
+            border: 0;
+            border-top: 1px solid #000;
+            margin: 4px 0;
         }
 
         .bold {
             font-weight: bold;
         }
-
-        .totals {
-            width: 100%;
-            margin-top: 20px;
-        }
-
-        .totals td {
-            padding: 5px;
-        }
-
-        .totals .label {
-            text-align: right;
-            font-weight: bold;
-        }
-
-        .footer-note {
-            margin-top: 30px;
-            font-size: 10px;
-            color: #777;
-        }
     </style>
 </head>
 <body>
-    <div class="header">
-        <div>
-            <table style="border: none;">
-                <tr>
-                    <td style="border: none; white-space: nowrap; width: 30px;">
-                        @if($branding['logo_path'])
-                            <img src="{{ $branding['logo_path'] }}" style="width: auto;" alt="CoreNation Active">
-                        @endif
-                    </td>
-                    <td style="border: none;">
-                        <h2 style="margin: 0;">CoreNation Active</h2>
-                    </td>
-                </tr>
-            </table>
-        </div>
-        <p><strong>Invoice : </strong>{{ $transaction->invoice }}</p>
-        <p><strong>Date: </strong>{{ $transaction->date?->format('d M Y') }}</p>
-    </div>
-
-    <div class="section">
-        <table style="border: none;">
-            <tr>
-                <td style="border: none;">
-                    {{ $transaction->sender?->name }}<br>
-                </td>
-            </tr>
-        </table>
-    </div>
-
-    <table>
-        <thead>
-            <tr>
-                <th>Item Name</th>
-                <th class="text-right">Quantity</th>
-                <th class="text-right">Amt</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach ($transaction->details as $detail)
-                <tr>
-                    <td>{{ $detail->item?->getItemName() ?? '-' }}<br>{{ $detail->item?->getItemCode() ?? '' }}</td>
-                    <td class="text-right">{{ number_format((float) $detail->quantity, 0, ',', '.') }}</td>
-                    <td class="text-right">
-                        Rp{{ number_format(abs((float) $detail->price), 0, ',', '.') }}
-                        @if((float) $detail->discount > 0)
-                            <br>({{ $detail->discount }}%)
-                        @endif
-                    </td>
-                </tr>
-            @endforeach
-        </tbody>
-    </table>
-
-    <table class="totals">
-        <tr>
-            <td class="label">Total Items:</td>
-            <td class="text-right">{{ $transaction->total_items }}</td>
-        </tr>
-        @if((float) $transaction->discount > 0)
-            <tr>
-                <td class="label">Discount:</td>
-                <td class="text-right">{{ $transaction->discount }}%</td>
-            </tr>
-        @endif
-        @if((float) $transaction->adjustment != 0)
-            <tr>
-                <td class="label">Adjustment:</td>
-                <td class="text-right">(Rp{{ number_format(abs((float) $transaction->adjustment), 0, ',', '.') }})</td>
-            </tr>
-        @endif
-        <tr>
-            <td class="label"><strong>Grand Total:</strong></td>
-            <td class="text-right"><strong>Rp{{ number_format($transaction->displayGrandTotal(), 0, ',', '.') }}</strong></td>
-        </tr>
-    </table>
-
-    <div class="footer-note">
-        @corenationactive 082244226656
-    </div>
+<div class="center bold">{{ $branding['company_name'] }}</div>
+@if($branding['address'])
+    <div class="center">{{ $branding['address'] }}</div>
+@endif
+@if($branding['phone'])
+    <div class="center">{{ $branding['phone'] }}</div>
+@endif
+<br>
+<div class="center">Retail Invoice</div>
+<br>
+<div>Date : {{ $transaction->date?->format('d/m/Y') }}</div>
+<div>Invoice: {{ $transaction->invoice ?: $transaction->id }}</div>
+<div>{{ $transaction->sender?->name }}</div>
+<hr>
+<div class="receipt-line">Item              Qty      Amt</div>
+<hr>
+@php
+    $subtotal = 0.0;
+    $subQty = 0.0;
+@endphp
+@foreach ($transaction->details as $detail)
+    @php
+        $lineTotal = abs((float) $detail->total);
+        $name = $detail->item?->getItemName() ?? '-';
+        $itemCol = str_pad(mb_substr($name, 0, 18), 18);
+        $qtyCol = str_pad(number_format((float) $detail->quantity, 0, ',', '.'), 3, ' ', STR_PAD_LEFT);
+        $amtCol = str_pad(number_format($lineTotal, 0, ',', '.'), 9, ' ', STR_PAD_LEFT);
+        $subtotal += $lineTotal;
+        $subQty += (float) $detail->quantity;
+    @endphp
+    <div class="receipt-line">{{ $itemCol }}{{ $qtyCol }}{{ $amtCol }}</div>
+@endforeach
+<hr>
+@php
+    $stText = str_pad('SubTotal', 18);
+    $stQty = str_pad(number_format($subQty, 0, ',', '.'), 3, ' ', STR_PAD_LEFT);
+    $stAmt = str_pad(number_format($subtotal, 0, ',', '.'), 9, ' ', STR_PAD_LEFT);
+@endphp
+<div class="receipt-line">{{ $stText }}{{ $stQty }}{{ $stAmt }}</div>
+@if((float) $transaction->discount > 0)
+    <div>Disc {{ $transaction->discount }}%</div>
+@endif
+@if((float) $transaction->adjustment != 0)
+    <div>Adj: {{ number_format((float) $transaction->adjustment, 0, ',', '.') }}</div>
+@endif
+@if((float) $transaction->ppn > 0)
+    <div>PPN: {{ number_format((float) $transaction->ppn, 0, ',', '.') }}</div>
+@endif
+<hr>
+<div class="bold">TOTAL: Rp{{ number_format($transaction->displayGrandTotal(), 0, ',', '.') }}</div>
+<br>
+<div class="center">Terima kasih</div>
 </body>
 </html>

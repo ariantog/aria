@@ -43,6 +43,7 @@ class MobileUserController extends Controller
 
         if ($user->can($perms['type-sell']) || $user->can($perms['create'])) {
             $actions[] = 'sell';
+            $actions[] = 'pos';
         }
         if ($user->can($perms['type-buy']) || $user->can($perms['create'])) {
             $actions[] = 'buy';

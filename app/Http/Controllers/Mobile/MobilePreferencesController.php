@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers\Mobile;
 
+use App\Enums\AddrbookType;
 use App\Http\Controllers\Controller;
 use App\Models\Addrbook;
 use App\Models\User;
 use App\Services\LocationAccessService;
 use App\Services\UserPreferenceService;
+use App\Support\Mobile\MobilePosSupport;
 use App\Support\UserPreferenceRegistry;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -26,6 +28,109 @@ class MobilePreferencesController extends Controller
             'appearance' => $preferences->appearanceFor($request->user()),
             'message' => 'Appearance saved.',
         ]);
+    }
+
+    public function updatePosDefaults(Request $request, UserPreferenceService $preferences): JsonResponse
+    {
+        $validated = $request->validate([
+            'sender_id' => ['nullable', 'integer', 'min:1'],
+            'receiver_id' => ['nullable', 'integer', 'min:1'],
+            'whatsapp_phone' => ['nullable', 'string', 'regex:/^[0-9]{8,15}$/'],
+        ]);
+
+        $user = $request->user();
+        $locationAccess = app(LocationAccessService::class);
+
+        if (array_key_exists('sender_id', $validated)) {
+            $id = $validated['sender_id'];
+            if ($id === null) {
+                $preferences->set($user, UserPreferenceRegistry::MOBILE_POS_SENDER_ID_SLUG, null);
+            } else {
+                $contact = Addrbook::find((int) $id);
+                if (! $contact || $contact->typeValue() !== AddrbookType::Warehouse->value) {
+                    return response()->json(['message' => 'Warehouse (sender) is not valid.'], 422);
+                }
+                if (! $locationAccess->canAccessAddrbook($user, $contact)) {
+                    return response()->json(['message' => 'Warehouse is not available for your location.'], 422);
+                }
+                $preferences->set($user, UserPreferenceRegistry::MOBILE_POS_SENDER_ID_SLUG, (int) $id);
+            }
+        }
+
+        if (array_key_exists('receiver_id', $validated)) {
+            $id = $validated['receiver_id'];
+            if ($id === null) {
+                $preferences->set($user, UserPreferenceRegistry::MOBILE_POS_RECEIVER_ID_SLUG, null);
+            } else {
+                $contact = Addrbook::find((int) $id);
+                $type = $contact?->typeValue();
+                if (! $contact || ! in_array($type, [AddrbookType::Customer->value, AddrbookType::Reseller->value], true)) {
+                    return response()->json(['message' => 'Customer / reseller (receiver) is not valid.'], 422);
+                }
+                if (! $locationAccess->canAccessAddrbook($user, $contact)) {
+                    return response()->json(['message' => 'Customer is not available for your location.'], 422);
+                }
+                $preferences->set($user, UserPreferenceRegistry::MOBILE_POS_RECEIVER_ID_SLUG, (int) $id);
+            }
+        }
+
+        if (array_key_exists('whatsapp_phone', $validated)) {
+            $preferences->set(
+                $user,
+                UserPreferenceRegistry::MOBILE_POS_WHATSAPP_PHONE_SLUG,
+                $validated['whatsapp_phone'],
+            );
+        }
+
+        return response()->json([
+            'pos' => self::posDefaultsPayload($user, $preferences),
+            'message' => 'POS defaults saved.',
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function posDefaultsPayload(User $user, UserPreferenceService $preferences): array
+    {
+        $locationAccess = app(LocationAccessService::class);
+
+        $senderId = (int) ($preferences->get($user, UserPreferenceRegistry::MOBILE_POS_SENDER_ID_SLUG) ?? 0) ?: null;
+        $receiverId = (int) ($preferences->get($user, UserPreferenceRegistry::MOBILE_POS_RECEIVER_ID_SLUG) ?? 0) ?: null;
+
+        if (! $senderId || ! $receiverId) {
+            $sellPrefill = $preferences->transactionPrefill($user, 'sell');
+            if (is_array($sellPrefill)) {
+                $senderId ??= isset($sellPrefill['sender_id']) ? (int) $sellPrefill['sender_id'] : null;
+                $receiverId ??= isset($sellPrefill['receiver_id']) ? (int) $sellPrefill['receiver_id'] : null;
+            }
+        }
+
+        $sender = null;
+        $receiver = null;
+        if ($senderId) {
+            $contact = Addrbook::find($senderId);
+            if ($contact && $locationAccess->canAccessAddrbook($user, $contact)) {
+                $sender = MobilePosSupport::addrbookSummary($contact);
+            }
+        }
+        if ($receiverId) {
+            $contact = Addrbook::find($receiverId);
+            if ($contact && $locationAccess->canAccessAddrbook($user, $contact)) {
+                $receiver = MobilePosSupport::addrbookSummary($contact);
+            }
+        }
+
+        $wa = $preferences->get($user, UserPreferenceRegistry::MOBILE_POS_WHATSAPP_PHONE_SLUG);
+        $whatsappPhone = is_string($wa) && $wa !== '' ? $wa : null;
+
+        return [
+            'sender_id' => $senderId,
+            'receiver_id' => $receiverId,
+            'sender' => $sender,
+            'receiver' => $receiver,
+            'whatsapp_phone' => $whatsappPhone,
+        ];
     }
 
     /**
@@ -82,6 +187,7 @@ class MobilePreferencesController extends Controller
                 'warehouse_id' => (int) ($preferences->get($user, UserPreferenceRegistry::MOBILE_RESI_SCAN_WAREHOUSE_SLUG) ?? 0) ?: null,
                 'marketplace' => $preferences->get($user, UserPreferenceRegistry::MOBILE_RESI_SCAN_MARKETPLACE_SLUG),
             ],
+            'pos' => self::posDefaultsPayload($user, $preferences),
         ];
     }
 

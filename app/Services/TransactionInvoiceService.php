@@ -116,8 +116,10 @@ class TransactionInvoiceService
             File::delete($filePath);
         }
 
+        $widthPt = 58 / 25.4 * 72;
+
         Pdf::loadView('transactions.pdf.receipt', compact('transaction', 'branding'))
-            ->setPaper('a4', 'portrait')
+            ->setPaper([0, 0, $widthPt, 2000], 'portrait')
             ->setOptions([
                 'isHtml5ParserEnabled' => true,
                 'isRemoteEnabled' => true,

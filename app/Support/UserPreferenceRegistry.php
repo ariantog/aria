@@ -23,6 +23,12 @@ class UserPreferenceRegistry
 
     public const MOBILE_RESI_SCAN_MARKETPLACE_SLUG = 'mobile.jubelio_resi_scan.marketplace';
 
+    public const MOBILE_POS_SENDER_ID_SLUG = 'mobile.pos.sender_id';
+
+    public const MOBILE_POS_RECEIVER_ID_SLUG = 'mobile.pos.receiver_id';
+
+    public const MOBILE_POS_WHATSAPP_PHONE_SLUG = 'mobile.pos.whatsapp_phone';
+
     /**
      * @return list<string>
      */

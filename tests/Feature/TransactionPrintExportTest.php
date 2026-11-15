@@ -81,13 +81,12 @@ it('renders the receipt pdf blade with item name and code', function () {
     $html = view('transactions.pdf.receipt', compact('transaction', 'branding'))->render();
 
     expect($html)
-        ->toContain('CoreNation Active')
+        ->toContain('58mm auto')
         ->toContain('615922')
         ->toContain('Store - CITOS OFFLINE')
         ->toContain('LANA TOP - LILAC')
-        ->toContain('AJDCA2302510L')
-        ->toContain('Grand Total')
-        ->toContain('Rp934.700');
+        ->toContain('TOTAL:')
+        ->toContain('934.700');
 });
 
 it('renders the dot matrix print page with item view columns and signature blocks', function () {
@@ -490,7 +489,7 @@ it('transaction show page builds print invoice href from view checkboxes', funct
         ->assertOk()
         ->assertSee('itemViewQuery()', false)
         ->assertSee("params.set('sort_col', this.sortCol)", false)
-        ->assertSee("name=\"desc\"", false)
+        ->assertSee('name="desc"', false)
         ->assertSee('x-model="showLegacyCode"', false);
 });
 
