@@ -23,6 +23,7 @@ If the user has Fortify 2FA enabled, a first response may be `428` with `{ "two_
 | POST | `/auth/logout` | Bearer |
 | GET | `/me` | Bearer — returns user, roles, permissions, `mobile_actions`, and `preferences` (transaction defaults + `appearance`) |
 | PATCH | `/preferences/appearance` | Bearer — body: `appearance`: `light` \| `dark` \| `system` (same as web settings) |
+| PATCH | `/preferences/pos-defaults` | Bearer — `sender_id`, `receiver_id`, `whatsapp_phone` (optional; persisted per user) |
 
 ## Jubelio resi scan (barcode → queue)
 
@@ -50,6 +51,7 @@ Creates `jubelioorders` rows (`type=SELL`, `order_status=READY TO SHIP`, `source
 |--------|------|------|-------|
 | GET | `/transactions` | Bearer + `transactions-list` | `page`, `from`, `to`, `type`, `invoice`, `total`, `sort`, `direction`, `per_page` (100/200/300) |
 | GET | `/transactions/{id}` | Bearer + `transactions-show` | — |
+| GET | `/transactions/{id}/receipt` | Bearer + `transactions-show` | 58mm thermal receipt PDF (inline) |
 
 List rows use `visibleToUser` / ACL like web. Each row includes `type` (`id`, `slug`, `label`), `sender` / `receiver` (`id`, `name`), and signed header `total` (never `real_total`). Bank running balances on list parties follow web hidden-balance rules (superadmin exempt).
 
@@ -72,7 +74,7 @@ Optional header: `X-Idempotency-Key` (reuses the web duplicate-submit middleware
 
 | Method | Path | Body |
 |--------|------|------|
-| POST | `/transactions/item` | Same as `StoreItemTransactionRequest` (`type`: `sell`, `move`, `buy`, …) |
+| POST | `/transactions/item` | Same as `StoreItemTransactionRequest` (`type`: `sell`, `move`, `buy`, …). Sell POS: add `pos: true` for `receipt_url`, optional `whatsapp`, `jubelio_reminder`; `remember_defaults` saves parties + WA phone to `preferences.pos`. |
 | POST | `/transactions/cash-in` | `StoreCashTransactionRequest` |
 | POST | `/transactions/cash-out` | `StoreCashTransactionRequest` |
 | POST | `/transactions/transfer` | `StoreTransferRequest` |

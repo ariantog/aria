@@ -1,67 +1,61 @@
-# Mobile POS (v1) — kickoff
+# Mobile POS v1 — kickoff
 
-**Platform:** Flutter app (`apps/aria_mobile`) on phone/tablet only. No new Blade POS page.
-
-**Posting:** Reuse web sell path — `POST /api/mobile/v1/transactions/item` with `type=sell` and `StoreItemTransactionRequest` (same totals, discount %, PPN rules as web).
+**Platform:** Flutter (`apps/aria_mobile`), phone/tablet. **Posting:** same as web sell — `POST /api/mobile/v1/transactions/item` with `StoreItemTransactionRequest`. No Jubelio stock reserve; reminder only after post.
 
 ## Maintainer decisions (v1)
 
 | # | Decision |
 |---|----------|
-| 1 | POS lives on **phone/tablet** (Flutter), not desktop web |
-| 2 | **Sell only** — no buy/move/cash from POS shell |
-| 3 | **Defaults required** — warehouse (sender) + customer/reseller (receiver); remember per user (server preferences, like resi scan) |
-| 4 | **Pricing/tax** — identical to web sell (`CreateItemTransaction`, customer PKP / stored `ppn`) |
-| 5 | After post: **58mm thermal print** + optional **WhatsApp** (invoice link message, same as web `transactions.whatsapp`) |
-| 6 | **No stock reserve** for online channels; staff **push Jubelio manually** when the warehouse is online (existing transaction Jubelio sync UI — remind on success, do not auto-queue) |
+| 1 | POS on **Flutter**, not desktop web |
+| 2 | **Sell only** from POS shell (buy/move/cash stay on create sheet) |
+| 3 | **Defaults** — warehouse + customer/reseller; remember per user (server preferences, like resi scan) |
+| 4 | **Pricing/tax** — same as web (`CreateItemTransaction`, stored `ppn`) |
+| 5 | After post: **58mm thermal print** + optional **WhatsApp** (invoice PDF link, same message pattern as web) |
+| 6 | **No stock reserve**; staff push Jubelio manually when needed (reminder on success, no auto push) |
 
-## Existing building blocks
+## Acceptance (shipped)
 
-- `SellFormScreen` — barcode scan, lines, sell POST, prefill from `GET /api/mobile/v1/preferences/transaction-defaults` → `prefill.sell`
-- User prefs: `transactions.default_warehouse_id`, `transactions.default_customer_id` (System Settings / profile)
-- Web receipt PDF: `TransactionInvoiceService::createReceiptPdf()` + `GET /transactions/{id}/receipt` (A4 today; **v1 POS needs 58mm layout** — align with legacy `old/receipt.blade.php` or dedicated narrow PDF view)
-- Web WhatsApp: `POST /transactions/{id}/whatsapp` with phone → `wa.me` + CDN invoice URL
+| Item | Implementation |
+|------|----------------|
+| Complete sell via API | `POST /transactions/item` with `type=sell`, `pos=true` for enriched JSON |
+| 58mm print | `transactions/pdf/receipt.blade.php` + `TransactionInvoiceService::createReceiptPdf()` |
+| Receipt download | `GET /api/mobile/v1/transactions/{id}/receipt` (Sanctum, inline PDF) |
+| WhatsApp (optional) | `pos.whatsapp.url` when `whatsapp_phone` on request or saved default |
+| Defaults per user | `preferences.pos` on `/me`; `PATCH /preferences/pos-defaults`; `remember_defaults` on sell |
+| Jubelio reminder | `pos.jubelio_reminder` when warehouse has `jubeliosync` and `JUBELIO_ACTIVE` |
 
-## POS UX (v1 scope)
+**Preference slugs:** `mobile.pos.sender_id`, `mobile.pos.receiver_id`, `mobile.pos.whatsapp_phone` (`UserPreferenceRegistry`). Falls back to web transaction defaults when mobile slugs unset.
 
-1. **Entry:** Permission `transactions-type-sell` + `transactions-create`. Optional `mobile_actions` flag `pos_sell` or reuse `sell` with dedicated route from shell.
-2. **Flow:** Open POS → locked defaults (warehouse + customer) with “Ubah default” → scan/add lines → disc% / adj / notes like web → submit → success screen:
-   - **Cetak struk** — fetch receipt PDF, print via Bluetooth thermal (Flutter plugin TBD; PDF bytes from API)
-   - **WhatsApp** — optional phone field → open share / wa link
-   - **Jubelio** — if sender warehouse has Jubelio mapping and `JUBELIO_ACTIVE`, show “Stok online: push dari transaksi” link (deep link or copy invoice id); **no** automatic Jubelio adjust
-3. **Defaults API (new):** Mirror resi scan pattern:
-   - `GET/PATCH /api/mobile/v1/pos/defaults` — `warehouse_id`, `customer_id`, `remember_defaults`
-   - Slugs e.g. `mobile.pos.warehouse_id`, `mobile.pos.customer_id` in `UserPreferenceRegistry` (or reuse transaction default slugs only — product choice)
+## Flutter (`apps/aria_mobile`)
 
-## Mobile API gaps (to implement)
+- **`PosSellScreen`** — scanner-first sell, defaults prefill, remember defaults, optional WA phone.
+- After success: receipt bytes → `printing`; open `whatsapp.url`; Jubelio reminder banner.
+- Shell **POS** FAB when `mobile_actions` includes `pos`.
 
-| Need | Proposal |
-|------|------------|
-| 58mm receipt | `GET /api/mobile/v1/transactions/{id}/receipt` — generate/load receipt PDF, Bearer auth |
-| WhatsApp | `POST /api/mobile/v1/transactions/{id}/whatsapp` — `{ "phone": "628..." }` → JSON `{ "wa_url": "..." }` (no redirect) |
-| Jubelio hint | `GET /api/mobile/v1/transactions/{id}` include `jubelio_push_available`, `web_show_url` (optional) |
+## API (additive)
+
+- `PATCH /api/mobile/v1/preferences/pos-defaults` — `sender_id`, `receiver_id`, `whatsapp_phone`
+- `POST /api/mobile/v1/transactions/item` — `pos`, `remember_defaults`, `whatsapp_phone`
+- `GET /api/mobile/v1/transactions/{id}/receipt` — 58mm PDF
+
+See `doc/mobile-api.md` for the full mobile API table.
 
 ## Out of scope (v1)
 
-- Cash-in at POS, returns, multi-pay split, offline queue
-- Auto Jubelio stock push / reservation
-- Tabulator / web POS
+- Cash-in at POS, returns, multi-pay, offline queue
+- Auto Jubelio push / reservation
+- Server-side `mobile_home_mode` (local pref; see `mobile-app-design-direction.md`)
 
 ## Tests
 
-- Feature: mobile receipt + WhatsApp JSON endpoints (auth, sell txn)
-- Feature: POS defaults PATCH/GET
-- Flutter: widget/smoke for POS screen (CI optional until layout stable)
-
-## Branch hint
-
-`cursor/mobile-pos-sell-1f91` off `main` after resi/tracking PRs merged.
+- `tests/Feature/MobilePosTest.php` — defaults, enriched sell, receipt download
+- Receipt blade: `TransactionPrintExportTest` (58mm)
 
 ## Design reference
 
-`apps/aria_mobile/doc/mobile-app-design-direction.md` — POS home mode; v1 can ship **dedicated POS sell screen** first without full “POS mode” dashboard.
+`apps/aria_mobile/doc/mobile-app-design-direction.md` — full POS home mode later; v1 ships dedicated **POS sell** first.
 
-**Kickoff prompt for new chat:**
+**Kickoff prompt for follow-up chats:**
 
 ```
 Goal: Mobile POS v1 — sell-only on Flutter, defaults, 58mm print, optional WhatsApp, Jubelio reminder (no reserve).

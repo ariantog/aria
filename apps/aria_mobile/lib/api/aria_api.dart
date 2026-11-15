@@ -194,6 +194,34 @@ class AriaApi {
     return _decodeObject(r);
   }
 
+  Future<List<int>> fetchReceiptPdf(int transactionId) async {
+    final r = await http.get(_u('/transactions/$transactionId/receipt'), headers: _headers);
+    if (r.statusCode >= 200 && r.statusCode < 300) {
+      return r.bodyBytes;
+    }
+    throw AriaApiException('Receipt download failed (${r.statusCode})', statusCode: r.statusCode);
+  }
+
+  Future<Map<String, dynamic>> patchPosDefaults({
+    int? senderId,
+    int? receiverId,
+    String? whatsappPhone,
+  }) async {
+    final headers = Map<String, String>.from(_headers);
+    headers['Content-Type'] = 'application/json';
+    final body = <String, dynamic>{
+      if (senderId != null) 'sender_id': senderId,
+      if (receiverId != null) 'receiver_id': receiverId,
+      if (whatsappPhone != null) 'whatsapp_phone': whatsappPhone,
+    };
+    final r = await http.patch(
+      _u('/preferences/pos-defaults'),
+      headers: headers,
+      body: jsonEncode(body),
+    );
+    return _decodeObject(r);
+  }
+
   Future<Map<String, dynamic>> patchAppearance(String appearance) async {
     final headers = Map<String, String>.from(_headers);
     headers['Content-Type'] = 'application/json';

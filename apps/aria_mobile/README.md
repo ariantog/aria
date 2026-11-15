@@ -1,5 +1,9 @@
 # Aria Mobile (Flutter)
 
+## POS v1 (sell)
+
+Counter **POS — Sell** (`lib/screens/pos_sell_screen.dart`): scanner-first sell, per-user defaults (`preferences.pos`), 58mm receipt download + print (`printing`), optional WhatsApp link, Jubelio push reminder (no reserve). See `doc/pos-mobile-kickoff.md` and `doc/mobile-api.md`.
+
 Native client for Aria ERP. Talks to the same Laravel host via `/api/mobile/v1` (Bearer Sanctum token).
 
 **Android package name (applicationId):** `com.ariantog.aria_mobile` — fixed via `flutter create --org com.ariantog --project-name aria_mobile` plus the tracked Gradle overlay. Do not change casually; a different id is a different app on the device.
@@ -72,7 +76,11 @@ adb install -r build/app/outputs/flutter-apk/app-debug.apk
 
 The workflow **Flutter debug APK** (`.github/workflows/flutter-apk.yml`) builds a **debug** APK on GitHub and uploads it as an artifact named `aria-mobile-debug-apk`.
 
-- **Manual run:** repo → **Actions** → **Flutter debug APK** → **Run workflow**.
+- **On PRs** that touch `apps/aria_mobile/**` (compile check + APK artifact).
+- **On push to `main`** when mobile files change.
+- **Manual run:** repo → **Actions** → **Flutter debug APK** → **Run workflow** → pick your **branch** (e.g. a PR branch) → Run.
+
+Commit `apps/aria_mobile/pubspec.lock` whenever `pubspec.yaml` dependencies change so CI and teammates resolve the same versions.
 - **Automatic run:** pushes to `main` / `develop` / `master` that touch `apps/aria_mobile/**`.
 
 Each run sets `versionCode` from `GITHUB_RUN_NUMBER` so newer artifacts upgrade in place. Download the artifact from the finished run’s **Summary** page.

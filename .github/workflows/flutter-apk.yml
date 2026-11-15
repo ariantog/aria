@@ -15,6 +15,10 @@ on:
     paths:
       - 'apps/aria_mobile/**'
       - '.github/workflows/flutter-apk.yml'
+  pull_request:
+    paths:
+      - 'apps/aria_mobile/**'
+      - '.github/workflows/flutter-apk.yml'
 
 # Debug APK for sideloading — team debug keystore + monotonic versionCode (GITHUB_RUN_NUMBER).
 jobs:
@@ -33,6 +37,9 @@ jobs:
 
       - name: Flutter pub get
         run: flutter pub get
+
+      - name: Flutter analyze
+        run: flutter analyze
 
       - name: Generate Android project
         run: flutter create --org com.ariantog --project-name aria_mobile --platforms=android .

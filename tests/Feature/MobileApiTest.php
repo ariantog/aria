@@ -59,6 +59,7 @@ test('mobile me returns user payload', function () {
                 'cash_out_bank',
                 'transfer',
                 'prefill',
+                'pos',
             ],
         ]);
 });

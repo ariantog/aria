@@ -211,7 +211,8 @@ class _ResiScanScreenState extends State<ResiScanScreen> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           DropdownButtonFormField<int>(
-                            value: _warehouseId,
+                            key: ValueKey('wh-$_warehouseId'),
+                            initialValue: _warehouseId,
                             decoration: const InputDecoration(
                               labelText: 'Warehouse',
                               border: OutlineInputBorder(),
@@ -234,7 +235,8 @@ class _ResiScanScreenState extends State<ResiScanScreen> {
                           ),
                           const SizedBox(height: 12),
                           DropdownButtonFormField<String>(
-                            value: _marketplace,
+                            key: ValueKey('mp-$_warehouseId-$_marketplace'),
+                            initialValue: _marketplace,
                             decoration: const InputDecoration(
                               labelText: 'Marketplace',
                               border: OutlineInputBorder(),

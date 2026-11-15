@@ -4,6 +4,7 @@ import '../api/aria_api.dart';
 import 'buy_form_screen.dart';
 import 'cash_form_screen.dart';
 import 'move_form_screen.dart';
+import 'pos_sell_screen.dart';
 import 'sell_form_screen.dart';
 import 'transfer_form_screen.dart';
 
@@ -36,6 +37,13 @@ class CreateTransactionSheet extends StatelessWidget {
                 child: Text('No transaction permissions on this account.'),
               )
             else ...[
+              if (actions.contains('pos'))
+                ListTile(
+                  leading: const Icon(Icons.storefront),
+                  title: const Text('POS — Sell'),
+                  subtitle: const Text('Scanner, receipt, WhatsApp'),
+                  onTap: () => _open(context, PosSellScreen(api: api, preferences: preferences)),
+                ),
               if (actions.contains('sell'))
                 ListTile(
                   leading: const Icon(Icons.point_of_sale),
