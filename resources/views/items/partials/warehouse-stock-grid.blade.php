@@ -4,8 +4,7 @@
     'variant' => 'physical',
     'testId' => 'warehouse-availability',
     'jubelioByWarehouse' => [],
-    'showShopeeStock' => false,
-    'shopeeStocksByWarehouse' => [],
+    'hasShopeeStock' => false,
 ])
 @php
     $isDeleted = $variant === 'deleted';
@@ -23,25 +22,6 @@
         }
 
         return abs($ariaQty - (float) $externalQty) > 0.0001;
-    };
-    $shopeeQtyCell = function (?array $shopee, string $field, bool $highlightMismatch = false) {
-        if (! $shopee || ! ($shopee['has_sync'] ?? false)) {
-            return '<span class="text-gray-300">—</span>';
-        }
-
-        $value = $shopee[$field] ?? null;
-        if ($value === null) {
-            return '<span class="text-gray-300">—</span>';
-        }
-
-        $classes = 'font-mono tabular-nums';
-        if ($highlightMismatch && ($shopee['mismatch'] ?? false)) {
-            $classes .= ' font-semibold text-red-600';
-        } else {
-            $classes .= ' text-gray-700';
-        }
-
-        return '<span class="' . $classes . '">' . e(format_amount($value, 0)) . '</span>';
     };
 @endphp
 
@@ -96,9 +76,9 @@
                             <th class="px-3 py-3 text-right font-bold" data-copy-col="jb_reserved" title="Jubelio reserved">JB rsv</th>
                             <th class="px-3 py-3 text-right font-bold" data-copy-col="jb_available" title="Jubelio available (reference)">JB avail</th>
                         @endif
-                        @if($showShopeeStock && $variant === 'physical')
-                            <th class="px-3 py-3 text-right font-bold" data-copy-col="sp_sellable" title="Shopee sellable">SP sell</th>
-                            <th class="px-3 py-3 text-right font-bold" data-copy-col="sp_reserved" title="Shopee reserved">SP rsv</th>
+                        @if($hasShopeeStock && $variant === 'physical')
+                            <th class="px-3 py-3 text-right font-bold" data-copy-col="sp_sellable" title="Shopee sellable" x-show="loadShopeeStock" x-cloak>SP sell</th>
+                            <th class="px-3 py-3 text-right font-bold" data-copy-col="sp_reserved" title="Shopee reserved" x-show="loadShopeeStock" x-cloak>SP rsv</th>
                         @endif
                     </tr>
                 </thead>
@@ -109,24 +89,15 @@
                             $warehouseName = $wh->warehouse?->name ?? ('Warehouse #'.$wh->warehouse_id);
                             $warehouseUrl = $wh->warehouse ? url('/'.$wh->warehouse->type_slug.'/'.$wh->warehouse->id) : null;
                             $jubelio = $jubelioByWarehouse[$wh->warehouse_id] ?? null;
-                            $shopee = ($shopeeStocksByWarehouse ?? [])[$wh->warehouse_id] ?? null;
                             $jubelioOnHand = $jubelio['on_hand'] ?? null;
-                            $dualChannelMismatch = $showJubelioColumns
-                                && $showShopeeStock
-                                && $variant === 'physical'
-                                && $jubelio !== null
-                                && ($jubelio['linked'] ?? false)
-                                && ($shopee['has_sync'] ?? false)
-                                && $qtyDiffers($qty, $jubelioOnHand)
-                                && $qtyDiffers($qty, $shopee['sellable'] ?? null);
+                            $jubelioLinked = (bool) ($jubelio['linked'] ?? false);
                         @endphp
                         <tr @class([
                             'hover:bg-gray-50',
                             'opacity-60' => $qty == 0.0,
                         ])
-                            @if($dualChannelMismatch)
-                            :class="highlightDualStockMismatch ? 'bg-amber-50 ring-1 ring-inset ring-amber-200' : ''"
-                            data-dual-stock-mismatch="1"
+                            @if($hasShopeeStock && $showJubelioColumns && $variant === 'physical')
+                            :class="dualStockRowClass({{ $wh->warehouse_id }}, {{ $qty }}, @js($jubelioOnHand), @js($jubelioLinked))"
                             @endif
                             data-warehouse-id="{{ $wh->warehouse_id }}"
                             @if($qty == 0.0) x-show="{{ $showZero }}" @endif>
@@ -166,9 +137,23 @@
                                     <td colspan="4" class="px-3 py-2 text-right text-xs text-gray-300" data-copy-col="jb_on_hand">—</td>
                                 @endif
                             @endif
-                            @if($showShopeeStock && $variant === 'physical')
-                                <td class="whitespace-nowrap px-3 py-2 text-right text-xs" data-copy-col="sp_sellable" data-sum-col="sp_sellable" @if(($shopee['sellable'] ?? null) !== null) data-sum-value="{{ $shopee['sellable'] }}" data-copy-value="{{ format_copy_number($shopee['sellable']) }}" @endif>{!! $shopeeQtyCell($shopee, 'sellable', true) !!}</td>
-                                <td class="whitespace-nowrap px-3 py-2 text-right text-xs" data-copy-col="sp_reserved" data-sum-col="sp_reserved" @if(($shopee['reserved'] ?? null) !== null) data-sum-value="{{ $shopee['reserved'] }}" data-copy-value="{{ format_copy_number($shopee['reserved']) }}" @endif>{!! $shopeeQtyCell($shopee, 'reserved') !!}</td>
+                            @if($hasShopeeStock && $variant === 'physical')
+                                <td class="whitespace-nowrap px-3 py-2 text-right text-xs"
+                                    x-show="loadShopeeStock"
+                                    x-cloak
+                                    data-copy-col="sp_sellable"
+                                    data-sum-col="sp_sellable"
+                                    :data-sum-value="shopeeSumValue({{ $wh->warehouse_id }}, 'sellable')"
+                                    :data-copy-value="shopeeCopyValue({{ $wh->warehouse_id }}, 'sellable')"
+                                    x-html="shopeeQtyCell({{ $wh->warehouse_id }}, 'sellable', true)"></td>
+                                <td class="whitespace-nowrap px-3 py-2 text-right text-xs"
+                                    x-show="loadShopeeStock"
+                                    x-cloak
+                                    data-copy-col="sp_reserved"
+                                    data-sum-col="sp_reserved"
+                                    :data-sum-value="shopeeSumValue({{ $wh->warehouse_id }}, 'reserved')"
+                                    :data-copy-value="shopeeCopyValue({{ $wh->warehouse_id }}, 'reserved')"
+                                    x-html="shopeeQtyCell({{ $wh->warehouse_id }}, 'reserved')"></td>
                             @endif
                         </tr>
                     @endforeach
@@ -186,9 +171,9 @@
                             <td class="whitespace-nowrap px-3 py-2.5 text-right font-mono text-sm font-bold text-violet-700" x-text="columnSum('jb_reserved')"></td>
                             <td class="whitespace-nowrap px-3 py-2.5 text-right font-mono text-sm font-bold text-sky-700" x-text="columnSum('jb_available')"></td>
                         @endif
-                        @if($showShopeeStock && $variant === 'physical')
-                            <td class="whitespace-nowrap px-3 py-2.5 text-right font-mono text-sm font-bold text-gray-700" x-text="columnSum('sp_sellable')"></td>
-                            <td class="whitespace-nowrap px-3 py-2.5 text-right font-mono text-sm font-bold text-gray-600" x-text="columnSum('sp_reserved')"></td>
+                        @if($hasShopeeStock && $variant === 'physical')
+                            <td class="whitespace-nowrap px-3 py-2.5 text-right font-mono text-sm font-bold text-gray-700" x-show="loadShopeeStock" x-cloak x-text="columnSum('sp_sellable')"></td>
+                            <td class="whitespace-nowrap px-3 py-2.5 text-right font-mono text-sm font-bold text-gray-600" x-show="loadShopeeStock" x-cloak x-text="columnSum('sp_reserved')"></td>
                         @endif
                     </tr>
                 </tfoot>
@@ -213,6 +198,9 @@
                         this.sumRevision++;
                     });
                 }
+                window.addEventListener('shopee-stock-updated', () => {
+                    this.sumRevision++;
+                });
             },
             visibleRows() {
                 const table = this.$refs.availabilityTable;

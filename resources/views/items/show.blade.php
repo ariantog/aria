@@ -37,13 +37,16 @@ $jubelioTotal = $jubelioTotal ?? ['linked' => false, 'on_hand' => null, 'on_orde
 $jubelioByWarehouse = $jubelioByWarehouse ?? [];
 $jubelioLinked = (bool) ($jubelioTotal['linked'] ?? false);
 $fmtQty = fn ($v) => $v === null ? '—' : format_amount($v, 0);
-$showShopeeStock = $showShopeeStock ?? false;
-$shopeeStocksByWarehouse = $shopeeStocksByWarehouse ?? [];
-$shopeeFetchFailed = $shopeeFetchFailed ?? false;
-$showDualChannelStockMismatch = $showShopeeStock && ! empty($jubelioByWarehouse);
+$hasShopeeStock = $hasShopeeStock ?? false;
+$shopeeWarehouseStockUrl = $shopeeWarehouseStockUrl ?? null;
+$showDualChannelStockMismatch = $hasShopeeStock && ! empty($jubelioByWarehouse);
 @endphp
 
-<div class="p-4 sm:p-6" x-data="{ showZero: false, showVirtualWarehouses: false, showDeletedWarehouses: false, highlightDualStockMismatch: true, legacyModalOpen: {{ $errors->has('legacy_code') ? 'true' : 'false' }} }">
+<div class="p-4 sm:p-6" x-data="itemDetailPage(@js([
+    'shopeeWarehouseStockUrl' => $shopeeWarehouseStockUrl,
+    'hasShopeeStock' => $hasShopeeStock,
+    'legacyModalOpen' => $errors->has('legacy_code'),
+]))">
     {{-- Header --}}
     <div class="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
@@ -365,13 +368,22 @@ $showDualChannelStockMismatch = $showShopeeStock && ! empty($jubelioByWarehouse)
                     <h3 class="text-sm font-semibold uppercase tracking-wider text-gray-900">Warehouse Availability</h3>
                     @if($showDualChannelStockMismatch)
                     <label class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-amber-800"
+                           x-show="loadShopeeStock"
                            data-testid="highlight-dual-stock-mismatch-toggle">
                         <input type="checkbox" x-model="highlightDualStockMismatch" class="rounded border-amber-300 text-amber-600 focus:ring-amber-500">
                         Highlight Aria ≠ Jubelio &amp; Shopee
                     </label>
                     @endif
                 </div>
-                <div class="flex items-center gap-6">
+                <div class="flex flex-wrap items-center gap-4 sm:gap-6">
+                    @if($hasShopeeStock)
+                    <label class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-600"
+                           data-testid="item-detail-load-shopee">
+                        <input type="checkbox" x-model="loadShopeeStock" class="rounded border-gray-300 text-gray-800 focus:ring-gray-400">
+                        Load Shopee qty
+                        <span x-show="shopeeLoading" x-cloak class="font-normal normal-case text-gray-400">Loading…</span>
+                    </label>
+                    @endif
                     <label class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">
                         <input type="checkbox" x-model="showZero" class="rounded border-gray-300"> Show empty warehouses
                     </label>
@@ -394,19 +406,16 @@ $showDualChannelStockMismatch = $showShopeeStock && ! empty($jubelioByWarehouse)
                 </div>
             </div>
             <div class="p-6">
-                @if($shopeeFetchFailed && $showShopeeStock)
-                    <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" data-testid="shopee-stock-fetch-failed">
-                        Shopee stock could not be loaded. Check OAuth / connection in System Settings.
-                    </div>
-                @endif
+                <div x-show="loadShopeeStock && shopeeFetchFailed" x-cloak class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" data-testid="shopee-stock-fetch-failed">
+                    Shopee stock could not be loaded. Check OAuth / connection in System Settings.
+                </div>
                 @include('items.partials.warehouse-stock-grid', [
                     'warehouseItems' => $warehouseItems,
                     'showZero' => 'showZero',
                     'variant' => 'physical',
                     'testId' => 'item-availability',
                     'jubelioByWarehouse' => $jubelioByWarehouse,
-                    'showShopeeStock' => $showShopeeStock,
-                    'shopeeStocksByWarehouse' => $shopeeStocksByWarehouse,
+                    'hasShopeeStock' => $hasShopeeStock,
                 ])
 
                 @if($virtualWarehouseItems->isNotEmpty())
@@ -451,3 +460,153 @@ $showDualChannelStockMismatch = $showShopeeStock && ! empty($jubelioByWarehouse)
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+function itemDetailPage(options) {
+    return {
+        showZero: false,
+        showVirtualWarehouses: false,
+        showDeletedWarehouses: false,
+        highlightDualStockMismatch: true,
+        legacyModalOpen: !! options.legacyModalOpen,
+        hasShopeeStock: !! options.hasShopeeStock,
+        shopeeWarehouseStockUrl: options.shopeeWarehouseStockUrl ?? '',
+        loadShopeeStock: false,
+        shopeeLoading: false,
+        shopeeFetchToken: 0,
+        shopeeStocksByWarehouse: {},
+        shopeeFetchFailed: false,
+        init() {
+            if (this.hasShopeeStock) {
+                this.$watch('loadShopeeStock', (value) => {
+                    if (value) {
+                        this.fetchShopeeWarehouseStock();
+                    } else {
+                        this.shopeeFetchToken++;
+                        this.shopeeStocksByWarehouse = {};
+                        this.shopeeLoading = false;
+                        this.shopeeFetchFailed = false;
+                        window.dispatchEvent(new CustomEvent('shopee-stock-updated'));
+                    }
+                });
+            }
+        },
+        async fetchShopeeWarehouseStock() {
+            if (! this.hasShopeeStock || ! this.shopeeWarehouseStockUrl) {
+                return;
+            }
+
+            const token = ++this.shopeeFetchToken;
+            this.shopeeLoading = true;
+            this.shopeeFetchFailed = false;
+
+            try {
+                const response = await fetch(this.shopeeWarehouseStockUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]')?.content ?? '',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+
+                if (! response.ok) {
+                    throw new Error('Shopee stock request failed');
+                }
+
+                const data = await response.json();
+                if (token !== this.shopeeFetchToken) {
+                    return;
+                }
+
+                this.shopeeStocksByWarehouse = data.by_warehouse ?? {};
+                this.shopeeFetchFailed = !! data.fetch_failed;
+            } catch (e) {
+                if (token !== this.shopeeFetchToken) {
+                    return;
+                }
+                this.shopeeFetchFailed = true;
+                this.shopeeStocksByWarehouse = {};
+            } finally {
+                if (token === this.shopeeFetchToken) {
+                    this.shopeeLoading = false;
+                    window.dispatchEvent(new CustomEvent('shopee-stock-updated'));
+                }
+            }
+        },
+        formatMarketplaceQty(value) {
+            if (value === null || value === undefined) {
+                return '—';
+            }
+
+            return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(value);
+        },
+        shopeeQtyCell(warehouseId, field, highlightMismatch = false) {
+            if (! this.loadShopeeStock) {
+                return '';
+            }
+            if (this.shopeeLoading && ! this.shopeeStocksByWarehouse[warehouseId]) {
+                return '<span class="text-gray-400">…</span>';
+            }
+
+            const shopee = this.shopeeStocksByWarehouse[warehouseId];
+            if (! shopee?.has_sync) {
+                return '<span class="text-gray-300">—</span>';
+            }
+
+            const value = shopee[field];
+            if (value === null || value === undefined) {
+                return '<span class="text-gray-300">—</span>';
+            }
+
+            let classes = 'font-mono tabular-nums';
+            if (highlightMismatch && shopee.mismatch) {
+                classes += ' font-semibold text-red-600';
+            } else {
+                classes += ' text-gray-700';
+            }
+
+            return '<span class="' + classes + '">' + this.formatMarketplaceQty(value) + '</span>';
+        },
+        shopeeSumValue(warehouseId, field) {
+            const shopee = this.shopeeStocksByWarehouse[warehouseId];
+            const value = shopee?.[field];
+
+            return value !== null && value !== undefined ? String(value) : '';
+        },
+        shopeeCopyValue(warehouseId, field) {
+            const shopee = this.shopeeStocksByWarehouse[warehouseId];
+            const value = shopee?.[field];
+
+            return value !== null && value !== undefined
+                ? this.formatMarketplaceQty(value)
+                : '';
+        },
+        qtyDiffers(a, b) {
+            if (b === null || b === undefined) {
+                return false;
+            }
+
+            return Math.abs(Number(a) - Number(b)) > 0.0001;
+        },
+        dualStockRowClass(warehouseId, ariaQty, jubelioOnHand, jubelioLinked) {
+            if (! this.highlightDualStockMismatch || ! this.loadShopeeStock || ! jubelioLinked) {
+                return '';
+            }
+
+            const shopee = this.shopeeStocksByWarehouse[warehouseId];
+            if (! shopee?.has_sync || shopee.sellable === null) {
+                return '';
+            }
+
+            if (this.qtyDiffers(ariaQty, jubelioOnHand) && this.qtyDiffers(ariaQty, shopee.sellable)) {
+                return 'bg-amber-50 ring-1 ring-inset ring-amber-200';
+            }
+
+            return '';
+        },
+    };
+}
+</script>
+@endpush
