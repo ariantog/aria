@@ -201,7 +201,7 @@ class ItemsController extends Controller
         }
     }
 
-    public function show(Item $item, ItemJubelioStockService $jubelioStockService, WarehouseShopeeStockService $shopeeStockService)
+    public function show(Item $item, ItemJubelioStockService $jubelioStockService)
     {
         $item->load([
             'group',
@@ -217,16 +217,13 @@ class ItemsController extends Controller
         $jubelioTotal = $jubelioDetail['total'];
         $jubelioByWarehouse = $jubelioDetail['by_warehouse'];
 
-        $showShopeeStock = (int) $item->shopee_item_id > 0
+        $hasShopeeStock = (int) $item->shopee_item_id > 0
             && Gate::check(ShopeeStock::getPermissions()['view']);
-        $shopeeStocksByWarehouse = [];
-        $shopeeFetchFailed = false;
-
-        if ($showShopeeStock) {
-            $shopeeData = $shopeeStockService->stockDataForItemByWarehouses($item, $stock['physical']);
-            $shopeeStocksByWarehouse = $shopeeData['by_warehouse'];
-            $shopeeFetchFailed = $shopeeData['fetch_failed'];
-        }
+        $shopeeWarehouseStockUrl = $hasShopeeStock
+            ? ($item->type === ItemType::ASSET_LANCAR
+                ? route('assetlancar.shopee-warehouse-stock', $item)
+                : route('items.shopee-warehouse-stock', $item))
+            : null;
 
         $canViewGroup = Gate::check(ItemGroup::getPermissions()['view']);
         $canEditColorway = Gate::check(ItemGroup::getPermissions()['edit']);
@@ -259,10 +256,35 @@ class ItemsController extends Controller
                     ? Item::getPermissions()['asset-lancar-delete']
                     : Item::getPermissions()['delete']
             ),
-            'showShopeeStock' => $showShopeeStock,
-            'shopeeStocksByWarehouse' => $shopeeStocksByWarehouse,
-            'shopeeFetchFailed' => $shopeeFetchFailed,
+            'hasShopeeStock' => $hasShopeeStock,
+            'shopeeWarehouseStockUrl' => $shopeeWarehouseStockUrl,
         ]);
+    }
+
+    public function itemShopeeWarehouseStock(Item $item, WarehouseShopeeStockService $shopeeStockService)
+    {
+        $permissions = Item::getPermissions();
+        Gate::authorize($item->type === ItemType::ASSET_LANCAR ? $permissions['asset-lancar-view'] : $permissions['view']);
+        Gate::authorize(ShopeeStock::getPermissions()['view']);
+
+        if ((int) $item->shopee_item_id <= 0) {
+            return response()->json([
+                'by_warehouse' => [],
+                'fetch_failed' => false,
+            ]);
+        }
+
+        $item->load([
+            'warehouseItems' => fn ($q) => $q
+                ->forWarehouseAddrbooks(withTrashed: true)
+                ->orderBy('warehouse_id'),
+        ]);
+
+        $stock = $this->itemAvailability->partitionWarehouseItems($item->warehouseItems);
+
+        return response()->json(
+            $shopeeStockService->stockDataForItemByWarehouses($item, $stock['physical'])
+        );
     }
 
     public function updateLegacyCode(Request $request, Item $item)

@@ -17,10 +17,51 @@ beforeEach(function () {
     app(PermissionGenerator::class)->generateForModule('ShopeeStock');
     app(PermissionGenerator::class)->generateForModule('Item');
     Permission::findOrCreate('items-list', 'web');
-    Permission::findOrCreate('assetlancar-list', 'web');
+    Permission::findOrCreate('assetLancar-list', 'web');
 });
 
-it('shows shopee qty columns on item show when linked and mapped', function () {
+it('does not fetch shopee on item show until user loads stock', function () {
+    User::factory()->create();
+    $user = User::factory()->create();
+    $user->givePermissionTo(['items-list', 'shopee-stock-view']);
+
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang SP Detail']);
+    Shopeesync::create([
+        'warehouse_id' => $warehouse->id,
+        'shop_id' => 0,
+        'shopee_location_id' => 'IDZ',
+        'shopee_warehouse_id' => 99,
+        'shopee_warehouse_name' => 'Pickup WH',
+    ]);
+
+    $item = Item::factory()->create([
+        'code' => 'SP-DETAIL-M',
+        'shopee_item_id' => 555101,
+        'shopee_model_id' => 777101,
+    ]);
+
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $item->id,
+        'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 4,
+    ]);
+
+    $this->mock(ShopeeStockApiService::class, function ($mock) {
+        $mock->shouldReceive('isReady')->andReturn(true);
+        $mock->shouldNotReceive('modelsByItemIds');
+    });
+
+    $this->actingAs($user)
+        ->get(route('items.show', $item))
+        ->assertOk()
+        ->assertSee('Load Shopee qty', false)
+        ->assertSee('data-testid="item-detail-load-shopee"', false)
+        ->assertSee('SP sell', false)
+        ->assertSee('Gudang SP Detail', false);
+});
+
+it('returns shopee warehouse stock for item detail when requested', function () {
     User::factory()->create();
     $user = User::factory()->create();
     $user->givePermissionTo(['items-list', 'shopee-stock-view']);
@@ -68,19 +109,18 @@ it('shows shopee qty columns on item show when linked and mapped', function () {
             ]);
     });
 
-    $this->actingAs($user)
-        ->get(route('items.show', $item))
-        ->assertOk()
-        ->assertSee('SP sell', false)
-        ->assertSee('SP rsv', false)
-        ->assertSee('data-copy-col="sp_sellable"', false)
-        ->assertSee('Gudang SP Detail', false);
+    $response = $this->actingAs($user)
+        ->postJson(route('items.shopee-warehouse-stock', $item))
+        ->assertOk();
+
+    expect($response->json('by_warehouse.'.$warehouse->id.'.sellable'))->toEqual(4)
+        ->and($response->json('by_warehouse.'.$warehouse->id.'.reserved'))->toEqual(2);
 });
 
-it('shows shopee qty columns on asset lancar show when linked', function () {
+it('shows load shopee qty on asset lancar show when linked', function () {
     User::factory()->create();
     $user = User::factory()->create();
-    $user->givePermissionTo(['assetlancar-list', 'shopee-stock-view']);
+    $user->givePermissionTo(['assetLancar-list', 'shopee-stock-view']);
 
     $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Aset SP']);
     Shopeesync::create([
@@ -106,33 +146,16 @@ it('shows shopee qty columns on asset lancar show when linked', function () {
     ]);
 
     $this->mock(ShopeeStockApiService::class, function ($mock) {
-        $mock->shouldReceive('isReady')->andReturn(true);
-        $mock->shouldReceive('modelsByItemIds')
-            ->once()
-            ->with([555102])
-            ->andReturn([
-                555102 => [
-                    [
-                        'model_id' => 777102,
-                        'model_sku' => 'ASSET-SP-M',
-                        'stock_info_v2' => [
-                            'summary_info' => ['total_reserved_stock' => 0],
-                            'seller_stock' => [
-                                ['location_id' => 'LOC1', 'stock' => 3],
-                            ],
-                        ],
-                    ],
-                ],
-            ]);
+        $mock->shouldNotReceive('modelsByItemIds');
     });
 
     $this->actingAs($user)
         ->get(route('assetlancar.show', $item))
         ->assertOk()
-        ->assertSee('data-copy-col="sp_sellable"', false);
+        ->assertSee('data-testid="item-detail-load-shopee"', false);
 });
 
-it('highlights warehouse row when aria qty differs from jubelio on hand and shopee sellable', function () {
+it('exposes dual-stock mismatch helpers when jubelio and shopee are linked', function () {
     User::factory()->create();
     $user = User::factory()->create();
     $user->givePermissionTo(['items-list', 'shopee-stock-view']);
@@ -194,32 +217,15 @@ it('highlights warehouse row when aria qty differs from jubelio on hand and shop
     });
 
     $this->mock(ShopeeStockApiService::class, function ($mock) {
-        $mock->shouldReceive('isReady')->andReturn(true);
-        $mock->shouldReceive('modelsByItemIds')
-            ->once()
-            ->with([555201])
-            ->andReturn([
-                555201 => [
-                    [
-                        'model_id' => 777201,
-                        'model_sku' => 'DUAL-MISMATCH-M',
-                        'stock_info_v2' => [
-                            'summary_info' => ['total_reserved_stock' => 0],
-                            'seller_stock' => [
-                                ['location_id' => 'IDZ', 'stock' => 6],
-                            ],
-                        ],
-                    ],
-                ],
-            ]);
+        $mock->shouldNotReceive('modelsByItemIds');
     });
 
     $this->actingAs($user)
         ->get(route('items.show', $item))
         ->assertOk()
         ->assertSee('data-testid="highlight-dual-stock-mismatch-toggle"', false)
-        ->assertSee('data-dual-stock-mismatch="1"', false)
-        ->assertSee('highlightDualStockMismatch', false);
+        ->assertSee('dualStockRowClass', false)
+        ->assertSee('loadShopeeStock', false);
 });
 
 it('hides shopee columns on item show without shopee-stock-view permission', function () {
@@ -235,5 +241,61 @@ it('hides shopee columns on item show without shopee-stock-view permission', fun
     $this->actingAs($user)
         ->get(route('items.show', $item))
         ->assertOk()
+        ->assertDontSee('data-testid="item-detail-load-shopee"', false)
         ->assertDontSee('data-copy-col="sp_sellable"', false);
+});
+
+it('fetches shopee stock for asset lancar via dedicated route', function () {
+    User::factory()->create();
+    $user = User::factory()->create();
+    $user->givePermissionTo(['assetLancar-list', 'shopee-stock-view']);
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    Shopeesync::create([
+        'warehouse_id' => $warehouse->id,
+        'shop_id' => 0,
+        'shopee_location_id' => 'LOC1',
+        'shopee_warehouse_id' => 1,
+        'shopee_warehouse_name' => 'WH',
+    ]);
+
+    $item = Item::factory()->create([
+        'type' => ItemType::ASSET_LANCAR,
+        'code' => 'ASSET-SP-API',
+        'shopee_item_id' => 555103,
+        'shopee_model_id' => 777103,
+    ]);
+
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $item->id,
+        'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 3,
+    ]);
+
+    $this->mock(ShopeeStockApiService::class, function ($mock) {
+        $mock->shouldReceive('isReady')->andReturn(true);
+        $mock->shouldReceive('modelsByItemIds')
+            ->once()
+            ->with([555103])
+            ->andReturn([
+                555103 => [
+                    [
+                        'model_id' => 777103,
+                        'model_sku' => 'ASSET-SP-API',
+                        'stock_info_v2' => [
+                            'summary_info' => ['total_reserved_stock' => 0],
+                            'seller_stock' => [
+                                ['location_id' => 'LOC1', 'stock' => 3],
+                            ],
+                        ],
+                    ],
+                ],
+            ]);
+    });
+
+    $this->actingAs($user)
+        ->postJson(route('assetlancar.shopee-warehouse-stock', $item))
+        ->assertOk()
+        ->assertJsonPath('by_warehouse.'.$warehouse->id.'.sellable', 3);
 });

@@ -104,6 +104,7 @@ Route::middleware(['auth', 'verified', 'active', 'enforce.readonly'])->group(fun
     Route::post('items/{item}/shopee-link', [App\Http\Controllers\ItemsController::class, 'updateShopeeLink'])->name('items.shopee-link');
     Route::post('items/{item}/convert-identity', [App\Http\Controllers\ItemIdentityConvertController::class, 'store'])->name('items.convert-identity');
     Route::post('items/{item}/recalculate-qty', [App\Http\Controllers\ItemsController::class, 'recalculateQuantity'])->name('items.recalculate-qty');
+    Route::post('items/{item}/shopee-warehouse-stock', [App\Http\Controllers\ItemsController::class, 'itemShopeeWarehouseStock'])->name('items.shopee-warehouse-stock');
     Route::patch('items/{item}/legacy-code', [App\Http\Controllers\ItemsController::class, 'updateLegacyCode'])->name('items.update-legacy-code');
     Route::get('items/{item}/duplicate', [App\Http\Controllers\ItemsController::class, 'duplicate'])->name('items.duplicate');
     Route::resource('items', App\Http\Controllers\ItemsController::class);
@@ -313,6 +314,7 @@ Route::middleware(['auth', 'verified', 'active', 'enforce.readonly'])->group(fun
     Route::get('assetlancar/{item}/stats', [App\Http\Controllers\ItemsController::class, 'itemStats'])->name('assetlancar.stats');
     Route::post('assetlancar/{item}/convert-identity', [App\Http\Controllers\ItemIdentityConvertController::class, 'store'])->name('assetlancar.convert-identity');
     Route::post('assetlancar/{item}/recalculate-qty', [App\Http\Controllers\ItemsController::class, 'recalculateQuantity'])->name('assetlancar.recalculate-qty');
+    Route::post('assetlancar/{item}/shopee-warehouse-stock', [App\Http\Controllers\ItemsController::class, 'itemShopeeWarehouseStock'])->name('assetlancar.shopee-warehouse-stock');
     Route::patch('assetlancar/{item}/legacy-code', [App\Http\Controllers\ItemsController::class, 'updateLegacyCode'])->name('assetlancar.update-legacy-code');
     Route::get('assetlancar/{item}/duplicate', [App\Http\Controllers\ItemsController::class, 'duplicateAsset'])->name('assetlancar.duplicate');
 
