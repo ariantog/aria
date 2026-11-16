@@ -29,8 +29,8 @@ class StoreInvoiceCashInRequest extends FormRequest
             $senderId = (int) $this->input('sender_id');
             if ($senderId > 0) {
                 $sender = Addrbook::query()->find($senderId);
-                if (! $sender || ! in_array((int) $sender->type, Addrbook::cashPartyTypes(), true)) {
-                    $validator->errors()->add('sender_id', 'Select a customer, reseller, supplier, or ledger account.');
+                if (! $sender || ! in_array((int) $sender->type, Addrbook::invoiceCashInSenderTypes(), true)) {
+                    $validator->errors()->add('sender_id', 'Select a customer or reseller.');
                 }
             }
 

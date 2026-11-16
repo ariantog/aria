@@ -8,7 +8,9 @@
     $cashPartyLookupUrl = route('transactions.lookup', [
         'type' => 'cash-in',
         'role' => 'sender',
-        'addrbook_type' => Addrbook::cashPartyTypes(),
+        'addrbook_type' => $invoiceOnly
+            ? Addrbook::invoiceCashInSenderTypes()
+            : Addrbook::cashPartyTypes(),
     ]);
     $initialSender = null;
     if (old('sender_id')) {
@@ -138,7 +140,7 @@
                 <input type="hidden" name="sender_id" x-model="senderId">
                 <div x-data="asyncCombobox({
                     endpoint: @js($cashPartyLookupUrl),
-                    placeholder: 'Search customer, reseller, supplier, or ledger…',
+                    placeholder: 'Search customer or reseller…',
                     initial: @js($initialSender),
                     onSelect: (item) => { senderId = item ? String(item.id) : ''; }
                 })" class="relative">

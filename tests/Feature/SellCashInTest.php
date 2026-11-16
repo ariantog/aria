@@ -514,7 +514,34 @@ it('shows a cash in form on invoice maker when no sell is linked yet', function 
         ->assertSee('data-testid="sell-cash-in-bank"', false)
         ->assertSee('data-testid="sell-cash-in-sender"', false)
         ->assertSee('data-testid="sell-cash-in-submit"', false)
-        ->assertSee('amount: 5400000', false);
+        ->assertSee('amount: 5400000', false)
+        ->assertSee('Search customer or reseller', false)
+        ->assertSee('addrbook_type%5B0%5D=1', false)
+        ->assertSee('addrbook_type%5B1%5D=7', false);
+});
+
+it('rejects invoice maker cash in from a supplier sender', function () {
+    $supplier = Addrbook::factory()->create(['type' => Addrbook::TYPE_SUPPLIER, 'name' => 'PT Supplier']);
+    $invoice = StandaloneInvoice::factory()->create([
+        'number' => 'INV/CA/2026/0045',
+        'subtotal' => 1_000_000,
+        'discount_amount' => 0,
+        'user_id' => $this->user->id,
+    ]);
+    StandaloneInvoiceLine::factory()->create([
+        'standalone_invoice_id' => $invoice->id,
+        'quantity' => 1,
+        'price' => 1_000_000,
+        'total' => 1_000_000,
+    ]);
+
+    $this->actingAs($this->user)
+        ->post(route('invoice-maker.cash-in.store', $invoice), [
+            'sender_id' => $supplier->id,
+            'amount' => 500_000,
+            'account_id' => $this->bank->id,
+        ])
+        ->assertSessionHasErrors('sender_id');
 });
 
 it('creates cash in from invoice maker without a linked sell', function () {
