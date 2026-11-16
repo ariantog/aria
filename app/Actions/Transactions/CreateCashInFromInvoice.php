@@ -22,9 +22,9 @@ class CreateCashInFromInvoice
     public function execute(StandaloneInvoice $invoice, array $data): Transaction
     {
         $contact = Addrbook::query()->find((int) $data['sender_id']);
-        if (! $contact || ! in_array((int) $contact->type, Addrbook::cashPartyTypes(), true)) {
+        if (! $contact || ! in_array((int) $contact->type, Addrbook::invoiceCashInSenderTypes(), true)) {
             throw ValidationException::withMessages([
-                'sender_id' => ['Select a customer, reseller, supplier, or ledger account.'],
+                'sender_id' => ['Select a customer or reseller.'],
             ]);
         }
 
