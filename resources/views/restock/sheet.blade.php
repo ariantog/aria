@@ -67,40 +67,63 @@
     .restock-grid-wrap .tabulator .tabulator-row {
         background: transparent;
     }
-    /* Light mode: high-contrast pipeline stage headers (dark mode rules below stay unchanged). */
+    /* Light pipeline headers: tied to Appearance (restock-pipeline-light), not only html.dark. */
+    .restock-grid-wrap.restock-pipeline-light .tabulator .tabulator-header .tabulator-col.tabulator-col-group-restock,
+    .restock-grid-wrap.restock-pipeline-light .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-restock,
+    .restock-grid-wrap.restock-pipeline-light.restock-grid-flat .tabulator .tabulator-header .tabulator-col.restock-col-restock,
     html:not(.dark) .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group-restock,
     html:not(.dark) .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-restock,
     html:not(.dark) .restock-grid-flat .tabulator .tabulator-header .tabulator-col.restock-col-restock {
         background-color: #dbeafe !important;
-        color: #1e3a8a;
-        border-bottom: 1px solid #93c5fd;
+        color: #1e3a8a !important;
+        border-bottom: 1px solid #93c5fd !important;
     }
+    .restock-grid-wrap.restock-pipeline-light .tabulator .tabulator-header .tabulator-col.tabulator-col-group-production,
+    .restock-grid-wrap.restock-pipeline-light .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-production,
+    .restock-grid-wrap.restock-pipeline-light.restock-grid-flat .tabulator .tabulator-header .tabulator-col.restock-col-production,
     html:not(.dark) .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group-production,
     html:not(.dark) .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-production,
     html:not(.dark) .restock-grid-flat .tabulator .tabulator-header .tabulator-col.restock-col-production {
         background-color: #fef3c7 !important;
-        color: #92400e;
-        border-bottom: 1px solid #fcd34d;
+        color: #92400e !important;
+        border-bottom: 1px solid #fcd34d !important;
     }
+    .restock-grid-wrap.restock-pipeline-light .tabulator .tabulator-header .tabulator-col.tabulator-col-group-shipped,
+    .restock-grid-wrap.restock-pipeline-light .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-shipped,
+    .restock-grid-wrap.restock-pipeline-light.restock-grid-flat .tabulator .tabulator-header .tabulator-col.restock-col-shipped,
     html:not(.dark) .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group-shipped,
     html:not(.dark) .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-shipped,
     html:not(.dark) .restock-grid-flat .tabulator .tabulator-header .tabulator-col.restock-col-shipped {
         background-color: #f3f4f6 !important;
-        color: #1f2937;
-        border-bottom: 1px solid #d1d5db;
+        color: #1f2937 !important;
+        border-bottom: 1px solid #d1d5db !important;
     }
+    .restock-grid-wrap.restock-pipeline-light .tabulator .tabulator-header .tabulator-col.tabulator-col-group-stock,
+    .restock-grid-wrap.restock-pipeline-light .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-stock,
+    .restock-grid-wrap.restock-pipeline-light.restock-grid-flat .tabulator .tabulator-header .tabulator-col.restock-col-stock,
     html:not(.dark) .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group-stock,
     html:not(.dark) .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-stock,
     html:not(.dark) .restock-grid-flat .tabulator .tabulator-header .tabulator-col.restock-col-stock {
         background-color: #d1fae5 !important;
-        color: #065f46;
-        border-bottom: 1px solid #6ee7b7;
+        color: #065f46 !important;
+        border-bottom: 1px solid #6ee7b7 !important;
     }
+    .restock-grid-wrap.restock-pipeline-light .tabulator .tabulator-header .tabulator-col[class*="tabulator-col-group-"] .tabulator-col-title,
+    .restock-grid-wrap.restock-pipeline-light .tabulator .tabulator-header .tabulator-col[class*="restock-col-"] .tabulator-col-title,
     html:not(.dark) .restock-grid-wrap .tabulator .tabulator-header .tabulator-col[class*="tabulator-col-group-"] .tabulator-col-title,
     html:not(.dark) .restock-grid-flat .tabulator .tabulator-header .tabulator-col[class*="restock-col-"] .tabulator-col-title {
-        color: inherit;
+        color: inherit !important;
         font-weight: 700;
     }
+    /* Light appearance overrides sitewide dark class for pipeline headers only. */
+    html.dark .restock-grid-wrap.restock-pipeline-light .tabulator .tabulator-header .tabulator-col.tabulator-col-group-restock,
+    html.dark .restock-grid-wrap.restock-pipeline-light .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-restock { background-color: #dbeafe !important; color: #1e3a8a !important; border-bottom: 1px solid #93c5fd !important; }
+    html.dark .restock-grid-wrap.restock-pipeline-light .tabulator .tabulator-header .tabulator-col.tabulator-col-group-production,
+    html.dark .restock-grid-wrap.restock-pipeline-light .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-production { background-color: #fef3c7 !important; color: #92400e !important; border-bottom: 1px solid #fcd34d !important; }
+    html.dark .restock-grid-wrap.restock-pipeline-light .tabulator .tabulator-header .tabulator-col.tabulator-col-group-shipped,
+    html.dark .restock-grid-wrap.restock-pipeline-light .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-shipped { background-color: #f3f4f6 !important; color: #1f2937 !important; border-bottom: 1px solid #d1d5db !important; }
+    html.dark .restock-grid-wrap.restock-pipeline-light .tabulator .tabulator-header .tabulator-col.tabulator-col-group-stock,
+    html.dark .restock-grid-wrap.restock-pipeline-light .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-stock { background-color: #d1fae5 !important; color: #065f46 !important; border-bottom: 1px solid #6ee7b7 !important; }
     .restock-grid-matrix .tabulator .tabulator-header .tabulator-col.restock-col-restock:not(.tabulator-col-group),
     .restock-grid-matrix .tabulator .tabulator-header .tabulator-col.restock-col-production:not(.tabulator-col-group),
     .restock-grid-matrix .tabulator .tabulator-header .tabulator-col.restock-col-shipped:not(.tabulator-col-group),
@@ -242,6 +265,7 @@
 
 @section('content')
 @php
+$restockPipelineLightHeaders = ($appearance ?? 'system') === 'light';
 $breadcrumbs = [
     ['title' => 'Stuff', 'href' => '#'],
     ['title' => 'Restock', 'href' => route('restock.index')],
@@ -344,7 +368,7 @@ $breadcrumbs = [
                     <h2 class="text-sm font-semibold text-gray-700">{{ $block['title'] }}</h2>
                 </div>
             @endif
-            <div class="restock-grid-wrap restock-grid-{{ $block['kind'] }} p-2" data-testid="restock-grid-scroll-wrap">
+            <div class="restock-grid-wrap restock-grid-{{ $block['kind'] }} p-2 @if($restockPipelineLightHeaders) restock-pipeline-light @endif" data-testid="restock-grid-scroll-wrap">
                 <div data-block-grid="{{ $block['id'] }}" data-block-kind="{{ $block['kind'] }}"></div>
             </div>
             <p class="border-t border-gray-100 px-4 py-1.5 text-xs text-gray-500">
@@ -463,12 +487,64 @@ function restockSheetPage() {
         },
         flash: '',
         error: '',
+        appearance: @json($appearance ?? 'system'),
+
+        restockPipelineThemeIsLight() {
+            if (this.appearance === 'light') {
+                return true;
+            }
+            if (this.appearance === 'dark') {
+                return false;
+            }
+            return !window.matchMedia('(prefers-color-scheme: dark)').matches;
+        },
+
+        syncRestockGridWrapTheme() {
+            const light = this.restockPipelineThemeIsLight();
+            document.querySelectorAll('.restock-grid-wrap').forEach((wrap) => {
+                wrap.classList.toggle('restock-pipeline-light', light);
+            });
+        },
+
+        applyPipelineHeaderStyles(table) {
+            const wrap = table.element.closest('.restock-grid-wrap');
+            if (!wrap?.classList.contains('restock-pipeline-light')) {
+                return;
+            }
+
+            const stages = {
+                restock: { bg: '#dbeafe', color: '#1e3a8a', border: '#93c5fd' },
+                production: { bg: '#fef3c7', color: '#92400e', border: '#fcd34d' },
+                shipped: { bg: '#f3f4f6', color: '#1f2937', border: '#d1d5db' },
+                stock: { bg: '#d1fae5', color: '#065f46', border: '#6ee7b7' },
+            };
+            const isFlat = wrap.classList.contains('restock-grid-flat');
+
+            for (const [key, style] of Object.entries(stages)) {
+                const selector = isFlat
+                    ? `.tabulator-header .tabulator-col.restock-col-${key}`
+                    : `.tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-${key}`;
+
+                wrap.querySelectorAll(selector).forEach((col) => {
+                    col.style.setProperty('background-color', style.bg, 'important');
+                    col.style.setProperty('color', style.color, 'important');
+                    col.style.setProperty('border-bottom', `1px solid ${style.border}`, 'important');
+                    const title = col.querySelector('.tabulator-col-title');
+                    if (title) {
+                        title.style.setProperty('color', style.color, 'important');
+                        title.style.fontWeight = '700';
+                    }
+                });
+            }
+        },
 
         init() {
             if (typeof Tabulator === 'undefined') {
                 this.error = 'Grid library failed to load. Try refreshing the page.';
                 return;
             }
+
+            this.syncRestockGridWrapTheme();
 
             this.$nextTick(() => {
                 for (const block of this.grid.blocks ?? []) {
@@ -507,6 +583,7 @@ function restockSheetPage() {
                             this.collapseMatrixSubHeader(table);
                         }
                         this.releaseTabulatorInternalScroll(table);
+                        this.applyPipelineHeaderStyles(table);
                     });
                     table.on('rowSelectionChanged', () => {
                         this.syncSelectionCount();
