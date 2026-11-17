@@ -513,7 +513,8 @@ test('sheet show page includes unified tabulator block grids', function () {
         ->assertSee('data-testid="restock-image-preview-dialog"', false)
         ->assertSee('Export Excel', false)
         ->assertSee('Stock', false)
-        ->assertSee('restock-data-row.tabulator-selected', false);
+        ->assertSee('restock-data-row.tabulator-selected', false)
+        ->assertSee('html:not(.dark) .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group-restock', false);
 });
 
 test('grid includes warehouse stock from configured warehouses', function () {
