@@ -24,6 +24,22 @@ test('mobile login rejects invalid credentials', function () {
         ->assertJsonValidationErrors(['username']);
 });
 
+test('mobile login returns json when Accept header is omitted', function () {
+    User::factory()->create([
+        'username' => 'mobuser',
+    ]);
+
+    $response = $this->post('/api/mobile/v1/auth/login', [
+        'username' => 'mobuser',
+        'password' => 'wrong-password',
+    ], [
+        'Content-Type' => 'application/json',
+    ]);
+
+    $response->assertUnprocessable()
+        ->assertJsonValidationErrors(['username']);
+});
+
 test('mobile login returns token', function () {
     User::factory()->create([
         'username' => 'mobuser',

@@ -237,7 +237,18 @@ class AriaApi {
     if (r.body.isEmpty) {
       return null;
     }
-    return jsonDecode(utf8.decode(r.bodyBytes));
+    final body = utf8.decode(r.bodyBytes).trimLeft();
+    if (body.startsWith('<')) {
+      throw AriaApiException(
+        'Server returned HTML instead of JSON. Check the base URL (https://your-host only, no /api path) or ask IT to deploy the latest API.',
+        statusCode: r.statusCode,
+      );
+    }
+    try {
+      return jsonDecode(body);
+    } on FormatException {
+      throw AriaApiException('Invalid JSON from server (HTTP ${r.statusCode}).', statusCode: r.statusCode);
+    }
   }
 
   static Map<String, dynamic> _decodeObject(http.Response r) {
@@ -287,7 +298,7 @@ class AriaApi {
       headers: const {'Accept': 'application/json', 'Content-Type': 'application/json'},
       body: jsonEncode(body),
     );
-    final j = jsonDecode(utf8.decode(r.bodyBytes));
+    final j = _decodeJson(r);
     if (r.statusCode == 428 && j is Map<String, dynamic> && j['two_factor'] == true) {
       throw AriaApiException('two_factor_required', statusCode: 428);
     }

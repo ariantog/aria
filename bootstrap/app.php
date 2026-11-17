@@ -27,6 +27,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'tiktok-shop/mock/*',
         ]);
 
+        $middleware->api(prepend: [
+            \App\Http\Middleware\EnsureApiRequestsPreferJson::class,
+        ]);
+
         $middleware->web(append: [
             HandleAppearance::class,
             AddLinkHeadersForPreloadedAssets::class,
