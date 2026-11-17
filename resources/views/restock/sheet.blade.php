@@ -67,20 +67,46 @@
     .restock-grid-wrap .tabulator .tabulator-row {
         background: transparent;
     }
-    .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-restock { background: #dbeafe; }
-    .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-production { background: #fde68a; }
-    .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-shipped { background: #e5e7eb; }
-    .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-stock { background: #d1fae5; }
+    /* Light mode: high-contrast pipeline stage headers (dark mode rules below stay unchanged). */
+    html:not(.dark) .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group-restock,
+    html:not(.dark) .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-restock,
+    html:not(.dark) .restock-grid-flat .tabulator .tabulator-header .tabulator-col.restock-col-restock {
+        background-color: #dbeafe !important;
+        color: #1e3a8a;
+        border-bottom: 1px solid #93c5fd;
+    }
+    html:not(.dark) .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group-production,
+    html:not(.dark) .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-production,
+    html:not(.dark) .restock-grid-flat .tabulator .tabulator-header .tabulator-col.restock-col-production {
+        background-color: #fef3c7 !important;
+        color: #92400e;
+        border-bottom: 1px solid #fcd34d;
+    }
+    html:not(.dark) .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group-shipped,
+    html:not(.dark) .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-shipped,
+    html:not(.dark) .restock-grid-flat .tabulator .tabulator-header .tabulator-col.restock-col-shipped {
+        background-color: #f3f4f6 !important;
+        color: #1f2937;
+        border-bottom: 1px solid #d1d5db;
+    }
+    html:not(.dark) .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group-stock,
+    html:not(.dark) .restock-grid-wrap .tabulator .tabulator-header .tabulator-col.tabulator-col-group.tabulator-col-group-stock,
+    html:not(.dark) .restock-grid-flat .tabulator .tabulator-header .tabulator-col.restock-col-stock {
+        background-color: #d1fae5 !important;
+        color: #065f46;
+        border-bottom: 1px solid #6ee7b7;
+    }
+    html:not(.dark) .restock-grid-wrap .tabulator .tabulator-header .tabulator-col[class*="tabulator-col-group-"] .tabulator-col-title,
+    html:not(.dark) .restock-grid-flat .tabulator .tabulator-header .tabulator-col[class*="restock-col-"] .tabulator-col-title {
+        color: inherit;
+        font-weight: 700;
+    }
     .restock-grid-matrix .tabulator .tabulator-header .tabulator-col.restock-col-restock:not(.tabulator-col-group),
     .restock-grid-matrix .tabulator .tabulator-header .tabulator-col.restock-col-production:not(.tabulator-col-group),
     .restock-grid-matrix .tabulator .tabulator-header .tabulator-col.restock-col-shipped:not(.tabulator-col-group),
     .restock-grid-matrix .tabulator .tabulator-header .tabulator-col.restock-col-stock:not(.tabulator-col-group) {
         background: transparent !important;
     }
-    .restock-grid-flat .tabulator .tabulator-header .tabulator-col.restock-col-restock { background: #dbeafe; }
-    .restock-grid-flat .tabulator .tabulator-header .tabulator-col.restock-col-production { background: #fde68a; }
-    .restock-grid-flat .tabulator .tabulator-header .tabulator-col.restock-col-shipped { background: #e5e7eb; }
-    .restock-grid-flat .tabulator .tabulator-header .tabulator-col.restock-col-stock { background: #d1fae5; }
 
     /* Matrix: hide nested sub-col headers (Tabulator 6 col-group-cols); keep inline-flex layout */
     .restock-grid-matrix .tabulator-header .tabulator-col.tabulator-col-group .tabulator-col-group-cols {
