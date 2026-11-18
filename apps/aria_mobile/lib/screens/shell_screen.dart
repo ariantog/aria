@@ -85,15 +85,33 @@ class _ShellScreenState extends State<ShellScreen> {
     }
   }
 
+  bool _canCreateTransactions(List<String> actions) {
+    return actions.any((a) =>
+        ['sell', 'buy', 'move', 'cash_in', 'cash_out', 'transfer'].contains(a));
+  }
+
   Widget? _buildFab() {
     final actions = _mobileActions();
     final canPos = actions.contains('pos');
-    final canCreate = actions.any((a) =>
-        ['sell', 'buy', 'move', 'cash_in', 'cash_out', 'transfer'].contains(a));
+    final canCreate = _canCreateTransactions(actions);
     final canScan = actions.contains('scan_resi');
 
-    if (!canCreate && !canScan) {
+    final actionKinds = <String>[
+      if (canPos) 'pos',
+      if (canScan) 'scan',
+      if (canCreate) 'create',
+    ];
+
+    if (actionKinds.isEmpty) {
       return null;
+    }
+
+    if (actionKinds.length > 1) {
+      return FloatingActionButton.extended(
+        onPressed: _openActionsMenu,
+        icon: const Icon(Icons.add),
+        label: const Text('Actions'),
+      );
     }
 
     if (canPos) {
@@ -101,14 +119,6 @@ class _ShellScreenState extends State<ShellScreen> {
         onPressed: _openPosSell,
         icon: const Icon(Icons.storefront),
         label: const Text('POS'),
-      );
-    }
-
-    if (canCreate && canScan) {
-      return FloatingActionButton.extended(
-        onPressed: _openCreateMenu,
-        icon: const Icon(Icons.add),
-        label: const Text('Actions'),
       );
     }
 
@@ -145,7 +155,12 @@ class _ShellScreenState extends State<ShellScreen> {
     );
   }
 
-  void _openCreateMenu() {
+  void _openActionsMenu() {
+    final actions = _mobileActions();
+    final canPos = actions.contains('pos');
+    final canScan = actions.contains('scan_resi');
+    final canCreate = _canCreateTransactions(actions);
+
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -153,7 +168,7 @@ class _ShellScreenState extends State<ShellScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (_mobileActions().contains('pos'))
+            if (canPos)
               ListTile(
                 leading: const Icon(Icons.storefront),
                 title: const Text('POS — Sell'),
@@ -162,22 +177,24 @@ class _ShellScreenState extends State<ShellScreen> {
                   _openPosSell();
                 },
               ),
-            ListTile(
-              leading: const Icon(Icons.qr_code_scanner),
-              title: const Text('Scan resi'),
-              onTap: () {
-                Navigator.pop(ctx);
-                _openResiScan();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.point_of_sale),
-              title: const Text('Create transaction'),
-              onTap: () {
-                Navigator.pop(ctx);
-                _openCreate();
-              },
-            ),
+            if (canScan)
+              ListTile(
+                leading: const Icon(Icons.qr_code_scanner),
+                title: const Text('Scan resi'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _openResiScan();
+                },
+              ),
+            if (canCreate)
+              ListTile(
+                leading: const Icon(Icons.point_of_sale),
+                title: const Text('Create transaction'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _openCreate();
+                },
+              ),
           ],
         ),
       ),
