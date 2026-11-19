@@ -44,6 +44,10 @@ Route::post('jubelio/webhook/order', [App\Http\Controllers\JubelioController::cl
 Route::post('jubelio/webhook/return', [App\Http\Controllers\JubelioController::class, 'webhookReturn'])
     ->name('jubelio.webhook.return');
 
+// Shopee Push Mechanism (test inbox — does not post orders; CSRF exempt in bootstrap/app.php)
+Route::post('shopee/push', App\Http\Controllers\ShopeePushController::class)
+    ->name('shopee.push');
+
 Route::post('webhooks/lark/events', [App\Http\Controllers\LarkWebhookController::class, 'handleEvent'])
     ->name('webhooks.lark.events');
 
