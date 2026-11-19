@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\RecordShopeePushShadowJob;
 use App\Models\ShopeePushInbox;
 use App\Services\Shopee\ShopeePushSignatureVerifier;
 use Illuminate\Http\Request;
@@ -42,6 +43,10 @@ class ShopeePushController extends Controller
         $pushCode = isset($payload['code']) ? (int) $payload['code'] : null;
         $ordersn = isset($data['ordersn']) ? (string) $data['ordersn'] : null;
         $orderStatus = isset($data['status']) ? (string) $data['status'] : null;
+
+        if (config('services.shopee_push.shadow_enabled') && $pushCode === 3 && filled($ordersn)) {
+            RecordShopeePushShadowJob::dispatch($shopId, $ordersn, $orderStatus, $pushCode);
+        }
 
         if ($this->shouldPersistInbox($pushCode)) {
             try {

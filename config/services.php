@@ -72,6 +72,8 @@ return [
         'store_inbox' => filter_var(env('SHOPEE_PUSH_STORE_INBOX', false), FILTER_VALIDATE_BOOLEAN),
         /** Push codes to store when store_inbox=true: 3=order status, 4=tracking. */
         'store_inbox_codes' => array_map('intval', array_filter(explode(',', env('SHOPEE_PUSH_STORE_INBOX_CODES', '3,4')))),
+        /** Fetch Shopee order detail + compare to Jubelio queue (no Aria post). */
+        'shadow_enabled' => filter_var(env('SHOPEE_PUSH_SHADOW_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
     ],
 
     'jubelio' => [

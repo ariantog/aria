@@ -1,7 +1,31 @@
 <?php
 
+use App\Jobs\RecordShopeePushShadowJob;
 use App\Models\ShopeePushInbox;
 use App\Services\Shopee\ShopeePushSignatureVerifier;
+use Illuminate\Support\Facades\Queue;
+
+it('dispatches shadow job for order status push', function () {
+    Queue::fake();
+
+    config([
+        'services.shopee_push.partner_key' => 'test-partner-key',
+        'services.shopee_push.verify_signature' => true,
+        'services.shopee_push.shadow_enabled' => true,
+        'services.shopee_push.store_inbox' => false,
+    ]);
+
+    $body = '{"data":{"ordersn":"PUSH123","status":"PROCESSED","update_time":1660123127},"shop_id":9,"code":3,"timestamp":1660123127}';
+    $callbackUrl = url(route('shopee.push', [], false));
+    $authorization = app(ShopeePushSignatureVerifier::class)->sign($callbackUrl, $body);
+
+    $this->call('POST', route('shopee.push'), [], [], [], [
+        'HTTP_AUTHORIZATION' => $authorization,
+        'CONTENT_TYPE' => 'application/json',
+    ], $body)->assertOk();
+
+    Queue::assertPushed(RecordShopeePushShadowJob::class, fn ($job) => $job->orderSn === 'PUSH123');
+});
 
 it('accepts a signed shopee push and stores inbox row', function () {
     config([

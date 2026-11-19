@@ -119,6 +119,8 @@ Route::middleware(['auth', 'verified', 'active', 'enforce.readonly'])->group(fun
     Route::post('jubelio/auto-link/resume', [App\Http\Controllers\JubelioItemAutoLinkController::class, 'resume'])->name('jubelio.auto-link.resume');
     Route::post('jubelio/auto-link/run-batch', [App\Http\Controllers\JubelioItemAutoLinkController::class, 'runBatch'])->name('jubelio.auto-link.run-batch');
     Route::post('jubelio/auto-link/items/{item}/reset-attempts', [App\Http\Controllers\JubelioItemAutoLinkController::class, 'resetItem'])->name('jubelio.auto-link.reset-item');
+    Route::get('omnichannel', [App\Http\Controllers\OmnichannelController::class, 'index'])->name('omnichannel.index');
+
     Route::get('jubelio/order/cek', [App\Http\Controllers\JubelioController::class, 'cekOrder'])->name('jubelio.order.cek');
     Route::post('jubelio/order/cek/queue', [App\Http\Controllers\JubelioController::class, 'queueCekOrder'])->name('jubelio.order.cek.queue');
     Route::get('jubelio/stock/cek', [App\Http\Controllers\JubelioController::class, 'cekStock'])->name('jubelio.stock.cek');
