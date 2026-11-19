@@ -2,6 +2,10 @@
 
 **Route:** `/omnichannel` (sidebar **Omnichannel**)
 
+**Read-only guarantee (phase 1):** Shopee push may queue `RecordShopeePushShadowJob`, which only **GET**s Shopee order detail and **upserts** `marketplace_order_shadows`. It does **not** create `transactions`, change `warehouse_item`, insert/update `jubelioorders`, or call `ProcessJubelioOrder`. Jubelio webhooks, cron, and manual Process are unchanged.
+
+Disable shadow entirely: `SHOPEE_PUSH_SHADOW_ENABLED=false` (push callback still returns 200).
+
 Jubelio remains the posting path. Shopee **Order Status push (3)** triggers a queued shadow job that:
 
 1. Calls Shopee `get_order_detail`

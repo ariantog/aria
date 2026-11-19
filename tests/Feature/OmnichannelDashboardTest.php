@@ -12,7 +12,7 @@ it('renders omnichannel dashboard for superadmin', function () {
         ->get(route('omnichannel.index'))
         ->assertOk()
         ->assertSee('Omnichannel', false)
-        ->assertSee('Shopee push shadow', false);
+        ->assertSee('Tidak mengubah transaksi', false);
 });
 
 it('matches shopee order to jubelio invoice prefix', function () {

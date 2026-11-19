@@ -8,6 +8,10 @@ use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
+/**
+ * Read-only observability: Shopee API GET + upsert marketplace_order_shadows only.
+ * Does not call ProcessJubelioOrder or write transactions / stock.
+ */
 class RecordShopeePushShadowJob implements ShouldQueue
 {
     use Queueable;

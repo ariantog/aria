@@ -19,7 +19,7 @@ $statusLabels = [
     <div class="flex flex-col justify-between gap-3 md:flex-row md:items-end">
         <div>
             <h1 class="text-2xl font-bold text-gray-900">Omnichannel</h1>
-            <p class="mt-1 text-sm text-gray-600">Shopee push shadow vs Jubelio — belum mem-post transaksi Aria. Jubelio tetap jalur resmi.</p>
+            <p class="mt-1 text-sm text-gray-600">Read-only: bandingkan Shopee API vs antrian Jubelio. Tidak mengubah transaksi, stok, atau baris Jubelio.</p>
         </div>
         @if($canJubelio)
         <a href="{{ route('jubelio.index') }}" class="inline-flex h-9 items-center rounded-lg border border-blue-200 bg-white px-3 text-sm font-medium text-blue-800 hover:bg-blue-50">Jubelio Orders</a>

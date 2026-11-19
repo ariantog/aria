@@ -44,6 +44,7 @@ class ShopeePushController extends Controller
         $ordersn = isset($data['ordersn']) ? (string) $data['ordersn'] : null;
         $orderStatus = isset($data['status']) ? (string) $data['status'] : null;
 
+        // Read-only shadow compare (new table only). Jubelio webhooks/cron unchanged.
         if (config('services.shopee_push.shadow_enabled') && $pushCode === 3 && filled($ordersn)) {
             RecordShopeePushShadowJob::dispatch($shopId, $ordersn, $orderStatus, $pushCode);
         }
