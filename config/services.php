@@ -61,9 +61,10 @@ return [
     ],
 
     'shopee_push' => [
-        // Seller In-house / Order push callback (Push Mechanism). Falls back to stock app creds when unset.
+        // Push Mechanism webhook — use Live Partner ID + Live **Push** Partner Key from Console (Push page / App detail).
+        // Not the Live Open API Partner Key (stock/ads). Push key is only for inbound webhook Authorization HMAC.
         'partner_id' => env('SHOPEE_PUSH_PARTNER_ID', env('SHOPEE_STOCK_PARTNER_ID')),
-        'partner_key' => env('SHOPEE_PUSH_PARTNER_KEY', env('SHOPEE_STOCK_PARTNER_KEY')),
+        'partner_key' => env('SHOPEE_PUSH_PARTNER_KEY'),
         'verify_signature' => filter_var(env('SHOPEE_PUSH_VERIFY_SIGNATURE', true), FILTER_VALIDATE_BOOLEAN),
         /** Must match Console callback URL exactly if proxies alter $request->url(). */
         'callback_url' => env('SHOPEE_PUSH_CALLBACK_URL'),

@@ -14,14 +14,16 @@ Local dev needs a public tunnel (ngrok, Cloudflare Tunnel, etc.) — Shopee must
 
 ## Environment
 
-Use the **Seller In-house** app Partner ID / Partner Key (not necessarily the STOCK CHECKER app):
+Shopee uses **three** live keys on a go-live app (API, Push, SPI). Webhook `Authorization` is signed with the **Live Push Partner Key** — shown on **Push Mechanism → Set Push** / App detail — **not** the Live Open API Partner Key used for `ShopeeStockOpenApiService`.
 
 ```env
-SHOPEE_PUSH_PARTNER_ID=...
-SHOPEE_PUSH_PARTNER_KEY=...
+SHOPEE_PUSH_PARTNER_ID=...        # Live Partner ID (same app; may match SHOPEE_STOCK_PARTNER_ID if one In-house app)
+SHOPEE_PUSH_PARTNER_KEY=...       # Live Push Partner Key — required for signature verify
 ```
 
-If unset, Aria falls back to `SHOPEE_STOCK_PARTNER_ID` / `SHOPEE_STOCK_PARTNER_KEY`.
+Do **not** put `SHOPEE_STOCK_PARTNER_KEY` here unless Shopee explicitly issued the same value for push (after go-live they are usually different; resetting one does not reset the other).
+
+If `SHOPEE_PUSH_PARTNER_KEY` is empty, verification fails closed (401) when `SHOPEE_PUSH_VERIFY_SIGNATURE=true`.
 
 If signature verification fails but the URL is correct, set the canonical callback string:
 
