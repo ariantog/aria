@@ -165,6 +165,45 @@ it('formats invoice prefixes via service', function () {
         ->and($service->formatInvoice('tiktok', 'TT-999'))->toBe('TT-999');
 });
 
+it('appends jubelio store id to lazada resi scan invoices', function () {
+    $user = User::factory()->create();
+    $user->givePermissionTo('jubelio-view');
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 18697,
+        'jubelio_store_name' => 'Lazada Crystal',
+        'jubelio_location_id' => -1,
+        'jubelio_location_name' => 'Pusat',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => 1,
+        'bin_id' => 0,
+    ]);
+
+    $response = $this->actingAs($user, 'sanctum')->postJson('/api/mobile/v1/jubelio/resi-scan', [
+        'warehouse_id' => $warehouse->id,
+        'marketplace' => 'lazada',
+        'barcodes' => ['2706952969613265'],
+    ]);
+
+    $response->assertCreated()
+        ->assertJsonPath('created.0.invoice', 'LZ-2706952969613265-18697');
+
+    $order = Jubelioorder::where('invoice', 'LZ-2706952969613265-18697')->first();
+    expect($order)->not->toBeNull()
+        ->and((int) $order->jubelio_store_id)->toBe(18697);
+});
+
+it('does not double-append lazada store id when barcode already includes suffix', function () {
+    $service = app(JubelioResiScanService::class);
+
+    expect($service->formatInvoice('lazada', 'LZ-2706952969613265-18697', 18697))
+        ->toBe('LZ-2706952969613265-18697')
+        ->and($service->formatInvoice('lazada', '2706952969613265', 18697))
+        ->toBe('LZ-2706952969613265-18697');
+});
+
 it('exposes scan_resi in mobile actions when jubelio-view is granted', function () {
     $user = User::factory()->create();
     $user->givePermissionTo('jubelio-view');

@@ -35,6 +35,8 @@ return [
             'label' => 'Lazada',
             'invoice_prefix' => 'LZ',
             'store_name_patterns' => ['lazada'],
+            /** Jubelio salesorder_no is `{PREFIX}-{channelOrderId}-{store_id}` — same suffix rule as TikTok. */
+            'append_jubelio_store_id' => true,
         ],
         'blibli' => [
             'label' => 'Blibli',

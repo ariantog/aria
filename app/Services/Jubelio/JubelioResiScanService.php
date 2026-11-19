@@ -47,7 +47,7 @@ class JubelioResiScanService
         return $out;
     }
 
-    public function formatInvoice(string $marketplaceKey, string $rawBarcode): string
+    public function formatInvoice(string $marketplaceKey, string $rawBarcode, ?int $jubelioStoreId = null): string
     {
         $config = $this->marketplacesConfig()[$marketplaceKey] ?? null;
         if ($config === null) {
@@ -63,14 +63,33 @@ class JubelioResiScanService
         $upper = strtoupper($raw);
 
         if (str_starts_with($upper, $prefix.'-')) {
-            return $prefix.'-'.substr($raw, strlen($prefix) + 1);
+            $invoice = $prefix.'-'.substr($raw, strlen($prefix) + 1);
+        } elseif (preg_match('/^[A-Z]{2}-/i', $raw) === 1) {
+            $invoice = $raw;
+        } else {
+            $invoice = $prefix.'-'.$raw;
         }
 
-        if (preg_match('/^[A-Z]{2}-/i', $raw) === 1) {
-            return $raw;
+        return $this->appendJubelioStoreIdIfConfigured($marketplaceKey, $invoice, $jubelioStoreId);
+    }
+
+    public function appendJubelioStoreIdIfConfigured(string $marketplaceKey, string $invoice, ?int $jubelioStoreId): string
+    {
+        $config = $this->marketplacesConfig()[$marketplaceKey] ?? [];
+        if (! (bool) ($config['append_jubelio_store_id'] ?? false)) {
+            return $invoice;
         }
 
-        return $prefix.'-'.$raw;
+        if ($jubelioStoreId === null || ! Jubeliosync::isMappedStoreId($jubelioStoreId)) {
+            return $invoice;
+        }
+
+        $suffix = '-'.$jubelioStoreId;
+        if (str_ends_with($invoice, $suffix)) {
+            return $invoice;
+        }
+
+        return $invoice.$suffix;
     }
 
     /**
@@ -268,7 +287,7 @@ class JubelioResiScanService
         }
 
         return [
-            'invoice' => $this->formatInvoice($marketplaceKey, $rawBarcode),
+            'invoice' => $this->formatInvoice($marketplaceKey, $rawBarcode, $jubelioStoreId),
             'jubelio_order_id' => null,
         ];
     }
