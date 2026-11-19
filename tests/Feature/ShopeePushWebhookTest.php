@@ -8,6 +8,7 @@ it('accepts a signed shopee push and stores inbox row', function () {
         'services.shopee_push.partner_key' => 'test-partner-key',
         'services.shopee_push.verify_signature' => true,
         'services.shopee_push.callback_url' => '',
+        'services.shopee_push.store_inbox' => true,
     ]);
 
     $body = '{"data":{"ordersn":"220810QSK8S7BX","status":"PROCESSED","update_time":1660123127},"shop_id":727720655,"code":3,"timestamp":1660123127}';

@@ -66,6 +66,25 @@ Expect `401` with verify on and no Authorization; if you get `404`/`502`, Shopee
 php artisan migrate --path=database/migrations/2026_11_19_140000_create_shopee_push_inbox_table.php
 ```
 
+## Logging / inbox (production)
+
+By default pushes are **not** written to DB or info-logged (only signature failures warn). Optional:
+
+```env
+SHOPEE_PUSH_STORE_INBOX=true
+SHOPEE_PUSH_STORE_INBOX_CODES=3,4
+```
+
+Codes: `3` order status, `4` tracking number.
+
+## What’s next (Jubelio still authoritative)
+
+1. **Console** — enable Order Status Push (3) and TrackingNo Push (4); keep shop OAuth on the same In-house app.
+2. **Shadow phase** — on push code 3, queue job → `v2.order.get_order_detail` → compare `ordersn` / lines / status to `jubelioorders` + API (no Aria sell post).
+3. **Resi** — replace Jubelio tracking lookup for Shopee with Shopee logistics APIs when you drop Jubelio for that channel.
+4. **Post path** — only when shadow matches: queue row + post like `ProcessJubelioOrder` (new action), `submit_type` distinct, feature flag per shop.
+5. **Stock** — after transactions, async push listing qty (threshold / Shopee-only-low rules); separate from push ingest.
+
 ## Inspecting events
 
 ```bash
