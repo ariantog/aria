@@ -23,6 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             'jubelio/webhook/order',
             'jubelio/webhook/return',
+            'shopee/push',
             'webhooks/lark/events',
             'tiktok-shop/mock/*',
         ]);
