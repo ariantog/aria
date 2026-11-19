@@ -31,11 +31,34 @@ If signature verification fails but the URL is correct, set the canonical callba
 SHOPEE_PUSH_CALLBACK_URL=https://your-production-host/shopee/push
 ```
 
-Temporary local debugging only (Console verify may still require valid signatures):
+## Console “Verify” failed (not 2xx / empty logs)
+
+Shopee’s verify button POSTs a test push and requires **HTTP 2xx + empty body** within ~3 seconds. This app returns **401** when signature verification fails — Shopee reports that as “not 2xx”.
+
+**Typical causes**
+
+1. **`SHOPEE_PUSH_PARTNER_KEY` missing or Open API key** — use **Live Push Partner Key** only.
+2. **Callback URL in signature ≠ Console URL** — behind nginx/Cloudflare, set exactly:
+   `SHOPEE_PUSH_CALLBACK_URL=https://your-host/shopee/push` (no trailing slash unless Console has one).
+3. **Code/migration not deployed** on the host Shopee calls (request never hits Laravel → still empty `shopee_push_inbox`).
+4. **Log level** — after the latest handler change, every hit logs `Shopee push HTTP hit` at **info** in `storage/logs/laravel.log`.
+
+**Unblock verify once (then turn verification back on)**
 
 ```env
 SHOPEE_PUSH_VERIFY_SIGNATURE=false
 ```
+
+Click Verify in Console, confirm `Shopee push HTTP hit` in logs, run migration if needed, set the correct Live Push key + `SHOPEE_PUSH_CALLBACK_URL`, set `SHOPEE_PUSH_VERIFY_SIGNATURE=true`, verify again.
+
+**Sanity check from your laptop**
+
+```bash
+curl -sS -o /dev/null -w "%{http_code}\n" -X POST "https://your-host/shopee/push" \
+  -H "Content-Type: application/json" -d '{}'
+```
+
+Expect `401` with verify on and no Authorization; if you get `404`/`502`, Shopee never reaches Laravel.
 
 ## Migration
 
