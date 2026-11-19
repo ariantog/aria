@@ -271,6 +271,41 @@ it('rejects a discount greater than the subtotal', function () {
         ->assertSessionHasErrors('discount_amount');
 });
 
+it('clears discount on invoice edit when discount field is empty or zero', function () {
+    $this->invoice->update(['discount_amount' => 500_000]);
+
+    $payload = [
+        'number' => $this->invoice->number,
+        'date' => $this->invoice->date->format('Y-m-d'),
+        'recipient' => $this->invoice->recipient,
+        'sender_addrbook_id' => $this->warehouse->id,
+        'preset_id' => 'default',
+        'lines' => [
+            ['description' => 'Jersey', 'quantity' => 1, 'price' => 10_000_000],
+        ],
+    ];
+
+    $this->actingAs($this->user)
+        ->put(route('invoice-maker.update', $this->invoice), [
+            ...$payload,
+            'discount_amount' => null,
+        ])
+        ->assertRedirect(route('invoice-maker.show', $this->invoice));
+
+    expect((float) $this->invoice->fresh()->discount_amount)->toBe(0.0);
+
+    $this->invoice->update(['discount_amount' => 250_000]);
+
+    $this->actingAs($this->user)
+        ->put(route('invoice-maker.update', $this->invoice), [
+            ...$payload,
+            'discount_amount' => 0,
+        ])
+        ->assertRedirect(route('invoice-maker.show', $this->invoice));
+
+    expect((float) $this->invoice->fresh()->discount_amount)->toBe(0.0);
+});
+
 it('ignores bank transfers when deciding paid status', function () {
     cashInFor($this->invoice->number, 10_000_000);
     sellFor($this->invoice->number, 10_000_000);

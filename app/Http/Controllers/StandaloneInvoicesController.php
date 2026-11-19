@@ -289,8 +289,8 @@ class StandaloneInvoicesController extends Controller
             $validated['dp_amount'] = null;
         }
 
-        if (array_key_exists('discount_amount', $validated) && $validated['discount_amount'] !== null) {
-            $discount = (float) $validated['discount_amount'];
+        if (array_key_exists('discount_amount', $validated)) {
+            $discount = (float) ($validated['discount_amount'] ?? 0);
         } elseif ($existing) {
             $discount = $existing->discountAmount();
         } else {
