@@ -146,6 +146,8 @@
         $reportNavLabels[] = 'Reporting Entities';
     }
 
+    $canOmnichannel = $hasPerm('omnichannel-view') || $hasPerm('jubelio-view') || $hasPerm('shopee-stock-view') || $isSuperAdmin;
+
     $jubelioNavLabels = ['Jubelio'];
     if ($hasPerm('jubelio-view') || $isSuperAdmin) {
         $jubelioNavLabels = array_merge($jubelioNavLabels, ['Orders', 'Cancellations', 'Get Orders', 'Cek Order', 'Cek Stok', 'Item Links', 'Auto Link', 'Koneksi']);
@@ -575,6 +577,15 @@
         @endif
     </div>
 </div>
+@endif
+
+@if($canOmnichannel ?? false)
+<a href="{{ route('omnichannel.index') }}"
+   class="mb-1 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors {{ $isActive('/omnichannel') ? 'bg-violet-50 text-violet-800' : 'text-gray-700 hover:bg-gray-100' }}"
+   x-show="sidebarOpen || @js($isActive('/omnichannel'))">
+    <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+    <span x-show="sidebarOpen" x-cloak class="flex-1 text-left">Omnichannel</span>
+</a>
 @endif
 
 {{-- ── Jubelio ───────────────────────────────────────────────────────── --}}

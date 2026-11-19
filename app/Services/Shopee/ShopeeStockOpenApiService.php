@@ -202,6 +202,24 @@ class ShopeeStockOpenApiService
     }
 
     /**
+     * @return array<string, mixed>|null
+     */
+    public function getOrderDetail(string $orderSn, string $optionalFields = 'order_status,item_list,total_amount'): ?array
+    {
+        $orderSn = trim($orderSn);
+        if ($orderSn === '') {
+            return null;
+        }
+
+        $response = $this->shopApiGet('/api/v2/order/get_order_detail', [
+            'order_sn_list' => $orderSn,
+            'response_optional_fields' => $optionalFields,
+        ]);
+
+        return $this->decodeShopResponse($response, 'get_order_detail');
+    }
+
+    /**
      * Signed GET URL for Http::pool (each call gets a fresh timestamp/sign).
      *
      * @param  array<string, mixed>  $query

@@ -256,6 +256,7 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'invoice maker index' => 'invoice-maker',
     'invoice maker create' => 'invoice-maker/create',
     'invoice maker settings' => 'invoice-maker/settings',
+    'omnichannel dashboard' => 'omnichannel',
     'jubelio index' => 'jubelio',
     'jubelio get orders' => 'jubelio-get-orders',
     'jubelio cek order' => 'jubelio/order/cek',
