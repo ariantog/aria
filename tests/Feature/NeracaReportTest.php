@@ -360,6 +360,42 @@ it('includes persisted persediaan closing on konsolidasi and excludes it per ent
     expect(ReportingMonthlyInventoryValue::query()->where('year', 2026)->where('month', 1)->exists())->toBeTrue();
 });
 
+it('persists one snapshot row per customer when transaction party types differ', function () {
+    $customer = Addrbook::factory()->customer()->create(['name' => 'Type mismatch customer']);
+
+    createBalanceTransaction([
+        'date' => '2026-01-10',
+        'sender_id' => $customer->id,
+        'sender_type' => Addrbook::TYPE_CUSTOMER,
+        'sender_balance' => -50_000,
+        'receiver_balance' => 50_000,
+    ]);
+
+    createBalanceTransaction([
+        'date' => '2026-01-20',
+        'type' => Transaction::TYPE_SELL,
+        'sender_id' => Addrbook::factory()->create(['type' => Addrbook::TYPE_WAREHOUSE])->id,
+        'sender_type' => Addrbook::TYPE_WAREHOUSE,
+        'receiver_id' => $customer->id,
+        'receiver_type' => Addrbook::TYPE_RESELLER,
+        'total' => -120_000,
+        'real_total' => -120_000,
+        'receiver_balance' => -120_000,
+    ]);
+
+    expect(fn () => Artisan::call('reporting:snapshot-balances', ['--date' => '2026-01-31']))
+        ->not->toThrow(Throwable::class);
+
+    $rows = ReportingBalanceSnapshot::query()
+        ->whereDate('as_of_date', '2026-01-31')
+        ->where('customer_id', $customer->id)
+        ->get();
+
+    expect($rows)->toHaveCount(1)
+        ->and((int) $rows->first()->customer_type)->toBe(Addrbook::TYPE_CUSTOMER)
+        ->and((float) $rows->first()->balance)->toBe(-120_000.0);
+});
+
 it('persists balance snapshots from running balances and can rebuild via artisan', function () {
     $bank = Addrbook::create(['name' => 'Snapshot Bank', 'type' => Addrbook::TYPE_BANK]);
     $customer = Addrbook::factory()->customer()->create();

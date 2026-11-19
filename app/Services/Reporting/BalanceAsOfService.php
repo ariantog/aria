@@ -108,7 +108,7 @@ class BalanceAsOfService
             FROM (
                 SELECT customer_id, customer_type, balance,
                     ROW_NUMBER() OVER (
-                        PARTITION BY customer_id, customer_type
+                        PARTITION BY customer_id
                         ORDER BY date DESC, id DESC
                     ) AS rn
                 FROM (
@@ -139,8 +139,10 @@ class BalanceAsOfService
 
         return $raw->map(function (object $row) use ($contacts, $bankEntities) {
             $id = (int) $row->customer_id;
-            $type = (int) $row->customer_type;
             $meta = $contacts->get($id);
+            $type = $meta !== null
+                ? Addrbook::typeValueFrom($meta['type'])
+                : (int) $row->customer_type;
             $entityId = $this->resolveEntityId($id, $type, $meta, $bankEntities);
 
             return (object) [
@@ -184,7 +186,7 @@ class BalanceAsOfService
 
     /**
      * @param  list<int>  $ids
-     * @return Collection<int, array{name: string|null, is_internal_lending: bool, is_active_in_reports: bool, default_bank_id: int|null}>
+     * @return Collection<int, array{type: int, name: string|null, is_internal_lending: bool, is_active_in_reports: bool, default_bank_id: int|null}>
      */
     private function contactMeta(array $ids): Collection
     {
@@ -195,9 +197,10 @@ class BalanceAsOfService
         return Addrbook::query()
             ->withTrashed()
             ->whereIn('id', $ids)
-            ->get(['id', 'name', 'is_internal_lending', 'is_active_in_reports', 'default_bank_id'])
+            ->get(['id', 'name', 'type', 'is_internal_lending', 'is_active_in_reports', 'default_bank_id'])
             ->mapWithKeys(fn (Addrbook $contact) => [
                 (int) $contact->id => [
+                    'type' => Addrbook::typeValueFrom($contact->type),
                     'name' => $contact->name,
                     'is_internal_lending' => (bool) $contact->is_internal_lending,
                     'is_active_in_reports' => $contact->is_active_in_reports !== false,
