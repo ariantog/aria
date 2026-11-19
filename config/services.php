@@ -68,6 +68,10 @@ return [
         'verify_signature' => filter_var(env('SHOPEE_PUSH_VERIFY_SIGNATURE', true), FILTER_VALIDATE_BOOLEAN),
         /** Must match Console callback URL exactly if proxies alter $request->url(). */
         'callback_url' => env('SHOPEE_PUSH_CALLBACK_URL'),
+        /** Persist selected pushes to shopee_push_inbox (off in production after URL verify). */
+        'store_inbox' => filter_var(env('SHOPEE_PUSH_STORE_INBOX', false), FILTER_VALIDATE_BOOLEAN),
+        /** Push codes to store when store_inbox=true: 3=order status, 4=tracking. */
+        'store_inbox_codes' => array_map('intval', array_filter(explode(',', env('SHOPEE_PUSH_STORE_INBOX_CODES', '3,4')))),
     ],
 
     'jubelio' => [
