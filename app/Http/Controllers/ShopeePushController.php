@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Jobs\RecordShopeePushShadowJob;
 use App\Models\ShopeePushInbox;
 use App\Services\Marketplace\ShopeeOrderShadowRecorder;
 use App\Services\Shopee\ShopeePushSignatureVerifier;
@@ -49,16 +48,15 @@ class ShopeePushController extends Controller
         $ordersn = $this->resolveOrderSn($data);
         $orderStatus = isset($data['status']) ? (string) $data['status'] : null;
 
-        $shadowDispatched = false;
+        $shadowStubUpserted = false;
 
         // Read-only shadow compare (new table only). Jubelio webhooks/cron unchanged.
         if (config('services.shopee_push.shadow_enabled') && $pushCode === 3 && filled($ordersn)) {
             try {
                 if (Schema::hasTable('marketplace_order_shadows')) {
                     $shadowRecorder->upsertStubFromPush($shopId, $ordersn, $orderStatus, $pushCode, $data, $payload);
+                    $shadowStubUpserted = true;
                 }
-                RecordShopeePushShadowJob::dispatch($shopId, $ordersn, $orderStatus, $pushCode);
-                $shadowDispatched = true;
             } catch (Throwable $e) {
                 Log::warning('Shopee push shadow stub failed', [
                     'ordersn' => $ordersn,
@@ -70,7 +68,7 @@ class ShopeePushController extends Controller
         Log::info('Shopee push accepted', [
             'code' => $pushCode,
             'ordersn' => $ordersn,
-            'shadow_dispatched' => $shadowDispatched,
+            'shadow_stub_upserted' => $shadowStubUpserted,
         ]);
 
         if ($this->shouldPersistInbox($pushCode)) {

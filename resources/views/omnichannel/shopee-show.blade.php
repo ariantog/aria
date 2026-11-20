@@ -29,9 +29,28 @@ $lineLabels = [
         <div>
             <h1 class="text-2xl font-bold text-gray-900">Shopee {{ $shadow->external_order_sn }}</h1>
             <p class="mt-1 text-sm text-gray-600">Read-only snapshot dari shadow compare — tidak memposting atau mengubah Jubelio.</p>
+            @if($detailFetchedNow ?? false)
+            <p class="mt-1 text-xs text-gray-500" data-testid="shadow-detail-fetched-now">Detail Shopee + compare dimuat sekarang dari API.</p>
+            @elseif($detailFromCache ?? false)
+            <p class="mt-1 text-xs text-gray-500" data-testid="shadow-detail-from-cache">Detail dari cache shadow (buka Refresh untuk paksa ambil ulang).</p>
+            @endif
         </div>
-        <a href="{{ route('omnichannel.index') }}" class="text-sm font-medium text-blue-700 hover:underline">← Kembali ke daftar</a>
+        <div class="flex flex-wrap items-center gap-2">
+            <form method="POST" action="{{ route('omnichannel.shopee.refresh', $shadow->external_order_sn) }}">
+                @csrf
+                <button type="submit"
+                        class="inline-flex h-9 items-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-800 hover:bg-gray-50"
+                        data-testid="shadow-refresh-button">
+                    Refresh dari Shopee
+                </button>
+            </form>
+            <a href="{{ route('omnichannel.index') }}" class="text-sm font-medium text-blue-700 hover:underline">← Kembali ke daftar</a>
+        </div>
     </div>
+
+    @if(session('success'))
+    <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ session('success') }}</div>
+    @endif
 
     <div class="flex flex-wrap gap-2">
         <span class="rounded border px-2 py-1 text-xs {{ $cBadge }}">{{ $cLabel }}</span>
@@ -52,9 +71,20 @@ $lineLabels = [
             <h2 class="text-sm font-semibold text-gray-900">Ringkasan Shopee</h2>
             <dl class="mt-3 space-y-1 text-sm text-gray-700">
                 <div class="flex justify-between gap-4"><dt class="text-gray-500">Status</dt><dd>{{ $shadow->channel_status ?? '—' }}</dd></div>
-                <div class="flex justify-between gap-4"><dt class="text-gray-500">Baris</dt><dd>{{ $shadow->line_summary['line_count'] ?? 0 }}</dd></div>
+                <div class="flex justify-between gap-4"><dt class="text-gray-500">Baris</dt>
+                    <dd>
+                        @if(isset($shadow->line_summary['line_count']))
+                        {{ $shadow->line_summary['line_count'] }}
+                        @else
+                        <span class="text-gray-500">belum dimuat</span>
+                        @endif
+                    </dd>
+                </div>
                 <div class="flex justify-between gap-4"><dt class="text-gray-500">Total header</dt><dd>{{ isset($shadow->line_summary['total_amount']) ? number_format($shadow->line_summary['total_amount'], 0, ',', '.') : '—' }}</dd></div>
             </dl>
+            @if(empty($shadow->line_summary['lines']) && !($shadow->detailLoaded()))
+            <p class="mt-3 text-sm text-gray-500">Baris item belum dimuat — buka halaman ini memicu fetch API, atau gunakan Refresh.</p>
+            @endif
             @if(!empty($shadow->line_summary['lines']))
             <table class="mt-4 min-w-full text-xs">
                 <thead class="text-left text-gray-500"><tr><th class="py-1 pr-2">SKU</th><th class="py-1 pr-2">Qty</th><th class="py-1">Amount</th></tr></thead>

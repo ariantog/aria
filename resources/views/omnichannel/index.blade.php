@@ -134,6 +134,7 @@ $lineLabels = [
                     [$label, $badge] = $statusLabels[$row->compare_status] ?? [$row->compare_status, 'bg-gray-50 text-gray-700 border-gray-200'];
                     [$lineLabel, $lineBadge] = $lineLabels[$row->line_compare_status ?? 'skipped'] ?? ['—', 'bg-gray-50 text-gray-500 border-gray-200'];
                     $lineCount = $row->line_summary['line_count'] ?? null;
+                    $detailLoaded = $row->detailLoaded();
                 @endphp
                 <tr class="hover:bg-gray-50/80">
                     <td class="px-3 py-2 font-mono text-xs">
@@ -144,6 +145,8 @@ $lineLabels = [
                         <span class="rounded border px-1.5 py-0.5 text-xs {{ $lineBadge }}">{{ $lineLabel }}</span>
                         @if($lineCount !== null)
                         <span class="ml-1 text-xs text-gray-500">({{ $lineCount }})</span>
+                        @elseif(! $detailLoaded)
+                        <span class="ml-1 text-xs text-gray-400">belum dimuat</span>
                         @endif
                     </td>
                     <td class="px-3 py-2"><span class="rounded border px-1.5 py-0.5 text-xs {{ $badge }}">{{ $label }}</span></td>

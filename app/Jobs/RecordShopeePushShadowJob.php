@@ -9,8 +9,8 @@ use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
- * Read-only observability: Shopee API GET + upsert marketplace_order_shadows only.
- * Does not call ProcessJubelioOrder or write transactions / stock.
+ * Optional queue wrapper around ShopeeOrderShadowRecorder::recordFromPush (e.g. simulate --dispatch-job).
+ * Normal path: lazy load on /omnichannel/shopee/{ordersn}. Read-only — no transactions / stock.
  */
 class RecordShopeePushShadowJob implements ShouldQueue
 {
