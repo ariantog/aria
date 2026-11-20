@@ -10,6 +10,7 @@ use App\Models\ShopeeAdsBudgetHistory;
 use App\Models\ShopeeAdsItemAd;
 use App\Models\ShopeeAdsSchedule;
 use App\Models\ShopeeAdsSetting;
+use App\Services\Shopee\ShopeeAdminOpenApiService;
 use App\Services\ShopeeAds\ShopeeAdsApiService;
 use App\Services\ShopeeAds\ShopeeAdsEngineService;
 use App\Services\ShopeeAds\ShopeeAdsSpecialRulesService;
@@ -186,18 +187,14 @@ class ShopeeAdsController extends Controller
         return back()->with('success', $wasActive ? 'Automasi di-pause.' : 'Automasi diaktifkan.');
     }
 
-    public function authorizeShop(ShopeeAdsApiService $api): RedirectResponse
+    public function authorizeShop(): RedirectResponse
     {
-        Gate::authorize(ShopeeAds::getPermissions()['edit']);
+        Gate::authorize(ShopeeAds::getPermissions()['view']);
 
-        if (! $api->isConfigured()) {
-            return back()->with('error', 'SHOPEE_PARTNER_ID / PARTNER_KEY belum dikonfigurasi di .env');
-        }
-
-        return redirect()->away($api->buildAuthorizeUrl());
+        return redirect()->route('shopee-admin.authorize', ['return' => 'shopee-ads']);
     }
 
-    public function oauthCallback(Request $request, ShopeeAdsApiService $api): RedirectResponse
+    public function oauthCallback(Request $request, ShopeeAdminOpenApiService $admin): RedirectResponse
     {
         $code = $request->query('code');
         $shopId = (int) $request->query('shop_id');
@@ -206,11 +203,11 @@ class ShopeeAdsController extends Controller
             return redirect()->route('shopee-ads.index')->with('error', 'OAuth callback tidak lengkap (code / shop_id).');
         }
 
-        $result = $api->exchangeAuthCode($code, $shopId);
+        $result = $admin->exchangeAuthCode($code, $shopId);
 
         if (! $result) {
-            $detail = $api->formatOAuthErrorForUser($api->getLastOAuthError());
-            $message = 'Gagal menukar kode OAuth Shopee.';
+            $detail = $admin->formatOAuthErrorForUser($admin->getLastOAuthError());
+            $message = 'Gagal menukar kode OAuth Shopee (CORENATION ADMIN).';
             if ($detail) {
                 $message .= ' '.$detail;
             }
@@ -218,7 +215,7 @@ class ShopeeAdsController extends Controller
             return redirect()->route('shopee-ads.index')->with('error', $message);
         }
 
-        return redirect()->route('shopee-ads.index')->with('success', 'Shopee shop berhasil diotorisasi.');
+        return redirect()->route('shopee-ads.index')->with('success', 'Toko Shopee berhasil diotorisasi (sama dengan Omnichannel / Stock API).');
     }
 
     public function runSchedules(ShopeeAdsEngineService $engine): RedirectResponse

@@ -1,35 +1,37 @@
 <?php
 
 use App\Models\Setting;
+use App\Services\Shopee\ShopeeAdminOpenApiService;
 use App\Services\Shopee\ShopeeStockOpenApiService;
+use App\Services\ShopeeAds\ShopeeAdsApiService;
 use Illuminate\Support\Facades\Http;
 
 beforeEach(function () {
     config([
-        'services.shopee_stock.partner_id' => '2047227',
-        'services.shopee_stock.partner_key' => 'test-stock-partner-key',
-        'services.shopee_stock.base_url' => 'https://partner.shopeemobile.com',
-        'services.shopee_stock.redirect_url' => 'https://cdn.corenationactive.com/shopeestockbot.php',
+        'services.shopee_admin.partner_id' => '2053195',
+        'services.shopee_admin.partner_key' => 'test-admin-partner-key',
+        'services.shopee_admin.base_url' => 'https://partner.shopeemobile.com',
+        'services.shopee_admin.redirect_url' => 'https://cdn.corenationactive.com/shopeecoreadminbot.php',
     ]);
 });
 
-it('uses cdn shopeestockbot relay as default stock oauth redirect', function () {
+it('uses coreadmin cdn relay as default stock oauth redirect', function () {
     $api = app(ShopeeStockOpenApiService::class);
 
-    expect($api->getOAuthRedirectUrl())->toBe('https://cdn.corenationactive.com/shopeestockbot.php');
+    expect($api->getOAuthRedirectUrl())->toBe('https://cdn.corenationactive.com/shopeecoreadminbot.php');
 });
 
-it('surfaces invalid_partner_id oauth hint for stock app only', function () {
+it('surfaces invalid_partner_id oauth hint for admin app', function () {
     $api = app(ShopeeStockOpenApiService::class);
     $detail = 'HTTP 403 invalid_partner_id';
 
     expect($api->formatOAuthErrorForUser($detail))
         ->toContain('invalid_partner_id')
-        ->and($api->formatOAuthErrorForUser($detail))->toContain('shopeestockbot.php')
-        ->and($api->formatOAuthErrorForUser($detail))->toContain('SHOPEE_ADMIN');
+        ->and($api->formatOAuthErrorForUser($detail))->toContain('SHOPEE_ADMIN_PARTNER_ID')
+        ->and($api->formatOAuthErrorForUser($detail))->toContain('shopeecoreadminbot.php');
 });
 
-it('stores stock oauth tokens separately from ads', function () {
+it('stores stock tokens on admin slug only', function () {
     Http::fake([
         'partner.shopeemobile.com/*' => Http::response([
             'error' => '',
@@ -42,23 +44,23 @@ it('stores stock oauth tokens separately from ads', function () {
     $api = app(ShopeeStockOpenApiService::class);
     $api->exchangeAuthCode('good-code', 777);
 
-    $stored = Setting::getValue(ShopeeStockOpenApiService::OAUTH_SETTING_SLUG, []);
+    $stored = Setting::getValue(ShopeeAdminOpenApiService::OAUTH_SETTING_SLUG, []);
     expect($stored['access_token'])->toBe('stock-access')
         ->and($stored['shop_id'])->toBe(777);
 
-    $ads = Setting::getValue(\App\Services\ShopeeAds\ShopeeAdsApiService::OAUTH_SETTING_SLUG, []);
-    expect($ads)->toBe([]);
+    $legacyStock = Setting::getValue(ShopeeStockOpenApiService::LEGACY_OAUTH_SETTING_SLUG, []);
+    expect($legacyStock)->toBe([]);
 });
 
-it('does not overwrite existing ads oauth when stock tokens are saved', function () {
+it('does not overwrite admin oauth when stock exchange runs after ads token exists', function () {
     Setting::query()->updateOrCreate(
-        ['slug' => \App\Services\ShopeeAds\ShopeeAdsApiService::OAUTH_SETTING_SLUG],
+        ['slug' => ShopeeAdminOpenApiService::OAUTH_SETTING_SLUG],
         [
-            'group' => 'shopee_ads',
-            'name' => 'Shopee Ads OAuth',
+            'group' => 'shopee_admin',
+            'name' => 'Shopee Admin OAuth',
             'value' => [
-                'access_token' => 'ads-access-keep',
-                'refresh_token' => 'ads-refresh-keep',
+                'access_token' => 'shared-access',
+                'refresh_token' => 'shared-refresh',
                 'shop_id' => 12345,
             ],
         ]
@@ -75,11 +77,32 @@ it('does not overwrite existing ads oauth when stock tokens are saved', function
 
     app(ShopeeStockOpenApiService::class)->exchangeAuthCode('stock-code', 888);
 
-    $ads = Setting::getValue(\App\Services\ShopeeAds\ShopeeAdsApiService::OAUTH_SETTING_SLUG, []);
-    expect($ads['access_token'])->toBe('ads-access-keep')
-        ->and($ads['shop_id'])->toBe(12345);
+    $admin = Setting::getValue(ShopeeAdminOpenApiService::OAUTH_SETTING_SLUG, []);
+    expect($admin['access_token'])->toBe('stock-access-new')
+        ->and($admin['shop_id'])->toBe(888);
 
-    $stock = Setting::getValue(ShopeeStockOpenApiService::OAUTH_SETTING_SLUG, []);
-    expect($stock['access_token'])->toBe('stock-access-new')
-        ->and($stock['shop_id'])->toBe(888);
+    expect(app(ShopeeAdsApiService::class)->hasShopAuthorization())->toBeTrue();
+});
+
+it('migrates legacy shopee_stock_oauth into admin slug on read', function () {
+    Setting::query()->updateOrCreate(
+        ['slug' => ShopeeStockOpenApiService::LEGACY_OAUTH_SETTING_SLUG],
+        [
+            'group' => 'shopee_stock',
+            'name' => 'Shopee Stock OAuth',
+            'value' => [
+                'access_token' => 'legacy-stock-token',
+                'shop_id' => 55,
+                'expires_at' => now()->addHour()->toIso8601String(),
+            ],
+        ]
+    );
+
+    $api = app(ShopeeStockOpenApiService::class);
+
+    expect($api->hasShopAuthorization())->toBeTrue();
+
+    $admin = Setting::getValue(ShopeeAdminOpenApiService::OAUTH_SETTING_SLUG, []);
+    expect($admin['access_token'])->toBe('legacy-stock-token')
+        ->and($admin['shop_id'])->toBe(55);
 });

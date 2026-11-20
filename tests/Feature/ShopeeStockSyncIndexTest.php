@@ -4,13 +4,13 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Services\PermissionGenerator;
 use App\Services\Shopee\ShopeeStockOpenApiService;
-use App\Services\ShopeeAds\ShopeeAdsApiService;
 
 beforeEach(function () {
     app(PermissionGenerator::class)->generateForModule('ShopeeStock');
     config([
-        'services.shopee_stock.partner_id' => '2047227',
-        'services.shopee_stock.partner_key' => 'test-stock-key',
+        'services.shopee_admin.partner_id' => '2053195',
+        'services.shopee_admin.partner_key' => 'test-admin-key',
+        'services.shopee_admin.redirect_url' => 'https://cdn.corenationactive.com/shopeecoreadminbot.php',
     ]);
 });
 
@@ -54,15 +54,16 @@ it('shows connected and hides primary authorize when stock oauth exists', functi
         ->assertDontSee('data-testid="shopee-stock-authorize-button"', false);
 });
 
-it('hints when ads oauth exists but stock oauth does not', function () {
+it('shows connected when admin oauth exists for stock api', function () {
     Setting::query()->updateOrCreate(
-        ['slug' => ShopeeAdsApiService::OAUTH_SETTING_SLUG],
+        ['slug' => ShopeeStockOpenApiService::OAUTH_SETTING_SLUG],
         [
-            'group' => 'shopee_ads',
-            'name' => 'Shopee Ads OAuth',
+            'group' => 'shopee_admin',
+            'name' => 'Shopee Admin OAuth',
             'value' => [
-                'access_token' => 'ads-token',
+                'access_token' => 'shared-token',
                 'shop_id' => 111,
+                'expires_at' => now()->addHours(4)->toIso8601String(),
             ],
         ]
     );
@@ -73,5 +74,7 @@ it('hints when ads oauth exists but stock oauth does not', function () {
     $this->actingAs($user)
         ->get(route('shopee.sync.index'))
         ->assertOk()
-        ->assertSee('Shopee Ads (COREADS) sudah terhubung', false);
+        ->assertSee('Connected', false)
+        ->assertSee('111', false)
+        ->assertSee('CORENATION ADMIN OAuth', false);
 });

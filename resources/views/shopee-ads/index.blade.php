@@ -126,7 +126,7 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4';
                     @endif
                 </div>
                 <div x-show="activeTab === 'account'" x-cloak class="flex flex-wrap items-center gap-2">
-                    <a href="{{ route('shopee-ads.authorize') }}" class="{{ $saBtnOrange }}">Authorize Shopee</a>
+                    <a href="{{ route('shopee-admin.authorize', ['return' => 'shopee-ads']) }}" class="{{ $saBtnOrange }}">Authorize Shopee</a>
                 </div>
             </div>
         </div>

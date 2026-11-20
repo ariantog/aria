@@ -6,16 +6,16 @@ use Illuminate\Support\Facades\Http;
 
 beforeEach(function () {
     config([
-        'services.shopee_ads.partner_id' => '12345',
-        'services.shopee_ads.partner_key' => 'test-partner-key',
-        'services.shopee_ads.base_url' => 'https://partner.shopeemobile.com',
+        'services.shopee_admin.partner_id' => '2053195',
+        'services.shopee_admin.partner_key' => 'test-admin-partner-key',
+        'services.shopee_admin.base_url' => 'https://partner.shopeemobile.com',
     ]);
 
     Setting::query()->updateOrCreate(
-        ['slug' => ShopeeAdsApiService::OAUTH_SETTING_SLUG],
+        ['slug' => \App\Services\Shopee\ShopeeAdminOpenApiService::OAUTH_SETTING_SLUG],
         [
-            'group' => 'shopee_ads',
-            'name' => 'Shopee Ads OAuth',
+            'group' => 'shopee_admin',
+            'name' => 'Shopee Admin OAuth',
             'value' => [
                 'access_token' => 'access-test',
                 'refresh_token' => 'refresh-test',

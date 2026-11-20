@@ -46,6 +46,7 @@ return [
     'shopee_ads' => [
         // All schedule / daily-reset / replenish times are WIB (GMT+7, same as Asia/Jakarta).
         'timezone' => env('SHOPEE_ADS_TIMEZONE', env('APP_TIMEZONE', 'Asia/Jakarta')),
+        // Deprecated on aria3 — ads API OAuth/signing uses shopee_admin. Kept for legacy hosts only.
         'partner_id' => env('SHOPEE_PARTNER_ID'),
         'partner_key' => env('SHOPEE_PARTNER_KEY'),
         'base_url' => env('SHOPEE_BASE_URL', 'https://partner.shopeemobile.com'),
@@ -53,7 +54,7 @@ return [
     ],
 
     'shopee_stock' => [
-        // STOCK CHECKER app in Shopee Open Platform (separate from COREADS / ads).
+        // Deprecated on aria3 — stock API OAuth/signing uses shopee_admin. Kept for legacy hosts only.
         'partner_id' => env('SHOPEE_STOCK_PARTNER_ID'),
         'partner_key' => env('SHOPEE_STOCK_PARTNER_KEY'),
         'base_url' => env('SHOPEE_STOCK_BASE_URL', env('SHOPEE_BASE_URL', 'https://partner.shopeemobile.com')),
