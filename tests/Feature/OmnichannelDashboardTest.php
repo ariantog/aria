@@ -15,6 +15,29 @@ it('renders omnichannel dashboard for superadmin', function () {
         ->assertSee('Tidak mengubah transaksi', false);
 });
 
+it('renders shopee shadow detail page', function () {
+    $user = User::factory()->create();
+
+    $shadow = MarketplaceOrderShadow::query()->create([
+        'channel' => MarketplaceOrderShadow::CHANNEL_SHOPEE,
+        'external_order_sn' => 'DETAILSN1',
+        'channel_status' => 'SHIPPED',
+        'compare_status' => MarketplaceOrderShadow::COMPARE_MATCHED,
+        'line_compare_status' => MarketplaceOrderShadow::LINE_COMPARE_MATCHED,
+        'line_summary' => [
+            'line_count' => 1,
+            'lines' => [['sku' => 'X', 'qty' => 1, 'amount' => 100]],
+        ],
+        'last_event_at' => now(),
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('omnichannel.shopee.show', $shadow->external_order_sn))
+        ->assertOk()
+        ->assertSee('DETAILSN1', false)
+        ->assertSee('Ringkasan Shopee', false);
+});
+
 it('matches shopee order to jubelio invoice prefix', function () {
     Jubelioorder::create([
         'jubelio_order_id' => 'j-1',

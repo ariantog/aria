@@ -16,6 +16,14 @@ class MarketplaceOrderShadow extends Model
 
     public const COMPARE_JUBELIO_MISSING = 'jubelio_missing';
 
+    public const LINE_COMPARE_MATCHED = 'matched';
+
+    public const LINE_COMPARE_MISMATCH = 'mismatch';
+
+    public const LINE_COMPARE_UNAVAILABLE = 'unavailable';
+
+    public const LINE_COMPARE_SKIPPED = 'skipped';
+
     protected $fillable = [
         'channel',
         'shop_id',
@@ -27,6 +35,9 @@ class MarketplaceOrderShadow extends Model
         'jubelio_order_status',
         'jubelio_order_id',
         'channel_payload',
+        'line_summary',
+        'jubelio_line_summary',
+        'line_compare_status',
         'compare_note',
         'last_event_at',
     ];
@@ -38,6 +49,8 @@ class MarketplaceOrderShadow extends Model
             'last_push_code' => 'integer',
             'jubelio_order_id' => 'integer',
             'channel_payload' => 'array',
+            'line_summary' => 'array',
+            'jubelio_line_summary' => 'array',
             'last_event_at' => 'datetime',
         ];
     }
