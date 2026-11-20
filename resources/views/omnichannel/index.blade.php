@@ -32,18 +32,42 @@ $lineLabels = [
         @endif
     </div>
 
+    @if(($flash['success'] ?? null))
+    <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ $flash['success'] }}</div>
+    @endif
+    @if(($flash['error'] ?? null))
+    <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $flash['error'] }}</div>
+    @endif
+
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
             <p class="text-xs font-semibold uppercase text-gray-500">Jubelio</p>
             <p class="mt-1 text-lg font-semibold {{ $jubelioActive ? 'text-green-700' : 'text-gray-500' }}">{{ $jubelioActive ? 'Aktif' : 'Nonaktif' }}</p>
             <p class="text-xs text-gray-500">{{ number_format($jubelioPending) }} antrian sell pending</p>
         </div>
-        <div class="rounded-xl border border-orange-200 bg-white p-4 shadow-sm">
-            <p class="text-xs font-semibold uppercase text-gray-500">Shopee Open API</p>
-            <p class="mt-1 text-lg font-semibold {{ ($shopeeConnection['has_token'] ?? false) ? 'text-green-700' : 'text-red-700' }}">
-                {{ ($shopeeConnection['has_token'] ?? false) ? 'Terhubung' : 'Belum OAuth' }}
+        <div class="rounded-xl border border-orange-200 bg-white p-4 shadow-sm" data-testid="shopee-admin-oauth-panel">
+            <p class="text-xs font-semibold uppercase text-gray-500">Shopee Admin API</p>
+            <p class="mt-1 text-lg font-semibold {{ ($shopeeAdminConnection['has_token'] ?? false) ? 'text-green-700' : 'text-red-700' }}" data-testid="shopee-admin-oauth-status">
+                {{ ($shopeeAdminConnection['has_token'] ?? false) ? 'Terhubung' : 'Belum OAuth' }}
             </p>
-            <p class="text-xs text-gray-500">Shop {{ $shopeeConnection['shop_id'] ?? '—' }}</p>
+            <p class="text-xs text-gray-500">CORENATION ADMIN · Shop {{ $shopeeAdminConnection['shop_id'] ?? '—' }}</p>
+            @if(!($shopeeAdminConnection['has_token'] ?? false) && $shopeeAdminConfigured)
+            <a href="{{ route('shopee-admin.authorize') }}"
+               class="mt-2 inline-flex h-8 items-center rounded-lg bg-orange-600 px-3 text-xs font-medium text-white hover:bg-orange-700"
+               data-testid="shopee-admin-authorize-button">
+                Authorize Shopee (Admin)
+            </a>
+            @elseif(($shopeeAdminConnection['has_token'] ?? false) && $shopeeAdminConfigured)
+            <a href="{{ route('shopee-admin.authorize') }}"
+               class="mt-2 inline-flex h-8 items-center rounded-lg border border-orange-300 bg-white px-3 text-xs font-medium text-orange-800 hover:bg-orange-50"
+               data-testid="shopee-admin-reauthorize-button">
+                Re-authorize Admin
+            </a>
+            @endif
+            @if($shopeeAdminOAuthError ?? null)
+            <p class="mt-2 text-xs text-red-700">{{ $shopeeAdminOAuthError }}</p>
+            @endif
+            <p class="mt-1 text-[10px] text-gray-400">Warehouse stok memakai app STOCK CHECKER terpisah (Shopee Sync).</p>
         </div>
         <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
             <p class="text-xs font-semibold uppercase text-gray-500">Shopee Push</p>

@@ -60,10 +60,18 @@ return [
         'redirect_url' => env('SHOPEE_STOCK_REDIRECT_URL', 'https://cdn.corenationactive.com/shopeestockbot.php'),
     ],
 
+    'shopee_admin' => [
+        // CORENATION ADMIN app (aria3 — push + omnichannel order detail; separate from STOCK CHECKER).
+        'partner_id' => env('SHOPEE_ADMIN_PARTNER_ID'),
+        'partner_key' => env('SHOPEE_ADMIN_PARTNER_KEY'),
+        'base_url' => env('SHOPEE_ADMIN_BASE_URL', env('SHOPEE_BASE_URL', 'https://partner.shopeemobile.com')),
+        'redirect_url' => env('SHOPEE_ADMIN_REDIRECT_URL', 'https://cdn.corenationactive.com/shopeecoreadminbot.php'),
+    ],
+
     'shopee_push' => [
         // Push Mechanism webhook — use Live Partner ID + Live **Push** Partner Key from Console (Push page / App detail).
         // Not the Live Open API Partner Key (stock/ads). Push key is only for inbound webhook Authorization HMAC.
-        'partner_id' => env('SHOPEE_PUSH_PARTNER_ID', env('SHOPEE_STOCK_PARTNER_ID')),
+        'partner_id' => env('SHOPEE_PUSH_PARTNER_ID', env('SHOPEE_ADMIN_PARTNER_ID', env('SHOPEE_STOCK_PARTNER_ID'))),
         'partner_key' => env('SHOPEE_PUSH_PARTNER_KEY'),
         'verify_signature' => filter_var(env('SHOPEE_PUSH_VERIFY_SIGNATURE', true), FILTER_VALIDATE_BOOLEAN),
         /** Must match Console callback URL exactly if proxies alter $request->url(). */

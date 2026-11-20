@@ -14,9 +14,9 @@ use Illuminate\Support\Facades\Http;
 function seedShopeeOAuthForShadow(): void
 {
     config([
-        'services.shopee_stock.partner_id' => 1,
-        'services.shopee_stock.partner_key' => 'test-key',
-        'services.shopee_stock.base_url' => 'https://partner.test',
+        'services.shopee_admin.partner_id' => 1,
+        'services.shopee_admin.partner_key' => 'test-key',
+        'services.shopee_admin.base_url' => 'https://partner.test',
         'services.jubelio.active' => true,
         'services.jubelio.verify_ssl' => false,
     ]);
@@ -34,10 +34,10 @@ function seedShopeeOAuthForShadow(): void
     );
 
     \App\Models\Setting::query()->updateOrCreate(
-        ['slug' => \App\Services\Shopee\ShopeeStockOpenApiService::OAUTH_SETTING_SLUG],
+        ['slug' => \App\Services\Shopee\ShopeeAdminOpenApiService::OAUTH_SETTING_SLUG],
         [
-            'group' => 'shopee_stock',
-            'name' => 'Shopee Stock OAuth',
+            'group' => 'shopee_admin',
+            'name' => 'Shopee Admin OAuth',
             'value' => [
                 'access_token' => 'token',
                 'shop_id' => 99,
@@ -56,16 +56,16 @@ it('recordFromPush retains stub when shopee api returns no order row', function 
     ]);
 
     config([
-        'services.shopee_stock.partner_id' => 1,
-        'services.shopee_stock.partner_key' => 'test-key',
-        'services.shopee_stock.base_url' => 'https://partner.test',
+        'services.shopee_admin.partner_id' => 1,
+        'services.shopee_admin.partner_key' => 'test-key',
+        'services.shopee_admin.base_url' => 'https://partner.test',
     ]);
 
     \App\Models\Setting::query()->updateOrCreate(
-        ['slug' => \App\Services\Shopee\ShopeeStockOpenApiService::OAUTH_SETTING_SLUG],
+        ['slug' => \App\Services\Shopee\ShopeeAdminOpenApiService::OAUTH_SETTING_SLUG],
         [
-            'group' => 'shopee_stock',
-            'name' => 'Shopee Stock OAuth',
+            'group' => 'shopee_admin',
+            'name' => 'Shopee Admin OAuth',
             'value' => [
                 'access_token' => 'token',
                 'shop_id' => 99,

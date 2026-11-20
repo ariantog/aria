@@ -5,14 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\Jubelioorder;
 use App\Models\MarketplaceOrderShadow;
 use App\Models\Omnichannel;
-use App\Services\Shopee\ShopeeStockOpenApiService;
+use App\Services\Shopee\ShopeeAdminOpenApiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 
 class OmnichannelController extends Controller
 {
-    public function index(Request $request, ShopeeStockOpenApiService $shopeeStock): View
+    public function index(Request $request, ShopeeAdminOpenApiService $shopeeAdmin): View
     {
         $user = $request->user();
         abort_unless(Omnichannel::userCanView($user), 403);
@@ -53,7 +53,7 @@ class OmnichannelController extends Controller
 
         $jubelioPending = Jubelioorder::query()->where('type', 'SELL')->where('status', 0)->count();
 
-        $shopeeConnection = $shopeeStock->getConnectionStatus();
+        $shopeeAdminConnection = $shopeeAdmin->getConnectionStatus();
 
         return view('omnichannel.index', [
             'shadows' => $shadows,
@@ -67,8 +67,14 @@ class OmnichannelController extends Controller
             'jubelioActive' => (bool) config('services.jubelio.active'),
             'shopeePushConfigured' => filled(config('services.shopee_push.partner_key')),
             'shopeeShadowEnabled' => (bool) config('services.shopee_push.shadow_enabled'),
-            'shopeeConnection' => $shopeeConnection,
+            'shopeeAdminConnection' => $shopeeAdminConnection,
+            'shopeeAdminConfigured' => $shopeeAdmin->isConfigured(),
+            'shopeeAdminOAuthError' => $shopeeAdmin->formatOAuthErrorForUser($shopeeAdmin->getLastOAuthError()),
             'canJubelio' => Gate::check(\App\Models\Jubelio::getPermissions()['view']),
+            'flash' => [
+                'success' => session('success'),
+                'error' => session('error') ?? session('errorMessage'),
+            ],
         ]);
     }
 
