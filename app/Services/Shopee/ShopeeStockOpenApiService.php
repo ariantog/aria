@@ -93,6 +93,10 @@ class ShopeeStockOpenApiService
             return 'IP server belum di-whitelist di app STOCK CHECKER. Tambahkan outbound IP Aria di Open Platform, lalu authorize ulang.';
         }
 
+        if (str_contains(strtolower($detail), 'invalid_partner_id')) {
+            return $detail.' — Periksa SHOPEE_STOCK_PARTNER_ID / SHOPEE_STOCK_REDIRECT_URL cocok dengan app Console (CORENATION ADMIN 2053195 pakai shopeecoreadminbot.php; STOCK CHECKER pakai shopeestockbot.php).';
+        }
+
         return $detail;
     }
 
