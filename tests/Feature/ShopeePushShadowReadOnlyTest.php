@@ -2,6 +2,7 @@
 
 use App\Jobs\RecordShopeePushShadowJob;
 use App\Models\Item;
+use App\Services\Marketplace\ShopeeOrderShadowRecorder;
 use App\Models\Jubelioorder;
 use App\Models\MarketplaceOrderShadow;
 use App\Models\Transaction;
@@ -45,6 +46,25 @@ function seedShopeeOAuthForShadow(): void
         ],
     );
 }
+
+it('push stub upserts pending shadow without api calls', function () {
+    $recorder = app(ShopeeOrderShadowRecorder::class);
+
+    $shadow = $recorder->upsertStubFromPush(77, 'STUBONLY1', 'READY_TO_SHIP', 3);
+
+    expect($shadow->compare_status)->toBe(MarketplaceOrderShadow::COMPARE_PENDING)
+        ->and($shadow->line_compare_status)->toBe(MarketplaceOrderShadow::LINE_COMPARE_SKIPPED)
+        ->and($shadow->channel_status)->toBe('READY_TO_SHIP')
+        ->and($shadow->channel_payload)->toBeNull();
+
+    $shadow->update(['compare_status' => MarketplaceOrderShadow::COMPARE_MATCHED]);
+
+    $recorder->upsertStubFromPush(77, 'STUBONLY1', 'SHIPPED', 3);
+
+    $shadow->refresh();
+    expect($shadow->compare_status)->toBe(MarketplaceOrderShadow::COMPARE_MATCHED)
+        ->and($shadow->channel_status)->toBe('SHIPPED');
+});
 
 it('shadow job only writes marketplace_order_shadows', function () {
     Jubelioorder::create([
