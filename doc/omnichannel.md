@@ -38,7 +38,7 @@ php artisan migrate --path=database/migrations/2026_11_19_140000_create_shopee_p
 
 ## Permissions
 
-`omnichannel-view` (optional; generate via PermissionGenerator). Until assigned, users with `jubelio-view` or `shopee-stock-view` can open the page.
+Assign `omnichannel-view` to roles that may open `/omnichannel` and Shopee Admin OAuth (`shopee-admin/authorize`). Generate the permission via `PermissionGenerator` if it is not already in `aria_permissions`. Superadmin bypasses as usual. Jubelio order pages still require `jubelio-view`; the omnichannel dashboard may show a Jubelio link only when the viewer has that permission separately.
 
 ## Line compare (phase 1b)
 

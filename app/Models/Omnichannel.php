@@ -27,8 +27,6 @@ class Omnichannel
             return true;
         }
 
-        return $user->can(self::getPermissions()['view'])
-            || $user->can(Jubelio::getPermissions()['view'])
-            || $user->can(ShopeeStock::getPermissions()['view']);
+        return $user->can(self::getPermissions()['view']);
     }
 }

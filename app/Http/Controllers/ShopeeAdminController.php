@@ -6,12 +6,13 @@ use App\Models\Omnichannel;
 use App\Services\Shopee\ShopeeAdminOpenApiService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 class ShopeeAdminController extends Controller
 {
     public function authorizeShop(Request $request, ShopeeAdminOpenApiService $api): RedirectResponse
     {
-        abort_unless(Omnichannel::userCanView($request->user()), 403);
+        Gate::authorize(Omnichannel::getPermissions()['view']);
 
         if (! $api->isConfigured()) {
             return redirect()
