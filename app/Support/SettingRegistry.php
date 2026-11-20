@@ -16,6 +16,7 @@ class SettingRegistry
         'sell_100',
         'ongkir',
         'tutup_buku',
+        'lark_ops_settings',
     ];
 
     /**
