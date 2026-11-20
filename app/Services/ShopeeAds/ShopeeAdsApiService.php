@@ -2,7 +2,8 @@
 
 namespace App\Services\ShopeeAds;
 
-use App\Models\Setting;
+use App\Services\Shopee\Concerns\UsesShopeeAdminOAuth;
+use App\Services\Shopee\ShopeeAdminOpenApiService;
 use Carbon\Carbon;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -13,18 +14,22 @@ use Illuminate\Support\Str;
  * Shopee Open Platform v2 ads client — ported from bots/shopee_api.py.
  *
  * Working ad surfaces today: GMV-Max (GMS) campaign + individual manual product ads.
+ *
+ * OAuth + API signing use CORENATION ADMIN ({@see ShopeeAdminOpenApiService}) on aria3.
  */
 class ShopeeAdsApiService
 {
-    public const OAUTH_SETTING_SLUG = 'shopee_ads_oauth';
+    use UsesShopeeAdminOAuth;
+
+    public const LEGACY_OAUTH_SETTING_SLUG = 'shopee_ads_oauth';
+
+    public const OAUTH_SETTING_SLUG = ShopeeAdminOpenApiService::OAUTH_SETTING_SLUG;
 
     public const ITEM_AD_MIN_BUDGET = 25000;
 
-    public function isConfigured(): bool
+    protected function legacyOAuthSettingSlug(): string
     {
-        $config = config('services.shopee_ads');
-
-        return filled($config['partner_id']) && filled($config['partner_key']);
+        return self::LEGACY_OAUTH_SETTING_SLUG;
     }
 
     public function hasShopAuthorization(): bool
@@ -50,27 +55,6 @@ class ShopeeAdsApiService
             'is_expired' => $expiresAt?->isPast() ?? true,
             'last_error' => $oauth['last_error'] ?? null,
         ];
-    }
-
-    public function buildAuthorizeUrl(): string
-    {
-        $config = config('services.shopee_ads');
-        $path = '/api/v2/shop/auth_partner';
-        $timestamp = time();
-        $sign = $this->signPublic($path, $timestamp);
-        $redirect = $config['redirect_url'];
-
-        return rtrim($config['base_url'], '/').$path.'?'.http_build_query([
-            'partner_id' => (int) $config['partner_id'],
-            'timestamp' => $timestamp,
-            'sign' => $sign,
-            'redirect' => $redirect,
-        ]);
-    }
-
-    public function getOAuthRedirectUrl(): string
-    {
-        return (string) config('services.shopee_ads.redirect_url');
     }
 
     public function getLastOAuthError(): ?string
@@ -107,7 +91,7 @@ class ShopeeAdsApiService
         $body = [
             'code' => $code,
             'shop_id' => $shopId,
-            'partner_id' => (int) config('services.shopee_ads.partner_id'),
+            'partner_id' => (int) ($this->adminOAuthConfig()['partner_id'] ?? 0),
         ];
 
         $response = $this->postPublic($path, $timestamp, $body);
@@ -151,7 +135,7 @@ class ShopeeAdsApiService
         $body = [
             'refresh_token' => $refreshToken,
             'shop_id' => $shopId,
-            'partner_id' => (int) config('services.shopee_ads.partner_id'),
+            'partner_id' => (int) ($this->adminOAuthConfig()['partner_id'] ?? 0),
         ];
 
         $response = $this->postPublic($path, $timestamp, $body);
@@ -969,17 +953,17 @@ class ShopeeAdsApiService
         }
 
         $timestamp = time();
-        $sign = $this->signShop($path, $timestamp, $token, $shopId);
+        $sign = $this->signAdminShop($path, $timestamp, $token, $shopId);
 
         $baseQuery = [
-            'partner_id' => (int) config('services.shopee_ads.partner_id'),
+            'partner_id' => (int) ($this->adminOAuthConfig()['partner_id'] ?? 0),
             'timestamp' => $timestamp,
             'access_token' => $token,
             'shop_id' => $shopId,
             'sign' => $sign,
         ];
 
-        $url = rtrim(config('services.shopee_ads.base_url'), '/').$path;
+        $url = $this->adminApiBaseUrl().$path;
         $request = Http::timeout(30);
 
         if ($method === 'get') {
@@ -994,55 +978,14 @@ class ShopeeAdsApiService
      */
     private function postPublic(string $path, int $timestamp, array $body): Response
     {
-        $sign = $this->signPublic($path, $timestamp);
-        $url = rtrim(config('services.shopee_ads.base_url'), '/').$path;
+        $sign = $this->signAdminPublic($path, $timestamp);
+        $url = $this->adminApiBaseUrl().$path;
 
         return Http::timeout(30)->post($url.'?'.http_build_query([
-            'partner_id' => (int) config('services.shopee_ads.partner_id'),
+            'partner_id' => (int) ($this->adminOAuthConfig()['partner_id'] ?? 0),
             'timestamp' => $timestamp,
             'sign' => $sign,
         ]), $body);
-    }
-
-    private function signPublic(string $path, int $timestamp): string
-    {
-        $partnerId = (string) config('services.shopee_ads.partner_id');
-        $baseString = $partnerId.$path.$timestamp;
-
-        return hash_hmac('sha256', $baseString, (string) config('services.shopee_ads.partner_key'));
-    }
-
-    private function signShop(string $path, int $timestamp, string $accessToken, int $shopId): string
-    {
-        $partnerId = (string) config('services.shopee_ads.partner_id');
-        $baseString = $partnerId.$path.$timestamp.$accessToken.$shopId;
-
-        return hash_hmac('sha256', $baseString, (string) config('services.shopee_ads.partner_key'));
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function getOAuthPayload(): array
-    {
-        $value = Setting::getValue(self::OAUTH_SETTING_SLUG, []);
-
-        return is_array($value) ? $value : [];
-    }
-
-    /**
-     * @param  array<string, mixed>  $payload
-     */
-    private function persistOAuth(array $payload): void
-    {
-        Setting::query()->updateOrCreate(
-            ['slug' => self::OAUTH_SETTING_SLUG],
-            [
-                'group' => 'shopee_ads',
-                'name' => 'Shopee Ads OAuth',
-                'value' => $payload,
-            ]
-        );
     }
 
     private function recordOAuthError(string $message): void

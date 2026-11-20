@@ -5,9 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\Addrbook;
 use App\Models\ShopeeStock;
 use App\Models\Shopeesync;
+use App\Services\Shopee\ShopeeAdminOpenApiService;
 use App\Services\Shopee\ShopeeStockApiService;
 use App\Services\Shopee\ShopeeStockOpenApiService;
-use App\Services\ShopeeAds\ShopeeAdsApiService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -45,7 +45,6 @@ class ShopeeSyncController extends Controller
                 'ready' => $this->stockApi->isReady(),
                 'authorized' => $this->openApi->hasShopAuthorization(),
             ]),
-            'adsOAuthConnected' => app(ShopeeAdsApiService::class)->hasShopAuthorization(),
             'oauthErrorHint' => $this->openApi->formatOAuthErrorForUser($this->openApi->getLastOAuthError()),
             'flash' => ['success' => session('success'), 'error' => session('fail') ?? session('errorMessage') ?? session('error')],
         ]);
@@ -55,14 +54,10 @@ class ShopeeSyncController extends Controller
     {
         Gate::authorize(ShopeeStock::getPermissions()['sync']);
 
-        if (! $this->openApi->isConfigured()) {
-            return back()->with('error', 'SHOPEE_STOCK_PARTNER_ID / SHOPEE_STOCK_PARTNER_KEY belum dikonfigurasi di .env (app STOCK CHECKER).');
-        }
-
-        return redirect()->away($this->openApi->buildAuthorizeUrl());
+        return redirect()->route('shopee-admin.authorize', ['return' => 'shopee-sync']);
     }
 
-    public function oauthCallback(Request $request): RedirectResponse
+    public function oauthCallback(Request $request, ShopeeAdminOpenApiService $admin): RedirectResponse
     {
         $code = $request->query('code');
         $shopId = (int) $request->query('shop_id');
@@ -71,11 +66,11 @@ class ShopeeSyncController extends Controller
             return redirect()->route('shopee.sync.index')->with('error', 'OAuth callback tidak lengkap (code / shop_id).');
         }
 
-        $result = $this->openApi->exchangeAuthCode($code, $shopId);
+        $result = $admin->exchangeAuthCode($code, $shopId);
 
         if (! $result) {
-            $detail = $this->openApi->formatOAuthErrorForUser($this->openApi->getLastOAuthError());
-            $message = 'Gagal menukar kode OAuth Shopee (STOCK CHECKER).';
+            $detail = $admin->formatOAuthErrorForUser($admin->getLastOAuthError());
+            $message = 'Gagal menukar kode OAuth Shopee (CORENATION ADMIN).';
             if ($detail) {
                 $message .= ' '.$detail;
             }
@@ -83,7 +78,7 @@ class ShopeeSyncController extends Controller
             return redirect()->route('shopee.sync.index')->with('error', $message);
         }
 
-        return redirect()->route('shopee.sync.index')->with('success', 'Toko Shopee berhasil diotorisasi untuk cek stok.');
+        return redirect()->route('shopee.sync.index')->with('success', 'Toko Shopee berhasil diotorisasi untuk Stock API (sama dengan Omnichannel / Ads).');
     }
 
     public function create(): View

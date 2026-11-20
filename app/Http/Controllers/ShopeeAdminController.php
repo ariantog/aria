@@ -2,23 +2,27 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Omnichannel;
 use App\Services\Shopee\ShopeeAdminOpenApiService;
+use App\Support\ShopeeAdminOAuthAuthorize;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
 
 class ShopeeAdminController extends Controller
 {
     public function authorizeShop(Request $request, ShopeeAdminOpenApiService $api): RedirectResponse
     {
-        Gate::authorize(Omnichannel::getPermissions()['view']);
+        ShopeeAdminOAuthAuthorize::abortUnlessMayAuthorize($request);
 
         if (! $api->isConfigured()) {
+            $return = (string) $request->query('return', 'omnichannel');
+            $route = ShopeeAdminOAuthAuthorize::RETURN_QUERY_TO_ROUTE[$return] ?? ShopeeAdminOAuthAuthorize::RETURN_QUERY_TO_ROUTE['omnichannel'];
+
             return redirect()
-                ->route('omnichannel.index')
+                ->route($route)
                 ->with('error', 'SHOPEE_ADMIN_PARTNER_ID / SHOPEE_ADMIN_PARTNER_KEY belum dikonfigurasi di .env (app CORENATION ADMIN).');
         }
+
+        ShopeeAdminOAuthAuthorize::rememberReturnRoute($request);
 
         return redirect()->away($api->buildAuthorizeUrl());
     }
@@ -27,9 +31,10 @@ class ShopeeAdminController extends Controller
     {
         $code = $request->query('code');
         $shopId = (int) $request->query('shop_id');
+        $returnRoute = session(ShopeeAdminOAuthAuthorize::SESSION_RETURN_ROUTE, 'omnichannel.index');
 
         if (! $code || $shopId <= 0) {
-            return redirect()->route('omnichannel.index')->with('error', 'OAuth callback tidak lengkap (code / shop_id).');
+            return redirect()->route($returnRoute)->with('error', 'OAuth callback tidak lengkap (code / shop_id).');
         }
 
         $result = $api->exchangeAuthCode($code, $shopId);
@@ -41,9 +46,11 @@ class ShopeeAdminController extends Controller
                 $message .= ' '.$detail;
             }
 
-            return redirect()->route('omnichannel.index')->with('error', $message);
+            return redirect()->route(ShopeeAdminOAuthAuthorize::pullReturnRoute())->with('error', $message);
         }
 
-        return redirect()->route('omnichannel.index')->with('success', 'Toko Shopee berhasil diotorisasi untuk Omnichannel (Admin API).');
+        return redirect()
+            ->route(ShopeeAdminOAuthAuthorize::pullReturnRoute())
+            ->with('success', 'Toko Shopee berhasil diotorisasi (Omnichannel, Ads, dan Stock API memakai token yang sama).');
     }
 }

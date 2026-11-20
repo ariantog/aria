@@ -46,7 +46,7 @@ $breadcrumbs = [
     <div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-800" data-testid="shopee-stock-oauth-panel">
         <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
-                <p class="font-medium">STOCK CHECKER app (OAuth terpisah dari COREADS / Shopee Ads)</p>
+                <p class="font-medium">CORENATION ADMIN OAuth (sama dengan Omnichannel &amp; Shopee Ads)</p>
                 <p class="mt-2 text-lg font-semibold {{ $stockConnected ? 'text-green-700' : 'text-red-700' }}" data-testid="shopee-stock-oauth-status">
                     {{ $stockConnected ? 'Connected' : 'Not connected' }}
                 </p>
@@ -59,16 +59,11 @@ $breadcrumbs = [
                         @endif
                     </p>
                 @else
-                    <p class="mt-1 text-xs text-amber-800">Set <code>SHOPEE_STOCK_PARTNER_ID</code> / <code>SHOPEE_STOCK_PARTNER_KEY</code> di .env (Live Partner dari app STOCK CHECKER).</p>
+                    <p class="mt-1 text-xs text-amber-800">Set <code>SHOPEE_ADMIN_PARTNER_ID</code> / <code>SHOPEE_ADMIN_PARTNER_KEY</code> di .env (app CORENATION ADMIN).</p>
                 @endif
                 @if($stockConnected && ! $stockApiReady)
                     <p class="mt-2 text-xs text-amber-900">
-                        Token STOCK CHECKER tersimpan, tapi API belum siap — pastikan <code>SHOPEE_STOCK_PARTNER_ID</code> / <code>SHOPEE_STOCK_PARTNER_KEY</code> benar di .env lalu refresh halaman.
-                    </p>
-                @endif
-                @if(($adsOAuthConnected ?? false) && ! $stockConnected)
-                    <p class="mt-2 text-xs text-amber-900">
-                        Shopee Ads (COREADS) sudah terhubung, tapi cek stok butuh authorize terpisah di halaman ini — bukan dari menu <strong>Shopee → Ads</strong>.
+                        Token tersimpan, tapi API belum siap — pastikan <code>SHOPEE_ADMIN_PARTNER_ID</code> / <code>SHOPEE_ADMIN_PARTNER_KEY</code> benar di .env lalu refresh halaman.
                     </p>
                 @endif
                 @if($oauthErrorHint ?? null)
@@ -79,13 +74,13 @@ $breadcrumbs = [
             </div>
             @can(\App\Models\ShopeeStock::getPermissions()['sync'])
             @if(! $stockConnected)
-            <a href="{{ route('shopee.sync.authorize') }}"
+            <a href="{{ route('shopee-admin.authorize', ['return' => 'shopee-sync']) }}"
                class="inline-flex rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700"
                data-testid="shopee-stock-authorize-button">
-                Authorize Shopee (Stock)
+                Authorize Shopee
             </a>
             @else
-            <a href="{{ route('shopee.sync.authorize') }}"
+            <a href="{{ route('shopee-admin.authorize', ['return' => 'shopee-sync']) }}"
                class="inline-flex rounded-lg border border-orange-300 bg-white px-4 py-2 text-sm font-medium text-orange-800 hover:bg-orange-50"
                data-testid="shopee-stock-reauthorize-button">
                 Re-authorize

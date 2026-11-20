@@ -9,19 +9,21 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Shopee Open Platform v2 client for the STOCK CHECKER app (product / shop APIs).
+ * Shopee Open Platform v2 client for warehouse stock / product shop APIs.
  *
- * Separate partner_id + OAuth from {@see \App\Services\ShopeeAds\ShopeeAdsApiService} (COREADS).
+ * On aria3, OAuth + signing use CORENATION ADMIN ({@see ShopeeAdminOpenApiService}), same as ads / omnichannel.
  */
 class ShopeeStockOpenApiService
 {
-    public const OAUTH_SETTING_SLUG = 'shopee_stock_oauth';
+    use Concerns\UsesShopeeAdminOAuth;
 
-    public function isConfigured(): bool
+    public const LEGACY_OAUTH_SETTING_SLUG = 'shopee_stock_oauth';
+
+    public const OAUTH_SETTING_SLUG = ShopeeAdminOpenApiService::OAUTH_SETTING_SLUG;
+
+    protected function legacyOAuthSettingSlug(): string
     {
-        $config = config('services.shopee_stock');
-
-        return filled($config['partner_id']) && filled($config['partner_key']);
+        return self::LEGACY_OAUTH_SETTING_SLUG;
     }
 
     public function hasShopAuthorization(): bool
@@ -52,26 +54,6 @@ class ShopeeStockOpenApiService
         ];
     }
 
-    public function buildAuthorizeUrl(): string
-    {
-        $config = config('services.shopee_stock');
-        $path = '/api/v2/shop/auth_partner';
-        $timestamp = time();
-        $sign = $this->signPublic($path, $timestamp);
-
-        return rtrim($config['base_url'], '/').$path.'?'.http_build_query([
-            'partner_id' => (int) $config['partner_id'],
-            'timestamp' => $timestamp,
-            'sign' => $sign,
-            'redirect' => $config['redirect_url'],
-        ]);
-    }
-
-    public function getOAuthRedirectUrl(): string
-    {
-        return (string) config('services.shopee_stock.redirect_url');
-    }
-
     public function getLastOAuthError(): ?string
     {
         $oauth = $this->getOAuthPayload();
@@ -87,14 +69,14 @@ class ShopeeStockOpenApiService
 
         if (str_contains($detail, 'source_ip_undeclared')) {
             if (preg_match('/Request Source IP \(([^)]+)\)/', $detail, $matches)) {
-                return 'IP server ('.$matches[1].') belum di-whitelist di app STOCK CHECKER. Shopee Open Platform → STOCK CHECKER → IP Address Whitelist, lalu Authorize lagi.';
+                return 'IP server ('.$matches[1].') belum di-whitelist di app CORENATION ADMIN. Shopee Open Platform → CORENATION ADMIN → IP Address Whitelist, lalu Authorize lagi.';
             }
 
-            return 'IP server belum di-whitelist di app STOCK CHECKER. Tambahkan outbound IP Aria di Open Platform, lalu authorize ulang.';
+            return 'IP server belum di-whitelist di app CORENATION ADMIN. Tambahkan outbound IP Aria di Open Platform, lalu authorize ulang.';
         }
 
         if (str_contains(strtolower($detail), 'invalid_partner_id')) {
-            return $detail.' — Periksa SHOPEE_STOCK_PARTNER_ID / SHOPEE_STOCK_REDIRECT_URL cocok dengan app STOCK CHECKER (shopeestockbot.php). Omnichannel / push memakai app CORENATION ADMIN terpisah (SHOPEE_ADMIN_*).';
+            return $detail.' — Periksa SHOPEE_ADMIN_PARTNER_ID / SHOPEE_ADMIN_REDIRECT_URL cocok dengan app CORENATION ADMIN (shopeecoreadminbot.php).';
         }
 
         return $detail;
@@ -110,7 +92,7 @@ class ShopeeStockOpenApiService
         $body = [
             'code' => $code,
             'shop_id' => $shopId,
-            'partner_id' => (int) config('services.shopee_stock.partner_id'),
+            'partner_id' => (int) ($this->adminOAuthConfig()['partner_id'] ?? 0),
         ];
 
         $response = $this->postPublic($path, $timestamp, $body);
@@ -154,7 +136,7 @@ class ShopeeStockOpenApiService
         $body = [
             'refresh_token' => $refreshToken,
             'shop_id' => $shopId,
-            'partner_id' => (int) config('services.shopee_stock.partner_id'),
+            'partner_id' => (int) ($this->adminOAuthConfig()['partner_id'] ?? 0),
         ];
 
         $response = $this->postPublic($path, $timestamp, $body);
@@ -239,17 +221,17 @@ class ShopeeStockOpenApiService
         }
 
         $timestamp = time();
-        $sign = $this->signShop($path, $timestamp, $token, $shopId);
+        $sign = $this->signAdminShop($path, $timestamp, $token, $shopId);
 
         $baseQuery = [
-            'partner_id' => (int) config('services.shopee_stock.partner_id'),
+            'partner_id' => (int) ($this->adminOAuthConfig()['partner_id'] ?? 0),
             'timestamp' => $timestamp,
             'access_token' => $token,
             'shop_id' => $shopId,
             'sign' => $sign,
         ];
 
-        return rtrim(config('services.shopee_stock.base_url'), '/').$path.'?'.http_build_query(array_merge($baseQuery, $query));
+        return $this->adminApiBaseUrl().$path.'?'.http_build_query(array_merge($baseQuery, $query));
     }
 
     /**
@@ -289,17 +271,17 @@ class ShopeeStockOpenApiService
         }
 
         $timestamp = time();
-        $sign = $this->signShop($path, $timestamp, $token, $shopId);
+        $sign = $this->signAdminShop($path, $timestamp, $token, $shopId);
 
         $baseQuery = [
-            'partner_id' => (int) config('services.shopee_stock.partner_id'),
+            'partner_id' => (int) ($this->adminOAuthConfig()['partner_id'] ?? 0),
             'timestamp' => $timestamp,
             'access_token' => $token,
             'shop_id' => $shopId,
             'sign' => $sign,
         ];
 
-        $url = rtrim(config('services.shopee_stock.base_url'), '/').$path;
+        $url = $this->adminApiBaseUrl().$path;
         $request = Http::timeout(30);
 
         if ($method === 'get') {
@@ -341,55 +323,14 @@ class ShopeeStockOpenApiService
      */
     private function postPublic(string $path, int $timestamp, array $body): Response
     {
-        $sign = $this->signPublic($path, $timestamp);
-        $url = rtrim(config('services.shopee_stock.base_url'), '/').$path;
+        $sign = $this->signAdminPublic($path, $timestamp);
+        $url = $this->adminApiBaseUrl().$path;
 
         return Http::timeout(30)->asJson()->post($url.'?'.http_build_query([
-            'partner_id' => (int) config('services.shopee_stock.partner_id'),
+            'partner_id' => (int) ($this->adminOAuthConfig()['partner_id'] ?? 0),
             'timestamp' => $timestamp,
             'sign' => $sign,
         ]), $body);
-    }
-
-    private function signPublic(string $path, int $timestamp): string
-    {
-        $partnerId = (string) config('services.shopee_stock.partner_id');
-        $baseString = $partnerId.$path.$timestamp;
-
-        return hash_hmac('sha256', $baseString, (string) config('services.shopee_stock.partner_key'));
-    }
-
-    private function signShop(string $path, int $timestamp, string $accessToken, int $shopId): string
-    {
-        $partnerId = (string) config('services.shopee_stock.partner_id');
-        $baseString = $partnerId.$path.$timestamp.$accessToken.$shopId;
-
-        return hash_hmac('sha256', $baseString, (string) config('services.shopee_stock.partner_key'));
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function getOAuthPayload(): array
-    {
-        $value = Setting::getValue(self::OAUTH_SETTING_SLUG, []);
-
-        return is_array($value) ? $value : [];
-    }
-
-    /**
-     * @param  array<string, mixed>  $payload
-     */
-    private function persistOAuth(array $payload): void
-    {
-        Setting::query()->updateOrCreate(
-            ['slug' => self::OAUTH_SETTING_SLUG],
-            [
-                'group' => 'shopee_stock',
-                'name' => 'Shopee Stock OAuth',
-                'value' => $payload,
-            ]
-        );
     }
 
     private function recordOAuthError(string $message): void

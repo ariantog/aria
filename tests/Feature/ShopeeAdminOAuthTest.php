@@ -38,6 +38,17 @@ it('surfaces invalid_partner_id oauth hint for admin app mismatch', function () 
         ->and($api->formatOAuthErrorForUser($detail))->toContain('shopeecoreadminbot.php');
 });
 
+it('allows shopee ads view permission to start admin authorize', function () {
+    app(\App\Services\PermissionGenerator::class)->generateForModule('ShopeeAds');
+    $user = User::factory()->create();
+    $user->givePermissionTo('shopee-ads-view');
+
+    $response = $this->actingAs($user)->get(route('shopee-admin.authorize', ['return' => 'shopee-ads']));
+
+    $response->assertRedirect();
+    expect($response->headers->get('Location'))->toContain('auth_partner');
+});
+
 it('stores admin oauth tokens separately from stock', function () {
     Http::fake([
         'partner.shopeemobile.com/*' => Http::response([
@@ -55,8 +66,8 @@ it('stores admin oauth tokens separately from stock', function () {
     expect($stored['access_token'])->toBe('admin-access')
         ->and($stored['shop_id'])->toBe(205);
 
-    $stock = Setting::getValue(ShopeeStockOpenApiService::OAUTH_SETTING_SLUG, []);
-    expect($stock)->toBe([]);
+    $legacyStock = Setting::getValue(ShopeeStockOpenApiService::LEGACY_OAUTH_SETTING_SLUG, []);
+    expect($legacyStock)->toBe([]);
 });
 
 it('admin oauth callback exchanges code without auth middleware', function () {

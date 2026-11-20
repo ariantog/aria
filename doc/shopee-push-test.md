@@ -12,16 +12,17 @@ https://{your-aria-host}/shopee/push
 
 Local dev needs a public tunnel (ngrok, Cloudflare Tunnel, etc.) — Shopee must reach the host to verify the URL.
 
-## OAuth redirect (CORENATION ADMIN vs STOCK CHECKER)
+## OAuth redirect (CORENATION ADMIN — one app for aria3)
 
-Shopee **Redirect URL** must match the Console app that issued the `partner_id` in `.env`. Each CDN PHP relay forwards `code` + `shop_id` to a **different** Laravel callback (token exchange uses that app’s partner id/key only).
+On **aria3**, Omnichannel, Shopee Ads, and warehouse stock API clients share **one** shop OAuth row (`shopee_admin_oauth`) and **one** Open Platform app (**CORENATION ADMIN**). Authorize once from any of those pages; token refresh and API signing all use `SHOPEE_ADMIN_*`.
 
-| Console app | Live Partner ID | CDN Redirect URL | Typical Aria host |
-|-------------|-----------------|------------------|-------------------|
-| **STOCK CHECKER** | (legacy app id) | `https://cdn.corenationactive.com/shopeestockbot.php` → `/shopee-stock/oauth/callback` | `aria.corenationactive.com` |
-| **CORENATION ADMIN** | `2053195` | `https://cdn.corenationactive.com/shopeecoreadminbot.php` → `/shopee-admin/oauth/callback` | `aria3.corenationactive.com` |
+| Console app | Live Partner ID | CDN Redirect URL | Aria routes using this token |
+|-------------|-----------------|------------------|------------------------------|
+| **CORENATION ADMIN** | `2053195` | `https://cdn.corenationactive.com/shopeecoreadminbot.php` → `/shopee-admin/oauth/callback` | `/omnichannel`, `/shopee-ads`, `/shopee-sync` |
 
-**aria3 (CORENATION ADMIN)** — upload `public/shopeecoreadminbot.php` to CDN beside `shopeestockbot.php`, register the redirect URL in Console, then:
+Legacy relays (`shopeebot.php` → `/shopee-ads/oauth/callback`, `shopeestockbot.php` → `/shopee-stock/oauth/callback`) still exchange codes with **admin** partner credentials and write `shopee_admin_oauth` only.
+
+**aria3 deploy:**
 
 ```env
 SHOPEE_ADMIN_PARTNER_ID=2053195
@@ -31,15 +32,9 @@ SHOPEE_PUSH_PARTNER_ID=2053195
 SHOPEE_PUSH_PARTNER_KEY=...    # Live Push Partner Key (not the Open API key)
 ```
 
-**aria (STOCK CHECKER only)** — warehouse stock sync:
+`SHOPEE_STOCK_*` / `SHOPEE_PARTNER_*` (old COREADS) are **deprecated on aria3** — do not authorize separate stock/ads apps there. `SHOPEE_PUSH_*` is unchanged (webhook HMAC only).
 
-```env
-SHOPEE_STOCK_PARTNER_ID=...
-SHOPEE_STOCK_PARTNER_KEY=...
-SHOPEE_STOCK_REDIRECT_URL=https://cdn.corenationactive.com/shopeestockbot.php
-```
-
-Mixing relays (`shopeestockbot.php` vs `shopeecoreadminbot.php`) with the wrong `SHOPEE_*_PARTNER_*` block yields `invalid_partner_id` on token exchange.
+**Legacy aria (STOCK CHECKER-only host)** may still use a separate Console app until migrated; L12 on aria3 assumes admin-only OAuth.
 
 ## Environment
 
