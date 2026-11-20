@@ -70,10 +70,15 @@ return [
         'callback_url' => env('SHOPEE_PUSH_CALLBACK_URL'),
         /** Persist selected pushes to shopee_push_inbox (off in production after URL verify). */
         'store_inbox' => filter_var(env('SHOPEE_PUSH_STORE_INBOX', false), FILTER_VALIDATE_BOOLEAN),
-        /** Push codes to store when store_inbox=true: 3=order status, 4=tracking. */
-        'store_inbox_codes' => array_map('intval', array_filter(explode(',', env('SHOPEE_PUSH_STORE_INBOX_CODES', '3,4')))),
+        /** Push codes to store when store_inbox=true: 0=URL verify sample, 3=order status, 4=tracking. */
+        'store_inbox_codes' => array_map('intval', array_filter(explode(',', env('SHOPEE_PUSH_STORE_INBOX_CODES', '0,3,4')))),
         /** Fetch Shopee order detail + compare to Jubelio queue (no Aria post). */
         'shadow_enabled' => filter_var(env('SHOPEE_PUSH_SHADOW_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
+        /** Known Console "Push Test Data" ordersn values (comma-separated). */
+        'test_push_ordersn' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('SHOPEE_PUSH_TEST_ORDERSN', '220810QSK8S7BX')),
+        ))),
     ],
 
     'jubelio' => [

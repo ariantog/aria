@@ -46,6 +46,29 @@ Shadow rows store **Shopee `item_list`** summary (`line_summary`: SKU, qty, amou
 - **Index:** `/omnichannel` — filters for overall compare and line compare; badges per row.
 - **Detail:** `/omnichannel/shopee/{ordersn}` — Shopee JSON snippet, line tables, link to Jubelio order show (when permitted).
 
+## Push code 0 vs code 3
+
+| Code | Shopee Console action | `shopee_push_inbox` | `marketplace_order_shadows` |
+|------|----------------------|---------------------|-----------------------------|
+| **0** | URL **Verify** / connectivity sample | Yes, when `SHOPEE_PUSH_STORE_INBOX=true` and code listed in `SHOPEE_PUSH_STORE_INBOX_CODES` (default `0,3,4`) | **No** — not an order event |
+| **3** | **Order status push** / **Push Test Data → order_status_push** | Optional (same env) | **Yes** when `SHOPEE_PUSH_SHADOW_ENABLED=true` and `data.ordersn` present |
+
+Console **Verify** succeeding with inbox rows but an empty omnichannel table is normal until a **code 3** push arrives (or you simulate one below).
+
+Console **Push Test Data** uses sample ordersn `220810QSK8S7BX` by default; stubs are tagged `compare_note=shopee_test_push` (configurable via `SHOPEE_PUSH_TEST_ORDERSN`).
+
+## Maintainer simulate (no HTTP, no Jubelio post)
+
+After migrations and deploy:
+
+```bash
+php artisan shopee:simulate-order-status-push
+```
+
+Options: `--ordersn=`, `--status=PROCESSED`, `--shop-id=`, `--dispatch-job` (optional queue enrich).
+
+The command upserts the same sync stub as the webhook, prints the canonical JSON body and `Authorization` signature for manual curl debugging.
+
 ## Troubleshooting (production)
 
 After a Shopee order push:
@@ -57,10 +80,10 @@ SELECT COUNT(*) FROM marketplace_order_shadows;
 
 | Symptom | Likely cause |
 |---------|----------------|
-| Inbox count grows, shadows stay 0 | `SHOPEE_PUSH_SHADOW_ENABLED=false`, migration not run, or push code ≠ 3 / missing `data.ordersn` |
+| Inbox count grows, shadows stay 0 | Only **code 0** verify hits, or `SHOPEE_PUSH_SHADOW_ENABLED=false`, migration not run, or push code ≠ 3 / missing `data.ordersn` |
 | Both counts 0 | No HTTP hits to `/shopee/push` (Console callback URL, firewall, or signature 401 — check `laravel.log` for `Shopee push rejected`) |
-| Shadows appear as **pending** forever | Queue worker not running (`jobs` table backlog) or Shopee OAuth missing for `get_order_detail` — check `Shopee shadow record failed` warnings |
-| Green omnichannel cards, empty table | Dashboard cards read Jubelio/Shopee **connection** settings, not shadow rows — confirm `marketplace_order_shadows` count |
+| Shadows appear as **pending** forever | Queue worker not running (`jobs` table backlog) or Shopee OAuth missing for `get_order_detail` — stub row still exists; check `Shopee shadow record failed` / `shopee_api_fetch_failed` in `compare_note` |
+| Green omnichannel cards, empty table | Dashboard cards read Jubelio/Shopee **connection** settings, not shadow rows — confirm `marketplace_order_shadows` count or run simulate command |
 
 Verified pushes log **`Shopee push accepted`** with `code`, `ordersn`, and `shadow_dispatched` (true when stub + job dispatch ran).
 

@@ -129,7 +129,17 @@ $lineLabels = [
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="8" class="px-3 py-8 text-center text-gray-500">Belum ada shadow order. Nyalakan Shopee Order Status push (3) dan pastikan queue worker jalan.</td>
+                    <td colspan="8" class="px-4 py-8 text-center text-sm text-gray-600">
+                        <p class="font-medium text-gray-800">Belum ada baris di <code class="text-xs">marketplace_order_shadows</code>.</p>
+                        <p class="mt-2 max-w-2xl mx-auto text-gray-500">
+                            Verifikasi URL di Shopee Console (push <strong>code 0</strong>) hanya mengisi <code class="text-xs">shopee_push_inbox</code> jika diaktifkan — tidak membuat shadow.
+                            Untuk uji omnichannel, gunakan <strong>Push Test Data → order_status_push (code 3)</strong> di Console, atau jalankan di server:
+                            <code class="mt-1 block text-left text-xs bg-gray-50 border border-gray-200 rounded px-2 py-1">php artisan shopee:simulate-order-status-push</code>
+                        </p>
+                        @unless($shopeeShadowEnabled)
+                        <p class="mt-2 text-amber-800">Shadow mati (<code class="text-xs">SHOPEE_PUSH_SHADOW_ENABLED=false</code>) — push code 3 tidak akan menulis tabel ini.</p>
+                        @endunless
+                    </td>
                 </tr>
                 @endforelse
             </tbody>

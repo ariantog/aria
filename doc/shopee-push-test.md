@@ -72,10 +72,22 @@ By default pushes are **not** written to DB or info-logged (only signature failu
 
 ```env
 SHOPEE_PUSH_STORE_INBOX=true
-SHOPEE_PUSH_STORE_INBOX_CODES=3,4
+SHOPEE_PUSH_STORE_INBOX_CODES=0,3,4
 ```
 
-Codes: `3` order status, `4` tracking number.
+Codes: `0` URL verify sample, `3` order status, `4` tracking number. **Code 0 does not create omnichannel shadows** — only code **3** (and the simulate artisan command) upsert `marketplace_order_shadows`.
+
+## Simulate order status push (aria3 / maintainer)
+
+Without calling HTTP:
+
+```bash
+php artisan shopee:simulate-order-status-push
+```
+
+Optional: `--ordersn=220810QSK8S7BX --status=PROCESSED --shop-id=727720655 --dispatch-job`
+
+See `doc/omnichannel.md` for code 0 vs 3 and empty-table diagnosis.
 
 ## What’s next (Jubelio still authoritative)
 

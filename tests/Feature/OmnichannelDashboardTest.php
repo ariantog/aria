@@ -12,7 +12,9 @@ it('renders omnichannel dashboard for superadmin', function () {
         ->get(route('omnichannel.index'))
         ->assertOk()
         ->assertSee('Omnichannel', false)
-        ->assertSee('Tidak mengubah transaksi', false);
+        ->assertSee('Tidak mengubah transaksi', false)
+        ->assertSee('shopee:simulate-order-status-push', false)
+        ->assertSee('code 0', false);
 });
 
 it('renders shopee shadow detail page', function () {

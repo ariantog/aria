@@ -47,6 +47,43 @@ function seedShopeeOAuthForShadow(): void
     );
 }
 
+it('recordFromPush retains stub when shopee api returns no order row', function () {
+    Http::fake([
+        'https://partner.test/*' => Http::response([
+            'error' => '',
+            'response' => ['order_list' => []],
+        ], 200),
+    ]);
+
+    config([
+        'services.shopee_stock.partner_id' => 1,
+        'services.shopee_stock.partner_key' => 'test-key',
+        'services.shopee_stock.base_url' => 'https://partner.test',
+    ]);
+
+    \App\Models\Setting::query()->updateOrCreate(
+        ['slug' => \App\Services\Shopee\ShopeeStockOpenApiService::OAUTH_SETTING_SLUG],
+        [
+            'group' => 'shopee_stock',
+            'name' => 'Shopee Stock OAuth',
+            'value' => [
+                'access_token' => 'token',
+                'shop_id' => 99,
+                'expires_at' => now()->addHour()->toIso8601String(),
+            ],
+        ],
+    );
+
+    $recorder = app(ShopeeOrderShadowRecorder::class);
+    $recorder->upsertStubFromPush(77, 'APIFAIL1', 'PROCESSED', 3);
+
+    $shadow = $recorder->recordFromPush(77, 'APIFAIL1', 'PROCESSED', 3);
+
+    expect($shadow->external_order_sn)->toBe('APIFAIL1')
+        ->and($shadow->compare_status)->toBe(MarketplaceOrderShadow::COMPARE_PENDING)
+        ->and($shadow->compare_note)->toBe('shopee_api_fetch_failed');
+});
+
 it('push stub upserts pending shadow without api calls', function () {
     $recorder = app(ShopeeOrderShadowRecorder::class);
 

@@ -55,7 +55,7 @@ class ShopeePushController extends Controller
         if (config('services.shopee_push.shadow_enabled') && $pushCode === 3 && filled($ordersn)) {
             try {
                 if (Schema::hasTable('marketplace_order_shadows')) {
-                    $shadowRecorder->upsertStubFromPush($shopId, $ordersn, $orderStatus, $pushCode);
+                    $shadowRecorder->upsertStubFromPush($shopId, $ordersn, $orderStatus, $pushCode, $data, $payload);
                 }
                 RecordShopeePushShadowJob::dispatch($shopId, $ordersn, $orderStatus, $pushCode);
                 $shadowDispatched = true;

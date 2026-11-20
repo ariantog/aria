@@ -78,6 +78,66 @@ it('upserts shadow stub when push data uses order_sn key', function () {
     expect(MarketplaceOrderShadow::query()->where('external_order_sn', 'ALT_SN_1')->exists())->toBeTrue();
 });
 
+it('accepts console sample code-3 push and upserts test shadow stub', function () {
+    Queue::fake();
+
+    config([
+        'services.shopee_push.partner_key' => 'test-partner-key',
+        'services.shopee_push.verify_signature' => true,
+        'services.shopee_push.shadow_enabled' => true,
+        'services.shopee_push.store_inbox' => false,
+    ]);
+
+    $body = '{"data":{"items":[],"ordersn":"220810QSK8S7BX","status":"PROCESSED","update_time":1660123127},"shop_id":727720655,"code":3,"timestamp":1660123127}';
+    $callbackUrl = url(route('shopee.push', [], false));
+    $authorization = app(ShopeePushSignatureVerifier::class)->sign($callbackUrl, $body);
+
+    $this->call('POST', route('shopee.push'), [], [], [], [
+        'HTTP_AUTHORIZATION' => $authorization,
+        'CONTENT_TYPE' => 'application/json',
+    ], $body)->assertOk();
+
+    $stub = MarketplaceOrderShadow::query()->where('external_order_sn', '220810QSK8S7BX')->first();
+    expect($stub)->not->toBeNull()
+        ->and($stub->compare_note)->toBe('shopee_test_push')
+        ->and($stub->channel_status)->toBe('PROCESSED');
+
+    Queue::assertPushed(RecordShopeePushShadowJob::class);
+});
+
+it('stores code 0 verify push in inbox when configured', function () {
+    config([
+        'services.shopee_push.partner_key' => 'test-partner-key',
+        'services.shopee_push.verify_signature' => true,
+        'services.shopee_push.callback_url' => '',
+        'services.shopee_push.store_inbox' => true,
+        'services.shopee_push.store_inbox_codes' => [0, 3],
+        'services.shopee_push.shadow_enabled' => true,
+    ]);
+
+    $body = '{"shop_id":727720655,"code":0,"timestamp":1660123127}';
+    $callbackUrl = route('shopee.push', [], false);
+    $callbackUrl = url($callbackUrl);
+    $authorization = app(ShopeePushSignatureVerifier::class)->sign($callbackUrl, $body);
+
+    $this->call(
+        'POST',
+        route('shopee.push'),
+        [],
+        [],
+        [],
+        [
+            'HTTP_AUTHORIZATION' => $authorization,
+            'CONTENT_TYPE' => 'application/json',
+        ],
+        $body,
+    )->assertOk();
+
+    expect(ShopeePushInbox::count())->toBe(1);
+    expect(ShopeePushInbox::query()->value('push_code'))->toBe(0);
+    expect(MarketplaceOrderShadow::count())->toBe(0);
+});
+
 it('accepts a signed shopee push and stores inbox row', function () {
     config([
         'services.shopee_push.partner_key' => 'test-partner-key',
