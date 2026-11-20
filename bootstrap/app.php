@@ -24,7 +24,6 @@ return Application::configure(basePath: dirname(__DIR__))
             'jubelio/webhook/order',
             'jubelio/webhook/return',
             'shopee/push',
-            'webhooks/lark/events',
             'tiktok-shop/mock/*',
         ]);
 

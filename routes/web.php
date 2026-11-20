@@ -48,9 +48,6 @@ Route::post('jubelio/webhook/return', [App\Http\Controllers\JubelioController::c
 Route::post('shopee/push', App\Http\Controllers\ShopeePushController::class)
     ->name('shopee.push');
 
-Route::post('webhooks/lark/events', [App\Http\Controllers\LarkWebhookController::class, 'handleEvent'])
-    ->name('webhooks.lark.events');
-
 // Shopee Ads OAuth callback — public (Shopee redirects here after seller approval)
 Route::get('shopee-ads/oauth/callback', [App\Http\Controllers\ShopeeAdsController::class, 'oauthCallback'])
     ->name('shopee-ads.oauth.callback');
@@ -197,9 +194,6 @@ Route::middleware(['auth', 'verified', 'active', 'enforce.readonly'])->group(fun
     Route::put('system-settings/invoice/branding', [App\Http\Controllers\InvoiceSettingsController::class, 'update'])->name('invoice-settings.update');
     Route::get('system-settings/lookup/{type}', [App\Http\Controllers\SettingController::class, 'lookup'])->name('system-settings.lookup');
     Route::resource('system-settings', App\Http\Controllers\SettingController::class)->except(['show']);
-    Route::get('lark-settings', [App\Http\Controllers\LarkOpsSettingsController::class, 'index'])->name('lark-settings.index');
-    Route::put('lark-settings', [App\Http\Controllers\LarkOpsSettingsController::class, 'update'])->name('lark-settings.update');
-
     // Warehouse stats backfill
     Route::get('warehouse-stat-backfill', [App\Http\Controllers\WarehouseStatBackfillController::class, 'index'])->name('warehouse-stat-backfill.index');
     Route::post('warehouse-stat-backfill/start', [App\Http\Controllers\WarehouseStatBackfillController::class, 'start'])->name('warehouse-stat-backfill.start');

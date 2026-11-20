@@ -11,7 +11,6 @@ use App\Models\ItemGroup;
 use App\Models\ItemStockNotification;
 use App\Models\Jubelio;
 use App\Models\Karyawan;
-use App\Models\LarkOpsSettings;
 use App\Models\Location;
 use App\Models\Operation;
 use App\Models\Produksi;
@@ -159,7 +158,6 @@ class PermissionGrouper
             [DataRetentionRun::class, 'Archive'],
             [ReadonlyExport::class, 'Read-only Export'],
             [UserActivityAudit::class, 'User Activity'],
-            [LarkOpsSettings::class, 'Settings'],
         ];
 
         foreach ($definitions as $definition) {

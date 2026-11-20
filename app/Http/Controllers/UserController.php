@@ -96,7 +96,6 @@ class UserController extends Controller
             'staffRoles' => $this->staffRolesForAssignment(),
             'assignedStaffRoleIds' => old('staff_role_ids', $user->staffRoles->pluck('id')->all()),
             'canAssignStaffRoles' => $this->canAssignStaffRoles(),
-            'canEditLarkNotify' => $this->canEditLarkNotify(),
         ]);
     }
 
@@ -130,7 +129,6 @@ class UserController extends Controller
         }
         $user->syncRoles([$data['role']]);
         $this->syncStaffRolesIfAllowed($request, $user);
-        $this->syncLarkNotifyIfAllowed($request, $user);
 
         return redirect()->route('users.index')->with('success', 'User updated.');
     }
@@ -197,11 +195,6 @@ class UserController extends Controller
         return request()->user()?->can(User::getPermissions()['staff-roles-edit']) ?? false;
     }
 
-    private function canEditLarkNotify(): bool
-    {
-        return request()->user()?->can(User::getPermissions()['lark-notify-edit']) ?? false;
-    }
-
     /**
      * @return \Illuminate\Database\Eloquent\Collection<int, StaffRole>
      */
@@ -225,27 +218,6 @@ class UserController extends Controller
         ]);
 
         $user->staffRoles()->sync($data['staff_role_ids'] ?? []);
-    }
-
-    private function syncLarkNotifyIfAllowed(Request $request, User $user): void
-    {
-        if (! $this->canEditLarkNotify()) {
-            return;
-        }
-
-        if (! Schema::hasColumn('users', 'lark_open_id')) {
-            return;
-        }
-
-        $data = $request->validate([
-            'lark_open_id' => 'nullable|string|max:64',
-            'lark_notify_enabled' => 'nullable|boolean',
-        ]);
-
-        $user->update([
-            'lark_open_id' => filled($data['lark_open_id'] ?? null) ? trim((string) $data['lark_open_id']) : null,
-            'lark_notify_enabled' => (bool) ($data['lark_notify_enabled'] ?? false),
-        ]);
     }
 
     /**
