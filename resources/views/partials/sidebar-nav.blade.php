@@ -146,7 +146,7 @@
         $reportNavLabels[] = 'Reporting Entities';
     }
 
-    $canOmnichannel = $hasPerm('omnichannel-view') || $hasPerm('jubelio-view') || $hasPerm('shopee-stock-view') || $isSuperAdmin;
+    $canOmnichannel = $hasPerm('omnichannel-view') || $isSuperAdmin;
 
     $jubelioNavLabels = ['Jubelio'];
     if ($hasPerm('jubelio-view') || $isSuperAdmin) {

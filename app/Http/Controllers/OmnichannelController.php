@@ -14,8 +14,7 @@ class OmnichannelController extends Controller
 {
     public function index(Request $request, ShopeeAdminOpenApiService $shopeeAdmin): View
     {
-        $user = $request->user();
-        abort_unless(Omnichannel::userCanView($user), 403);
+        Gate::authorize(Omnichannel::getPermissions()['view']);
 
         $compareFilter = $request->query('compare');
         $lineFilter = $request->query('line');
@@ -80,8 +79,7 @@ class OmnichannelController extends Controller
 
     public function showShopee(Request $request, string $ordersn): View
     {
-        $user = $request->user();
-        abort_unless(Omnichannel::userCanView($user), 403);
+        Gate::authorize(Omnichannel::getPermissions()['view']);
 
         $shadow = MarketplaceOrderShadow::query()
             ->where('channel', MarketplaceOrderShadow::CHANNEL_SHOPEE)
