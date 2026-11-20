@@ -3,8 +3,11 @@
 use App\Models\Jubelioorder;
 use App\Models\MarketplaceOrderShadow;
 use App\Models\Omnichannel;
+use App\Models\ShopeePushInbox;
 use App\Models\User;
+use App\Services\Marketplace\OmnichannelReceivedTimes;
 use App\Services\Marketplace\ShopeeJubelioShadowComparer;
+use Carbon\Carbon;
 use Spatie\Permission\Models\Permission;
 
 beforeEach(function () {
@@ -102,4 +105,66 @@ it('matches shopee order to jubelio invoice prefix', function () {
 
     expect($result['compare_status'])->toBe(MarketplaceOrderShadow::COMPARE_MATCHED)
         ->and($result['jubelio_invoice'])->toBe('SP-TESTORDER');
+});
+
+it('shows shopee push and jubelio inbox timestamps on the dashboard', function () {
+    $user = User::factory()->create();
+
+    $jubelioReceived = Carbon::parse('2026-11-20 09:59:15', OmnichannelReceivedTimes::TZ);
+    $shopeeReceived = Carbon::parse('2026-11-20 10:00:00', OmnichannelReceivedTimes::TZ);
+
+    $jubelio = Jubelioorder::create([
+        'jubelio_order_id' => 'j-ingress-1',
+        'source' => 1,
+        'invoice' => 'SP-INGSN1',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'status' => 0,
+        'created_at' => $jubelioReceived,
+    ]);
+
+    $shadow = MarketplaceOrderShadow::query()->create([
+        'channel' => MarketplaceOrderShadow::CHANNEL_SHOPEE,
+        'external_order_sn' => 'INGSN1',
+        'channel_status' => 'SHIPPED',
+        'compare_status' => MarketplaceOrderShadow::COMPARE_MATCHED,
+        'line_compare_status' => MarketplaceOrderShadow::LINE_COMPARE_MATCHED,
+        'jubelio_invoice' => 'SP-INGSN1',
+        'jubelio_order_id' => $jubelio->id,
+        'line_summary' => [
+            'line_count' => 1,
+            'lines' => [['sku' => 'X', 'qty' => 1, 'amount' => 100]],
+        ],
+        'last_event_at' => $shopeeReceived->copy()->addMinutes(5),
+    ]);
+
+    ShopeePushInbox::query()->create([
+        'shop_id' => 1,
+        'push_code' => OmnichannelReceivedTimes::PUSH_CODE_ORDER_STATUS,
+        'ordersn' => 'INGSN1',
+        'order_status' => 'SHIPPED',
+        'signature_ok' => true,
+        'payload' => ['data' => ['ordersn' => 'INGSN1']],
+        'created_at' => $shopeeReceived,
+    ]);
+
+    $shopeeLabel = $shopeeReceived->format('d M Y H:i:s');
+    $jubelioLabel = $jubelioReceived->format('d M Y H:i:s');
+
+    $this->actingAs($user)
+        ->get(route('omnichannel.index'))
+        ->assertOk()
+        ->assertSee('Shopee push', false)
+        ->assertSee('Jubelio inbox', false)
+        ->assertSee($shopeeLabel, false)
+        ->assertSee($jubelioLabel, false)
+        ->assertSee('+45s', false);
+
+    $this->actingAs($user)
+        ->get(route('omnichannel.shopee.show', $shadow->external_order_sn))
+        ->assertOk()
+        ->assertSee('Ingress (Aria)', false)
+        ->assertSee($shopeeLabel, false)
+        ->assertSee($jubelioLabel, false)
+        ->assertSee('+45s', false);
 });

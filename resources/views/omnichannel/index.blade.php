@@ -124,7 +124,8 @@ $lineLabels = [
                     <th class="px-3 py-2">Jubelio invoice</th>
                     <th class="px-3 py-2">Jubelio status</th>
                     <th class="px-3 py-2">Catatan</th>
-                    <th class="px-3 py-2">Event</th>
+                    <th class="px-3 py-2">Shopee push</th>
+                    <th class="px-3 py-2">Jubelio inbox</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
@@ -149,11 +150,18 @@ $lineLabels = [
                     <td class="px-3 py-2 font-mono text-xs">{{ $row->jubelio_invoice ?? '—' }}</td>
                     <td class="px-3 py-2">{{ $row->jubelio_order_status ?? '—' }}</td>
                     <td class="px-3 py-2 max-w-xs truncate text-xs text-gray-600" title="{{ $row->compare_note }}">{{ $row->compare_note ?? '—' }}</td>
-                    <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-500">{{ $row->last_event_at?->format('Y-m-d H:i') ?? '—' }}</td>
+                    @php $ingress = $ingressByShadowId[$row->id] ?? []; @endphp
+                    <td class="px-3 py-2 whitespace-nowrap font-mono text-xs tabular-nums text-gray-700">{{ $ingress['shopee_formatted'] ?? '—' }}</td>
+                    <td class="px-3 py-2 whitespace-nowrap font-mono text-xs tabular-nums text-gray-700">
+                        {{ $ingress['jubelio_formatted'] ?? '—' }}
+                        @if(!empty($ingress['delta_label']) && ($ingress['jubelio_earlier'] ?? false))
+                        <span class="ml-1 font-sans text-gray-400">{{ $ingress['delta_label'] }}</span>
+                        @endif
+                    </td>
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="8" class="px-4 py-8 text-center text-sm text-gray-600">
+                    <td colspan="9" class="px-4 py-8 text-center text-sm text-gray-600">
                         <p class="font-medium text-gray-800">Belum ada baris di <code class="text-xs">marketplace_order_shadows</code>.</p>
                         <p class="mt-2 max-w-2xl mx-auto text-gray-500">
                             Verifikasi URL di Shopee Console (push <strong>code 0</strong>) hanya mengisi <code class="text-xs">shopee_push_inbox</code> jika diaktifkan — tidak membuat shadow.

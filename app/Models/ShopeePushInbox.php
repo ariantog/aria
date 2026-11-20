@@ -21,6 +21,7 @@ class ShopeePushInbox extends Model
         'signature_ok',
         'callback_url',
         'payload',
+        'created_at',
     ];
 
     protected function casts(): array
@@ -30,6 +31,7 @@ class ShopeePushInbox extends Model
             'push_code' => 'integer',
             'signature_ok' => 'boolean',
             'payload' => 'array',
+            'created_at' => 'datetime',
         ];
     }
 }
