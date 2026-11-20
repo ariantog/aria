@@ -1,6 +1,7 @@
 <?php
 
 use App\Jobs\RecordShopeePushShadowJob;
+use App\Models\Item;
 use App\Models\Jubelioorder;
 use App\Models\MarketplaceOrderShadow;
 use App\Models\Transaction;
@@ -9,6 +10,42 @@ use Illuminate\Support\Facades\Http;
 /**
  * Shadow pipeline must not post sells, mutate jubelioorders, or touch warehouse stock.
  */
+function seedShopeeOAuthForShadow(): void
+{
+    config([
+        'services.shopee_stock.partner_id' => 1,
+        'services.shopee_stock.partner_key' => 'test-key',
+        'services.shopee_stock.base_url' => 'https://partner.test',
+        'services.jubelio.active' => true,
+        'services.jubelio.verify_ssl' => false,
+    ]);
+
+    \App\Models\Setting::query()->updateOrCreate(
+        ['slug' => \App\Services\JubelioService::TOKEN_SETTING_SLUG],
+        [
+            'group' => 'Jubelio',
+            'name' => 'Jubelio Token',
+            'value' => [
+                'token' => 'test-jubelio-token',
+                'expires_at' => now()->addDay()->toDateTimeString(),
+            ],
+        ],
+    );
+
+    \App\Models\Setting::query()->updateOrCreate(
+        ['slug' => \App\Services\Shopee\ShopeeStockOpenApiService::OAUTH_SETTING_SLUG],
+        [
+            'group' => 'shopee_stock',
+            'name' => 'Shopee Stock OAuth',
+            'value' => [
+                'access_token' => 'token',
+                'shop_id' => 99,
+                'expires_at' => now()->addHour()->toIso8601String(),
+            ],
+        ],
+    );
+}
+
 it('shadow job only writes marketplace_order_shadows', function () {
     Jubelioorder::create([
         'jubelio_order_id' => 'ro-1',
@@ -24,43 +61,161 @@ it('shadow job only writes marketplace_order_shadows', function () {
     $beforeJubelio = Jubelioorder::count();
 
     Http::fake([
-        '*' => Http::response([
+        'https://partner.test/*' => Http::response([
             'error' => '',
             'response' => [
                 'order_list' => [
                     [
                         'order_sn' => 'READONLY1',
                         'order_status' => 'SHIPPED',
+                        'total_amount' => 150000,
+                        'item_list' => [
+                            [
+                                'model_sku' => 'SKU-RO-1',
+                                'model_quantity_purchased' => 1,
+                                'model_discounted_price' => 150000,
+                            ],
+                        ],
                     ],
                 ],
             ],
         ], 200),
+        'https://api2.jubelio.com/*' => Http::response([
+            'items' => [],
+        ], 200),
     ]);
 
-    config([
-        'services.shopee_stock.partner_id' => 1,
-        'services.shopee_stock.partner_key' => 'test-key',
-        'services.shopee_stock.base_url' => 'https://partner.test',
-    ]);
-
-    \App\Models\Setting::query()->updateOrCreate(
-        ['slug' => \App\Services\Shopee\ShopeeStockOpenApiService::OAUTH_SETTING_SLUG],
-        [
-            'group' => 'shopee_stock',
-            'name' => 'Shopee Stock OAuth',
-            'value' => [
-                'access_token' => 'token',
-                'shop_id' => 99,
-                'expires_at' => now()->addHour()->toIso8601String(),
-            ],
-        ],
-    );
+    seedShopeeOAuthForShadow();
 
     $job = new RecordShopeePushShadowJob(99, 'READONLY1', 'SHIPPED', 3);
     $job->handle(app(\App\Services\Marketplace\ShopeeOrderShadowRecorder::class));
 
     expect(Transaction::count())->toBe($beforeTxns)
         ->and(Jubelioorder::count())->toBe($beforeJubelio)
-        ->and(Jubelioorder::query()->where('invoice', 'SP-READONLY1')->value('order_status'))->toBe('SHIPPED')
-        ->and(MarketplaceOrderShadow::query()->where('external_order_sn', 'READONLY1')->exists())->toBeTrue();
+        ->and(Jubelioorder::query()->where('invoice', 'SP-READONLY1')->value('order_status'))->toBe('SHIPPED');
+
+    $shadow = MarketplaceOrderShadow::query()->where('external_order_sn', 'READONLY1')->first();
+    expect($shadow)->not->toBeNull()
+        ->and($shadow->line_summary['line_count'])->toBe(1)
+        ->and($shadow->line_summary['lines'][0]['sku'])->toBe('SKU-RO-1');
+});
+
+it('flags line qty mismatch versus jubelio payload without posting', function () {
+    Item::factory()->create([
+        'code' => 'SKU-LINE-A',
+        'jubelio_item_id' => 88001,
+    ]);
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'j-line-1',
+        'source' => 1,
+        'invoice' => 'SP-LINECMP1',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'status' => 0,
+        'run_count' => 0,
+    ]);
+
+    $beforeTxns = Transaction::count();
+
+    Http::fake([
+        'https://partner.test/*' => Http::response([
+            'error' => '',
+            'response' => [
+                'order_list' => [
+                    [
+                        'order_sn' => 'LINECMP1',
+                        'order_status' => 'SHIPPED',
+                        'item_list' => [
+                            [
+                                'model_sku' => 'SKU-LINE-A',
+                                'model_quantity_purchased' => 2,
+                                'model_discounted_price' => 50000,
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ], 200),
+        'https://api2.jubelio.com/sales/orders/*' => Http::response([
+            'items' => [
+                [
+                    'item_id' => 88001,
+                    'item_code' => 'SKU-LINE-A',
+                    'qty' => 1,
+                    'price' => 50000,
+                ],
+            ],
+        ], 200),
+    ]);
+
+    seedShopeeOAuthForShadow();
+
+    $job = new RecordShopeePushShadowJob(99, 'LINECMP1', 'SHIPPED', 3);
+    $job->handle(app(\App\Services\Marketplace\ShopeeOrderShadowRecorder::class));
+
+    expect(Transaction::count())->toBe($beforeTxns);
+
+    $shadow = MarketplaceOrderShadow::query()->where('external_order_sn', 'LINECMP1')->first();
+    expect($shadow)->not->toBeNull()
+        ->and($shadow->compare_status)->toBe(MarketplaceOrderShadow::COMPARE_MISMATCH)
+        ->and($shadow->line_compare_status)->toBe(MarketplaceOrderShadow::LINE_COMPARE_MISMATCH)
+        ->and($shadow->compare_note)->toContain('SKU-LINE-A');
+});
+
+it('matches shopee and jubelio lines when qty aligns', function () {
+    Item::factory()->create([
+        'code' => 'SKU-LINE-B',
+        'jubelio_item_id' => 88002,
+    ]);
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'j-line-2',
+        'source' => 1,
+        'invoice' => 'SP-LINECMP2',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'status' => 0,
+        'run_count' => 0,
+    ]);
+
+    Http::fake([
+        'https://partner.test/*' => Http::response([
+            'error' => '',
+            'response' => [
+                'order_list' => [
+                    [
+                        'order_sn' => 'LINECMP2',
+                        'order_status' => 'SHIPPED',
+                        'item_list' => [
+                            [
+                                'model_sku' => 'SKU-LINE-B',
+                                'model_quantity_purchased' => 3,
+                                'model_discounted_price' => 10000,
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ], 200),
+        'https://api2.jubelio.com/sales/orders/*' => Http::response([
+            'items' => [
+                [
+                    'item_id' => 88002,
+                    'qty' => 3,
+                    'price' => 10000,
+                ],
+            ],
+        ], 200),
+    ]);
+
+    seedShopeeOAuthForShadow();
+
+    $job = new RecordShopeePushShadowJob(99, 'LINECMP2', 'SHIPPED', 3);
+    $job->handle(app(\App\Services\Marketplace\ShopeeOrderShadowRecorder::class));
+
+    $shadow = MarketplaceOrderShadow::query()->where('external_order_sn', 'LINECMP2')->first();
+    expect($shadow)->not->toBeNull()
+        ->and($shadow->compare_status)->toBe(MarketplaceOrderShadow::COMPARE_MATCHED)
+        ->and($shadow->line_compare_status)->toBe(MarketplaceOrderShadow::LINE_COMPARE_MATCHED);
 });

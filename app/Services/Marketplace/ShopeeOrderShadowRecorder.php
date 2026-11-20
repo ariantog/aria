@@ -11,6 +11,7 @@ class ShopeeOrderShadowRecorder
     public function __construct(
         private ShopeeStockOpenApiService $shopeeApi,
         private ShopeeJubelioShadowComparer $comparer,
+        private ShopeeOrderLineSummary $shopeeLineSummary,
     ) {}
 
     public function recordFromPush(?int $shopId, string $orderSn, ?string $pushStatus, int $pushCode): MarketplaceOrderShadow
@@ -21,7 +22,13 @@ class ShopeeOrderShadowRecorder
             ? (string) ($orderRow['order_status'] ?? $pushStatus ?? '')
             : (string) ($pushStatus ?? '');
 
-        $compare = $this->comparer->compare($orderSn, $channelStatus !== '' ? $channelStatus : $pushStatus);
+        $lineSummary = $this->shopeeLineSummary->fromOrderRow(is_array($orderRow) ? $orderRow : null);
+
+        $compare = $this->comparer->compare(
+            $orderSn,
+            $channelStatus !== '' ? $channelStatus : $pushStatus,
+            $lineSummary,
+        );
 
         return MarketplaceOrderShadow::query()->updateOrCreate(
             [
@@ -37,6 +44,9 @@ class ShopeeOrderShadowRecorder
                 'jubelio_order_status' => $compare['jubelio_order_status'],
                 'jubelio_order_id' => $compare['jubelio_order_id'],
                 'channel_payload' => $detail,
+                'line_summary' => $lineSummary,
+                'jubelio_line_summary' => $compare['jubelio_line_summary'],
+                'line_compare_status' => $compare['line_compare_status'],
                 'compare_note' => $compare['compare_note'],
                 'last_event_at' => Carbon::now(),
             ],

@@ -29,9 +29,22 @@ php artisan migrate --path=database/migrations/2026_11_19_150000_create_marketpl
 
 `omnichannel-view` (optional; generate via PermissionGenerator). Until assigned, users with `jubelio-view` or `shopee-stock-view` can open the page.
 
+## Line compare (phase 1b)
+
+Shadow rows store **Shopee `item_list`** summary (`line_summary`: SKU, qty, amount) and, when a matching `jubelioorders` SELL exists, a read-only Jubelio API payload line summary (`jubelio_line_summary`). Line qty is compared via Aria `items.jubelio_item_id` (Jubelio) and `items.code` / `legacy_code` (Shopee SKU). **No** `ProcessJubelioOrder`, stock, or transaction writes.
+
+- **Index:** `/omnichannel` — filters for overall compare and line compare; badges per row.
+- **Detail:** `/omnichannel/shopee/{ordersn}` — Shopee JSON snippet, line tables, link to Jubelio order show (when permitted).
+
+Migration (additive):
+
+```bash
+php artisan migrate --path=database/migrations/2026_11_20_100000_add_line_fields_to_marketplace_order_shadows.php
+```
+
 ## Later phases
 
 - TikTok / Tokopedia channels on same table
-- Detail drawer + manual refresh
+- Manual refresh from detail page
 - Channel-specific post flag (cutover from Jubelio)
 - Stock push status per channel on the dashboard
