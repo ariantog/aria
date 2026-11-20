@@ -7,7 +7,9 @@ use App\Models\ShopeePushInbox;
 use App\Models\User;
 use App\Services\Marketplace\OmnichannelReceivedTimes;
 use App\Services\Marketplace\ShopeeJubelioShadowComparer;
+use App\Services\Shopee\ShopeeAdminOpenApiService;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Http;
 use Spatie\Permission\Models\Permission;
 
 beforeEach(function () {
@@ -81,6 +83,17 @@ it('renders shopee shadow detail page', function () {
             'line_count' => 1,
             'lines' => [['sku' => 'X', 'qty' => 1, 'amount' => 100]],
         ],
+        'channel_payload' => [
+            'response' => [
+                'order_list' => [
+                    [
+                        'order_sn' => 'DETAILSN1',
+                        'order_status' => 'SHIPPED',
+                        'item_list' => [],
+                    ],
+                ],
+            ],
+        ],
         'last_event_at' => now(),
     ]);
 
@@ -89,6 +102,75 @@ it('renders shopee shadow detail page', function () {
         ->assertOk()
         ->assertSee('DETAILSN1', false)
         ->assertSee('Ringkasan Shopee', false);
+});
+
+it('lazy-loads shopee detail when opening shadow show from stub', function () {
+    config([
+        'services.shopee_admin.partner_id' => 1,
+        'services.shopee_admin.partner_key' => 'test-key',
+        'services.shopee_admin.base_url' => 'https://partner.test',
+        'services.jubelio.active' => false,
+    ]);
+
+    \App\Models\Setting::query()->updateOrCreate(
+        ['slug' => ShopeeAdminOpenApiService::OAUTH_SETTING_SLUG],
+        [
+            'group' => 'shopee_admin',
+            'name' => 'Shopee Admin OAuth',
+            'value' => [
+                'access_token' => 'token',
+                'shop_id' => 99,
+                'expires_at' => now()->addHour()->toIso8601String(),
+            ],
+        ],
+    );
+
+    Http::fake([
+        'https://partner.test/*' => Http::response([
+            'error' => '',
+            'response' => [
+                'order_list' => [
+                    [
+                        'order_sn' => 'LAZYSTUB1',
+                        'order_status' => 'SHIPPED',
+                        'total_amount' => 99000,
+                        'item_list' => [
+                            [
+                                'model_sku' => 'SKU-LAZY-1',
+                                'model_quantity_purchased' => 2,
+                                'model_discounted_price' => 49500,
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ], 200),
+    ]);
+
+    $user = User::factory()->create();
+
+    MarketplaceOrderShadow::query()->create([
+        'channel' => MarketplaceOrderShadow::CHANNEL_SHOPEE,
+        'external_order_sn' => 'LAZYSTUB1',
+        'channel_status' => 'PROCESSED',
+        'compare_status' => MarketplaceOrderShadow::COMPARE_PENDING,
+        'line_compare_status' => MarketplaceOrderShadow::LINE_COMPARE_SKIPPED,
+        'shop_id' => 99,
+        'last_push_code' => 3,
+        'last_event_at' => now(),
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('omnichannel.shopee.show', 'LAZYSTUB1'))
+        ->assertOk()
+        ->assertSee('LAZYSTUB1', false)
+        ->assertSee('shadow-detail-fetched-now', false);
+
+    $shadow = MarketplaceOrderShadow::query()->where('external_order_sn', 'LAZYSTUB1')->first();
+    expect($shadow)->not->toBeNull()
+        ->and($shadow->detailLoaded())->toBeTrue()
+        ->and($shadow->line_summary['line_count'])->toBe(1)
+        ->and($shadow->line_summary['lines'][0]['sku'])->toBe('SKU-LAZY-1');
 });
 
 it('matches shopee order to jubelio invoice prefix', function () {
@@ -134,6 +216,17 @@ it('shows shopee push and jubelio inbox timestamps on the dashboard', function (
         'line_summary' => [
             'line_count' => 1,
             'lines' => [['sku' => 'X', 'qty' => 1, 'amount' => 100]],
+        ],
+        'channel_payload' => [
+            'response' => [
+                'order_list' => [
+                    [
+                        'order_sn' => 'INGSN1',
+                        'order_status' => 'SHIPPED',
+                        'item_list' => [],
+                    ],
+                ],
+            ],
         ],
         'last_event_at' => $shopeeReceived->copy()->addMinutes(5),
     ]);

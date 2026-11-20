@@ -80,8 +80,10 @@ return [
         'store_inbox' => filter_var(env('SHOPEE_PUSH_STORE_INBOX', false), FILTER_VALIDATE_BOOLEAN),
         /** Push codes to store when store_inbox=true: 0=URL verify sample, 3=order status, 4=tracking. */
         'store_inbox_codes' => array_map('intval', array_filter(explode(',', env('SHOPEE_PUSH_STORE_INBOX_CODES', '0,3,4')))),
-        /** Fetch Shopee order detail + compare to Jubelio queue (no Aria post). */
+        /** Minimal shadow row on push; full get_order_detail loads on omnichannel detail (no Aria post). */
         'shadow_enabled' => filter_var(env('SHOPEE_PUSH_SHADOW_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
+        /** Reuse cached shadow detail on repeat detail visits when younger than this (seconds). 0 = until manual refresh. */
+        'shadow_detail_ttl_seconds' => (int) env('SHOPEE_PUSH_SHADOW_DETAIL_TTL_SECONDS', 300),
         /** Known Console "Push Test Data" ordersn values (comma-separated). */
         'test_push_ordersn' => array_values(array_filter(array_map(
             'trim',

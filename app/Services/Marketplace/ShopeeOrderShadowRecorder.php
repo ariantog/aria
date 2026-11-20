@@ -18,7 +18,7 @@ class ShopeeOrderShadowRecorder
     ) {}
 
     /**
-     * Minimal row so /omnichannel list updates without a queue worker (full detail via job or detail refresh).
+     * Minimal row so /omnichannel list updates without API calls (full detail on detail page or refresh).
      */
     /**
      * @param  array<string, mixed>  $pushData  Shopee push `data` object (optional).

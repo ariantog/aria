@@ -2,24 +2,24 @@
 
 **Route:** `/omnichannel` (sidebar **Omnichannel**)
 
-**Read-only guarantee (phase 1):** Shopee push **immediately upserts** a minimal `marketplace_order_shadows` row on HTTP (order status push code 3). Optionally, `RecordShopeePushShadowJob` **GET**s Shopee order detail and refreshes compare fields. Neither path creates `transactions`, changes `warehouse_item`, inserts/updates `jubelioorders`, or calls `ProcessJubelioOrder`. Jubelio webhooks, cron, and manual Process are unchanged.
+**Read-only guarantee (phase 1):** Shopee push **immediately upserts** a minimal `marketplace_order_shadows` row on HTTP (order status push code 3). **Full** Shopee `get_order_detail` + Jubelio line compare runs **on demand** when ops open `/omnichannel/shopee/{ordersn}` or post **Refresh** — not on every push. Neither path creates `transactions`, changes `warehouse_item`, inserts/updates `jubelioorders`, or calls `ProcessJubelioOrder`. Jubelio webhooks, cron, and manual Process are unchanged.
 
 Disable shadow entirely: `SHOPEE_PUSH_SHADOW_ENABLED=false` (push callback still returns 200).
 
 Jubelio remains the posting path. Shopee **Order Status push (3)**:
 
-1. **Sync stub** — upsert `marketplace_order_shadows` with `ordersn`, `shop_id`, push status, `compare_status=pending` (no queue required for list visibility).
-2. **Queued enrich** — `RecordShopeePushShadowJob` calls Shopee `get_order_detail`, line summary, and Jubelio compare (`SP-{ordersn}`).
+1. **Sync stub** — upsert `marketplace_order_shadows` with `ordersn`, `shop_id`, push status, `compare_status=pending` (no queue worker; list may show `belum dimuat` for lines until detail is opened).
+2. **Lazy enrich** — `OmnichannelController@showShopee` (and `refreshShopee`) calls `ShopeeOrderShadowRecorder::recordFromPush` → Shopee `get_order_detail`, line summary, Jubelio compare (`SP-{ordersn}`). Cached detail reuses the row for `SHOPEE_PUSH_SHADOW_DETAIL_TTL_SECONDS` (default 300).
 
-Detail page: `/omnichannel/shopee/{ordersn}` (lines/JSON appear after the job succeeds or a future manual refresh).
+Detail page: `/omnichannel/shopee/{ordersn}` — **Refresh** forces a new API fetch.
 
 ## Requirements
 
 - `SHOPEE_PUSH_*` + verified callback
 - `SHOPEE_PUSH_SHADOW_ENABLED=true` (default)
-- Shopee **Admin** OAuth (`shopee_admin_oauth` setting / `SHOPEE_ADMIN_*`) for `get_order_detail` on the queued job — **not** STOCK CHECKER credentials
+- Shopee **Admin** OAuth (`shopee_admin_oauth` setting / `SHOPEE_ADMIN_*`) for `get_order_detail` on the **detail page** — **not** STOCK CHECKER credentials
 - **CORENATION ADMIN (aria3):** CDN relay `shopeecoreadminbot.php` → `/shopee-admin/oauth/callback`; env `SHOPEE_ADMIN_PARTNER_ID=2053195`, `SHOPEE_ADMIN_REDIRECT_URL` = CDN URL (see `doc/shopee-push-test.md`). **STOCK CHECKER** stays on `shopeestockbot.php` + `/shopee-stock/oauth/callback` with `SHOPEE_STOCK_*` only on hosts that run warehouse stock sync.
-- Queue worker (`php artisan queue:listen` or cron queue) **optional for list visibility**; required for full line compare badges without waiting on `QUEUE_CONNECTION=sync`
+- Queue worker **not required** for shadow list or detail (sync fetch on detail view)
 
 ## Migrations
 
@@ -66,7 +66,7 @@ After migrations and deploy:
 php artisan shopee:simulate-order-status-push
 ```
 
-Options: `--ordersn=`, `--status=PROCESSED`, `--shop-id=`, `--dispatch-job` (optional queue enrich).
+Options: `--ordersn=`, `--status=PROCESSED`, `--shop-id=`, `--dispatch-job` (optional queue enrich via `RecordShopeePushShadowJob` — normally use detail page instead).
 
 The command upserts the same sync stub as the webhook, prints the canonical JSON body and `Authorization` signature for manual curl debugging.
 
@@ -83,14 +83,14 @@ SELECT COUNT(*) FROM marketplace_order_shadows;
 |---------|----------------|
 | Inbox count grows, shadows stay 0 | Only **code 0** verify hits, or `SHOPEE_PUSH_SHADOW_ENABLED=false`, migration not run, or push code ≠ 3 / missing `data.ordersn` |
 | Both counts 0 | No HTTP hits to `/shopee/push` (Console callback URL, firewall, or signature 401 — check `laravel.log` for `Shopee push rejected`) |
-| Shadows appear as **pending** forever | Queue worker not running (`jobs` table backlog) or Shopee OAuth missing for `get_order_detail` — stub row still exists; check `Shopee shadow record failed` / `shopee_api_fetch_failed` in `compare_note` |
+| List shows order but lines **belum dimuat** | Expected until someone opens detail (needs Shopee Admin OAuth for `get_order_detail`) |
+| Compare stays **pending** after opening detail | Shopee OAuth missing / API error — check `compare_note` for `shopee_api_fetch_failed` |
 | Green omnichannel cards, empty table | Dashboard cards read Jubelio/Shopee **connection** settings, not shadow rows — confirm `marketplace_order_shadows` count or run simulate command |
 
-Verified pushes log **`Shopee push accepted`** with `code`, `ordersn`, and `shadow_dispatched` (true when stub + job dispatch ran).
+Verified pushes log **`Shopee push accepted`** with `code`, `ordersn`, and `shadow_stub_upserted` (true when stub row written).
 
 ## Later phases
 
 - TikTok / Tokopedia channels on same table
-- Manual refresh from detail page
 - Channel-specific post flag (cutover from Jubelio)
 - Stock push status per channel on the dashboard

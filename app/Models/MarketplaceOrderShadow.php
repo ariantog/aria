@@ -54,4 +54,29 @@ class MarketplaceOrderShadow extends Model
             'last_event_at' => 'datetime',
         ];
     }
+
+    public function detailLoaded(): bool
+    {
+        if (! is_array($this->channel_payload)) {
+            return false;
+        }
+
+        $orderRow = $this->channel_payload['response']['order_list'][0] ?? null;
+
+        return is_array($orderRow);
+    }
+
+    public function detailFresh(): bool
+    {
+        if (! $this->detailLoaded()) {
+            return false;
+        }
+
+        $ttl = (int) config('services.shopee_push.shadow_detail_ttl_seconds', 300);
+        if ($ttl <= 0) {
+            return true;
+        }
+
+        return $this->updated_at !== null && $this->updated_at->greaterThan(now()->subSeconds($ttl));
+    }
 }

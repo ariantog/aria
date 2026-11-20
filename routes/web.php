@@ -125,6 +125,9 @@ Route::middleware(['auth', 'verified', 'active', 'enforce.readonly'])->group(fun
     Route::get('omnichannel/shopee/{ordersn}', [App\Http\Controllers\OmnichannelController::class, 'showShopee'])
         ->where('ordersn', '[A-Za-z0-9_-]+')
         ->name('omnichannel.shopee.show');
+    Route::post('omnichannel/shopee/{ordersn}/refresh', [App\Http\Controllers\OmnichannelController::class, 'refreshShopee'])
+        ->where('ordersn', '[A-Za-z0-9_-]+')
+        ->name('omnichannel.shopee.refresh');
 
     Route::get('jubelio/order/cek', [App\Http\Controllers\JubelioController::class, 'cekOrder'])->name('jubelio.order.cek');
     Route::post('jubelio/order/cek/queue', [App\Http\Controllers\JubelioController::class, 'queueCekOrder'])->name('jubelio.order.cek.queue');

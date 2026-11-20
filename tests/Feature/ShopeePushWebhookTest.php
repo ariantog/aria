@@ -28,7 +28,7 @@ it('does not dispatch shadow job when shadow is disabled', function () {
     Queue::assertNotPushed(RecordShopeePushShadowJob::class);
 });
 
-it('dispatches shadow job for order status push', function () {
+it('upserts shadow stub only for order status push without queue enrich', function () {
     Queue::fake();
 
     config([
@@ -47,13 +47,14 @@ it('dispatches shadow job for order status push', function () {
         'CONTENT_TYPE' => 'application/json',
     ], $body)->assertOk();
 
-    Queue::assertPushed(RecordShopeePushShadowJob::class, fn ($job) => $job->orderSn === 'PUSH123');
+    Queue::assertNotPushed(RecordShopeePushShadowJob::class);
 
     $stub = MarketplaceOrderShadow::query()->where('external_order_sn', 'PUSH123')->first();
     expect($stub)->not->toBeNull()
         ->and($stub->compare_status)->toBe(MarketplaceOrderShadow::COMPARE_PENDING)
         ->and($stub->channel_status)->toBe('PROCESSED')
-        ->and($stub->shop_id)->toBe(9);
+        ->and($stub->shop_id)->toBe(9)
+        ->and($stub->detailLoaded())->toBeFalse();
 });
 
 it('upserts shadow stub when push data uses order_sn key', function () {
@@ -102,7 +103,7 @@ it('accepts console sample code-3 push and upserts test shadow stub', function (
         ->and($stub->compare_note)->toBe('shopee_test_push')
         ->and($stub->channel_status)->toBe('PROCESSED');
 
-    Queue::assertPushed(RecordShopeePushShadowJob::class);
+    Queue::assertNotPushed(RecordShopeePushShadowJob::class);
 });
 
 it('stores code 0 verify push in inbox when configured', function () {

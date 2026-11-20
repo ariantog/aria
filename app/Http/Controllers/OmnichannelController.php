@@ -6,7 +6,9 @@ use App\Models\Jubelioorder;
 use App\Models\MarketplaceOrderShadow;
 use App\Models\Omnichannel;
 use App\Services\Marketplace\OmnichannelReceivedTimes;
+use App\Services\Marketplace\ShopeeOrderShadowRecorder;
 use App\Services\Shopee\ShopeeAdminOpenApiService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
@@ -80,7 +82,40 @@ class OmnichannelController extends Controller
         ]);
     }
 
-    public function showShopee(Request $request, string $ordersn, OmnichannelReceivedTimes $receivedTimes): View
+    public function showShopee(
+        Request $request,
+        string $ordersn,
+        ShopeeOrderShadowRecorder $shadowRecorder,
+        OmnichannelReceivedTimes $receivedTimes,
+    ): View {
+        Gate::authorize(Omnichannel::getPermissions()['view']);
+
+        $shadow = MarketplaceOrderShadow::query()
+            ->where('channel', MarketplaceOrderShadow::CHANNEL_SHOPEE)
+            ->where('external_order_sn', $ordersn)
+            ->firstOrFail();
+
+        $detailFetchedNow = false;
+        if (! $shadow->detailFresh()) {
+            $shadow = $shadowRecorder->recordFromPush(
+                $shadow->shop_id,
+                $ordersn,
+                $shadow->channel_status,
+                (int) ($shadow->last_push_code ?? 3),
+            );
+            $detailFetchedNow = true;
+        }
+
+        return view('omnichannel.shopee-show', array_merge(
+            $this->shopeeShowViewData($shadow, $ordersn, $receivedTimes),
+            [
+                'detailFetchedNow' => $detailFetchedNow,
+                'detailFromCache' => ! $detailFetchedNow && $shadow->detailLoaded(),
+            ],
+        ));
+    }
+
+    public function refreshShopee(string $ordersn, ShopeeOrderShadowRecorder $shadowRecorder): RedirectResponse
     {
         Gate::authorize(Omnichannel::getPermissions()['view']);
 
@@ -89,6 +124,26 @@ class OmnichannelController extends Controller
             ->where('external_order_sn', $ordersn)
             ->firstOrFail();
 
+        $shadowRecorder->recordFromPush(
+            $shadow->shop_id,
+            $ordersn,
+            $shadow->channel_status,
+            (int) ($shadow->last_push_code ?? 3),
+        );
+
+        return redirect()
+            ->route('omnichannel.shopee.show', $ordersn)
+            ->with('success', 'Shadow Shopee diperbarui dari API (read-only).');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function shopeeShowViewData(
+        MarketplaceOrderShadow $shadow,
+        string $ordersn,
+        OmnichannelReceivedTimes $receivedTimes,
+    ): array {
         $jubelioOrder = null;
         if ($shadow->jubelio_order_id) {
             $jubelioOrder = Jubelioorder::query()->find($shadow->jubelio_order_id);
@@ -107,12 +162,12 @@ class OmnichannelController extends Controller
             }
         }
 
-        return view('omnichannel.shopee-show', [
+        return [
             'shadow' => $shadow,
             'jubelioOrder' => $jubelioOrder,
             'payloadSnippet' => $payloadSnippet,
             'ingress' => $receivedTimes->forSingle($shadow, $jubelioOrder),
             'canJubelio' => Gate::check(\App\Models\Jubelio::getPermissions()['view']),
-        ]);
+        ];
     }
 }
