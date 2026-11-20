@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Jubelioorder;
 use App\Models\MarketplaceOrderShadow;
 use App\Models\Omnichannel;
+use App\Services\Marketplace\OmnichannelReceivedTimes;
 use App\Services\Shopee\ShopeeAdminOpenApiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -12,7 +13,7 @@ use Illuminate\View\View;
 
 class OmnichannelController extends Controller
 {
-    public function index(Request $request, ShopeeAdminOpenApiService $shopeeAdmin): View
+    public function index(Request $request, ShopeeAdminOpenApiService $shopeeAdmin, OmnichannelReceivedTimes $receivedTimes): View
     {
         Gate::authorize(Omnichannel::getPermissions()['view']);
 
@@ -53,9 +54,11 @@ class OmnichannelController extends Controller
         $jubelioPending = Jubelioorder::query()->where('type', 'SELL')->where('status', 0)->count();
 
         $shopeeAdminConnection = $shopeeAdmin->getConnectionStatus();
+        $ingressByShadowId = $receivedTimes->forShadows($shadows);
 
         return view('omnichannel.index', [
             'shadows' => $shadows,
+            'ingressByShadowId' => $ingressByShadowId,
             'stats' => $stats,
             'filters' => [
                 'compare' => $compareFilter,
@@ -77,7 +80,7 @@ class OmnichannelController extends Controller
         ]);
     }
 
-    public function showShopee(Request $request, string $ordersn): View
+    public function showShopee(Request $request, string $ordersn, OmnichannelReceivedTimes $receivedTimes): View
     {
         Gate::authorize(Omnichannel::getPermissions()['view']);
 
@@ -108,6 +111,7 @@ class OmnichannelController extends Controller
             'shadow' => $shadow,
             'jubelioOrder' => $jubelioOrder,
             'payloadSnippet' => $payloadSnippet,
+            'ingress' => $receivedTimes->forSingle($shadow, $jubelioOrder),
             'canJubelio' => Gate::check(\App\Models\Jubelio::getPermissions()['view']),
         ]);
     }

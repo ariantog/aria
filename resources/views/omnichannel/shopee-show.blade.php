@@ -41,6 +41,12 @@ $lineLabels = [
         @endif
     </div>
 
+    <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <h2 class="text-sm font-semibold text-gray-900">Ingress (Aria)</h2>
+        <p class="mt-1 text-xs text-gray-500">Waktu baris pertama muncul di Aria — bukan waktu order di marketplace.</p>
+        @include('omnichannel.partials.ingress-timeline', ['ingress' => $ingress ?? [], 'dataTestid' => 'omnichannel-ingress-timeline'])
+    </div>
+
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
             <h2 class="text-sm font-semibold text-gray-900">Ringkasan Shopee</h2>
@@ -48,7 +54,6 @@ $lineLabels = [
                 <div class="flex justify-between gap-4"><dt class="text-gray-500">Status</dt><dd>{{ $shadow->channel_status ?? '—' }}</dd></div>
                 <div class="flex justify-between gap-4"><dt class="text-gray-500">Baris</dt><dd>{{ $shadow->line_summary['line_count'] ?? 0 }}</dd></div>
                 <div class="flex justify-between gap-4"><dt class="text-gray-500">Total header</dt><dd>{{ isset($shadow->line_summary['total_amount']) ? number_format($shadow->line_summary['total_amount'], 0, ',', '.') : '—' }}</dd></div>
-                <div class="flex justify-between gap-4"><dt class="text-gray-500">Event</dt><dd>{{ $shadow->last_event_at?->format('Y-m-d H:i') ?? '—' }}</dd></div>
             </dl>
             @if(!empty($shadow->line_summary['lines']))
             <table class="mt-4 min-w-full text-xs">
