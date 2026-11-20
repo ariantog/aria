@@ -14,6 +14,39 @@ class ShopeeOrderShadowRecorder
         private ShopeeOrderLineSummary $shopeeLineSummary,
     ) {}
 
+    /**
+     * Minimal row so /omnichannel list updates without a queue worker (full detail via job or detail refresh).
+     */
+    public function upsertStubFromPush(?int $shopId, string $orderSn, ?string $pushStatus, int $pushCode): MarketplaceOrderShadow
+    {
+        $shadow = MarketplaceOrderShadow::query()
+            ->where('channel', MarketplaceOrderShadow::CHANNEL_SHOPEE)
+            ->where('external_order_sn', $orderSn)
+            ->first();
+
+        $attributes = [
+            'shop_id' => $shopId,
+            'channel_status' => $pushStatus,
+            'last_push_code' => $pushCode,
+            'last_event_at' => Carbon::now(),
+        ];
+
+        if ($shadow === null) {
+            return MarketplaceOrderShadow::query()->create([
+                ...$attributes,
+                'channel' => MarketplaceOrderShadow::CHANNEL_SHOPEE,
+                'external_order_sn' => $orderSn,
+                'compare_status' => MarketplaceOrderShadow::COMPARE_PENDING,
+                'line_compare_status' => MarketplaceOrderShadow::LINE_COMPARE_SKIPPED,
+            ]);
+        }
+
+        $shadow->fill($attributes);
+        $shadow->save();
+
+        return $shadow->refresh();
+    }
+
     public function recordFromPush(?int $shopId, string $orderSn, ?string $pushStatus, int $pushCode): MarketplaceOrderShadow
     {
         $detail = $this->shopeeApi->getOrderDetail($orderSn);

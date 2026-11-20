@@ -1,6 +1,7 @@
 <?php
 
 use App\Jobs\RecordShopeePushShadowJob;
+use App\Models\MarketplaceOrderShadow;
 use App\Models\ShopeePushInbox;
 use App\Services\Shopee\ShopeePushSignatureVerifier;
 use Illuminate\Support\Facades\Queue;
@@ -47,6 +48,34 @@ it('dispatches shadow job for order status push', function () {
     ], $body)->assertOk();
 
     Queue::assertPushed(RecordShopeePushShadowJob::class, fn ($job) => $job->orderSn === 'PUSH123');
+
+    $stub = MarketplaceOrderShadow::query()->where('external_order_sn', 'PUSH123')->first();
+    expect($stub)->not->toBeNull()
+        ->and($stub->compare_status)->toBe(MarketplaceOrderShadow::COMPARE_PENDING)
+        ->and($stub->channel_status)->toBe('PROCESSED')
+        ->and($stub->shop_id)->toBe(9);
+});
+
+it('upserts shadow stub when push data uses order_sn key', function () {
+    Queue::fake();
+
+    config([
+        'services.shopee_push.partner_key' => 'test-partner-key',
+        'services.shopee_push.verify_signature' => true,
+        'services.shopee_push.shadow_enabled' => true,
+        'services.shopee_push.store_inbox' => false,
+    ]);
+
+    $body = '{"data":{"order_sn":"ALT_SN_1","status":"SHIPPED","update_time":1660123127},"shop_id":11,"code":3,"timestamp":1660123127}';
+    $callbackUrl = url(route('shopee.push', [], false));
+    $authorization = app(ShopeePushSignatureVerifier::class)->sign($callbackUrl, $body);
+
+    $this->call('POST', route('shopee.push'), [], [], [], [
+        'HTTP_AUTHORIZATION' => $authorization,
+        'CONTENT_TYPE' => 'application/json',
+    ], $body)->assertOk();
+
+    expect(MarketplaceOrderShadow::query()->where('external_order_sn', 'ALT_SN_1')->exists())->toBeTrue();
 });
 
 it('accepts a signed shopee push and stores inbox row', function () {

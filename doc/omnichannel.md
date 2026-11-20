@@ -2,27 +2,37 @@
 
 **Route:** `/omnichannel` (sidebar **Omnichannel**)
 
-**Read-only guarantee (phase 1):** Shopee push may queue `RecordShopeePushShadowJob`, which only **GET**s Shopee order detail and **upserts** `marketplace_order_shadows`. It does **not** create `transactions`, change `warehouse_item`, insert/update `jubelioorders`, or call `ProcessJubelioOrder`. Jubelio webhooks, cron, and manual Process are unchanged.
+**Read-only guarantee (phase 1):** Shopee push **immediately upserts** a minimal `marketplace_order_shadows` row on HTTP (order status push code 3). Optionally, `RecordShopeePushShadowJob` **GET**s Shopee order detail and refreshes compare fields. Neither path creates `transactions`, changes `warehouse_item`, inserts/updates `jubelioorders`, or calls `ProcessJubelioOrder`. Jubelio webhooks, cron, and manual Process are unchanged.
 
 Disable shadow entirely: `SHOPEE_PUSH_SHADOW_ENABLED=false` (push callback still returns 200).
 
-Jubelio remains the posting path. Shopee **Order Status push (3)** triggers a queued shadow job that:
+Jubelio remains the posting path. Shopee **Order Status push (3)**:
 
-1. Calls Shopee `get_order_detail`
-2. Upserts `marketplace_order_shadows`
-3. Compares to `jubelioorders` by invoice `SP-{ordersn}`
+1. **Sync stub** — upsert `marketplace_order_shadows` with `ordersn`, `shop_id`, push status, `compare_status=pending` (no queue required for list visibility).
+2. **Queued enrich** — `RecordShopeePushShadowJob` calls Shopee `get_order_detail`, line summary, and Jubelio compare (`SP-{ordersn}`).
+
+Detail page: `/omnichannel/shopee/{ordersn}` (lines/JSON appear after the job succeeds or a future manual refresh).
 
 ## Requirements
 
 - `SHOPEE_PUSH_*` + verified callback
 - `SHOPEE_PUSH_SHADOW_ENABLED=true` (default)
-- Shopee stock OAuth (`shopee_stock` settings) for API detail fetch
-- Queue worker (`php artisan queue:listen` or cron queue) processing `RecordShopeePushShadowJob`
+- Shopee stock OAuth (`shopee_stock` settings) for API detail fetch on the queued job
+- Queue worker (`php artisan queue:listen` or cron queue) **optional for list visibility**; required for full line compare badges without waiting on `QUEUE_CONNECTION=sync`
 
 ## Migrations
 
+Run **both** paths on production (order matters: base table first):
+
 ```bash
 php artisan migrate --path=database/migrations/2026_11_19_150000_create_marketplace_order_shadows_table.php
+php artisan migrate --path=database/migrations/2026_11_20_100000_add_line_fields_to_marketplace_order_shadows.php
+```
+
+Optional inbox (debug / audit of raw pushes):
+
+```bash
+php artisan migrate --path=database/migrations/2026_11_19_140000_create_shopee_push_inbox_table.php
 ```
 
 ## Permissions
@@ -36,11 +46,23 @@ Shadow rows store **Shopee `item_list`** summary (`line_summary`: SKU, qty, amou
 - **Index:** `/omnichannel` — filters for overall compare and line compare; badges per row.
 - **Detail:** `/omnichannel/shopee/{ordersn}` — Shopee JSON snippet, line tables, link to Jubelio order show (when permitted).
 
-Migration (additive):
+## Troubleshooting (production)
 
-```bash
-php artisan migrate --path=database/migrations/2026_11_20_100000_add_line_fields_to_marketplace_order_shadows.php
+After a Shopee order push:
+
+```sql
+SELECT COUNT(*) FROM shopee_push_inbox;   -- only if SHOPEE_PUSH_STORE_INBOX=true
+SELECT COUNT(*) FROM marketplace_order_shadows;
 ```
+
+| Symptom | Likely cause |
+|---------|----------------|
+| Inbox count grows, shadows stay 0 | `SHOPEE_PUSH_SHADOW_ENABLED=false`, migration not run, or push code ≠ 3 / missing `data.ordersn` |
+| Both counts 0 | No HTTP hits to `/shopee/push` (Console callback URL, firewall, or signature 401 — check `laravel.log` for `Shopee push rejected`) |
+| Shadows appear as **pending** forever | Queue worker not running (`jobs` table backlog) or Shopee OAuth missing for `get_order_detail` — check `Shopee shadow record failed` warnings |
+| Green omnichannel cards, empty table | Dashboard cards read Jubelio/Shopee **connection** settings, not shadow rows — confirm `marketplace_order_shadows` count |
+
+Verified pushes log **`Shopee push accepted`** with `code`, `ordersn`, and `shadow_dispatched` (true when stub + job dispatch ran).
 
 ## Later phases
 
