@@ -12,6 +12,27 @@ https://{your-aria-host}/shopee/push
 
 Local dev needs a public tunnel (ngrok, Cloudflare Tunnel, etc.) — Shopee must reach the host to verify the URL.
 
+## OAuth redirect (CORENATION ADMIN vs STOCK CHECKER)
+
+Shopee **Redirect URL** must match the Console app that issued the `partner_id` in `.env`. CDN PHP relays forward `code` + `shop_id` to Laravel `shopee-stock/oauth/callback` (token exchange uses `SHOPEE_STOCK_PARTNER_ID` / `SHOPEE_STOCK_PARTNER_KEY`).
+
+| Console app | Live Partner ID | CDN Redirect URL | Typical Aria host |
+|-------------|-----------------|------------------|-------------------|
+| **STOCK CHECKER** | (legacy app id) | `https://cdn.corenationactive.com/shopeestockbot.php` | `aria.corenationactive.com` |
+| **CORENATION ADMIN** | `2053195` | `https://cdn.corenationactive.com/shopeecoreadminbot.php` | `aria3.corenationactive.com` |
+
+**aria3 (CORENATION ADMIN)** — upload `public/shopeecoreadminbot.php` to CDN beside `shopeestockbot.php`, register the redirect URL in Console, then:
+
+```env
+SHOPEE_STOCK_PARTNER_ID=2053195
+SHOPEE_STOCK_PARTNER_KEY=...   # Live Open API Partner Key (CORENATION ADMIN)
+SHOPEE_STOCK_REDIRECT_URL=https://cdn.corenationactive.com/shopeecoreadminbot.php
+SHOPEE_PUSH_PARTNER_ID=2053195
+SHOPEE_PUSH_PARTNER_KEY=...    # Live Push Partner Key (not the Open API key)
+```
+
+Using `shopeestockbot.php` while `.env` has CORENATION ADMIN keys (or the reverse) yields `invalid_partner_id` on token exchange.
+
 ## Environment
 
 Shopee uses **three** live keys on a go-live app (API, Push, SPI). Webhook `Authorization` is signed with the **Live Push Partner Key** — shown on **Push Mechanism → Set Push** / App detail — **not** the Live Open API Partner Key used for `ShopeeStockOpenApiService`.

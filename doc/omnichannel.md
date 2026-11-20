@@ -18,6 +18,7 @@ Detail page: `/omnichannel/shopee/{ordersn}` (lines/JSON appear after the job su
 - `SHOPEE_PUSH_*` + verified callback
 - `SHOPEE_PUSH_SHADOW_ENABLED=true` (default)
 - Shopee stock OAuth (`shopee_stock` settings) for API detail fetch on the queued job
+- **CORENATION ADMIN (aria3):** Console Redirect URL `https://cdn.corenationactive.com/shopeecoreadminbot.php`, `SHOPEE_STOCK_PARTNER_ID=2053195`, matching Open API + Push keys, and `SHOPEE_STOCK_REDIRECT_URL` = that CDN URL (see `doc/shopee-push-test.md`). **STOCK CHECKER** keeps `shopeestockbot.php`.
 - Queue worker (`php artisan queue:listen` or cron queue) **optional for list visibility**; required for full line compare badges without waiting on `QUEUE_CONNECTION=sync`
 
 ## Migrations

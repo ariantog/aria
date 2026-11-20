@@ -19,6 +19,23 @@ it('uses cdn shopeestockbot relay as default stock oauth redirect', function () 
     expect($api->getOAuthRedirectUrl())->toBe('https://cdn.corenationactive.com/shopeestockbot.php');
 });
 
+it('coreadmin cdn relay defaults to aria3 stock oauth callback', function () {
+    $path = base_path('public/shopeecoreadminbot.php');
+    expect($path)->toBeReadableFile();
+    expect(file_get_contents($path))->toContain(
+        "const LARAVEL_OAUTH_CALLBACK = 'https://aria3.corenationactive.com/shopee-stock/oauth/callback';"
+    );
+});
+
+it('surfaces invalid_partner_id oauth hint for console app mismatch', function () {
+    $api = app(ShopeeStockOpenApiService::class);
+    $detail = 'HTTP 403 invalid_partner_id';
+
+    expect($api->formatOAuthErrorForUser($detail))
+        ->toContain('invalid_partner_id')
+        ->and($api->formatOAuthErrorForUser($detail))->toContain('shopeecoreadminbot.php');
+});
+
 it('stores stock oauth tokens separately from ads', function () {
     Http::fake([
         'partner.shopeemobile.com/*' => Http::response([
