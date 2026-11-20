@@ -157,7 +157,7 @@ class OmnichannelReceivedTimes
         });
 
         $byId = [];
-        foreach ($query->get(['id', 'invoice', 'created_at', 'transaction_date']) as $order) {
+        foreach ($query->get(['id', 'invoice', 'created_at']) as $order) {
             $byId[(int) $order->id] = $order;
         }
 
@@ -230,9 +230,6 @@ class OmnichannelReceivedTimes
             'shopee_source' => $shopeeSource,
             'jubelio_at' => $jubelioAt,
             'jubelio_formatted' => $jubelioFormatted,
-            'jubelio_transaction_date' => filled($jubelio?->transaction_date)
-                ? $this->formatWib($this->castMoment($jubelio->transaction_date))
-                : null,
             'delta_seconds' => $deltaSeconds,
             'delta_label' => $deltaLabel,
             'jubelio_earlier' => $deltaSeconds !== null && $deltaSeconds > 0,
