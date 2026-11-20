@@ -94,7 +94,7 @@ class ShopeeStockOpenApiService
         }
 
         if (str_contains(strtolower($detail), 'invalid_partner_id')) {
-            return $detail.' — Periksa SHOPEE_STOCK_PARTNER_ID / SHOPEE_STOCK_REDIRECT_URL cocok dengan app Console (CORENATION ADMIN 2053195 pakai shopeecoreadminbot.php; STOCK CHECKER pakai shopeestockbot.php).';
+            return $detail.' — Periksa SHOPEE_STOCK_PARTNER_ID / SHOPEE_STOCK_REDIRECT_URL cocok dengan app STOCK CHECKER (shopeestockbot.php). Omnichannel / push memakai app CORENATION ADMIN terpisah (SHOPEE_ADMIN_*).';
         }
 
         return $detail;

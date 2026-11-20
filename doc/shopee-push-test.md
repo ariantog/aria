@@ -14,28 +14,36 @@ Local dev needs a public tunnel (ngrok, Cloudflare Tunnel, etc.) — Shopee must
 
 ## OAuth redirect (CORENATION ADMIN vs STOCK CHECKER)
 
-Shopee **Redirect URL** must match the Console app that issued the `partner_id` in `.env`. CDN PHP relays forward `code` + `shop_id` to Laravel `shopee-stock/oauth/callback` (token exchange uses `SHOPEE_STOCK_PARTNER_ID` / `SHOPEE_STOCK_PARTNER_KEY`).
+Shopee **Redirect URL** must match the Console app that issued the `partner_id` in `.env`. Each CDN PHP relay forwards `code` + `shop_id` to a **different** Laravel callback (token exchange uses that app’s partner id/key only).
 
 | Console app | Live Partner ID | CDN Redirect URL | Typical Aria host |
 |-------------|-----------------|------------------|-------------------|
-| **STOCK CHECKER** | (legacy app id) | `https://cdn.corenationactive.com/shopeestockbot.php` | `aria.corenationactive.com` |
-| **CORENATION ADMIN** | `2053195` | `https://cdn.corenationactive.com/shopeecoreadminbot.php` | `aria3.corenationactive.com` |
+| **STOCK CHECKER** | (legacy app id) | `https://cdn.corenationactive.com/shopeestockbot.php` → `/shopee-stock/oauth/callback` | `aria.corenationactive.com` |
+| **CORENATION ADMIN** | `2053195` | `https://cdn.corenationactive.com/shopeecoreadminbot.php` → `/shopee-admin/oauth/callback` | `aria3.corenationactive.com` |
 
 **aria3 (CORENATION ADMIN)** — upload `public/shopeecoreadminbot.php` to CDN beside `shopeestockbot.php`, register the redirect URL in Console, then:
 
 ```env
-SHOPEE_STOCK_PARTNER_ID=2053195
-SHOPEE_STOCK_PARTNER_KEY=...   # Live Open API Partner Key (CORENATION ADMIN)
-SHOPEE_STOCK_REDIRECT_URL=https://cdn.corenationactive.com/shopeecoreadminbot.php
+SHOPEE_ADMIN_PARTNER_ID=2053195
+SHOPEE_ADMIN_PARTNER_KEY=...   # Live Open API Partner Key (CORENATION ADMIN)
+SHOPEE_ADMIN_REDIRECT_URL=https://cdn.corenationactive.com/shopeecoreadminbot.php
 SHOPEE_PUSH_PARTNER_ID=2053195
 SHOPEE_PUSH_PARTNER_KEY=...    # Live Push Partner Key (not the Open API key)
 ```
 
-Using `shopeestockbot.php` while `.env` has CORENATION ADMIN keys (or the reverse) yields `invalid_partner_id` on token exchange.
+**aria (STOCK CHECKER only)** — warehouse stock sync:
+
+```env
+SHOPEE_STOCK_PARTNER_ID=...
+SHOPEE_STOCK_PARTNER_KEY=...
+SHOPEE_STOCK_REDIRECT_URL=https://cdn.corenationactive.com/shopeestockbot.php
+```
+
+Mixing relays (`shopeestockbot.php` vs `shopeecoreadminbot.php`) with the wrong `SHOPEE_*_PARTNER_*` block yields `invalid_partner_id` on token exchange.
 
 ## Environment
 
-Shopee uses **three** live keys on a go-live app (API, Push, SPI). Webhook `Authorization` is signed with the **Live Push Partner Key** — shown on **Push Mechanism → Set Push** / App detail — **not** the Live Open API Partner Key used for `ShopeeStockOpenApiService`.
+Shopee uses **three** live keys on a go-live app (API, Push, SPI). Webhook `Authorization` is signed with the **Live Push Partner Key** — shown on **Push Mechanism → Set Push** / App detail — **not** the Live Open API Partner Key used for `ShopeeAdminOpenApiService` (omnichannel) or `ShopeeStockOpenApiService` (warehouse).
 
 ```env
 SHOPEE_PUSH_PARTNER_ID=...        # Live Partner ID (same app; may match SHOPEE_STOCK_PARTNER_ID if one In-house app)

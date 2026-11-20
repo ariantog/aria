@@ -6,11 +6,11 @@
  * Register in Shopee Open Platform → CORENATION ADMIN app → Redirect URL, e.g.:
  *   https://cdn.corenationactive.com/shopeecoreadminbot.php
  *
- * Forwards to Laravel {@see route('shopee-stock.oauth.callback')} for token exchange.
+ * Forwards to Laravel {@see route('shopee-admin.oauth.callback')} for token exchange.
  * Do not reuse shopeestockbot.php — STOCK CHECKER and CORENATION ADMIN use different Live Partner IDs.
  */
 
-const LARAVEL_OAUTH_CALLBACK = 'https://aria3.corenationactive.com/shopee-stock/oauth/callback';
+const LARAVEL_OAUTH_CALLBACK = 'https://aria3.corenationactive.com/shopee-admin/oauth/callback';
 
 const SHARED_STATE = '';
 
@@ -39,7 +39,7 @@ if ($code === '' || $shopId === '') {
         'Missing code/shop_id',
         '<h1>Missing authorization parameters</h1>'
         .'<p>Shopee did not provide both <code>code</code> and <code>shop_id</code>. '
-        .'Restart from <strong>Authorize Shopee (Stock)</strong> on Warehouse mapping.</p>',
+        .'Restart from <strong>Authorize Shopee (Admin)</strong> on Omnichannel.</p>',
         400
     );
 }

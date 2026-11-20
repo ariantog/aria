@@ -3,7 +3,7 @@
 namespace App\Services\Marketplace;
 
 use App\Models\MarketplaceOrderShadow;
-use App\Services\Shopee\ShopeeStockOpenApiService;
+use App\Services\Shopee\ShopeeAdminOpenApiService;
 use App\Support\ShopeeTestPushDetector;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
@@ -12,7 +12,7 @@ use Throwable;
 class ShopeeOrderShadowRecorder
 {
     public function __construct(
-        private ShopeeStockOpenApiService $shopeeApi,
+        private ShopeeAdminOpenApiService $shopeeApi,
         private ShopeeJubelioShadowComparer $comparer,
         private ShopeeOrderLineSummary $shopeeLineSummary,
     ) {}

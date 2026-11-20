@@ -55,6 +55,9 @@ Route::get('shopee-ads/oauth/callback', [App\Http\Controllers\ShopeeAdsControlle
 Route::get('shopee-stock/oauth/callback', [App\Http\Controllers\ShopeeSyncController::class, 'oauthCallback'])
     ->name('shopee-stock.oauth.callback');
 
+Route::get('shopee-admin/oauth/callback', [App\Http\Controllers\ShopeeAdminController::class, 'oauthCallback'])
+    ->name('shopee-admin.oauth.callback');
+
 Route::prefix('tiktok-shop/mock/open_api/v'.config('tiktok_shop.api_version', '202309').'/customer_service')
     ->middleware('tiktok.mock-api')
     ->group(function (): void {
@@ -116,6 +119,8 @@ Route::middleware(['auth', 'verified', 'active', 'enforce.readonly'])->group(fun
     Route::post('jubelio/auto-link/resume', [App\Http\Controllers\JubelioItemAutoLinkController::class, 'resume'])->name('jubelio.auto-link.resume');
     Route::post('jubelio/auto-link/run-batch', [App\Http\Controllers\JubelioItemAutoLinkController::class, 'runBatch'])->name('jubelio.auto-link.run-batch');
     Route::post('jubelio/auto-link/items/{item}/reset-attempts', [App\Http\Controllers\JubelioItemAutoLinkController::class, 'resetItem'])->name('jubelio.auto-link.reset-item');
+    Route::get('shopee-admin/authorize', [App\Http\Controllers\ShopeeAdminController::class, 'authorizeShop'])
+        ->name('shopee-admin.authorize');
     Route::get('omnichannel', [App\Http\Controllers\OmnichannelController::class, 'index'])->name('omnichannel.index');
     Route::get('omnichannel/shopee/{ordersn}', [App\Http\Controllers\OmnichannelController::class, 'showShopee'])
         ->where('ordersn', '[A-Za-z0-9_-]+')
