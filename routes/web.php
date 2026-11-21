@@ -48,6 +48,10 @@ Route::post('jubelio/webhook/return', [App\Http\Controllers\JubelioController::c
 Route::post('shopee/push', App\Http\Controllers\ShopeePushController::class)
     ->name('shopee.push');
 
+// TikTok Shop webhooks (receive-only; CSRF exempt in bootstrap/app.php)
+Route::post('tiktok-shop/webhook', App\Http\Controllers\TikTokShopWebhookController::class)
+    ->name('tiktok-shop.webhook');
+
 // Shopee Ads OAuth callback — public (Shopee redirects here after seller approval)
 Route::get('shopee-ads/oauth/callback', [App\Http\Controllers\ShopeeAdsController::class, 'oauthCallback'])
     ->name('shopee-ads.oauth.callback');
