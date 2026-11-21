@@ -265,6 +265,7 @@ Route::middleware(['auth', 'verified', 'active', 'enforce.readonly'])->group(fun
     Route::post('shopee-ads/suggest-group-ads', [App\Http\Controllers\ShopeeAdsController::class, 'suggestGroupAds'])->name('shopee-ads.suggest-group-ads');
 
     Route::get('tiktok-shop/chats', [App\Http\Controllers\TikTokShopChatController::class, 'index'])->name('tiktok-shop.chats.index');
+    Route::get('tiktok-shop/webhooks', [App\Http\Controllers\TikTokShopWebhookInboxController::class, 'index'])->name('tiktok-shop.webhooks.index');
     Route::post('tiktok-shop/chats/reset-mock', [App\Http\Controllers\TikTokShopChatController::class, 'resetMock'])->name('tiktok-shop.chats.reset-mock');
     Route::post('tiktok-shop/chats/{conversationId}/reply', [App\Http\Controllers\TikTokShopChatController::class, 'reply'])->name('tiktok-shop.chats.reply');
     Route::post('tiktok-shop/chats/{conversationId}/simulate-buyer', [App\Http\Controllers\TikTokShopChatController::class, 'simulateBuyer'])->name('tiktok-shop.chats.simulate-buyer');

@@ -295,3 +295,11 @@ it('renders the tiktok shop customer chat page', function () {
         ->assertOk()
         ->assertSee('Customer Chat', false);
 });
+
+it('renders the tiktok shop webhook inbox page', function () {
+    $this->actingAs($this->user)
+        ->get(route('tiktok-shop.webhooks.index'))
+        ->assertOk()
+        ->assertSee('Webhook Inbox', false)
+        ->assertSee('data-testid="tiktok-shop-webhooks-page"', false);
+});
