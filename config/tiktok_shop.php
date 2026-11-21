@@ -25,4 +25,20 @@ return [
 
     'api_version' => env('TIKTOK_SHOP_API_VERSION', '202309'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Inbound webhooks (independent of driver=mock|live)
+    |--------------------------------------------------------------------------
+    |
+    | Receives ORDER_STATUS_CHANGE etc. from Partner Center — no Open API writes.
+    | TIKTOK_SHOP_DRIVER may stay mock while webhooks are enabled on aria3.
+    |
+    */
+    'webhook' => [
+        'enabled' => filter_var(env('TIKTOK_SHOP_WEBHOOK_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
+        'verify_signature' => filter_var(env('TIKTOK_SHOP_WEBHOOK_VERIFY_SIGNATURE', true), FILTER_VALIDATE_BOOLEAN),
+        /** Persist payloads to tiktok_shop_webhook_inbox (read-only observability). */
+        'store_inbox' => filter_var(env('TIKTOK_SHOP_WEBHOOK_STORE_INBOX', true), FILTER_VALIDATE_BOOLEAN),
+    ],
+
 ];
