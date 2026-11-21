@@ -173,6 +173,7 @@
     $tiktokNavLabels = ['TikTok Shop'];
     if ($hasPerm('tiktok-shop-view') || $isSuperAdmin) {
         $tiktokNavLabels[] = 'Customer Chat';
+        $tiktokNavLabels[] = 'Webhook Inbox';
     }
 
     $journalNavLabels = ['Journals'];
@@ -667,6 +668,7 @@
     </button>
     <div x-show="open && sidebarOpen" x-cloak class="ml-6 mt-1 space-y-0.5">
         <a href="{{ route('tiktok-shop.chats.index') }}" x-show="navLinkVisible('Customer Chat', 'TikTok Shop')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/tiktok-shop/chats') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Customer Chat</a>
+        <a href="{{ route('tiktok-shop.webhooks.index') }}" x-show="navLinkVisible('Webhook Inbox', 'TikTok Shop')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/tiktok-shop/webhooks') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Webhook Inbox</a>
     </div>
 </div>
 @endif
