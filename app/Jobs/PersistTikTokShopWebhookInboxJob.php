@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\TikTokShopWebhookInbox;
+use App\Services\Marketplace\MarketplaceWebhookRecorder;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
@@ -21,7 +22,7 @@ class PersistTikTokShopWebhookInboxJob implements ShouldQueue
         public bool $signatureOk = true,
     ) {}
 
-    public function handle(): void
+    public function handle(MarketplaceWebhookRecorder $unifiedRecorder): void
     {
         if (! config('tiktok_shop.webhook.store_inbox', true)) {
             return;
@@ -61,6 +62,8 @@ class PersistTikTokShopWebhookInboxJob implements ShouldQueue
                     'payload' => $this->payload,
                 ],
             );
+
+            $unifiedRecorder->recordTikTok($this->payload, $this->signatureOk);
         } catch (Throwable $e) {
             Log::error('TikTok Shop webhook inbox persist failed', [
                 'tts_notification_id' => $notificationId,
