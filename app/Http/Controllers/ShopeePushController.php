@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ShopeePushInbox;
+use App\Services\Marketplace\MarketplaceWebhookRecorder;
 use App\Services\Marketplace\ShopeeOrderShadowRecorder;
 use App\Services\Shopee\ShopeePushSignatureVerifier;
 use Illuminate\Http\Request;
@@ -20,6 +21,7 @@ class ShopeePushController extends Controller
         Request $request,
         ShopeePushSignatureVerifier $verifier,
         ShopeeOrderShadowRecorder $shadowRecorder,
+        MarketplaceWebhookRecorder $webhookRecorder,
     ): Response
     {
         $rawBody = $request->getContent();
@@ -83,6 +85,15 @@ class ShopeePushController extends Controller
                         'callback_url' => $callbackUrl,
                         'payload' => $payload,
                     ]);
+
+                    $webhookRecorder->recordShopee(
+                        $payload,
+                        true,
+                        $shopId,
+                        $pushCode,
+                        $ordersn,
+                        $orderStatus,
+                    );
                 }
             } catch (Throwable $e) {
                 Log::error('Shopee push inbox insert failed', [
