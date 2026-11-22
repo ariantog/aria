@@ -256,7 +256,8 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'invoice maker create' => 'invoice-maker/create',
     'invoice maker settings' => 'invoice-maker/settings',
     'omnichannel dashboard' => 'omnichannel',
-    'omnichannel orders' => 'omnichannel/orders',
+    'omnichannel orders events view' => 'omnichannel/orders?view=events',
+    'omnichannel orders orders view' => 'omnichannel/orders?view=orders',
     'omnichannel settings' => 'omnichannel/settings',
     'jubelio index' => 'jubelio',
     'jubelio get orders' => 'jubelio-get-orders',
@@ -298,14 +299,14 @@ it('renders the tiktok shop customer chat page', function () {
         ->assertSee('Customer Chat', false);
 });
 
-it('redirects the marketplace webhooks route to omnichannel orders', function () {
+it('redirects the marketplace webhooks route to omnichannel orders preserving view', function () {
     $this->actingAs($this->user)
-        ->get(route('marketplace.webhooks.index'))
-        ->assertRedirect(route('omnichannel.orders.index'));
+        ->get(route('marketplace.webhooks.index', ['view' => 'events', 'channel' => 'shopee']))
+        ->assertRedirect(route('omnichannel.orders.index', ['view' => 'events', 'channel' => 'shopee']));
 });
 
-it('redirects the legacy tiktok webhook inbox route to omnichannel orders', function () {
+it('redirects the legacy tiktok webhook inbox route to omnichannel orders preserving view', function () {
     $this->actingAs($this->user)
-        ->get(route('tiktok-shop.webhooks.index'))
-        ->assertRedirect(route('omnichannel.orders.index'));
+        ->get(route('tiktok-shop.webhooks.index', ['view' => 'orders']))
+        ->assertRedirect(route('omnichannel.orders.index', ['view' => 'orders']));
 });

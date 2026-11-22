@@ -38,10 +38,13 @@ class PersistTikTokShopWebhookInboxJob implements ShouldQueue
             ? (string) $this->payload['tts_notification_id']
             : '';
 
-        if ($notificationId === '') {
-            Log::warning('TikTok Shop webhook missing tts_notification_id — skipped inbox persist');
+        $rawJson = json_encode($this->payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '';
 
-            return;
+        if ($notificationId === '') {
+            $notificationId = 'body:'. substr(hash('sha256', $rawJson), 0, 32);
+            Log::warning('TikTok Shop webhook missing tts_notification_id — using body hash inbox key', [
+                'tts_notification_id' => $notificationId,
+            ]);
         }
 
         $data = is_array($this->payload['data'] ?? null) ? $this->payload['data'] : [];

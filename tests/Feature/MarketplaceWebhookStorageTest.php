@@ -95,6 +95,24 @@ it('prunes webhook events older than retention with dry-run and delete', functio
         ->and(MarketplaceWebhookEvent::query()->value('idempotency_key'))->toBe('tiktok:recent-1');
 });
 
+it('persists tiktok webhook without tts_notification_id using body hash idempotency', function () {
+    $recorder = app(MarketplaceWebhookRecorder::class);
+    $payload = [
+        'type' => 99,
+        'shop_id' => '100',
+        'data' => ['ping' => true],
+    ];
+    $raw = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '';
+    $expectedKey = MarketplaceWebhookRecorder::tikTokBodyIdempotencyKey($raw);
+
+    $recorder->recordTikTok($payload, true);
+    $recorder->recordTikTok($payload, true);
+
+    expect(MarketplaceWebhookEvent::count())->toBe(1)
+        ->and(MarketplaceWebhookEvent::query()->value('idempotency_key'))->toBe($expectedKey)
+        ->and(MarketplaceWebhookEvent::query()->value('order_ref'))->toBeNull();
+});
+
 it('does not write unified tables when unified storage is disabled', function () {
     config(['marketplace.webhook.unified_storage' => false]);
 

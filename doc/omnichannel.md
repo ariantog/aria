@@ -10,14 +10,21 @@ Collapsible **Omnichannel** menu (like Transactions):
 | **Compare** | `GET /omnichannel` | `omnichannel-view` (shadow Shopee vs Jubelio — kept separate from Orders) |
 | **Settings** | `GET /omnichannel/settings?tab=…` | `omnichannel-settings` or `omnichannel-view` |
 
-**Legacy redirect:** `GET /marketplace/webhooks` and `GET /tiktok-shop/webhooks` redirect to **Orders** with query string preserved (`view` stripped). Expand a row for per-order webhook event history from `marketplace_webhook_events` (no separate Webhook Inbox nav).
+**Legacy redirect:** `GET /marketplace/webhooks` and `GET /tiktok-shop/webhooks` redirect to **Omnichannel** (`/omnichannel/orders`) with the full query string preserved (including `view=events|orders`).
+
+**Orders / Webhooks UI:** `GET /omnichannel/orders` defaults to **`view=events`** so every stored webhook (including non-order pushes) is visible first. Switch to **Current orders** for the `marketplace_channel_orders` summary; expand an order row for lazy detail. Channel filter **Tokopedia (TikTok Partner)** matches rows with `commerce_platform=TOKOPEDIA` (case-insensitive) on unified tables; **TikTok Shop** excludes Tokopedia-tagged rows.
+
+**Unified storage flag:** `MARKETPLACE_WEBHOOK_UNIFIED_STORAGE` (`config/marketplace.php`) — default stays **off** in production until maintainer enables dual-write; the UI reads unified tables whenever rows exist (backfill or flag on). Do not change the production default in code.
 
 **Compare vs Orders:** **Orders** reads `marketplace_channel_orders` (all channels, webhook-derived state). **Compare** remains the Shopee shadow/Jubelio line-compare dashboard on `marketplace_order_shadows` — not folded into Orders so lazy API enrich on shadow detail stays isolated.
 
 ### Orders lazy detail
 
-- List: summary columns only from `marketplace_channel_orders` (no Shopee/TikTok/Jubelio API on first paint).
-- Expand row or `GET /omnichannel/orders/{channel}/{order_ref}` (HTML fragment or `?format=json`) loads webhook events, stored shadow snippet, ingress timeline, and Jubelio invoice links from DB only.
+- **Events view:** list from `marketplace_webhook_events` only — no marketplace API on first paint; inline payload expand is read-only JSON.
+- **Orders view:** summary from `marketplace_channel_orders` (no Shopee/TikTok/Jubelio API on first paint).
+- Expand row or `GET /omnichannel/orders/{channel}/{order_ref}` (HTML fragment or `?format=json`) loads webhook events, stored shadow snippet, ingress timeline, and Jubelio invoice links from DB. For TikTok orders, when `commerce_platform` is empty, a **read-only** TikTok Get Order Detail call may run once (`TikTokShopOpenApiService`) and persist `commerce_platform` on the channel order + matching events — no stock or transaction writes.
+
+**TikTok ingest without `tts_notification_id`:** unified recorder and legacy inbox use idempotency `tiktok:body:` + SHA-256 prefix of the raw JSON body (warning logged).
 
 ### Settings tabs
 
