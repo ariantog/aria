@@ -16,13 +16,18 @@ Local dev needs a public tunnel (ngrok, Cloudflare Tunnel, etc.) — Shopee must
 
 On **aria3**, Omnichannel, Shopee Ads, and warehouse stock API clients share **one** shop OAuth row (`shopee_admin_oauth`) and **one** Open Platform app (**CORENATION ADMIN**). Authorize once from any of those pages; token refresh and API signing all use `SHOPEE_ADMIN_*`.
 
-| Console app | Live Partner ID | Live Redirect URL (aria3) | Aria routes using this token |
-|-------------|-----------------|---------------------------|------------------------------|
+| Console app | Live Partner ID | OAuth redirect (`.env` / authorize link) | Aria routes using this token |
+|-------------|-----------------|----------------------------------------------|------------------------------|
 | **CORENATION ADMIN** | `2053195` | `https://aria3.corenationactive.com/shopee-admin/oauth/callback` | `/omnichannel`, `/shopee-ads`, `/shopee-sync` |
 
-**Console URL rules:** Live Redirect URL must not contain `bot` or `.php` (Shopee rejects both). Register the **Laravel callback route** on `APP_URL` — no CDN PHP relay needed on aria3.
+### Console: two different things
 
-**Live Redirect URL Domain:** `aria3.corenationactive.com` (must match the callback host).
+1. **Live Redirect URL Domain** (App → Authorization Information) — **host only**. Shopee’s UI only accepts the scheme + domain (e.g. `https://aria3.corenationactive.com/`). You **cannot** put `/shopee-admin/...` in that field; that is normal.
+2. **`SHOPEE_ADMIN_REDIRECT_URL`** — **full HTTPS URL including path** that Aria puts on the `redirect=` parameter when you click Authorize. The **host** must match the domain declared above; the **path** is only in `.env`, not in Console.
+
+Shopee validates that `redirect` / `redirect_uri` uses the same domain as Console — not that Console lists every path.
+
+**Banned substrings on the full redirect URL:** `bot` and `.php` (Console / Shopee checks on authorize — use the Laravel route, not CDN `*.php` relays).
 
 Optional legacy CDN relays under `public/` remain for old hosts only; do not register `*.php` URLs in Console.
 

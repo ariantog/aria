@@ -58,9 +58,12 @@ $breadcrumbs = [
                             · shop_id <span class="font-mono">{{ $connection['shop_id'] }}</span>
                         @endif
                     </p>
+                    <p class="mt-1 text-xs text-gray-500">
+                        Console <strong>Live Redirect URL Domain</strong> hanya host (mis. <code>https://aria3.corenationactive.com/</code>) — path callback hanya di .env di atas.
+                    </p>
                     @if($connection['redirect_url_console_rejected'] ?? false)
                         <p class="mt-1 text-xs text-amber-900">
-                            URL ini mengandung <code>bot</code> atau <code>.php</code> — Shopee Console biasanya menolaknya. Sesuaikan Console + .env dengan:
+                            URL .env ini mengandung <code>bot</code> atau <code>.php</code> — ganti Authorize redirect ke:
                             <code class="rounded bg-white px-1">{{ $connection['redirect_url_recommended'] ?? '' }}</code>
                         </p>
                     @endif
