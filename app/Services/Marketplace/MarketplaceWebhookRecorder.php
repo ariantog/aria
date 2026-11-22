@@ -145,6 +145,48 @@ class MarketplaceWebhookRecorder
         $this->upsertChannelOrder($event, $receivedAt);
     }
 
+    /**
+     * Import one historical row (backfill). Ignores unified_storage flag.
+     *
+     * @param  array<string, mixed>  $attributes
+     * @return bool true when a new history row was inserted
+     */
+    public function importHistoricalEvent(
+        string $channel,
+        string $idempotencyKey,
+        array $attributes,
+        \DateTimeInterface $receivedAt,
+    ): bool {
+        if (! Schema::hasTable('marketplace_webhook_events')) {
+            return false;
+        }
+
+        $event = MarketplaceWebhookEvent::query()->firstOrCreate(
+            ['idempotency_key' => $idempotencyKey],
+            array_merge($attributes, [
+                'channel' => $channel,
+                'idempotency_key' => $idempotencyKey,
+                'received_at' => $receivedAt,
+            ]),
+        );
+
+        if (! $event->wasRecentlyCreated) {
+            return false;
+        }
+
+        if (! filled($event->order_ref)) {
+            return true;
+        }
+
+        if (! Schema::hasTable('marketplace_channel_orders')) {
+            return true;
+        }
+
+        $this->upsertChannelOrder($event, $receivedAt);
+
+        return true;
+    }
+
     protected function upsertChannelOrder(MarketplaceWebhookEvent $event, \DateTimeInterface $receivedAt): void
     {
         $order = MarketplaceChannelOrder::query()->firstOrNew([

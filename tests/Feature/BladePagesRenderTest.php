@@ -296,10 +296,16 @@ it('renders the tiktok shop customer chat page', function () {
         ->assertSee('Customer Chat', false);
 });
 
-it('renders the tiktok shop webhook inbox page', function () {
+it('renders the marketplace webhook inbox page', function () {
+    $this->actingAs($this->user)
+        ->get(route('marketplace.webhooks.index'))
+        ->assertOk()
+        ->assertSee('Marketplace — Webhook Inbox', false)
+        ->assertSee('data-testid="marketplace-webhooks-page"', false);
+});
+
+it('redirects the legacy tiktok webhook inbox route to marketplace', function () {
     $this->actingAs($this->user)
         ->get(route('tiktok-shop.webhooks.index'))
-        ->assertOk()
-        ->assertSee('Webhook Inbox', false)
-        ->assertSee('data-testid="tiktok-shop-webhooks-page"', false);
+        ->assertRedirect(route('marketplace.webhooks.index'));
 });

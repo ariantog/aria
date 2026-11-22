@@ -49,3 +49,38 @@ Not registered in Cron Manager until the maintainer enables it.
 | Shopee | `shopee:{shop_id}:{push_code}:{ordersn}:{timestamp or hash prefix}` |
 
 Code: `App\Services\Marketplace\MarketplaceWebhookRecorder`.
+
+## PR2 — Unified inbox UI
+
+**Route:** `GET /marketplace/webhooks` (`marketplace.webhooks.index`). Legacy `GET /tiktok-shop/webhooks` redirects here with query string preserved.
+
+**Permission:** `marketplace-webhook-view` (generated via `PermissionGenerator` / `App\Models\MarketplaceWebhook`). Users with `tiktok-shop-view` or `omnichannel-view` may also open the page (superadmin as usual).
+
+**Data:** Primary list reads `marketplace_webhook_events`; optional **Current orders** tab reads `marketplace_channel_orders`. Enable dual-write (`MARKETPLACE_WEBHOOK_UNIFIED_STORAGE=true`) or backfill from legacy inbox tables.
+
+### Filters (query params preserved in pagination)
+
+| Param | Notes |
+|-------|--------|
+| `channel` | `all` (default), `shopee`, `tiktok` |
+| `date_from`, `date_to` | On `received_at` (events) or `last_event_at` (orders); default last 7 days |
+| `order_status` | Partial `LIKE` match; datalist from distinct values in current scope |
+| `shop_ref` | Exact match on stored shop id |
+| `warehouse_id` | Aria gudang — resolves `shop_ref` via **`shopee_syncs.shop_id`** only (TikTok rows usually show gudang `—`) |
+| `view` | `events` (default) or `orders` |
+
+**Warehouse filter SQL scope:** when `warehouse_id` > 0, load `shop_id` strings from `shopee_syncs` for that warehouse, then `WHERE shop_ref IN (…)`; if the map is empty, the query returns no rows.
+
+### Backfill
+
+Idempotent import from `shopee_push_inbox` and `tiktok_shop_webhook_inbox` using the same idempotency keys as live ingest:
+
+```bash
+php artisan marketplace:backfill-webhook-events
+php artisan marketplace:backfill-webhook-events --dry-run
+php artisan marketplace:backfill-webhook-events --limit=1000
+```
+
+Upserts `marketplace_channel_orders` when `order_ref` is present (same rules as live recorder).
+
+**Key files:** `MarketplaceWebhookInboxController`, `MarketplaceWebhookInboxQuery`, `MarketplaceWebhookShopWarehouseResolver`, `resources/views/marketplace/webhooks.blade.php`, `BackfillMarketplaceWebhookEventsCommand`.
