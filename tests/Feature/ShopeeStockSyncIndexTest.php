@@ -54,6 +54,36 @@ it('shows connected and hides primary authorize when stock oauth exists', functi
         ->assertDontSee('data-testid="shopee-stock-authorize-button"', false);
 });
 
+it('warns when redirect url contains bot or php', function () {
+    config([
+        'app.url' => 'https://aria3.corenationactive.com',
+        'services.shopee_admin.redirect_url' => 'https://cdn.corenationactive.com/shopeecoreadminbot.php',
+    ]);
+
+    $user = User::factory()->create();
+    $user->givePermissionTo('shopee-stock-sync');
+
+    Setting::query()->updateOrCreate(
+        ['slug' => ShopeeStockOpenApiService::OAUTH_SETTING_SLUG],
+        [
+            'group' => 'shopee_admin',
+            'name' => 'Shopee Admin OAuth',
+            'value' => [
+                'access_token' => 'token',
+                'shop_id' => 76610113,
+                'expires_at' => now()->addHours(4)->toIso8601String(),
+            ],
+        ],
+    );
+
+    $this->actingAs($user)
+        ->get(route('shopee.sync.index'))
+        ->assertOk()
+        ->assertSee('shopeecoreadminbot.php', false)
+        ->assertSee('SHOPEE_ADMIN_REDIRECT_URL', false)
+        ->assertSee('https://aria3.corenationactive.com/shopee-admin/oauth/callback', false);
+});
+
 it('shows connected when admin oauth exists for stock api', function () {
     Setting::query()->updateOrCreate(
         ['slug' => ShopeeStockOpenApiService::OAUTH_SETTING_SLUG],

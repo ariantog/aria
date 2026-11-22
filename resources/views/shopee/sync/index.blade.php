@@ -52,12 +52,18 @@ $breadcrumbs = [
                 </p>
                 @if($connection['configured'] ?? false)
                     <p class="mt-1 text-xs text-gray-600">
-                        Redirect URL terdaftar:
+                        <code>SHOPEE_ADMIN_REDIRECT_URL</code> (dipakai saat Authorize):
                         <code class="rounded bg-white px-1">{{ $connection['redirect_url'] ?? '—' }}</code>
                         @if($connection['shop_id'] ?? null)
                             · shop_id <span class="font-mono">{{ $connection['shop_id'] }}</span>
                         @endif
                     </p>
+                    @if($connection['redirect_url_console_rejected'] ?? false)
+                        <p class="mt-1 text-xs text-amber-900">
+                            URL ini mengandung <code>bot</code> atau <code>.php</code> — Shopee Console biasanya menolaknya. Sesuaikan Console + .env dengan:
+                            <code class="rounded bg-white px-1">{{ $connection['redirect_url_recommended'] ?? '' }}</code>
+                        </p>
+                    @endif
                 @else
                     <p class="mt-1 text-xs text-amber-800">Set <code>SHOPEE_ADMIN_PARTNER_ID</code> / <code>SHOPEE_ADMIN_PARTNER_KEY</code> di .env (app CORENATION ADMIN).</p>
                 @endif

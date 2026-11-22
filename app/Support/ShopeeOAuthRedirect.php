@@ -18,6 +18,15 @@ final class ShopeeOAuthRedirect
         return $fromApp !== '/shopee-admin/oauth/callback' ? $fromApp : self::DEFAULT_ARIA3_ADMIN_CALLBACK;
     }
 
+    public static function consoleRejects(string $redirect): bool
+    {
+        if ($redirect === '') {
+            return false;
+        }
+
+        return stripos($redirect, 'bot') !== false || stripos($redirect, '.php') !== false;
+    }
+
     public static function warnIfConsoleRejects(string $redirect): void
     {
         if ($redirect === '') {
