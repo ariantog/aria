@@ -45,7 +45,10 @@ class Omnichannel
 
         $perms = self::getPermissions();
 
-        return $user->can($perms['orders']) || $user->can($perms['view']);
+        return $user->can($perms['orders'])
+            || $user->can($perms['view'])
+            || $user->can(MarketplaceWebhook::getPermissions()['view'])
+            || $user->can(TikTokShop::getPermissions()['view']);
     }
 
     public static function userCanSettings(?User $user): bool

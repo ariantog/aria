@@ -13,6 +13,35 @@ beforeEach(function () {
 });
 
 it('filters events by channel and date with pagination query string', function () {
+    $receivedShopee = now()->subDays(2);
+    $receivedTiktok = now()->subDay();
+    $receivedOld = now()->subDays(30);
+
+    MarketplaceChannelOrder::query()->create([
+        'channel' => 'shopee',
+        'order_ref' => 'ORD-S',
+        'shop_ref' => '9001',
+        'order_status' => 'SHIPPED',
+        'last_event_at' => $receivedShopee,
+        'first_received_at' => $receivedShopee,
+    ]);
+    MarketplaceChannelOrder::query()->create([
+        'channel' => 'tiktok',
+        'order_ref' => 'ORD-T',
+        'shop_ref' => 'tt-shop',
+        'order_status' => 'UNPAID',
+        'last_event_at' => $receivedTiktok,
+        'first_received_at' => $receivedTiktok,
+    ]);
+    MarketplaceChannelOrder::query()->create([
+        'channel' => 'shopee',
+        'order_ref' => 'ORD-OLD',
+        'shop_ref' => '9001',
+        'order_status' => 'OLD',
+        'last_event_at' => $receivedOld,
+        'first_received_at' => $receivedOld,
+    ]);
+
     MarketplaceWebhookEvent::query()->create([
         'channel' => 'shopee',
         'idempotency_key' => 'shopee:1:3:ORD-S:1',
@@ -22,37 +51,27 @@ it('filters events by channel and date with pagination query string', function (
         'order_status' => 'SHIPPED',
         'signature_ok' => true,
         'payload' => ['code' => 3],
-        'received_at' => now()->subDays(2),
-    ]);
-
-    MarketplaceWebhookEvent::query()->create([
-        'channel' => 'tiktok',
-        'idempotency_key' => 'tiktok:filter-1',
-        'event_type' => '1',
-        'shop_ref' => 'tt-shop',
-        'order_ref' => 'ORD-T',
-        'order_status' => 'UNPAID',
-        'signature_ok' => true,
-        'payload' => ['type' => 1],
-        'received_at' => now()->subDay(),
-    ]);
-
-    MarketplaceWebhookEvent::query()->create([
-        'channel' => 'shopee',
-        'idempotency_key' => 'shopee:1:3:ORD-OLD:1',
-        'event_type' => '3',
-        'shop_ref' => '9001',
-        'order_ref' => 'ORD-OLD',
-        'order_status' => 'OLD',
-        'signature_ok' => true,
-        'payload' => [],
-        'received_at' => now()->subDays(30),
+        'received_at' => $receivedShopee,
     ]);
 
     $from = now()->subDays(7)->format('Y-m-d');
     $to = now()->format('Y-m-d');
 
-    $response = $this->actingAs($this->user)->get(route('marketplace.webhooks.index', [
+    $this->actingAs($this->user)->get(route('marketplace.webhooks.index', [
+        'channel' => 'shopee',
+        'date_from' => $from,
+        'date_to' => $to,
+        'per_page' => 10,
+        'view' => 'events',
+    ]))
+        ->assertRedirect(route('omnichannel.orders.index', [
+            'channel' => 'shopee',
+            'date_from' => $from,
+            'date_to' => $to,
+            'per_page' => 10,
+        ]));
+
+    $response = $this->actingAs($this->user)->get(route('omnichannel.orders.index', [
         'channel' => 'shopee',
         'date_from' => $from,
         'date_to' => $to,
@@ -93,15 +112,29 @@ it('filters orders view by partial order status', function () {
             'date_from' => now()->subDays(7)->format('Y-m-d'),
             'date_to' => now()->format('Y-m-d'),
         ]))
+        ->assertRedirect();
+
+    $this->actingAs($this->user)
+        ->get(route('omnichannel.orders.index', [
+            'order_status' => 'AWAITING',
+            'date_from' => now()->subDays(7)->format('Y-m-d'),
+            'date_to' => now()->format('Y-m-d'),
+        ]))
         ->assertOk()
         ->assertSee('O-1', false)
         ->assertDontSee('O-2', false);
 });
 
-it('redirects legacy tiktok webhook inbox route to unified inbox', function () {
+it('redirects legacy tiktok webhook inbox route to omnichannel orders', function () {
     $this->actingAs($this->user)
         ->get(route('tiktok-shop.webhooks.index', ['channel' => 'tiktok']))
-        ->assertRedirect(route('marketplace.webhooks.index', ['channel' => 'tiktok']));
+        ->assertRedirect(route('omnichannel.orders.index', ['channel' => 'tiktok']));
+});
+
+it('redirects marketplace webhooks route to omnichannel orders', function () {
+    $this->actingAs($this->user)
+        ->get(route('marketplace.webhooks.index', ['channel' => 'shopee', 'view' => 'events']))
+        ->assertRedirect(route('omnichannel.orders.index', ['channel' => 'shopee']));
 });
 
 it('backfills legacy inbox tables idempotently', function () {
@@ -137,7 +170,7 @@ it('backfills legacy inbox tables idempotently', function () {
     expect(MarketplaceWebhookEvent::count())->toBe(2);
 });
 
-it('denies inbox without marketplace tiktok or omnichannel permission', function () {
+it('denies webhook legacy route without marketplace tiktok or omnichannel permission', function () {
     $limited = User::factory()->create();
     expect($limited->is_superadmin)->toBeFalse();
 

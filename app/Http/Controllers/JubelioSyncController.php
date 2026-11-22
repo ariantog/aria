@@ -34,11 +34,16 @@ class JubelioSyncController extends Controller
             $query->where('jubelio_location_name', 'LIKE', "%$name%");
         }
 
+        if ($request->filled('store')) {
+            $store = str_replace(' ', '%', (string) $request->query('store'));
+            $query->where('jubelio_store_name', 'LIKE', '%'.$store.'%');
+        }
+
         $dataList = $query->orderBy('created_at', 'desc')->paginate(50)->withQueryString();
 
         return view('jubelio.sync.index', [
             'dataList' => $dataList,
-            'filters' => $request->only(['name']),
+            'filters' => $request->only(['name', 'store']),
             'flash' => ['success' => session('success'), 'error' => session('fail') ?? session('errorMessage') ?? session('error')],
         ]);
     }

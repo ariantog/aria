@@ -9,6 +9,10 @@ class OmnichannelSettingStore
 {
     public const KEY_SHOPEE_LOW_STOCK_THRESHOLD = 'shopee_low_stock_threshold';
 
+    public const KEY_TOKOPEDIA_STORE_ID = 'tokopedia_store_id';
+
+    public const KEY_TOKOPEDIA_NOTES = 'tokopedia_notes';
+
     public function tableExists(): bool
     {
         return Schema::hasTable('omnichannel_settings');

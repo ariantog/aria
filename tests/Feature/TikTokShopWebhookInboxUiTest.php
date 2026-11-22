@@ -1,7 +1,7 @@
 <?php
 
+use App\Models\MarketplaceChannelOrder;
 use App\Models\MarketplaceWebhook;
-use App\Models\MarketplaceWebhookEvent;
 use App\Models\TikTokShop;
 use App\Models\User;
 use App\Services\PermissionGenerator;
@@ -13,46 +13,39 @@ beforeEach(function () {
     app(PermissionGenerator::class)->generateForModule('MarketplaceWebhook');
 });
 
-it('redirects legacy tiktok webhook inbox to unified marketplace inbox', function () {
+it('redirects legacy tiktok webhook inbox to omnichannel orders', function () {
     User::factory()->create();
     $user = User::factory()->create();
     $user->givePermissionTo(TikTokShop::getPermissions()['view']);
 
     $this->actingAs($user)
         ->get(route('tiktok-shop.webhooks.index', ['channel' => 'tiktok']))
-        ->assertRedirect(route('marketplace.webhooks.index', ['channel' => 'tiktok']));
+        ->assertRedirect(route('omnichannel.orders.index', ['channel' => 'tiktok']));
 });
 
-it('renders unified marketplace webhook inbox for user with tiktok shop view permission', function () {
+it('shows tiktok orders on omnichannel list for user with tiktok shop view permission', function () {
     User::factory()->create();
     $user = User::factory()->create();
     $user->givePermissionTo(TikTokShop::getPermissions()['view']);
 
-    MarketplaceWebhookEvent::query()->create([
+    MarketplaceChannelOrder::query()->create([
         'channel' => 'tiktok',
-        'idempotency_key' => 'tiktok:ui-test-'.uniqid(),
-        'event_type' => '1',
-        'shop_ref' => '7495540735365777507',
         'order_ref' => '576653688135258178',
+        'shop_ref' => '7495540735365777507',
         'order_status' => 'UNPAID',
-        'signature_ok' => true,
-        'payload' => [
-            'type' => 1,
-            'data' => ['order_id' => '576653688135258178', 'order_status' => 'UNPAID'],
-        ],
-        'received_at' => now(),
+        'last_event_at' => now(),
+        'first_received_at' => now(),
     ]);
 
     $this->actingAs($user)
-        ->get(route('marketplace.webhooks.index', ['channel' => 'tiktok']))
+        ->get(route('omnichannel.orders.index', ['channel' => 'tiktok']))
         ->assertOk()
-        ->assertSee('Marketplace — Webhook Inbox', false)
-        ->assertSee('data-testid="marketplace-webhooks-page"', false)
+        ->assertSee('data-testid="omnichannel-orders-page"', false)
         ->assertSee('576653688135258178', false)
         ->assertSee('UNPAID', false);
 });
 
-it('forbids unified marketplace webhook inbox without view permission', function () {
+it('forbids legacy webhook route without view permission', function () {
     User::factory()->create();
     $user = User::factory()->create();
 
@@ -61,12 +54,11 @@ it('forbids unified marketplace webhook inbox without view permission', function
         ->assertForbidden();
 });
 
-it('allows superadmin to view unified marketplace webhook inbox without explicit permission', function () {
+it('allows superadmin to reach orders via legacy webhook redirect', function () {
     $user = User::factory()->create();
     expect($user->is_superadmin)->toBeTrue();
 
     $this->actingAs($user)
         ->get(route('marketplace.webhooks.index'))
-        ->assertOk()
-        ->assertSee('Webhook Inbox', false);
+        ->assertRedirect(route('omnichannel.orders.index'));
 });
