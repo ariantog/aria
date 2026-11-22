@@ -113,7 +113,7 @@ it('forbids grok export user from POST mutations', function (): void {
     $user = createGrokUser();
     $this->actingAs($user);
 
-    $this->withoutMiddleware(\Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class)
+    $this->withSameOriginSite()
         ->post(route('permissions.generate'))
         ->assertForbidden();
     $this->get(route('items.edit', Item::factory()->create()))->assertForbidden();
