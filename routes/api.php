@@ -12,6 +12,7 @@ use App\Http\Controllers\Mobile\MobileTransactionListController;
 use App\Http\Controllers\Mobile\MobileTransactionReceiptController;
 use App\Http\Controllers\Mobile\MobileUserController;
 use App\Http\Controllers\Readonly\ReadonlyItemExportController;
+use App\Http\Controllers\Readonly\ReadonlyRestockExportController;
 use App\Http\Controllers\Readonly\ReadonlyStockExportController;
 use Illuminate\Support\Facades\Route;
 
@@ -31,6 +32,17 @@ Route::middleware(['auth.readonly-export', 'active', 'can:export-readonly', 'enf
         ->name('api.readonly.items.cost-history');
     Route::get('readonly/stock', [ReadonlyStockExportController::class, 'index'])
         ->name('api.readonly.stock');
+    Route::get('readonly/restock/context', [ReadonlyRestockExportController::class, 'context'])
+        ->name('api.readonly.restock.context');
+    Route::get('readonly/restock/insight-period', [ReadonlyRestockExportController::class, 'insightPeriod'])
+        ->name('api.readonly.restock.insight-period');
+});
+
+Route::middleware(['auth.readonly-export', 'active', 'can:restock-grok-apply', 'throttle:readonly-export', 'restock.grok.apply.enabled'])->group(function (): void {
+    Route::post('readonly/restock/apply/preview', [ReadonlyRestockExportController::class, 'previewApply'])
+        ->name('api.readonly.restock.apply.preview');
+    Route::post('readonly/restock/apply', [ReadonlyRestockExportController::class, 'apply'])
+        ->name('api.readonly.restock.apply');
 });
 
 Route::prefix('mobile/v1')->group(function (): void {

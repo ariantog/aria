@@ -44,6 +44,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'prevent.duplicate' => \App\Http\Middleware\PreventDuplicateSubmission::class,
             'enforce.readonly' => \App\Http\Middleware\EnforceReadonlyExportAccount::class,
             'auth.readonly-export' => \App\Http\Middleware\AuthenticateReadonlyExport::class,
+            'restock.grok.apply.enabled' => \App\Http\Middleware\EnsureRestockGrokApplyEnabled::class,
             'tiktok.mock-api' => \App\Http\Middleware\VerifyTikTokShopMockApiToken::class,
             'auth.jubelio-proxy' => \App\Http\Middleware\AuthenticateJubelioProxyClient::class,
             'throttle.jubelio-proxy' => \App\Http\Middleware\ThrottleJubelioProxyClient::class,

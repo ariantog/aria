@@ -12,4 +12,13 @@ return [
     /** Username for bearer auth (default service account). */
     'username' => env('READONLY_EXPORT_USERNAME', 'grok'),
 
+    /**
+     * When false (default), POST /api/readonly/restock/apply is blocked — bot should emit CSV/XLSX for humans.
+     * Set READONLY_RESTOCK_GROK_APPLY_ENABLED=true only when ops approves automated sheet updates.
+     */
+    'restock_grok_apply_enabled' => filter_var(
+        env('READONLY_RESTOCK_GROK_APPLY_ENABLED', false),
+        FILTER_VALIDATE_BOOLEAN,
+    ),
+
 ];
