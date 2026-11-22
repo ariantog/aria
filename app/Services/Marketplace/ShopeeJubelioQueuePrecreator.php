@@ -7,6 +7,7 @@ use App\Models\Jubeliosync;
 use App\Models\Shopeesync;
 use App\Services\Jubelio\JubelioOrderReadyToShip;
 use App\Services\Jubelio\JubelioSellInvoiceGuard;
+use App\Services\WarehouseOnOrderService;
 use App\Support\ShopeeTestPushDetector;
 use Illuminate\Support\Facades\Schema;
 
@@ -22,6 +23,7 @@ class ShopeeJubelioQueuePrecreator
         private MarketplaceWebhookStatusPresenter $statusPresenter,
         private JubelioSellInvoiceGuard $sellInvoiceGuard,
         private MarketplaceWebhookShopWarehouseResolver $shopWarehouseResolver,
+        private WarehouseOnOrderService $warehouseOnOrder,
     ) {}
 
     public function enabled(): bool
@@ -85,6 +87,13 @@ class ShopeeJubelioQueuePrecreator
             'jubelio_location_id' => $warehouseColumns['jubelio_location_id'],
             'status' => 0,
         ]);
+
+        if ($warehouseColumns['warehouse_id'] > 0) {
+            $this->warehouseOnOrder->reserveFromShopeePushData(
+                $warehouseColumns['warehouse_id'],
+                $pushData,
+            );
+        }
 
         return true;
     }

@@ -6,10 +6,14 @@ use App\Enums\ItemType;
 use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\WarehouseItem;
+use App\Services\WarehouseOnOrderService;
 use Exception;
 
 class InventoryService
 {
+    public function __construct(
+        private WarehouseOnOrderService $warehouseOnOrder,
+    ) {}
     /**
      * @throws Exception
      */
@@ -41,6 +45,12 @@ class InventoryService
             throw new Exception('Addrbook (Warehouse) not found.');
         }
 
-        return WarehouseItem::applyDelta($warehouseId, $item->id, $quantity, (int) $addrbook->type);
+        $row = WarehouseItem::applyDelta($warehouseId, $item->id, $quantity, (int) $addrbook->type);
+
+        if ($quantity < 0) {
+            $this->warehouseOnOrder->releaseOnPhysicalDeduct($warehouseId, (int) $item->id, abs($quantity));
+        }
+
+        return $row;
     }
 }

@@ -9,7 +9,7 @@ use App\Services\InventoryService;
 uses(Tests\TestCase::class, Illuminate\Foundation\Testing\RefreshDatabase::class);
 
 beforeEach(function () {
-    $this->inventoryService = new InventoryService;
+    $this->inventoryService = app(InventoryService::class);
     $this->item = Item::factory()->create(['type' => ItemType::ITEM]);
 
     // InventoryService operates on the customers table (warehouses are customers).

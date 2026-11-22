@@ -17,7 +17,7 @@ uses(Tests\TestCase::class, Illuminate\Foundation\Testing\RefreshDatabase::class
 beforeEach(function () {
     $this->itemService = new ItemService(
         app(ImageService::class),
-        new InventoryService,
+        app(InventoryService::class),
         new ItemIdentityBuilder,
     );
 

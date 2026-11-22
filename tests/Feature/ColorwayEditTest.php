@@ -18,7 +18,7 @@ beforeEach(function () {
 
     $this->itemService = new ItemService(
         app(ImageService::class),
-        new InventoryService,
+        app(InventoryService::class),
         new ItemIdentityBuilder,
     );
 

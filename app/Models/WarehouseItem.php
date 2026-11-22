@@ -21,10 +21,12 @@ class WarehouseItem extends Model
         'warehouse_id',
         'warehouse_type',
         'quantity',
+        'on_order',
     ];
 
     protected $casts = [
         'quantity' => 'decimal:2',
+        'on_order' => 'decimal:2',
     ];
 
     protected static function booted(): void
@@ -60,6 +62,39 @@ class WarehouseItem extends Model
             }
 
             $row->quantity = (float) ($row->quantity ?? 0) + $delta;
+            $row->save();
+
+            return $row;
+        });
+    }
+
+    /**
+     * Marketplace reservation counter — does not change {@see quantity}.
+     */
+    public static function applyOnOrderDelta(int $warehouseId, int $itemId, float $delta, ?int $warehouseType = null): self
+    {
+        return DB::transaction(function () use ($warehouseId, $itemId, $delta, $warehouseType) {
+            $row = static::query()
+                ->where('warehouse_id', $warehouseId)
+                ->where('item_id', $itemId)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $row) {
+                $row = new static([
+                    'warehouse_id' => $warehouseId,
+                    'item_id' => $itemId,
+                    'quantity' => 0,
+                    'on_order' => 0,
+                ]);
+            }
+
+            if ($warehouseType !== null) {
+                $row->warehouse_type = $warehouseType;
+            }
+
+            $next = max(0, (float) ($row->on_order ?? 0) + $delta);
+            $row->on_order = $next;
             $row->save();
 
             return $row;

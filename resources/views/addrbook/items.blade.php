@@ -25,9 +25,11 @@ $filtersStorageKey = 'aria-warehouse-items-filters-open-' . $addrbook->id;
 $columnsStorageKey = 'aria-warehouse-items-columns-' . $addrbook->id;
 $hasJubelio = (bool) ($jubelioSync ?? null);
 $hasShopee = (bool) ($shopeeSync ?? null);
+$hasAriaOnOrder = Schema::hasColumn('warehouse_item', 'on_order');
 $maxTableCols = 4 + 4
     + ($hasItemAliasColumn ? 1 : 0)
     + ($hasGroupAliasColumn ? 1 : 0)
+    + ($hasAriaOnOrder ? 1 : 0)
     + ($hasJubelio ? 4 : 0)
     + ($hasShopee ? 2 : 0);
 $idr = fn ($v) => 'IDR ' . format_amount($v, 0);
@@ -227,6 +229,9 @@ $sortLink = function (string $column) use ($filters, $sortColumn, $sortDirection
                     <th class="px-3 py-2.5 text-right font-medium" data-copy-col="qty">
                         <a href="{{ $sortLink('qty') }}" class="inline-flex items-center justify-end gap-0.5 hover:text-gray-900">Stock @if($sortColumn === 'qty')<span class="text-blue-600">{{ $sortDirection === 'asc' ? '↑' : '↓' }}</span>@endif</a>
                     </th>
+                    @if($hasAriaOnOrder)
+                        <th class="px-3 py-2.5 text-right font-medium text-orange-700" data-copy-col="aria_on_order" title="Aria marketplace on-order (not physical stock)">On order</th>
+                    @endif
                     @if($hasJubelio)
                         <th class="px-3 py-2.5 text-right font-medium" data-copy-col="jb_on_hand" title="Jubelio on hand">On hand</th>
                         <th class="px-3 py-2.5 text-right font-medium" data-copy-col="jb_on_order" title="Jubelio on order">On order</th>
@@ -247,6 +252,7 @@ $sortLink = function (string $column) use ($filters, $sortColumn, $sortDirection
                         $onlineNm = $item->catalogDescription2() ?: $normalName;
                         $desc = $item->catalogDescription() ?: '-';
                         $qty = (float) ($item->pivot->quantity ?? 0);
+                        $ariaOnOrder = $hasAriaOnOrder ? (float) ($item->pivot->on_order ?? 0) : 0;
                         $itemShowUrl = $item->showUrl();
                         $itemEditUrl = $item->editUrl();
                         $jubelioLinked = (int) $item->jubelio_item_id > 0;
@@ -285,6 +291,9 @@ $sortLink = function (string $column) use ($filters, $sortColumn, $sortDirection
                         </td>
                         <td class="whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold tabular-nums text-gray-700" data-copy-col="price" data-copy-value="{{ format_copy_number($item->effectivePrice()) }}">{{ $idr($item->effectivePrice()) }}</td>
                         <td class="whitespace-nowrap px-3 py-2.5 text-right font-mono text-xs font-bold tabular-nums {{ $qty > 0 ? 'text-emerald-600' : 'text-gray-400' }}" data-copy-col="qty" data-copy-value="{{ format_copy_number($qty) }}">{{ format_amount($qty, 0) }}</td>
+                        @if($hasAriaOnOrder)
+                            <td class="whitespace-nowrap px-3 py-2.5 text-right font-mono text-xs tabular-nums {{ $ariaOnOrder > 0 ? 'text-orange-600 font-semibold' : 'text-gray-400' }}" data-copy-col="aria_on_order" data-copy-value="{{ format_copy_number($ariaOnOrder) }}">{{ format_amount($ariaOnOrder, 0) }}</td>
+                        @endif
                         @if($hasJubelio)
                             @if(! $jubelioLinked)
                                 <td colspan="4" class="px-3 py-2.5 text-right" data-copy-col="jb_on_hand">
