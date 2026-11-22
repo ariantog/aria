@@ -30,6 +30,16 @@ it('resolves tiktok resi to jubelio salesorder_no via tracking lookup', function
         'bin_id' => 0,
     ]);
 
+    Jubelioorder::create([
+        'jubelio_order_id' => 'so-tt-1',
+        'source' => Jubelioorder::SOURCE_WEBHOOK,
+        'invoice' => 'TT-586928090015303551-32327',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 0,
+        'status' => 0,
+    ]);
+
     $this->mock(JubelioService::class, function (MockInterface $mock) {
         $mock->shouldReceive('resolveSalesOrderByTracking')
             ->once()
@@ -47,12 +57,15 @@ it('resolves tiktok resi to jubelio salesorder_no via tracking lookup', function
         'barcodes' => ['JP1234567890'],
     ]);
 
-    $response->assertCreated()
-        ->assertJsonPath('created.0.invoice', 'TT-586928090015303551-32327');
+    $response->assertOk()
+        ->assertJsonCount(0, 'created')
+        ->assertJsonCount(1, 'updated')
+        ->assertJsonPath('updated.0.invoice', 'TT-586928090015303551-32327');
+
+    expect(Jubelioorder::where('invoice', 'TT-586928090015303551-32327')->count())->toBe(1);
 
     $order = Jubelioorder::where('invoice', 'TT-586928090015303551-32327')->first();
-    expect($order)->not->toBeNull()
-        ->and($order->jubelio_order_id)->toBe('so-tt-1');
+    expect($order->jubelio_order_id)->toBe('so-tt-1');
 });
 
 it('skips tiktok resi when tracking is not found in jubelio', function () {

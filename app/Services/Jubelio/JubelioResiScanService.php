@@ -243,10 +243,7 @@ class JubelioResiScanService
                 continue;
             }
 
-            $existing = Jubelioorder::query()
-                ->where('type', 'SELL')
-                ->where('invoice', $invoice)
-                ->first();
+            $existing = $this->findQueueRowForResiScan($invoice, $resolved['jubelio_order_id'] ?? null);
 
             if ($existing !== null) {
                 $this->touchExistingFromScan(
@@ -255,31 +252,60 @@ class JubelioResiScanService
                     $sync,
                     $resolved['jubelio_order_id'] ?? null,
                 );
-                $updated[] = ['id' => (int) $existing->id, 'invoice' => $invoice];
+                $updated[] = ['id' => (int) $existing->id, 'invoice' => $existing->invoice];
 
                 continue;
             }
 
-            $jubelioOrderId = $this->placeholderJubelioOrderId($invoice, $resolved['jubelio_order_id'] ?? null);
-
-            $order = Jubelioorder::create([
-                'jubelio_order_id' => $jubelioOrderId,
-                'source' => (int) config('jubelio_resi_scan.source', 3),
+            $skipped[] = [
+                'raw' => $rawString,
                 'invoice' => $invoice,
-                'type' => 'SELL',
-                'order_status' => JubelioOrderReadyToShip::STATUS,
-                'run_count' => 0,
-                'warehouse_id' => (int) $sync->warehouse_id,
-                'jubelio_store_id' => (int) $sync->jubelio_store_id,
-                'jubelio_location_id' => (int) $sync->jubelio_location_id,
-                'user_id' => (int) $user->id,
-                'status' => 0,
-            ]);
-
-            $created[] = ['id' => (int) $order->id, 'invoice' => $invoice];
+                'reason' => 'Belum ada di antrean Jubelio — tunggu push marketplace atau webhook.',
+            ];
         }
 
         return ['created' => $created, 'updated' => $updated, 'skipped' => $skipped];
+    }
+
+    /**
+     * Match an existing queue row by canonical invoice, Jubelio order id, or Shopee push placeholder.
+     */
+    private function findQueueRowForResiScan(string $invoice, string|int|null $jubelioOrderId): ?Jubelioorder
+    {
+        $byInvoice = Jubelioorder::query()
+            ->where('type', 'SELL')
+            ->where('invoice', $invoice)
+            ->first();
+
+        if ($byInvoice !== null) {
+            return $byInvoice;
+        }
+
+        $jubelioId = $jubelioOrderId !== null ? trim((string) $jubelioOrderId) : '';
+        if ($jubelioId !== '') {
+            $byJubelioId = Jubelioorder::query()
+                ->where('type', 'SELL')
+                ->where('jubelio_order_id', $jubelioId)
+                ->first();
+
+            if ($byJubelioId !== null) {
+                return $byJubelioId;
+            }
+        }
+
+        if (preg_match('/^SP-(.+)$/i', $invoice, $matches) === 1) {
+            $orderSn = trim($matches[1]);
+            if ($orderSn !== '') {
+                $placeholderId = ShopeeJubelioQueuePrecreator::PLACEHOLDER_PREFIX.$orderSn;
+
+                return Jubelioorder::query()
+                    ->where('type', 'SELL')
+                    ->where('jubelio_order_id', $placeholderId)
+                    ->first();
+            }
+        }
+
+        return null;
     }
 
     public function touchExistingFromScan(

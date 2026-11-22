@@ -23,7 +23,7 @@ it('requires jubelio-view permission for resi scan options', function () {
         ->assertForbidden();
 });
 
-it('queues sell orders from mobile shopee resi scan via jubelio awb lookup', function () {
+it('updates queued rows from mobile shopee resi scan after awb resolves invoice', function () {
     $user = User::factory()->create();
     $user->givePermissionTo('jubelio-view');
 
@@ -37,6 +37,27 @@ it('queues sell orders from mobile shopee resi scan via jubelio awb lookup', fun
         'warehouse_id' => $warehouse->id,
         'customer_id' => 1,
         'bin_id' => 0,
+    ]);
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'shopee-push:250302JA65X2S0',
+        'source' => Jubelioorder::SOURCE_SHOPEE_PUSH,
+        'invoice' => 'SP-250302JA65X2S0',
+        'type' => 'SELL',
+        'order_status' => JubelioOrderReadyToShip::STATUS,
+        'run_count' => 0,
+        'warehouse_id' => $warehouse->id,
+        'status' => 0,
+    ]);
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'shopee-push:SECOND-ORDER',
+        'source' => Jubelioorder::SOURCE_SHOPEE_PUSH,
+        'invoice' => 'SP-SECOND-ORDER',
+        'type' => 'SELL',
+        'order_status' => JubelioOrderReadyToShip::STATUS,
+        'run_count' => 0,
+        'status' => 0,
     ]);
 
     config(['services.jubelio.active' => true]);
@@ -71,15 +92,19 @@ it('queues sell orders from mobile shopee resi scan via jubelio awb lookup', fun
         'remember_defaults' => true,
     ]);
 
-    $response->assertStatus(201)
-        ->assertJsonPath('created.0.invoice', 'SP-250302JA65X2S0')
-        ->assertJsonPath('created.1.invoice', 'SP-SECOND-ORDER');
+    $response->assertOk()
+        ->assertJsonCount(0, 'created')
+        ->assertJsonCount(2, 'updated')
+        ->assertJsonPath('updated.0.invoice', 'SP-250302JA65X2S0')
+        ->assertJsonPath('updated.1.invoice', 'SP-SECOND-ORDER');
+
+    expect(Jubelioorder::where('type', 'SELL')->count())->toBe(2);
 
     $order = Jubelioorder::where('invoice', 'SP-250302JA65X2S0')->first();
     expect($order)->not->toBeNull()
         ->and($order->type)->toBe('SELL')
         ->and($order->order_status)->toBe('READY TO SHIP')
-        ->and((int) $order->source)->toBe(3)
+        ->and($order->source)->toBe(Jubelioorder::SOURCE_SHOPEE_PUSH)
         ->and((int) $order->user_id)->toBe($user->id)
         ->and((int) $order->warehouse_id)->toBe($warehouse->id)
         ->and((int) $order->jubelio_store_id)->toBe(101)
@@ -151,11 +176,13 @@ it('updates existing queue row on resi scan instead of inserting duplicate', fun
         'barcodes' => ['DUP-TEST', 'NEW-TT-001'],
     ]);
 
-    $response->assertCreated()
-        ->assertJsonCount(1, 'created')
+    $response->assertOk()
+        ->assertJsonCount(0, 'created')
         ->assertJsonCount(1, 'updated')
-        ->assertJsonPath('created.0.invoice', 'TT-NEW-TT-001')
-        ->assertJsonPath('updated.0.invoice', 'TT-DUP-TEST');
+        ->assertJsonCount(1, 'skipped')
+        ->assertJsonPath('updated.0.invoice', 'TT-DUP-TEST')
+        ->assertJsonPath('skipped.0.invoice', 'TT-NEW-TT-001')
+        ->assertJsonPath('skipped.0.reason', 'Belum ada di antrean Jubelio — tunggu push marketplace atau webhook.');
 
     expect(Jubelioorder::where('invoice', 'TT-DUP-TEST')->count())->toBe(1);
 
@@ -230,7 +257,50 @@ it('formats invoice prefixes via service', function () {
         ->and($service->formatInvoice('tiktok', 'TT-999'))->toBe('TT-999');
 });
 
-it('appends jubelio store id to lazada resi scan invoices', function () {
+it('does not insert jubelioorders when awb resolves but queue row is missing', function () {
+    $user = User::factory()->create();
+    $user->givePermissionTo('jubelio-view');
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 101,
+        'jubelio_store_name' => 'Shopee Crystal',
+        'jubelio_location_id' => -1,
+        'jubelio_location_name' => 'Pusat',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => 1,
+        'bin_id' => 0,
+    ]);
+
+    config(['services.jubelio.active' => true]);
+
+    $this->mock(JubelioService::class, function (MockInterface $mock) {
+        $mock->shouldReceive('resolveSalesOrderByTracking')
+            ->once()
+            ->andReturn([
+                'status' => 'found',
+                'salesorder_no' => 'SP-NO-QUEUE-ROW',
+                'salesorder_id' => 'so-missing-queue',
+            ]);
+    });
+
+    $response = $this->actingAs($user, 'sanctum')->postJson('/api/mobile/v1/jubelio/resi-scan', [
+        'warehouse_id' => $warehouse->id,
+        'marketplace' => 'shopee',
+        'barcodes' => ['SPX-NO-QUEUE'],
+    ]);
+
+    $response->assertOk()
+        ->assertJsonCount(0, 'created')
+        ->assertJsonCount(0, 'updated')
+        ->assertJsonCount(1, 'skipped')
+        ->assertJsonPath('skipped.0.invoice', 'SP-NO-QUEUE-ROW');
+
+    expect(Jubelioorder::count())->toBe(0);
+});
+
+it('updates lazada queue row when invoice already exists', function () {
     $user = User::factory()->create();
     $user->givePermissionTo('jubelio-view');
 
@@ -246,18 +316,33 @@ it('appends jubelio store id to lazada resi scan invoices', function () {
         'bin_id' => 0,
     ]);
 
+    Jubelioorder::create([
+        'jubelio_order_id' => 'webhook-lz',
+        'source' => Jubelioorder::SOURCE_WEBHOOK,
+        'invoice' => 'LZ-2706952969613265-18697',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 0,
+        'jubelio_store_id' => 18697,
+        'status' => 0,
+    ]);
+
     $response = $this->actingAs($user, 'sanctum')->postJson('/api/mobile/v1/jubelio/resi-scan', [
         'warehouse_id' => $warehouse->id,
         'marketplace' => 'lazada',
         'barcodes' => ['2706952969613265'],
     ]);
 
-    $response->assertCreated()
-        ->assertJsonPath('created.0.invoice', 'LZ-2706952969613265-18697');
+    $response->assertOk()
+        ->assertJsonCount(0, 'created')
+        ->assertJsonCount(1, 'updated')
+        ->assertJsonPath('updated.0.invoice', 'LZ-2706952969613265-18697');
+
+    expect(Jubelioorder::where('invoice', 'LZ-2706952969613265-18697')->count())->toBe(1);
 
     $order = Jubelioorder::where('invoice', 'LZ-2706952969613265-18697')->first();
-    expect($order)->not->toBeNull()
-        ->and((int) $order->jubelio_store_id)->toBe(18697);
+    expect((int) $order->jubelio_store_id)->toBe(18697)
+        ->and($order->order_status)->toBe(JubelioOrderReadyToShip::STATUS);
 });
 
 it('does not double-append lazada store id when barcode already includes suffix', function () {
