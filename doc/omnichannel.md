@@ -70,7 +70,7 @@ All paths key on the same **`SP-{ordersn}`** invoice string (Shopee marketplace 
 | Order of events | Behavior |
 |-----------------|----------|
 | Pre-create first, AWB scan later | Scan **does not insert**; existing row appears in API `updated[]` (`READY TO SHIP`, `user_id`, warehouse/sync, promotes placeholder `jubelio_order_id` when Jubelio resolves AWB). |
-| AWB scan first (no pre-create) | Scan **creates** `source=3` row. Later push pre-create **upserts** by invoice — no second row. |
+| AWB scan without queue row | Scan **does not insert** — `skipped` after invoice resolution (defensive; normal ops: Shopee pre-create or webhook first). |
 | Jubelio webhook SHIPPED/COMPLETED | Promotes placeholder — no duplicate insert. |
 | Posted sell `transactions` | Scan **skips** (invoice already in ledger). |
 
