@@ -56,6 +56,23 @@ When **`SHOPEE_PRECREATE_JUBELIO_QUEUE=true`** (default **false**), push code **
 
 Console test pushes and verify-only statuses are skipped. Jubelio **webhook** promotes a placeholder row (updates `jubelio_order_id` + shipped status) instead of inserting a duplicate. Poll/get-orders and `JubelioSellInvoiceGuard` treat the invoice as already queued. **Still no SELL transaction on push alone.**
 
+#### Dedupe with mobile AWB / resi scan
+
+| Path | Route / code |
+|------|----------------|
+| Mobile API | `POST /api/mobile/v1/jubelio/resi-scan` → `MobileJubelioResiScanController@store` |
+| Service | `JubelioResiScanService::queueInvoices` (AWB → Jubelio tracking lookup → invoice `SP-{…}`) |
+
+All paths key on the same **`SP-{ordersn}`** invoice string (Shopee marketplace config in `jubelio_resi_scan.php`; Lazada/TikTok may append store suffix).
+
+| Order of events | Behavior |
+|-----------------|----------|
+| Pre-create first, AWB scan later | `JubelioSellInvoiceGuard` sees the row; scan **does not insert**. If `order_status` is **READY TO SHIP** (courier hold), scan **updates** `user_id`, optional warehouse, and replaces placeholder `jubelio_order_id` when Jubelio resolves the AWB. |
+| AWB scan first (no pre-create) | Scan still **creates** `source=3` row (unchanged). Later push pre-create **upserts** by invoice — no second row. |
+| Jubelio webhook SHIPPED/COMPLETED | Promotes placeholder (Shopee push or resi scan **READY TO SHIP** hold) — no duplicate insert. |
+
+**Stock:** Pre-create, resi scan queue, and push callback **do not** change `warehouse_item.quantity`. Physical deduct remains `ProcessJubelioOrder` after SHIPPED. **`on_order` reservation (G2)** is a follow-up PR.
+
 Jubelio remains the posting path. Shopee **Order Status push (3)**:
 
 1. **Sync stub** — upsert `marketplace_order_shadows` with `ordersn`, `shop_id`, push status, `compare_status=pending` (no queue worker; list may show `belum dimuat` for lines until detail is opened).
