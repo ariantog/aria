@@ -4,7 +4,7 @@ namespace App\Services\Shopee\Concerns;
 
 use App\Models\Setting;
 use App\Services\Shopee\ShopeeAdminOpenApiService;
-use Illuminate\Support\Facades\Log;
+use App\Support\ShopeeOAuthRedirect;
 
 /**
  * Shop OAuth tokens for aria3 live on {@see ShopeeAdminOpenApiService::OAUTH_SETTING_SLUG}
@@ -36,9 +36,7 @@ trait UsesShopeeAdminOAuth
     {
         $config = $this->adminOAuthConfig();
         $redirect = (string) ($config['redirect_url'] ?? '');
-        if ($redirect !== '' && stripos($redirect, 'bot') !== false) {
-            Log::warning('SHOPEE_ADMIN_REDIRECT_URL contains "bot" — Shopee Open Platform rejects that redirect; use shopeecoreadmin.php');
-        }
+        ShopeeOAuthRedirect::warnIfConsoleRejects($redirect);
 
         $path = '/api/v2/shop/auth_partner';
         $timestamp = time();

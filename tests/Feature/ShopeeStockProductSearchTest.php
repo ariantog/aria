@@ -10,7 +10,7 @@ beforeEach(function () {
         'services.shopee_stock.partner_id' => '2047227',
         'services.shopee_stock.partner_key' => 'test-stock-partner-key',
         'services.shopee_stock.base_url' => 'https://partner.shopeemobile.com',
-        'services.shopee_stock.redirect_url' => 'https://cdn.corenationactive.com/shopee-stock-oauth.php',
+        'services.shopee_stock.redirect_url' => 'https://aria3.corenationactive.com/shopee-stock/oauth/callback',
     ]);
 
     Setting::query()->updateOrCreate(

@@ -11,14 +11,14 @@ beforeEach(function () {
         'services.shopee_admin.partner_id' => '2053195',
         'services.shopee_admin.partner_key' => 'test-admin-partner-key',
         'services.shopee_admin.base_url' => 'https://partner.shopeemobile.com',
-        'services.shopee_admin.redirect_url' => 'https://cdn.corenationactive.com/shopeecoreadmin.php',
+        'services.shopee_admin.redirect_url' => 'https://aria3.corenationactive.com/shopee-admin/oauth/callback',
     ]);
 });
 
 it('uses coreadmin cdn relay as default stock oauth redirect', function () {
     $api = app(ShopeeStockOpenApiService::class);
 
-    expect($api->getOAuthRedirectUrl())->toBe('https://cdn.corenationactive.com/shopeecoreadmin.php');
+    expect($api->getOAuthRedirectUrl())->toBe('https://aria3.corenationactive.com/shopee-admin/oauth/callback');
 });
 
 it('surfaces invalid_partner_id oauth hint for admin app', function () {
@@ -28,7 +28,7 @@ it('surfaces invalid_partner_id oauth hint for admin app', function () {
     expect($api->formatOAuthErrorForUser($detail))
         ->toContain('invalid_partner_id')
         ->and($api->formatOAuthErrorForUser($detail))->toContain('SHOPEE_ADMIN_PARTNER_ID')
-        ->and($api->formatOAuthErrorForUser($detail))->toContain('shopeecoreadmin.php');
+        ->and($api->formatOAuthErrorForUser($detail))->toContain('/shopee-admin/oauth/callback');
 });
 
 it('stores stock tokens on admin slug only', function () {

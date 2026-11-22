@@ -3,10 +3,9 @@
 /**
  * Shopee OAuth callback relay for the CORENATION ADMIN Open Platform app (HTTPS only).
  *
- * Register in Shopee Open Platform → CORENATION ADMIN → Live Redirect URL, e.g.:
- *   https://cdn.corenationactive.com/shopeecoreadmin.php
- *
- * Shopee rejects the substring "bot" in redirect URLs — do not use *bot.php filenames in Console or .env.
+ * Legacy CDN relay only. On aria3, register Shopee Console Live Redirect URL directly:
+ *   https://aria3.corenationactive.com/shopee-admin/oauth/callback
+ * (Console rejects "bot" and ".php" in redirect URLs.)
  *
  * Forwards to Laravel {@see route('shopee-admin.oauth.callback')} for token exchange.
  */

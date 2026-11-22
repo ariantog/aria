@@ -16,20 +16,22 @@ Local dev needs a public tunnel (ngrok, Cloudflare Tunnel, etc.) — Shopee must
 
 On **aria3**, Omnichannel, Shopee Ads, and warehouse stock API clients share **one** shop OAuth row (`shopee_admin_oauth`) and **one** Open Platform app (**CORENATION ADMIN**). Authorize once from any of those pages; token refresh and API signing all use `SHOPEE_ADMIN_*`.
 
-| Console app | Live Partner ID | CDN Redirect URL | Aria routes using this token |
-|-------------|-----------------|------------------|------------------------------|
-| **CORENATION ADMIN** | `2053195` | `https://cdn.corenationactive.com/shopeecoreadmin.php` → `/shopee-admin/oauth/callback` | `/omnichannel`, `/shopee-ads`, `/shopee-sync` |
+| Console app | Live Partner ID | Live Redirect URL (aria3) | Aria routes using this token |
+|-------------|-----------------|---------------------------|------------------------------|
+| **CORENATION ADMIN** | `2053195` | `https://aria3.corenationactive.com/shopee-admin/oauth/callback` | `/omnichannel`, `/shopee-ads`, `/shopee-sync` |
 
-**Live Redirect URL** must not contain the substring `bot` (Shopee Console rejects it). Use `public/shopeecoreadmin.php` on the CDN, not `*bot.php` filenames.
+**Console URL rules:** Live Redirect URL must not contain `bot` or `.php` (Shopee rejects both). Register the **Laravel callback route** on `APP_URL` — no CDN PHP relay needed on aria3.
 
-Legacy relays (`shopee-ads-oauth.php`, `shopee-stock-oauth.php`) still exchange codes with **admin** partner credentials and write `shopee_admin_oauth` only when used from old hosts.
+**Live Redirect URL Domain:** `aria3.corenationactive.com` (must match the callback host).
+
+Optional legacy CDN relays under `public/` remain for old hosts only; do not register `*.php` URLs in Console.
 
 **aria3 deploy:**
 
 ```env
 SHOPEE_ADMIN_PARTNER_ID=2053195
 SHOPEE_ADMIN_PARTNER_KEY=...   # Live Open API Partner Key (CORENATION ADMIN)
-SHOPEE_ADMIN_REDIRECT_URL=https://cdn.corenationactive.com/shopeecoreadmin.php
+SHOPEE_ADMIN_REDIRECT_URL=https://aria3.corenationactive.com/shopee-admin/oauth/callback
 SHOPEE_PUSH_PARTNER_ID=2053195
 SHOPEE_PUSH_PARTNER_KEY=...    # Live Push Partner Key (not the Open API key)
 ```

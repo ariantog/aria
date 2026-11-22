@@ -10,7 +10,7 @@ beforeEach(function () {
     config([
         'services.shopee_admin.partner_id' => '2053195',
         'services.shopee_admin.partner_key' => 'test-admin-key',
-        'services.shopee_admin.redirect_url' => 'https://cdn.corenationactive.com/shopeecoreadmin.php',
+        'services.shopee_admin.redirect_url' => 'https://aria3.corenationactive.com/shopee-admin/oauth/callback',
     ]);
 });
 

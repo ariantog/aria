@@ -4,6 +4,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Services\Shopee\ShopeeAdminOpenApiService;
 use App\Services\Shopee\ShopeeStockOpenApiService;
+use App\Support\ShopeeOAuthRedirect;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -12,36 +13,35 @@ beforeEach(function () {
         'services.shopee_admin.partner_id' => '2053195',
         'services.shopee_admin.partner_key' => 'test-admin-partner-key',
         'services.shopee_admin.base_url' => 'https://partner.shopeemobile.com',
-        'services.shopee_admin.redirect_url' => 'https://cdn.corenationactive.com/shopeecoreadmin.php',
+        'services.shopee_admin.redirect_url' => ShopeeOAuthRedirect::DEFAULT_ARIA3_ADMIN_CALLBACK,
     ]);
 });
 
-it('uses cdn shopeecoreadmin relay as default admin oauth redirect', function () {
+it('uses aria3 admin oauth callback as default redirect', function () {
     $api = app(ShopeeAdminOpenApiService::class);
 
-    expect($api->getOAuthRedirectUrl())->toBe('https://cdn.corenationactive.com/shopeecoreadmin.php');
+    expect($api->getOAuthRedirectUrl())->toBe(ShopeeOAuthRedirect::DEFAULT_ARIA3_ADMIN_CALLBACK);
 });
 
-it('does not send bot in authorize redirect query param', function () {
+it('does not send bot or php in authorize redirect query param', function () {
     $api = app(ShopeeAdminOpenApiService::class);
     $url = $api->buildAuthorizeUrl();
 
     expect($url)->toContain('auth_partner')
-        ->and($url)->not->toMatch('/redirect=[^&]*bot/i');
+        ->and($url)->not->toMatch('/redirect=[^&]*bot/i')
+        ->and($url)->not->toContain('.php');
 });
 
-it('warns when admin redirect url still contains bot', function () {
+it('warns when admin redirect url contains bot or php', function () {
     config(['services.shopee_admin.redirect_url' => 'https://cdn.example.com/shopeecoreadminbot.php']);
     Log::spy();
 
     app(ShopeeAdminOpenApiService::class)->buildAuthorizeUrl();
 
-    Log::shouldHaveReceived('warning')
-        ->once()
-        ->withArgs(fn (string $message) => str_contains($message, 'bot'));
+    Log::shouldHaveReceived('warning')->twice();
 });
 
-it('coreadmin cdn relay defaults to aria3 admin oauth callback', function () {
+it('coreadmin cdn relay still forwards to aria3 admin oauth callback', function () {
     $path = base_path('public/shopeecoreadmin.php');
     expect($path)->toBeReadableFile();
     expect(file_get_contents($path))->toContain(
@@ -55,7 +55,7 @@ it('surfaces invalid_partner_id oauth hint for admin app mismatch', function () 
 
     expect($api->formatOAuthErrorForUser($detail))
         ->toContain('SHOPEE_ADMIN_PARTNER_ID')
-        ->and($api->formatOAuthErrorForUser($detail))->toContain('shopeecoreadmin.php');
+        ->and($api->formatOAuthErrorForUser($detail))->toContain('/shopee-admin/oauth/callback');
 });
 
 it('allows shopee ads view permission to start admin authorize', function () {

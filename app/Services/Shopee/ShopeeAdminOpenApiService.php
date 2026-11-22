@@ -3,6 +3,7 @@
 namespace App\Services\Shopee;
 
 use App\Models\Setting;
+use App\Support\ShopeeOAuthRedirect;
 use Carbon\Carbon;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -56,9 +57,7 @@ class ShopeeAdminOpenApiService
     {
         $config = config('services.shopee_admin');
         $redirect = (string) ($config['redirect_url'] ?? '');
-        if ($redirect !== '' && stripos($redirect, 'bot') !== false) {
-            Log::warning('SHOPEE_ADMIN_REDIRECT_URL contains "bot" — Shopee Open Platform rejects that redirect; use shopeecoreadmin.php');
-        }
+        ShopeeOAuthRedirect::warnIfConsoleRejects($redirect);
 
         $path = '/api/v2/shop/auth_partner';
         $timestamp = time();
@@ -99,7 +98,7 @@ class ShopeeAdminOpenApiService
         }
 
         if (str_contains(strtolower($detail), 'invalid_partner_id')) {
-            return $detail.' — Periksa SHOPEE_ADMIN_PARTNER_ID / SHOPEE_ADMIN_REDIRECT_URL cocok dengan app Console CORENATION ADMIN (2053195, shopeecoreadmin.php; jangan pakai "bot" di URL). Jangan campur kredensial STOCK CHECKER.';
+            return $detail.' — Periksa SHOPEE_ADMIN_PARTNER_ID / SHOPEE_ADMIN_REDIRECT_URL cocok dengan Console CORENATION ADMIN (2053195): '.ShopeeOAuthRedirect::defaultAdminCallbackUrl().' (tanpa "bot" atau ".php" di URL). Jangan campur kredensial STOCK CHECKER.';
         }
 
         return $detail;
