@@ -6,7 +6,6 @@ use App\Models\Jubelioorder;
 use App\Models\MarketplaceChannelOrder;
 use App\Models\MarketplaceOrderShadow;
 use App\Models\MarketplaceWebhookEvent;
-use App\Services\TikTokShop\TikTokShopOpenApiService;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
 
@@ -17,7 +16,7 @@ class OmnichannelOrderDetailReader
 {
     public function __construct(
         protected OmnichannelReceivedTimes $receivedTimes,
-        protected TikTokShopOpenApiService $tikTokOpenApi,
+        protected MarketplaceTikTokCommercePlatformEnricher $commercePlatformEnricher,
     ) {}
 
     /**
@@ -41,7 +40,7 @@ class OmnichannelOrderDetailReader
         }
 
         if ($channel === MarketplaceWebhookRecorder::CHANNEL_TIKTOK && $commercePlatform === null) {
-            $commercePlatform = $this->enrichCommercePlatformFromApi($channel, $orderRef, $channelOrder);
+            $commercePlatform = $this->commercePlatformEnricher->enrichOrder($orderRef);
         }
 
         $webhookEvents = [];
@@ -111,60 +110,6 @@ class OmnichannelOrderDetailReader
             ] : null,
             'links' => $this->resolveLinks($channel, $orderRef, $jubelioOrder),
         ];
-    }
-
-    protected function enrichCommercePlatformFromApi(
-        string $channel,
-        string $orderRef,
-        ?MarketplaceChannelOrder $channelOrder,
-    ): ?string {
-        if ($channel !== MarketplaceWebhookRecorder::CHANNEL_TIKTOK) {
-            return null;
-        }
-
-        $apiResponse = $this->tikTokOpenApi->getOrderDetail($orderRef);
-        $platform = $this->tikTokOpenApi->extractCommercePlatform($apiResponse);
-        if (! filled($platform)) {
-            return null;
-        }
-
-        $this->persistCommercePlatform($channel, $orderRef, $platform, $channelOrder);
-
-        return $platform;
-    }
-
-    protected function persistCommercePlatform(
-        string $channel,
-        string $orderRef,
-        string $platform,
-        ?MarketplaceChannelOrder $channelOrder,
-    ): void {
-        if (Schema::hasTable('marketplace_channel_orders')
-            && Schema::hasColumn('marketplace_channel_orders', 'commerce_platform')) {
-            if ($channelOrder === null) {
-                $channelOrder = MarketplaceChannelOrder::query()
-                    ->where('channel', $channel)
-                    ->where('order_ref', $orderRef)
-                    ->first();
-            }
-
-            if ($channelOrder !== null && ! filled($channelOrder->commerce_platform)) {
-                $channelOrder->commerce_platform = $platform;
-                $channelOrder->save();
-            }
-        }
-
-        if (Schema::hasTable('marketplace_webhook_events')
-            && Schema::hasColumn('marketplace_webhook_events', 'commerce_platform')) {
-            MarketplaceWebhookEvent::query()
-                ->where('channel', $channel)
-                ->where('order_ref', $orderRef)
-                ->where(function ($query): void {
-                    $query->whereNull('commerce_platform')
-                        ->orWhere('commerce_platform', '');
-                })
-                ->update(['commerce_platform' => $platform]);
-        }
     }
 
     /**

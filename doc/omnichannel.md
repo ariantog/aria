@@ -24,6 +24,8 @@ Collapsible **Omnichannel** menu (like Transactions):
 - **Orders view:** summary from `marketplace_channel_orders` (no Shopee/TikTok/Jubelio API on first paint).
 - Expand row or `GET /omnichannel/orders/{channel}/{order_ref}` (HTML fragment or `?format=json`) loads webhook events, stored shadow snippet, ingress timeline, and Jubelio invoice links from DB. For TikTok orders, when `commerce_platform` is empty, a **read-only** TikTok Get Order Detail call may run once (`TikTokShopOpenApiService`) and persist `commerce_platform` on the channel order + matching events — no stock or transaction writes.
 
+**TikTok ingest-time enrich (Tokopedia label):** When `TIKTOK_SHOP_ENRICH_COMMERCE_PLATFORM=true` (default), each TikTok Shop webhook with `order_id` dispatches `EnrichMarketplaceTikTokCommercePlatformJob` after unified storage writes — so Orders / Events lists can show **Tokopedia** without opening detail first. Requires `TIKTOK_SHOP_ACCESS_TOKEN` on `TIKTOK_SHOP_DRIVER=live`; mock driver works without a token. Backfill existing rows: `php artisan marketplace:enrich-tiktok-commerce-platform` (`--order=`, `--limit=`, `--since=`).
+
 **TikTok ingest without `tts_notification_id`:** unified recorder and legacy inbox use idempotency `tiktok:body:` + SHA-256 prefix of the raw JSON body (warning logged).
 
 ### Settings tabs
