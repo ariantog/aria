@@ -215,9 +215,19 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                         <td class="{{ $td }} whitespace-nowrap text-gray-600">{{ $row->received_at?->format('Y-m-d H:i:s') ?? '—' }}</td>
                         <td class="{{ $td }}">{{ $channelLabel }}</td>
                         <td class="{{ $td }} font-mono text-[10px] uppercase">{{ $row->commerce_platform ?? '—' }}</td>
-                        <td class="{{ $td }} font-mono">{{ $row->event_type ?? '—' }}</td>
+                        <td class="{{ $td }} text-[11px] text-gray-700">{{ $statusPresenter->eventTypeLabel($row->channel, $row->event_type) }}</td>
                         <td class="{{ $td }} font-mono text-[11px] break-all">{{ $row->order_ref ?? '—' }}</td>
-                        <td class="{{ $td }}">{{ $row->order_status ?? '—' }}</td>
+                        <td class="{{ $td }}">
+                            @php
+                                $displayStatus = $statusPresenter->displayStatus($row->channel, $row->order_status);
+                                $statusBucket = $statusPresenter->normalizeBucket($row->channel, $row->commerce_platform ?? null, $row->order_status);
+                                $bucketLabel = $statusPresenter->bucketChipLabel($statusBucket);
+                            @endphp
+                            <span class="text-gray-800">{{ $displayStatus }}</span>
+                            @if($bucketLabel)
+                            <span class="ml-1 inline-flex rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-gray-500">{{ $bucketLabel }}</span>
+                            @endif
+                        </td>
                         <td class="{{ $td }} font-mono text-[11px] break-all">{{ $row->shop_ref ?? '—' }}</td>
                         <td class="{{ $td }} text-gray-600">{{ $gudangName ?? '—' }}</td>
                         <td class="{{ $td }} text-center">
@@ -284,7 +294,17 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                         <td class="{{ $td }}">{{ $channelLabel }}</td>
                         <td class="{{ $td }} font-mono text-[10px] uppercase">{{ $row->commerce_platform ?? '—' }}</td>
                         <td class="{{ $td }} font-mono text-[11px] break-all">{{ $row->order_ref }}</td>
-                        <td class="{{ $td }}">{{ $row->order_status ?? '—' }}</td>
+                        <td class="{{ $td }}">
+                            @php
+                                $orderDisplayStatus = $statusPresenter->displayStatus($row->channel, $row->order_status);
+                                $orderStatusBucket = $statusPresenter->normalizeBucket($row->channel, $row->commerce_platform ?? null, $row->order_status);
+                                $orderBucketLabel = $statusPresenter->bucketChipLabel($orderStatusBucket);
+                            @endphp
+                            <span class="text-gray-800">{{ $orderDisplayStatus }}</span>
+                            @if($orderBucketLabel)
+                            <span class="ml-1 inline-flex rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-gray-500">{{ $orderBucketLabel }}</span>
+                            @endif
+                        </td>
                         <td class="{{ $td }} font-mono text-[11px] break-all">{{ $row->shop_ref ?? '—' }}</td>
                         <td class="{{ $td }} text-gray-600">{{ $gudangName ?? '—' }}</td>
                         <td class="{{ $td }} whitespace-nowrap text-gray-600">{{ $row->last_event_at?->format('Y-m-d H:i:s') ?? '—' }}</td>

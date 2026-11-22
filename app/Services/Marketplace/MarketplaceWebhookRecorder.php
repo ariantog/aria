@@ -9,6 +9,10 @@ use Illuminate\Support\Facades\Schema;
 
 class MarketplaceWebhookRecorder
 {
+    public function __construct(
+        protected MarketplaceWebhookStatusPresenter $statusPresenter,
+    ) {}
+
     public const CHANNEL_SHOPEE = 'shopee';
 
     public const CHANNEL_TIKTOK = 'tiktok';
@@ -210,7 +214,9 @@ class MarketplaceWebhookRecorder
         }
 
         $order->shop_ref = $event->shop_ref;
-        $order->order_status = $event->order_status;
+        if (! $this->statusPresenter->skipsChannelOrderStatusUpsert($event->order_status)) {
+            $order->order_status = $event->order_status;
+        }
         $order->last_event_at = $receivedAt;
         $order->last_webhook_event_id = $event->id;
         $order->updated_at = $receivedAt;

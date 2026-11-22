@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\MarketplaceChannelOrder;
 use App\Models\Omnichannel;
 use App\Services\Marketplace\MarketplaceWebhookInboxQuery;
+use App\Services\Marketplace\MarketplaceWebhookStatusPresenter;
 use App\Services\Marketplace\MarketplaceWebhookShopWarehouseResolver;
 use App\Services\Marketplace\OmnichannelOrderDetailReader;
 use Illuminate\Http\JsonResponse;
@@ -18,6 +19,7 @@ class OmnichannelOrdersController extends Controller
         Request $request,
         MarketplaceWebhookInboxQuery $inboxQuery,
         MarketplaceWebhookShopWarehouseResolver $shopResolver,
+        MarketplaceWebhookStatusPresenter $statusPresenter,
     ): View {
         abort_unless(Omnichannel::userCanOrders($request->user()), 403);
 
@@ -60,6 +62,7 @@ class OmnichannelOrdersController extends Controller
             'shopRefToWarehouse' => $shopRefToWarehouse,
             'warehouseNames' => $warehouseOptions,
             'detailUrlTemplate' => url('/omnichannel/orders/__CHANNEL__/__ORDER__'),
+            'statusPresenter' => $statusPresenter,
         ]);
     }
 

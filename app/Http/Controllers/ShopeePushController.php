@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ShopeePushInbox;
 use App\Services\Marketplace\MarketplaceWebhookRecorder;
+use App\Services\Marketplace\MarketplaceWebhookStatusPresenter;
 use App\Services\Marketplace\ShopeeOrderShadowRecorder;
 use App\Services\Shopee\ShopeePushSignatureVerifier;
 use Illuminate\Http\Request;
@@ -22,6 +23,7 @@ class ShopeePushController extends Controller
         ShopeePushSignatureVerifier $verifier,
         ShopeeOrderShadowRecorder $shadowRecorder,
         MarketplaceWebhookRecorder $webhookRecorder,
+        MarketplaceWebhookStatusPresenter $statusPresenter,
     ): Response
     {
         $rawBody = $request->getContent();
@@ -48,7 +50,11 @@ class ShopeePushController extends Controller
         $shopId = isset($payload['shop_id']) ? (int) $payload['shop_id'] : null;
         $pushCode = isset($payload['code']) ? (int) $payload['code'] : null;
         $ordersn = $this->resolveOrderSn($data);
-        $orderStatus = isset($data['status']) ? (string) $data['status'] : null;
+        $orderStatus = $statusPresenter->resolveIngestStatus(
+            MarketplaceWebhookRecorder::CHANNEL_SHOPEE,
+            $pushCode,
+            $payload,
+        );
 
         $shadowStubUpserted = false;
 
