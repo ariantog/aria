@@ -23,7 +23,7 @@ it('renders sidebar omnichannel group with child links for superadmin', function
         ->assertOk()
         ->assertSee('data-testid="omnichannel-orders-page"', false)
         ->assertSee(route('omnichannel.orders.index'), false)
-        ->assertSee(route('marketplace.webhooks.index'), false)
+        ->assertDontSee('Webhook Inbox', false)
         ->assertSee(route('omnichannel.index'), false)
         ->assertSee(route('omnichannel.settings.index'), false);
 });

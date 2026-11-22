@@ -147,18 +147,15 @@
     }
 
     $canOmnichannelView = $hasPerm('omnichannel-view') || $isSuperAdmin;
-    $canOmnichannelOrders = $hasPerm('omnichannel-orders') || $canOmnichannelView;
+    $canOmnichannelOrders = $hasPerm('omnichannel-orders')
+        || $canOmnichannelView
+        || $hasPerm('marketplace-webhook-view')
+        || $hasPerm('tiktok-shop-view');
     $canOmnichannelSettings = $hasPerm('omnichannel-settings') || $canOmnichannelView;
-    $canMarketplaceWebhooks = $hasPerm('marketplace-webhook-view')
-        || $hasPerm('tiktok-shop-view')
-        || $canOmnichannelView;
 
     $omnichannelNavLabels = ['Omnichannel'];
     if ($canOmnichannelOrders) {
         $omnichannelNavLabels[] = 'Orders';
-    }
-    if ($canMarketplaceWebhooks) {
-        $omnichannelNavLabels[] = 'Webhook Inbox';
     }
     if ($canOmnichannelView) {
         $omnichannelNavLabels[] = 'Compare';
@@ -169,9 +166,8 @@
 
     $canOmnichannelNav = $isSuperAdmin
         || $canOmnichannelView
-        || $hasPerm('omnichannel-orders')
-        || $hasPerm('omnichannel-settings')
-        || $canMarketplaceWebhooks;
+        || $canOmnichannelOrders
+        || $canOmnichannelSettings;
 
     $jubelioNavLabels = ['Jubelio'];
     if ($hasPerm('jubelio-view') || $isSuperAdmin) {
@@ -607,7 +603,7 @@
 {{-- ── Omnichannel ─────────────────────────────────────────────────────── --}}
 @if($canOmnichannelNav ?? false)
 @php
-    $omniActive = $isActive('/omnichannel') || $isActive('/marketplace/webhooks') || $isActive('/tiktok-shop/webhooks');
+    $omniActive = $isActive('/omnichannel') || $isActive('/marketplace/webhooks');
 @endphp
 <div x-data="{ open: {{ $omniActive ? 'true' : 'false' }} }"
      class="mb-1"
@@ -622,11 +618,7 @@
     </button>
     <div x-show="open && sidebarOpen" x-cloak class="ml-6 mt-1 space-y-0.5">
         @if($canOmnichannelOrders)
-        <a href="{{ route('omnichannel.orders.index') }}" x-show="navLinkVisible('Orders', 'Omnichannel')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/omnichannel/orders') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Orders</a>
-        @endif
-        @if($canMarketplaceWebhooks)
-        @php $marketplaceWebhookActive = $isActive('/marketplace/webhooks') || $isActive('/tiktok-shop/webhooks'); @endphp
-        <a href="{{ route('marketplace.webhooks.index') }}" x-show="navLinkVisible('Webhook Inbox', 'Omnichannel')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $marketplaceWebhookActive ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Webhook Inbox</a>
+        <a href="{{ route('omnichannel.orders.index') }}" x-show="navLinkVisible('Orders', 'Omnichannel')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/omnichannel/orders') || $isActive('/marketplace/webhooks') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Orders</a>
         @endif
         @if($canOmnichannelView)
         <a href="{{ route('omnichannel.index') }}" x-show="navLinkVisible('Compare', 'Omnichannel')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $currentUrl === 'omnichannel' || str_starts_with($currentUrl, 'omnichannel/shopee') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Compare</a>

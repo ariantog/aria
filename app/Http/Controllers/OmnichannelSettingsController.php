@@ -34,6 +34,7 @@ class OmnichannelSettingsController extends Controller
         }
 
         $jubelioSyncRows = collect();
+        $tokopediaSyncRows = collect();
         $shopeeSyncRows = collect();
         if ($tab === 'warehouse') {
             if (Gate::check(Jubelio::getPermissions()['sync'])) {
@@ -41,6 +42,11 @@ class OmnichannelSettingsController extends Controller
                     ->with(['warehouse', 'customer'])
                     ->orderByDesc('created_at')
                     ->limit(25)
+                    ->get();
+                $tokopediaSyncRows = Jubeliosync::query()
+                    ->with(['warehouse', 'customer'])
+                    ->where('jubelio_store_name', 'LIKE', '%tokopedia%')
+                    ->orderByDesc('created_at')
                     ->get();
             }
             if (Gate::check(ShopeeStock::getPermissions()['sync'])) {
@@ -56,6 +62,8 @@ class OmnichannelSettingsController extends Controller
             OmnichannelSettingStore::KEY_SHOPEE_LOW_STOCK_THRESHOLD,
             0,
         );
+        $tokopediaStoreId = $settings->getString(OmnichannelSettingStore::KEY_TOKOPEDIA_STORE_ID, '');
+        $tokopediaNotes = $settings->getString(OmnichannelSettingStore::KEY_TOKOPEDIA_NOTES, '');
 
         return view('omnichannel.settings', [
             'tab' => $tab,
@@ -63,8 +71,11 @@ class OmnichannelSettingsController extends Controller
             'canJubelioSync' => Gate::check(Jubelio::getPermissions()['sync']),
             'canShopeeSync' => Gate::check(ShopeeStock::getPermissions()['sync']),
             'jubelioSyncRows' => $jubelioSyncRows,
+            'tokopediaSyncRows' => $tokopediaSyncRows,
             'shopeeSyncRows' => $shopeeSyncRows,
             'lowStockThreshold' => $lowStockThreshold,
+            'tokopediaStoreId' => $tokopediaStoreId ?? '',
+            'tokopediaNotes' => $tokopediaNotes ?? '',
             'settingsTableExists' => $settings->tableExists(),
             'shopeeAdminConnection' => $shopeeAdmin->getConnectionStatus(),
             'shopeeStockConnection' => $shopeeStockOpen->getConnectionStatus(),
@@ -97,5 +108,29 @@ class OmnichannelSettingsController extends Controller
         return redirect()
             ->route('omnichannel.settings.index', ['tab' => 'low-stock'])
             ->with('success', 'Threshold stok rendah Shopee disimpan.');
+    }
+
+    public function updateTokopedia(Request $request, OmnichannelSettingStore $settings): RedirectResponse
+    {
+        abort_unless(Omnichannel::userCanSettingsEdit($request->user()), 403);
+        abort_unless($settings->tableExists(), 503, 'Migrasi omnichannel_settings belum dijalankan.');
+
+        $validated = $request->validate([
+            'tokopedia_store_id' => 'nullable|string|max:64',
+            'tokopedia_notes' => 'nullable|string|max:2000',
+        ]);
+
+        $settings->set(
+            OmnichannelSettingStore::KEY_TOKOPEDIA_STORE_ID,
+            trim((string) ($validated['tokopedia_store_id'] ?? '')),
+        );
+        $settings->set(
+            OmnichannelSettingStore::KEY_TOKOPEDIA_NOTES,
+            trim((string) ($validated['tokopedia_notes'] ?? '')),
+        );
+
+        return redirect()
+            ->route('omnichannel.settings.index', ['tab' => 'warehouse'])
+            ->with('success', 'Catatan Tokopedia disimpan.');
     }
 }

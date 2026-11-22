@@ -65,7 +65,13 @@ $tabs = [
             </p>
             <p class="mt-1 text-xs text-gray-500">Webhook inbox: {{ $tiktokWebhookInbox ? 'on' : 'off' }}</p>
         </div>
-        <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm md:col-span-3">
+        <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <p class="text-xs font-semibold uppercase text-gray-500">Tokopedia (via Jubelio)</p>
+            <p class="mt-2 text-sm text-gray-600">Tidak ada API langsung Tokopedia di Aria. Order &amp; resi melalui Jubelio (sama seperti L10).</p>
+            <a href="{{ route('omnichannel.settings.index', ['tab' => 'warehouse']) }}#tokopedia-via-jubelio"
+               class="mt-3 inline-flex rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Buka mapping &amp; catatan</a>
+        </div>
+        <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm md:col-span-2">
             <p class="text-xs font-semibold uppercase text-gray-500">Jubelio API</p>
             <p class="mt-2 text-lg font-semibold {{ ($jubelioConnection['has_token'] ?? false) && !($jubelioConnection['is_expired'] ?? true) ? 'text-green-700' : 'text-red-700' }}">
                 {{ $jubelioActive ? 'Aktif' : 'Nonaktif (env)' }} ·
@@ -146,6 +152,73 @@ $tabs = [
                     </tbody>
                 </table>
             </div>
+            @endif
+        </section>
+
+        <section id="tokopedia-via-jubelio" class="rounded-xl border border-amber-200 bg-amber-50/40 p-4 shadow-sm" data-testid="omnichannel-settings-tokopedia">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <h2 class="text-sm font-semibold text-gray-900">Tokopedia (via Jubelio)</h2>
+                @if($canJubelioSync)
+                <a href="{{ route('jubelio.sync.index', ['store' => 'tokopedia']) }}"
+                   class="text-xs font-medium text-blue-700 hover:underline">Jubelio warehouse map → Tokopedia</a>
+                @endif
+            </div>
+            <p class="mt-2 text-sm text-gray-600">
+                Channel Tokopedia di Aria hanya lewat Jubelio. Pastikan baris <code class="text-xs">jubeliosyncs</code> dengan nama store mengandung &quot;Tokopedia&quot;
+                terpetakan ke gudang + customer yang benar (resi scan: <code class="text-xs">config/jubelio_resi_scan.php</code>).
+            </p>
+            @if($tokopediaSyncRows->isNotEmpty())
+            <div class="mt-3 overflow-x-auto rounded-lg border border-amber-100 bg-white">
+                <table class="w-full text-left text-xs">
+                    <thead class="border-b border-gray-100 text-[10px] uppercase text-gray-500">
+                        <tr>
+                            <th class="py-2 pl-3 pr-2">Jubelio store</th>
+                            <th class="py-2 pr-2">store_id</th>
+                            <th class="py-2 pr-2">Lokasi</th>
+                            <th class="py-2 pr-2">Gudang Aria</th>
+                            <th class="py-2 pr-3">Customer</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-50">
+                        @foreach($tokopediaSyncRows as $sync)
+                        <tr class="bg-amber-50/30">
+                            <td class="py-2 pl-3 pr-2 font-medium">{{ $sync->jubelio_store_name }}</td>
+                            <td class="py-2 pr-2 font-mono text-[11px]">{{ $sync->jubelio_store_id }}</td>
+                            <td class="py-2 pr-2">{{ $sync->jubelio_location_name }}</td>
+                            <td class="py-2 pr-2">{{ $sync->warehouse->name ?? $sync->warehouse_id }}</td>
+                            <td class="py-2 pr-3">{{ $sync->customer->name ?? '—' }}</td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+            @else
+            <p class="mt-3 text-sm text-gray-500">Belum ada baris jubeliosyncs yang namanya mengandung &quot;Tokopedia&quot;.</p>
+            @endif
+
+            @if($settingsTableExists)
+            <form method="post" action="{{ route('omnichannel.settings.tokopedia.update') }}" class="mt-4 space-y-3 rounded-lg border border-gray-200 bg-white p-3">
+                @csrf
+                <p class="text-[10px] font-semibold uppercase text-gray-500">Checklist maintainer (opsional)</p>
+                <div>
+                    <label for="tokopedia_store_id" class="mb-1 block text-xs font-medium text-gray-600">Tokopedia store id (referensi)</label>
+                    <input type="text" name="tokopedia_store_id" id="tokopedia_store_id" maxlength="64"
+                           value="{{ old('tokopedia_store_id', $tokopediaStoreId) }}"
+                           class="w-full max-w-md rounded-md border-gray-300 text-sm"
+                           @disabled(! $canEditLowStock)>
+                </div>
+                <div>
+                    <label for="tokopedia_notes" class="mb-1 block text-xs font-medium text-gray-600">Catatan</label>
+                    <textarea name="tokopedia_notes" id="tokopedia_notes" rows="3" maxlength="2000"
+                              class="w-full rounded-md border-gray-300 text-sm"
+                              @disabled(! $canEditLowStock)>{{ old('tokopedia_notes', $tokopediaNotes) }}</textarea>
+                </div>
+                @if($canEditLowStock)
+                <button type="submit" class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800">Simpan catatan Tokopedia</button>
+                @else
+                <p class="text-xs text-gray-500">Perlu permission <code>omnichannel-settings-edit</code> atau superadmin.</p>
+                @endif
+            </form>
             @endif
         </section>
     </div>

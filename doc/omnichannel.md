@@ -6,10 +6,11 @@ Collapsible **Omnichannel** menu (like Transactions):
 
 | Label | Route | Permission |
 |-------|-------|------------|
-| **Orders** | `GET /omnichannel/orders` | `omnichannel-orders` or `omnichannel-view` |
-| **Webhook Inbox** | `GET /marketplace/webhooks` | `marketplace-webhook-view`, `tiktok-shop-view`, or `omnichannel-view` |
+| **Orders** | `GET /omnichannel/orders` | `omnichannel-orders`, `omnichannel-view`, `marketplace-webhook-view`, or `tiktok-shop-view` |
 | **Compare** | `GET /omnichannel` | `omnichannel-view` (shadow Shopee vs Jubelio — kept separate from Orders) |
 | **Settings** | `GET /omnichannel/settings?tab=…` | `omnichannel-settings` or `omnichannel-view` |
+
+**Legacy redirect:** `GET /marketplace/webhooks` and `GET /tiktok-shop/webhooks` redirect to **Orders** with query string preserved (`view` stripped). Expand a row for per-order webhook event history from `marketplace_webhook_events` (no separate Webhook Inbox nav).
 
 **Compare vs Orders:** **Orders** reads `marketplace_channel_orders` (all channels, webhook-derived state). **Compare** remains the Shopee shadow/Jubelio line-compare dashboard on `marketplace_order_shadows` — not folded into Orders so lazy API enrich on shadow detail stays isolated.
 
@@ -20,7 +21,7 @@ Collapsible **Omnichannel** menu (like Transactions):
 
 ### Settings tabs
 
-- **Warehouse mapping** — read-only preview of `jubeliosyncs` / `shopeesyncs` with links to full Jubelio/Shopee map pages (`jubelio-sync`, `shopee-stock-sync`).
+- **Warehouse mapping** — read-only preview of `jubeliosyncs` / `shopeesyncs` with links to full Jubelio/Shopee map pages (`jubelio-sync`, `shopee-stock-sync`). **Tokopedia (via Jubelio)** highlights matching `jubeliosyncs` rows and optional maintainer notes (`tokopedia_store_id`, `tokopedia_notes` in `omnichannel_settings`).
 - **Low stock (Shopee)** — persisted `omnichannel_settings.shopee_low_stock_threshold` (v1: threshold + explanation only; no outbound stock push).
 - **Connections** — read-only OAuth/status cards + reconnect links to existing authorize routes.
 

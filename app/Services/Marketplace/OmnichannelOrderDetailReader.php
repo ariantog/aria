@@ -32,7 +32,7 @@ class OmnichannelOrderDetailReader
                 ->where('order_ref', $orderRef)
                 ->orderByDesc('received_at')
                 ->orderByDesc('id')
-                ->limit(15)
+                ->limit(20)
                 ->get(['id', 'event_type', 'order_status', 'shop_ref', 'signature_ok', 'received_at'])
                 ->map(fn (MarketplaceWebhookEvent $row) => [
                     'id' => $row->id,

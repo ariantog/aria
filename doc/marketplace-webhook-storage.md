@@ -52,7 +52,7 @@ Code: `App\Services\Marketplace\MarketplaceWebhookRecorder`.
 
 ## PR2 — Unified inbox UI
 
-**Route:** `GET /marketplace/webhooks` (`marketplace.webhooks.index`). Legacy `GET /tiktok-shop/webhooks` redirects here with query string preserved.
+**Route:** `GET /marketplace/webhooks` redirects to `GET /omnichannel/orders` (query preserved; `view` stripped). Legacy `GET /tiktok-shop/webhooks` redirects to the same Orders list.
 
 **Permission:** `marketplace-webhook-view` (generated via `PermissionGenerator` / `App\Models\MarketplaceWebhook`). Users with `tiktok-shop-view` or `omnichannel-view` may also open the page (superadmin as usual).
 
