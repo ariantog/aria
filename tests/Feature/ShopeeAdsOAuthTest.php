@@ -12,14 +12,14 @@ beforeEach(function () {
         'services.shopee_admin.partner_id' => '2053195',
         'services.shopee_admin.partner_key' => 'test-admin-partner-key',
         'services.shopee_admin.base_url' => 'https://partner.shopeemobile.com',
-        'services.shopee_admin.redirect_url' => 'https://cdn.corenationactive.com/shopeecoreadminbot.php',
+        'services.shopee_admin.redirect_url' => 'https://aria3.corenationactive.com/shopee-admin/oauth/callback',
     ]);
 });
 
 it('uses coreadmin cdn relay as default oauth redirect for ads client', function () {
     $api = app(ShopeeAdsApiService::class);
 
-    expect($api->getOAuthRedirectUrl())->toBe('https://cdn.corenationactive.com/shopeecoreadminbot.php');
+    expect($api->getOAuthRedirectUrl())->toBe('https://aria3.corenationactive.com/shopee-admin/oauth/callback');
 });
 
 it('surfaces shopee api error on token exchange', function () {

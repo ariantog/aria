@@ -3,6 +3,7 @@
 namespace App\Services\Shopee;
 
 use App\Models\Setting;
+use App\Support\ShopeeOAuthRedirect;
 use Carbon\Carbon;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -51,6 +52,8 @@ class ShopeeStockOpenApiService
                 : ! filled($oauth['access_token'] ?? null),
             'last_error' => $oauth['last_error'] ?? null,
             'redirect_url' => $this->getOAuthRedirectUrl(),
+            'redirect_url_recommended' => ShopeeOAuthRedirect::defaultAdminCallbackUrl(),
+            'redirect_url_console_rejected' => ShopeeOAuthRedirect::consoleRejects($this->getOAuthRedirectUrl()),
         ];
     }
 
@@ -76,7 +79,7 @@ class ShopeeStockOpenApiService
         }
 
         if (str_contains(strtolower($detail), 'invalid_partner_id')) {
-            return $detail.' — Periksa SHOPEE_ADMIN_PARTNER_ID / SHOPEE_ADMIN_REDIRECT_URL cocok dengan app CORENATION ADMIN (shopeecoreadminbot.php).';
+            return $detail.' — Periksa SHOPEE_ADMIN_PARTNER_ID / SHOPEE_ADMIN_REDIRECT_URL = route callback CORENATION ADMIN di APP_URL (/shopee-admin/oauth/callback; tanpa "bot" atau ".php").';
         }
 
         return $detail;

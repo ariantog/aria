@@ -4,6 +4,7 @@ namespace App\Services\Shopee\Concerns;
 
 use App\Models\Setting;
 use App\Services\Shopee\ShopeeAdminOpenApiService;
+use App\Support\ShopeeOAuthRedirect;
 
 /**
  * Shop OAuth tokens for aria3 live on {@see ShopeeAdminOpenApiService::OAUTH_SETTING_SLUG}
@@ -34,6 +35,9 @@ trait UsesShopeeAdminOAuth
     public function buildAuthorizeUrl(): string
     {
         $config = $this->adminOAuthConfig();
+        $redirect = (string) ($config['redirect_url'] ?? '');
+        ShopeeOAuthRedirect::warnIfConsoleRejects($redirect);
+
         $path = '/api/v2/shop/auth_partner';
         $timestamp = time();
         $sign = $this->signAdminPublic($path, $timestamp);
@@ -42,7 +46,7 @@ trait UsesShopeeAdminOAuth
             'partner_id' => (int) $config['partner_id'],
             'timestamp' => $timestamp,
             'sign' => $sign,
-            'redirect' => $config['redirect_url'],
+            'redirect' => $redirect,
         ]);
     }
 
