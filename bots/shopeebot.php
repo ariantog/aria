@@ -3,8 +3,8 @@
 /**
  * Shopee OAuth callback relay (HTTPS only — Shopee rejects raw IP redirect URLs).
  *
- * REGISTER in Shopee Open Platform as Redirect URL:
- *   https://cdn.corenationactive.com/shopeebot.php
+ * REGISTER in Shopee Open Platform as Redirect URL (no "bot" in path — use shopee-ads-oauth.php on CDN):
+ *   https://cdn.corenationactive.com/shopee-ads-oauth.php
  *
  * Upload this file to the CDN document root. Contains NO secrets — forwards the
  * browser to the Laravel app, which exchanges code + shop_id for tokens.

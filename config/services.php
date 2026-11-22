@@ -50,7 +50,7 @@ return [
         'partner_id' => env('SHOPEE_PARTNER_ID'),
         'partner_key' => env('SHOPEE_PARTNER_KEY'),
         'base_url' => env('SHOPEE_BASE_URL', 'https://partner.shopeemobile.com'),
-        'redirect_url' => env('SHOPEE_REDIRECT_URL', 'https://cdn.corenationactive.com/shopeebot.php'),
+        'redirect_url' => env('SHOPEE_REDIRECT_URL', 'https://cdn.corenationactive.com/shopee-ads-oauth.php'),
     ],
 
     'shopee_stock' => [
@@ -58,7 +58,7 @@ return [
         'partner_id' => env('SHOPEE_STOCK_PARTNER_ID'),
         'partner_key' => env('SHOPEE_STOCK_PARTNER_KEY'),
         'base_url' => env('SHOPEE_STOCK_BASE_URL', env('SHOPEE_BASE_URL', 'https://partner.shopeemobile.com')),
-        'redirect_url' => env('SHOPEE_STOCK_REDIRECT_URL', 'https://cdn.corenationactive.com/shopeestockbot.php'),
+        'redirect_url' => env('SHOPEE_STOCK_REDIRECT_URL', 'https://cdn.corenationactive.com/shopee-stock-oauth.php'),
     ],
 
     'shopee_admin' => [
@@ -66,7 +66,7 @@ return [
         'partner_id' => env('SHOPEE_ADMIN_PARTNER_ID'),
         'partner_key' => env('SHOPEE_ADMIN_PARTNER_KEY'),
         'base_url' => env('SHOPEE_ADMIN_BASE_URL', env('SHOPEE_BASE_URL', 'https://partner.shopeemobile.com')),
-        'redirect_url' => env('SHOPEE_ADMIN_REDIRECT_URL', 'https://cdn.corenationactive.com/shopeecoreadminbot.php'),
+        'redirect_url' => env('SHOPEE_ADMIN_REDIRECT_URL', 'https://cdn.corenationactive.com/shopeecoreadmin.php'),
     ],
 
     'shopee_push' => [

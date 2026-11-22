@@ -55,6 +55,11 @@ class ShopeeAdminOpenApiService
     public function buildAuthorizeUrl(): string
     {
         $config = config('services.shopee_admin');
+        $redirect = (string) ($config['redirect_url'] ?? '');
+        if ($redirect !== '' && stripos($redirect, 'bot') !== false) {
+            Log::warning('SHOPEE_ADMIN_REDIRECT_URL contains "bot" — Shopee Open Platform rejects that redirect; use shopeecoreadmin.php');
+        }
+
         $path = '/api/v2/shop/auth_partner';
         $timestamp = time();
         $sign = $this->signPublic($path, $timestamp);
@@ -63,7 +68,7 @@ class ShopeeAdminOpenApiService
             'partner_id' => (int) $config['partner_id'],
             'timestamp' => $timestamp,
             'sign' => $sign,
-            'redirect' => $config['redirect_url'],
+            'redirect' => $redirect,
         ]);
     }
 
@@ -94,7 +99,7 @@ class ShopeeAdminOpenApiService
         }
 
         if (str_contains(strtolower($detail), 'invalid_partner_id')) {
-            return $detail.' — Periksa SHOPEE_ADMIN_PARTNER_ID / SHOPEE_ADMIN_REDIRECT_URL cocok dengan app Console CORENATION ADMIN (2053195, shopeecoreadminbot.php). Jangan campur kredensial STOCK CHECKER.';
+            return $detail.' — Periksa SHOPEE_ADMIN_PARTNER_ID / SHOPEE_ADMIN_REDIRECT_URL cocok dengan app Console CORENATION ADMIN (2053195, shopeecoreadmin.php; jangan pakai "bot" di URL). Jangan campur kredensial STOCK CHECKER.';
         }
 
         return $detail;

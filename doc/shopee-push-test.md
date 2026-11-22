@@ -18,16 +18,18 @@ On **aria3**, Omnichannel, Shopee Ads, and warehouse stock API clients share **o
 
 | Console app | Live Partner ID | CDN Redirect URL | Aria routes using this token |
 |-------------|-----------------|------------------|------------------------------|
-| **CORENATION ADMIN** | `2053195` | `https://cdn.corenationactive.com/shopeecoreadminbot.php` → `/shopee-admin/oauth/callback` | `/omnichannel`, `/shopee-ads`, `/shopee-sync` |
+| **CORENATION ADMIN** | `2053195` | `https://cdn.corenationactive.com/shopeecoreadmin.php` → `/shopee-admin/oauth/callback` | `/omnichannel`, `/shopee-ads`, `/shopee-sync` |
 
-Legacy relays (`shopeebot.php` → `/shopee-ads/oauth/callback`, `shopeestockbot.php` → `/shopee-stock/oauth/callback`) still exchange codes with **admin** partner credentials and write `shopee_admin_oauth` only.
+**Live Redirect URL** must not contain the substring `bot` (Shopee Console rejects it). Use `public/shopeecoreadmin.php` on the CDN, not `*bot.php` filenames.
+
+Legacy relays (`shopee-ads-oauth.php`, `shopee-stock-oauth.php`) still exchange codes with **admin** partner credentials and write `shopee_admin_oauth` only when used from old hosts.
 
 **aria3 deploy:**
 
 ```env
 SHOPEE_ADMIN_PARTNER_ID=2053195
 SHOPEE_ADMIN_PARTNER_KEY=...   # Live Open API Partner Key (CORENATION ADMIN)
-SHOPEE_ADMIN_REDIRECT_URL=https://cdn.corenationactive.com/shopeecoreadminbot.php
+SHOPEE_ADMIN_REDIRECT_URL=https://cdn.corenationactive.com/shopeecoreadmin.php
 SHOPEE_PUSH_PARTNER_ID=2053195
 SHOPEE_PUSH_PARTNER_KEY=...    # Live Push Partner Key (not the Open API key)
 ```

@@ -54,7 +54,7 @@ Detail page: `/omnichannel/shopee/{ordersn}` — **Refresh** forces a new API fe
 - `SHOPEE_PUSH_*` + verified callback
 - `SHOPEE_PUSH_SHADOW_ENABLED=true` (default)
 - Shopee **Admin** OAuth (`shopee_admin_oauth` setting / `SHOPEE_ADMIN_*`) for `get_order_detail`, **Shopee Ads** API, and **stock / product** shop APIs on aria3 — one authorize covers all three UIs.
-- **CORENATION ADMIN (aria3):** CDN relay `shopeecoreadminbot.php` → `/shopee-admin/oauth/callback`; env `SHOPEE_ADMIN_PARTNER_ID=2053195`, `SHOPEE_ADMIN_REDIRECT_URL` = CDN URL (see `doc/shopee-push-test.md`). Legacy relays `shopeebot.php` / `shopeestockbot.php` callbacks still work but also persist tokens under `shopee_admin_oauth`.
+- **CORENATION ADMIN (aria3):** CDN relay `shopeecoreadmin.php` → `/shopee-admin/oauth/callback` (Shopee rejects `bot` in Live Redirect URLs); env `SHOPEE_ADMIN_PARTNER_ID=2053195`, `SHOPEE_ADMIN_REDIRECT_URL` = same CDN URL (see `doc/shopee-push-test.md`).
 - Queue worker **not required** for shadow list or detail (sync fetch on detail view)
 
 ## Migrations
