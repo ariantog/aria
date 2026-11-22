@@ -56,6 +56,8 @@ When **`SHOPEE_PRECREATE_JUBELIO_QUEUE=true`** (default **false**), push code **
 
 Console test pushes and verify-only statuses are skipped. Jubelio **webhook** promotes a placeholder row (updates `jubelio_order_id` + shipped status) instead of inserting a duplicate. Poll/get-orders and `JubelioSellInvoiceGuard` treat the invoice as already queued. **Still no SELL transaction on push alone.**
 
+When the push payload includes `item_list` and `shopee_syncs` resolves a warehouse, pre-create also increments **`warehouse_item.on_order`** (additive migration) — **not** physical `quantity`. SELL posting via `InventoryService::deduct` releases matching on_order as stock deducts.
+
 #### Dedupe with mobile AWB / resi scan
 
 | Path | Route / code |
@@ -67,11 +69,37 @@ All paths key on the same **`SP-{ordersn}`** invoice string (Shopee marketplace 
 
 | Order of events | Behavior |
 |-----------------|----------|
-| Pre-create first, AWB scan later | `JubelioSellInvoiceGuard` sees the row; scan **does not insert**. If `order_status` is **READY TO SHIP** (courier hold), scan **updates** `user_id`, optional warehouse, and replaces placeholder `jubelio_order_id` when Jubelio resolves the AWB. |
-| AWB scan first (no pre-create) | Scan still **creates** `source=3` row (unchanged). Later push pre-create **upserts** by invoice — no second row. |
-| Jubelio webhook SHIPPED/COMPLETED | Promotes placeholder (Shopee push or resi scan **READY TO SHIP** hold) — no duplicate insert. |
+| Pre-create first, AWB scan later | Scan **does not insert**; existing row appears in API `updated[]` (`READY TO SHIP`, `user_id`, warehouse/sync, promotes placeholder `jubelio_order_id` when Jubelio resolves AWB). |
+| AWB scan first (no pre-create) | Scan **creates** `source=3` row. Later push pre-create **upserts** by invoice — no second row. |
+| Jubelio webhook SHIPPED/COMPLETED | Promotes placeholder — no duplicate insert. |
+| Posted sell `transactions` | Scan **skips** (invoice already in ledger). |
 
-**Stock:** Pre-create, resi scan queue, and push callback **do not** change `warehouse_item.quantity`. Physical deduct remains `ProcessJubelioOrder` after SHIPPED. **`on_order` reservation (G2)** is a follow-up PR.
+Response includes `created`, `updated`, and `skipped` arrays.
+
+**Stock:** Pre-create, resi scan queue, and push callback **do not** change `warehouse_item.quantity`. Physical deduct remains `ProcessJubelioOrder` after SHIPPED.
+
+### Aria on-order qty (`warehouse_item.on_order`)
+
+| Layer | Behaviour |
+|-------|------------|
+| Schema | `warehouse_item.on_order` decimal, default `0` — migrate `2026_11_22_150000_add_on_order_to_warehouse_item.php` |
+| Reserve | Shopee pre-create (new placeholder only) + optional `item_list` on push |
+| Release | Physical deduct path in `InventoryService` (Jubelio SELL post) |
+| UI | Gudang **Items** list shows **On order** column (Aria, not Jubelio API) |
+
+TikTok / Tokopedia push on_order hooks are deferred — warehouse mapping for those channels still flows through **Jubelio** `jubeliosyncs` until a dedicated map exists.
+
+### Warehouse mapping audit (v1)
+
+| Channel → Aria gudang | Authoritative table | Notes |
+|----------------------|---------------------|--------|
+| Jubelio (all marketplaces) | `jubeliosyncs` (`jubelio_store_id` + `jubelio_location_id` → `warehouse_id` + `customer_id`) | Inbound SELL/RETURN posting, resi scan store pick |
+| Shopee shop | `shopee_syncs.shop_id` → `warehouse_id` | Push pre-create warehouse, stock sync UI (`shopee-stock-sync`) |
+| Shopee ↔ Jubelio | Same physical `warehouse_id` on both sync rows | Pre-create fills Jubelio store/loc from first `jubeliosyncs` on that gudang |
+| TikTok Shop | No `tiktok_syncs` warehouse map in v1 | Webhook `shop_ref`; fulfillment uses Jubelio after invoice exists |
+| Tokopedia (TikTok Partner) | `omnichannel_settings.tokopedia_store_id` + highlighted `jubeliosyncs` | Settings tab notes; same Jubelio posting path |
+
+Do not duplicate Jubelio’s store/location map inside Shopee-only tables — link shops to the **same** Aria warehouse already wired for Jubelio cron.
 
 Jubelio remains the posting path. Shopee **Order Status push (3)**:
 
