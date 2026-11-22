@@ -85,6 +85,11 @@ $channelLabels = ['shopee' => 'Shopee', 'tiktok' => 'TikTok'];
                 <input type="date" name="date_to" id="date_to" value="{{ $filters['date_to']->format('Y-m-d') }}" class="w-full rounded-md border-gray-300 text-sm">
             </div>
             <div>
+                <label for="order_ref" class="mb-1 block text-xs font-medium text-gray-600">Order ref</label>
+                <input type="text" name="order_ref" id="order_ref" value="{{ $filters['order_ref'] ?? '' }}" placeholder="Cari nomor order…" autocomplete="off" class="w-full rounded-md border-gray-300 text-sm font-mono text-xs">
+                <p class="mt-1 text-[10px] text-gray-500">Partial match; mengisi ini mengabaikan filter tanggal.</p>
+            </div>
+            <div>
                 <label for="order_status" class="mb-1 block text-xs font-medium text-gray-600">Status order</label>
                 <input type="text" name="order_status" id="order_status" list="order-status-options" value="{{ $filters['order_status'] ?? '' }}" placeholder="Partial match…" class="w-full rounded-md border-gray-300 text-sm">
                 <datalist id="order-status-options">

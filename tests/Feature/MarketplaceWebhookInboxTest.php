@@ -5,6 +5,8 @@ use App\Models\MarketplaceWebhookEvent;
 use App\Models\ShopeePushInbox;
 use App\Models\TikTokShopWebhookInbox;
 use App\Models\User;
+use App\Services\Marketplace\MarketplaceWebhookInboxQuery;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 
 beforeEach(function () {
@@ -82,6 +84,69 @@ it('filters events by channel and date with pagination query string', function (
         ->assertSee('ORD-S', false)
         ->assertDontSee('ORD-T', false)
         ->assertDontSee('ORD-OLD', false);
+});
+
+it('finds orders by partial order_ref and ignores date filter', function () {
+    $receivedOld = now()->subDays(60);
+
+    MarketplaceChannelOrder::query()->create([
+        'channel' => 'shopee',
+        'order_ref' => 'SP-SEARCH-999',
+        'shop_ref' => '9001',
+        'order_status' => 'SHIPPED',
+        'last_event_at' => $receivedOld,
+        'first_received_at' => $receivedOld,
+    ]);
+
+    MarketplaceWebhookEvent::query()->create([
+        'channel' => 'shopee',
+        'idempotency_key' => 'shopee:1:3:SP-SEARCH-999:1',
+        'event_type' => '3',
+        'shop_ref' => '9001',
+        'order_ref' => 'SP-SEARCH-999',
+        'order_status' => 'SHIPPED',
+        'signature_ok' => true,
+        'payload' => ['code' => 3],
+        'received_at' => $receivedOld,
+    ]);
+
+    $narrowFrom = now()->subDay()->format('Y-m-d');
+    $narrowTo = now()->format('Y-m-d');
+
+    $this->actingAs($this->user)
+        ->get(route('omnichannel.orders.index', [
+            'order_ref' => 'SEARCH-999',
+            'date_from' => $narrowFrom,
+            'date_to' => $narrowTo,
+        ]))
+        ->assertOk()
+        ->assertSee('SP-SEARCH-999', false);
+
+    $inboxQuery = app(MarketplaceWebhookInboxQuery::class);
+    $filters = $inboxQuery->parseFilters(Request::create('/', 'GET', [
+        'order_ref' => 'SEARCH-999',
+        'date_from' => $narrowFrom,
+        'date_to' => $narrowTo,
+        'view' => 'events',
+    ]));
+
+    $eventRows = $inboxQuery->eventsQuery($filters)->get();
+    expect($eventRows)->toHaveCount(1);
+    expect($eventRows->first()->order_ref)->toBe('SP-SEARCH-999');
+});
+
+it('preserves order_ref in legacy marketplace redirect', function () {
+    $this->actingAs($this->user)
+        ->get(route('marketplace.webhooks.index', [
+            'channel' => 'shopee',
+            'order_ref' => 'XY-42',
+            'date_from' => now()->subDays(3)->format('Y-m-d'),
+        ]))
+        ->assertRedirect(route('omnichannel.orders.index', [
+            'channel' => 'shopee',
+            'order_ref' => 'XY-42',
+            'date_from' => now()->subDays(3)->format('Y-m-d'),
+        ]));
 });
 
 it('filters orders view by partial order status', function () {

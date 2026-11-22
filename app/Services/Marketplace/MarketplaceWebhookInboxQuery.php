@@ -47,6 +47,9 @@ class MarketplaceWebhookInboxQuery
         $orderStatus = trim((string) $request->query('order_status', ''));
         $orderStatus = $orderStatus !== '' ? $orderStatus : null;
 
+        $orderRef = trim((string) $request->query('order_ref', ''));
+        $orderRef = $orderRef !== '' ? $orderRef : null;
+
         $perPage = min(max((int) $request->query('per_page', 25), 10), 100);
 
         return [
@@ -57,6 +60,7 @@ class MarketplaceWebhookInboxQuery
             'shop_ref' => $shopRef,
             'warehouse_id' => $warehouseId,
             'order_status' => $orderStatus,
+            'order_ref' => $orderRef,
             'per_page' => $perPage,
         ];
     }
@@ -69,9 +73,10 @@ class MarketplaceWebhookInboxQuery
         $query = MarketplaceWebhookEvent::query()->orderByDesc('received_at')->orderByDesc('id');
 
         $this->applyChannel($query, $filters['channel']);
-        $query->whereBetween('received_at', [$filters['date_from'], $filters['date_to']]);
+        $this->applyDateRange($query, 'received_at', $filters);
         $this->applyShopAndWarehouse($query, 'shop_ref', $filters);
         $this->applyOrderStatus($query, 'order_status', $filters['order_status']);
+        $this->applyOrderRef($query, $filters);
 
         return $query;
     }
@@ -84,9 +89,10 @@ class MarketplaceWebhookInboxQuery
         $query = MarketplaceChannelOrder::query()->orderByDesc('last_event_at')->orderByDesc('id');
 
         $this->applyChannel($query, $filters['channel']);
-        $query->whereBetween('last_event_at', [$filters['date_from'], $filters['date_to']]);
+        $this->applyDateRange($query, 'last_event_at', $filters);
         $this->applyShopAndWarehouse($query, 'shop_ref', $filters);
         $this->applyOrderStatus($query, 'order_status', $filters['order_status']);
+        $this->applyOrderRef($query, $filters);
 
         return $query;
     }
@@ -176,5 +182,34 @@ class MarketplaceWebhookInboxQuery
         }
 
         $query->where($column, 'like', '%'.$orderStatus.'%');
+    }
+
+    /**
+     * When searching by order ref, skip the date window so ops can locate an order by id alone.
+     *
+     * @param  Builder<MarketplaceWebhookEvent>|Builder<MarketplaceChannelOrder>  $query
+     * @param  array<string, mixed>  $filters
+     */
+    protected function applyDateRange(Builder $query, string $column, array $filters): void
+    {
+        if (filled($filters['order_ref'] ?? null)) {
+            return;
+        }
+
+        $query->whereBetween($column, [$filters['date_from'], $filters['date_to']]);
+    }
+
+    /**
+     * @param  Builder<MarketplaceWebhookEvent>|Builder<MarketplaceChannelOrder>  $query
+     * @param  array<string, mixed>  $filters
+     */
+    protected function applyOrderRef(Builder $query, array $filters): void
+    {
+        $orderRef = $filters['order_ref'] ?? null;
+        if (! filled($orderRef)) {
+            return;
+        }
+
+        $query->where('order_ref', 'like', '%'.$orderRef.'%');
     }
 }
