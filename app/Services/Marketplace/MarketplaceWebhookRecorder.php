@@ -26,15 +26,21 @@ class MarketplaceWebhookRecorder
             ? (string) $payload['tts_notification_id']
             : '';
 
-        if ($notificationId === '') {
-            return;
-        }
-
         $data = is_array($payload['data'] ?? null) ? $payload['data'] : [];
+
+        if ($notificationId === '') {
+            $raw = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '';
+            $idempotencyKey = self::tikTokBodyIdempotencyKey($raw);
+            Log::warning('TikTok webhook missing tts_notification_id — using body hash idempotency', [
+                'idempotency_key' => $idempotencyKey,
+            ]);
+        } else {
+            $idempotencyKey = self::tikTokIdempotencyKey($notificationId);
+        }
 
         $this->recordEvent(
             self::CHANNEL_TIKTOK,
-            self::tikTokIdempotencyKey($notificationId),
+            $idempotencyKey,
             [
                 'event_type' => isset($payload['type']) ? (string) $payload['type'] : null,
                 'shop_ref' => isset($payload['shop_id']) ? (string) $payload['shop_id'] : null,
@@ -78,6 +84,11 @@ class MarketplaceWebhookRecorder
     public static function tikTokIdempotencyKey(string $notificationId): string
     {
         return 'tiktok:'. $notificationId;
+    }
+
+    public static function tikTokBodyIdempotencyKey(string $rawPayload): string
+    {
+        return 'tiktok:body:'. substr(hash('sha256', $rawPayload), 0, 32);
     }
 
     /**

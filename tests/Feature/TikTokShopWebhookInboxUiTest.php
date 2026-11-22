@@ -38,9 +38,9 @@ it('shows tiktok orders on omnichannel list for user with tiktok shop view permi
     ]);
 
     $this->actingAs($user)
-        ->get(route('omnichannel.orders.index', ['channel' => 'tiktok']))
+        ->get(route('omnichannel.orders.index', ['channel' => 'tiktok', 'view' => 'orders']))
         ->assertOk()
-        ->assertSee('data-testid="omnichannel-orders-page"', false)
+        ->assertSee('data-testid="omnichannel-orders-table"', false)
         ->assertSee('576653688135258178', false)
         ->assertSee('UNPAID', false);
 });

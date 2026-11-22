@@ -71,6 +71,7 @@ it('filters events by channel and date with pagination query string', function (
             'date_from' => $from,
             'date_to' => $to,
             'per_page' => 10,
+            'view' => 'events',
         ]));
 
     $response = $this->actingAs($this->user)->get(route('omnichannel.orders.index', [
@@ -78,6 +79,7 @@ it('filters events by channel and date with pagination query string', function (
         'date_from' => $from,
         'date_to' => $to,
         'per_page' => 10,
+        'view' => 'events',
     ]));
 
     $response->assertOk()
@@ -115,6 +117,7 @@ it('finds orders by partial order_ref and ignores date filter', function () {
 
     $this->actingAs($this->user)
         ->get(route('omnichannel.orders.index', [
+            'view' => 'orders',
             'order_ref' => 'SEARCH-999',
             'date_from' => $narrowFrom,
             'date_to' => $narrowTo,
@@ -141,11 +144,13 @@ it('preserves order_ref in legacy marketplace redirect', function () {
             'channel' => 'shopee',
             'order_ref' => 'XY-42',
             'date_from' => now()->subDays(3)->format('Y-m-d'),
+            'view' => 'orders',
         ]))
         ->assertRedirect(route('omnichannel.orders.index', [
             'channel' => 'shopee',
             'order_ref' => 'XY-42',
             'date_from' => now()->subDays(3)->format('Y-m-d'),
+            'view' => 'orders',
         ]));
 });
 
@@ -181,6 +186,7 @@ it('filters orders view by partial order status', function () {
 
     $this->actingAs($this->user)
         ->get(route('omnichannel.orders.index', [
+            'view' => 'orders',
             'order_status' => 'AWAITING',
             'date_from' => now()->subDays(7)->format('Y-m-d'),
             'date_to' => now()->format('Y-m-d'),
@@ -199,7 +205,72 @@ it('redirects legacy tiktok webhook inbox route to omnichannel orders', function
 it('redirects marketplace webhooks route to omnichannel orders', function () {
     $this->actingAs($this->user)
         ->get(route('marketplace.webhooks.index', ['channel' => 'shopee', 'view' => 'events']))
-        ->assertRedirect(route('omnichannel.orders.index', ['channel' => 'shopee']));
+        ->assertRedirect(route('omnichannel.orders.index', [
+            'channel' => 'shopee',
+            'view' => 'events',
+        ]));
+});
+
+it('shows events without order_ref in default events view', function () {
+    MarketplaceWebhookEvent::query()->create([
+        'channel' => 'tiktok',
+        'idempotency_key' => 'tiktok:ping-1',
+        'event_type' => '99',
+        'shop_ref' => '77',
+        'order_ref' => null,
+        'order_status' => null,
+        'signature_ok' => true,
+        'payload' => ['type' => 99, 'data' => []],
+        'received_at' => now()->subHours(2),
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('omnichannel.orders.index', [
+            'channel' => 'tiktok',
+            'date_from' => now()->subDays(7)->format('Y-m-d'),
+            'date_to' => now()->format('Y-m-d'),
+        ]))
+        ->assertOk()
+        ->assertSee('data-testid="omnichannel-events-table"', false)
+        ->assertSee('99', false);
+});
+
+it('filters tokopedia channel by commerce_platform', function () {
+    MarketplaceWebhookEvent::query()->create([
+        'channel' => 'tiktok',
+        'idempotency_key' => 'tiktok:toko-ev',
+        'event_type' => '1',
+        'shop_ref' => 'shop-1',
+        'order_ref' => 'TOKO-100',
+        'order_status' => 'AWAITING_SHIPMENT',
+        'commerce_platform' => 'TOKOPEDIA',
+        'signature_ok' => true,
+        'payload' => ['type' => 1],
+        'received_at' => now()->subDay(),
+    ]);
+
+    MarketplaceWebhookEvent::query()->create([
+        'channel' => 'tiktok',
+        'idempotency_key' => 'tiktok:tts-ev',
+        'event_type' => '1',
+        'shop_ref' => 'shop-1',
+        'order_ref' => 'TTS-100',
+        'order_status' => 'UNPAID',
+        'commerce_platform' => 'TIKTOK_SHOP',
+        'signature_ok' => true,
+        'payload' => ['type' => 1],
+        'received_at' => now()->subDay(),
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('omnichannel.orders.index', [
+            'channel' => 'tokopedia',
+            'date_from' => now()->subDays(7)->format('Y-m-d'),
+            'date_to' => now()->format('Y-m-d'),
+        ]))
+        ->assertOk()
+        ->assertSee('TOKO-100', false)
+        ->assertDontSee('TTS-100', false);
 });
 
 it('backfills legacy inbox tables idempotently', function () {

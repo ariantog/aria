@@ -22,28 +22,37 @@ class OmnichannelOrdersController extends Controller
         abort_unless(Omnichannel::userCanOrders($request->user()), 403);
 
         $filters = $inboxQuery->parseFilters($request);
-        $filters['view'] = 'orders';
 
+        $eventsTableExists = Schema::hasTable('marketplace_webhook_events');
         $ordersTableExists = Schema::hasTable('marketplace_channel_orders');
         $rows = null;
         $statusOptions = [];
 
-        if ($ordersTableExists) {
+        if ($filters['view'] === 'orders' && $ordersTableExists) {
             $rows = $inboxQuery->ordersQuery($filters)
                 ->paginate($filters['per_page'])
                 ->withQueryString();
             $statusOptions = $inboxQuery->distinctOrderStatuses($filters, 'orders');
+        } elseif ($filters['view'] === 'events' && $eventsTableExists) {
+            $rows = $inboxQuery->eventsQuery($filters)
+                ->paginate($filters['per_page'])
+                ->withQueryString();
+            $statusOptions = $inboxQuery->distinctOrderStatuses($filters, 'events');
+        }
+
+        $channelForShops = $filters['channel'] === 'all' ? null : $filters['channel'];
+        if ($channelForShops === 'tokopedia') {
+            $channelForShops = 'tiktok';
         }
 
         $warehouseOptions = $shopResolver->warehouseOptions();
-        $shopOptions = $shopResolver->distinctShopRefsForChannel(
-            $filters['channel'] === 'all' ? null : $filters['channel'],
-        );
+        $shopOptions = $shopResolver->distinctShopRefsForChannel($channelForShops);
         $shopRefToWarehouse = $shopResolver->shopRefToWarehouseMap();
 
         return view('omnichannel.orders', [
             'filters' => $filters,
             'rows' => $rows,
+            'eventsTableExists' => $eventsTableExists,
             'ordersTableExists' => $ordersTableExists,
             'statusOptions' => $statusOptions,
             'warehouseOptions' => $warehouseOptions,

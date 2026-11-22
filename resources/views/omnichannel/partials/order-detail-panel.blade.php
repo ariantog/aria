@@ -7,6 +7,12 @@ $jubelio = $detail['jubelio'] ?? null;
 @endphp
 
 <div class="space-y-3 p-3 text-xs text-gray-800" data-testid="omnichannel-order-detail">
+    @if(!empty($detail['commerce_platform']))
+    <p class="text-gray-600">
+        Commerce platform:
+        <strong class="uppercase" data-testid="omnichannel-order-commerce-platform">{{ $detail['commerce_platform'] }}</strong>
+    </p>
+    @endif
     <div class="flex flex-wrap items-center gap-2">
         @if(!empty($links['shadow_compare']))
         <a href="{{ $links['shadow_compare'] }}" class="rounded-md border border-gray-300 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-50">Shadow compare Shopee</a>

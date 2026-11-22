@@ -21,6 +21,7 @@ class MarketplaceChannelOrder extends Model
         'order_ref',
         'shop_ref',
         'order_status',
+        'commerce_platform',
         'last_event_at',
         'first_received_at',
         'paid_at',

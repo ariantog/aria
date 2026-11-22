@@ -54,7 +54,7 @@ it('renders orders list without calling shopee admin api', function () {
     ]);
 
     $this->actingAs($admin)
-        ->get(route('omnichannel.orders.index'))
+        ->get(route('omnichannel.orders.index', ['view' => 'orders']))
         ->assertOk()
         ->assertSee('LIST-SN-1', false)
         ->assertSee('data-testid="omnichannel-orders-table"', false);
@@ -89,6 +89,29 @@ it('returns order detail json from stored data only', function () {
         ->assertOk()
         ->assertJsonPath('order_ref', 'DETAIL-SN-9')
         ->assertJsonCount(1, 'webhook_events');
+});
+
+it('enriches tiktok order detail with commerce_platform when driver is mock', function () {
+    config(['tiktok_shop.driver' => 'mock']);
+
+    MarketplaceChannelOrder::query()->create([
+        'channel' => 'tiktok',
+        'order_ref' => 'TOKO-ENRICH-1',
+        'shop_ref' => 'shop-x',
+        'order_status' => 'UNPAID',
+        'last_event_at' => now(),
+        'first_received_at' => now(),
+    ]);
+
+    $admin = User::factory()->create();
+
+    $this->actingAs($admin)
+        ->getJson(route('omnichannel.orders.show', ['channel' => 'tiktok', 'orderRef' => 'TOKO-ENRICH-1']))
+        ->assertOk()
+        ->assertJsonPath('commerce_platform', 'TOKOPEDIA');
+
+    expect(MarketplaceChannelOrder::query()->where('order_ref', 'TOKO-ENRICH-1')->value('commerce_platform'))
+        ->toBe('TOKOPEDIA');
 });
 
 it('forbids omnichannel settings without permission', function () {

@@ -16,9 +16,6 @@ class MarketplaceWebhookInboxController extends Controller
             403,
         );
 
-        $query = $request->query();
-        unset($query['view']);
-
-        return redirect()->route('omnichannel.orders.index', $query);
+        return redirect()->route('omnichannel.orders.index', $request->query());
     }
 }

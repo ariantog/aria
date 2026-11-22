@@ -25,6 +25,12 @@ return [
 
     'api_version' => env('TIKTOK_SHOP_API_VERSION', '202309'),
 
+    /** Shop access token for read-only Open API calls (order detail enrichment). */
+    'access_token' => env('TIKTOK_SHOP_ACCESS_TOKEN'),
+
+    /** Order API path version for getOrderDetail (Partner Center → Order API). */
+    'order_api_version' => env('TIKTOK_SHOP_ORDER_API_VERSION', '202507'),
+
     /*
     |--------------------------------------------------------------------------
     | Inbound webhooks (independent of driver=mock|live)
