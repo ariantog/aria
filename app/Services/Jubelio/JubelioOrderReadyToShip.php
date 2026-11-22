@@ -34,9 +34,10 @@ class JubelioOrderReadyToShip
     public static function sourceLabel(int $source): string
     {
         return match ($source) {
-            1 => 'Webhook',
-            2 => 'Get orders',
-            3 => 'Scan resi',
+            Jubelioorder::SOURCE_WEBHOOK => 'Webhook',
+            Jubelioorder::SOURCE_GET_ORDERS => 'Get orders',
+            Jubelioorder::SOURCE_SCAN_RESI => 'Scan resi',
+            Jubelioorder::SOURCE_SHOPEE_PUSH => 'Shopee push',
             default => 'Unknown ('.$source.')',
         };
     }

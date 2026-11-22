@@ -7,6 +7,7 @@ use App\Models\Jubelioorder;
 use App\Models\Jubeliosync;
 use App\Models\User;
 use App\Services\LocationAccessService;
+use App\Services\Marketplace\ShopeeJubelioQueuePrecreator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
@@ -235,6 +236,22 @@ class JubelioResiScanService
             $seenInvoices[$invoice] = true;
 
             if ($this->sellInvoiceGuard->sellInvoiceTaken($invoice)) {
+                $existing = Jubelioorder::query()
+                    ->where('type', 'SELL')
+                    ->where('invoice', $invoice)
+                    ->first();
+
+                if ($existing !== null && JubelioOrderReadyToShip::isHeldForCourier($existing)) {
+                    $this->touchQueuedOrderFromResiScan($existing, $sync, $user, $resolved['jubelio_order_id'] ?? null);
+                    $skipped[] = [
+                        'raw' => $rawString,
+                        'invoice' => $invoice,
+                        'reason' => 'Sudah di antrian — pemindaian dicatat (tanpa baris baru).',
+                    ];
+
+                    continue;
+                }
+
                 $skipped[] = ['raw' => $rawString, 'invoice' => $invoice, 'reason' => 'Invoice sudah ada di Aria.'];
 
                 continue;
@@ -299,6 +316,37 @@ class JubelioResiScanService
         }
 
         return 'mobile-scan:'.Str::lower($invoice);
+    }
+
+    /**
+     * AWB scan on an already-queued invoice (e.g. Shopee push pre-create): no second row.
+     */
+    private function touchQueuedOrderFromResiScan(
+        Jubelioorder $order,
+        Jubeliosync $sync,
+        User $user,
+        string|int|null $jubelioSalesOrderId,
+    ): void {
+        $updates = [
+            'user_id' => (int) $user->id,
+        ];
+
+        if ((int) $order->warehouse_id === 0) {
+            $updates['warehouse_id'] = (int) $sync->warehouse_id;
+            $updates['jubelio_store_id'] = (int) $sync->jubelio_store_id;
+            $updates['jubelio_location_id'] = (int) $sync->jubelio_location_id;
+        }
+
+        $resolvedId = $jubelioSalesOrderId !== null ? trim((string) $jubelioSalesOrderId) : '';
+        if ($resolvedId !== ''
+            && (
+                ShopeeJubelioQueuePrecreator::isPlaceholderJubelioOrderId($order->jubelio_order_id)
+                || str_starts_with((string) $order->jubelio_order_id, 'mobile-scan:')
+            )) {
+            $updates['jubelio_order_id'] = $resolvedId;
+        }
+
+        $order->update($updates);
     }
 
     public function resolveMarketplaceKeyForStore(string $storeName): ?string

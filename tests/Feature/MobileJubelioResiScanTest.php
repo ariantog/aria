@@ -93,6 +93,62 @@ it('queues sell orders from mobile shopee resi scan via jubelio awb lookup', fun
         ->and($defaults['marketplace'])->toBe('shopee');
 });
 
+it('does not duplicate shopee push precreate row on resi scan and records scanner', function () {
+    $user = User::factory()->create();
+    $user->givePermissionTo('jubelio-view');
+
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Scan']);
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 101,
+        'jubelio_store_name' => 'Shopee Crystal',
+        'jubelio_location_id' => -1,
+        'jubelio_location_name' => 'Pusat',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => 1,
+        'bin_id' => 0,
+    ]);
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'shopee-push:PREC_SCAN',
+        'source' => Jubelioorder::SOURCE_SHOPEE_PUSH,
+        'invoice' => 'SP-PREC_SCAN',
+        'type' => 'SELL',
+        'order_status' => 'READY TO SHIP',
+        'run_count' => 0,
+        'status' => 0,
+    ]);
+
+    config(['services.jubelio.active' => true]);
+
+    $this->mock(JubelioService::class, function (MockInterface $mock) {
+        $mock->shouldReceive('resolveSalesOrderByTracking')
+            ->once()
+            ->andReturn([
+                'status' => 'found',
+                'salesorder_no' => 'SP-PREC_SCAN',
+                'salesorder_id' => 'so-from-awb',
+            ]);
+    });
+
+    $response = $this->actingAs($user, 'sanctum')->postJson('/api/mobile/v1/jubelio/resi-scan', [
+        'warehouse_id' => $warehouse->id,
+        'marketplace' => 'shopee',
+        'barcodes' => ['SPX-PREC-SCAN'],
+    ]);
+
+    $response->assertOk()
+        ->assertJsonCount(0, 'created')
+        ->assertJsonCount(1, 'skipped');
+
+    expect(Jubelioorder::where('invoice', 'SP-PREC_SCAN')->count())->toBe(1);
+
+    $order = Jubelioorder::where('invoice', 'SP-PREC_SCAN')->first();
+    expect((int) $order->user_id)->toBe($user->id)
+        ->and($order->jubelio_order_id)->toBe('so-from-awb')
+        ->and((int) $order->warehouse_id)->toBe($warehouse->id);
+});
+
 it('skips duplicate invoices on resi scan submit', function () {
     $user = User::factory()->create();
     $user->givePermissionTo('jubelio-view');
