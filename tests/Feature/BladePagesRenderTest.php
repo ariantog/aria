@@ -259,6 +259,8 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'omnichannel orders events view' => 'omnichannel/orders?view=events',
     'omnichannel orders orders view' => 'omnichannel/orders?view=orders',
     'omnichannel settings' => 'omnichannel/settings',
+    'omnichannel settings warehouse tab' => 'omnichannel/settings?tab=warehouse',
+    'tiktok shop sync index' => 'tiktok-shop-sync',
     'jubelio index' => 'jubelio',
     'jubelio get orders' => 'jubelio-get-orders',
     'jubelio cek order' => 'jubelio/order/cek',

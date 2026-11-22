@@ -96,7 +96,7 @@ TikTok / Tokopedia push on_order hooks are deferred — warehouse mapping for th
 | Jubelio (all marketplaces) | `jubeliosyncs` (`jubelio_store_id` + `jubelio_location_id` → `warehouse_id` + `customer_id`) | Inbound SELL/RETURN posting, resi scan store pick |
 | Shopee shop | `shopee_syncs.shop_id` → `warehouse_id` | Push pre-create warehouse, stock sync UI (`shopee-stock-sync`) |
 | Shopee ↔ Jubelio | Same physical `warehouse_id` on both sync rows | Pre-create fills Jubelio store/loc from first `jubeliosyncs` on that gudang |
-| TikTok Shop | No `tiktok_syncs` warehouse map in v1 | Webhook `shop_ref`; fulfillment uses Jubelio after invoice exists |
+| TikTok Shop / Tokopedia (Partner) | `tiktok_shop_syncs.shop_ref` → gudang Aria | Webhook `shop_id` as `shop_ref`; optional `shop_cipher` for Open API; Kelola di **Omnichannel → Settings → Warehouse** or `/tiktok-shop-sync` |
 | Tokopedia (TikTok Partner) | `omnichannel_settings.tokopedia_store_id` + highlighted `jubeliosyncs` | Settings tab notes; same Jubelio posting path |
 
 Do not duplicate Jubelio’s store/location map inside Shopee-only tables — link shops to the **same** Aria warehouse already wired for Jubelio cron.

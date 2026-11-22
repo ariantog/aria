@@ -66,10 +66,10 @@ $tabs = [
             <p class="mt-1 text-xs text-gray-500">Webhook inbox: {{ $tiktokWebhookInbox ? 'on' : 'off' }}</p>
         </div>
         <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-            <p class="text-xs font-semibold uppercase text-gray-500">Tokopedia (via Jubelio)</p>
-            <p class="mt-2 text-sm text-gray-600">Tidak ada API langsung Tokopedia di Aria. Order &amp; resi melalui Jubelio (sama seperti L10).</p>
-            <a href="{{ route('omnichannel.settings.index', ['tab' => 'warehouse']) }}#tokopedia-via-jubelio"
-               class="mt-3 inline-flex rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Buka mapping &amp; catatan</a>
+            <p class="text-xs font-semibold uppercase text-gray-500">Tokopedia storefront</p>
+            <p class="mt-2 text-sm text-gray-600">TikTok Partner webhooks (Orders). Mapping gudang di tab Warehouse; Jubelio tetap untuk hub terpusat.</p>
+            <a href="{{ route('omnichannel.settings.index', ['tab' => 'warehouse']) }}"
+               class="mt-3 inline-flex rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Buka warehouse mapping</a>
         </div>
         <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm md:col-span-2">
             <p class="text-xs font-semibold uppercase text-gray-500">Jubelio API</p>
@@ -155,16 +155,56 @@ $tabs = [
             @endif
         </section>
 
+        <section class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <h2 class="text-sm font-semibold text-gray-900">TikTok Shop / Tokopedia (Partner)</h2>
+                @if($canTiktokSync)
+                <a href="{{ route('tiktok-shop.sync.index') }}" class="text-xs font-medium text-blue-700 hover:underline">Kelola penuh →</a>
+                @else
+                <span class="text-xs text-gray-500">Perlu <code>tiktok-shop-sync</code> atau <code>omnichannel-settings-edit</code></span>
+                @endif
+            </div>
+            <p class="mt-2 text-sm text-gray-600">
+                Petakan <code class="text-xs">shop_id</code> webhook TikTok ke gudang Aria. Tokopedia storefront di Orders memakai vocabulary yang sama; filter channel <strong>Tokopedia (TikTok Partner)</strong>.
+            </p>
+            @if(!$canTiktokSync)
+            <p class="mt-3 text-sm text-gray-500">Anda tidak memiliki akses edit mapping TikTok.</p>
+            @elseif($tiktokSyncRows->isEmpty())
+            <p class="mt-3 text-sm text-gray-500">Belum ada baris <code>tiktok_shop_syncs</code>.</p>
+            @else
+            <div class="mt-3 overflow-x-auto">
+                <table class="w-full text-left text-xs">
+                    <thead class="border-b border-gray-100 text-[10px] uppercase text-gray-500">
+                        <tr>
+                            <th class="py-2 pr-2">shop_ref</th>
+                            <th class="py-2 pr-2">Nama</th>
+                            <th class="py-2">Gudang Aria</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-50">
+                        @foreach($tiktokSyncRows as $sync)
+                        <tr>
+                            <td class="py-2 pr-2 font-mono text-[11px]">{{ $sync->shop_ref }}</td>
+                            <td class="py-2 pr-2">{{ $sync->shop_name ?: '—' }}</td>
+                            <td class="py-2">{{ $sync->warehouse->name ?? $sync->warehouse_id }}</td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+            @endif
+        </section>
+
         <section id="tokopedia-via-jubelio" class="rounded-xl border border-amber-200 bg-amber-50/40 p-4 shadow-sm" data-testid="omnichannel-settings-tokopedia">
             <div class="flex flex-wrap items-center justify-between gap-2">
-                <h2 class="text-sm font-semibold text-gray-900">Tokopedia (via Jubelio)</h2>
+                <h2 class="text-sm font-semibold text-gray-900">Tokopedia / channel lain (via Jubelio)</h2>
                 @if($canJubelioSync)
                 <a href="{{ route('jubelio.sync.index', ['store' => 'tokopedia']) }}"
                    class="text-xs font-medium text-blue-700 hover:underline">Jubelio warehouse map → Tokopedia</a>
                 @endif
             </div>
             <p class="mt-2 text-sm text-gray-600">
-                Channel Tokopedia di Aria hanya lewat Jubelio. Pastikan baris <code class="text-xs">jubeliosyncs</code> dengan nama store mengandung &quot;Tokopedia&quot;
+                Order hub Jubelio (bukan storefront Partner di atas). Pastikan baris <code class="text-xs">jubeliosyncs</code> dengan nama store mengandung &quot;Tokopedia&quot;
                 terpetakan ke gudang + customer yang benar (resi scan: <code class="text-xs">config/jubelio_resi_scan.php</code>).
             </p>
             @if($tokopediaSyncRows->isNotEmpty())

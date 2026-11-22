@@ -83,14 +83,14 @@ $channelLabels = ['shopee' => 'Shopee', 'tiktok' => 'TikTok'];
                 </select>
             </div>
             <div>
-                <label for="warehouse_id" class="mb-1 block text-xs font-medium text-gray-600">Gudang (Shopee map)</label>
+                <label for="warehouse_id" class="mb-1 block text-xs font-medium text-gray-600">Gudang (Shopee / TikTok map)</label>
                 <select name="warehouse_id" id="warehouse_id" class="w-full rounded-md border-gray-300 text-sm">
                     <option value="">Semua</option>
                     @foreach($warehouseOptions as $wid => $wname)
                     <option value="{{ $wid }}" @selected((int) $filters['warehouse_id'] === (int) $wid)>{{ $wname }}</option>
                     @endforeach
                 </select>
-                <p class="mt-1 text-[10px] text-gray-500">Filter via <code>shopee_syncs.shop_id</code> → <code>shop_ref</code>.</p>
+                <p class="mt-1 text-[10px] text-gray-500">Filter via <code>shopee_syncs</code> + <code>tiktok_shop_syncs</code> → <code>shop_ref</code>.</p>
             </div>
             <div class="flex items-end gap-2">
                 <button type="submit" class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800">Terapkan</button>

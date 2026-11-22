@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\MarketplaceChannelOrder;
 use App\Models\TikTokShopWebhookInbox;
 use App\Services\Marketplace\MarketplaceWebhookRecorder;
+use App\Services\Marketplace\TikTokShopWebhookOnOrderApplicator;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
@@ -23,7 +24,10 @@ class PersistTikTokShopWebhookInboxJob implements ShouldQueue
         public bool $signatureOk = true,
     ) {}
 
-    public function handle(MarketplaceWebhookRecorder $unifiedRecorder): void
+    public function handle(
+        MarketplaceWebhookRecorder $unifiedRecorder,
+        TikTokShopWebhookOnOrderApplicator $onOrderApplicator,
+    ): void
     {
         if (! config('tiktok_shop.webhook.store_inbox', true)) {
             return;
@@ -68,6 +72,8 @@ class PersistTikTokShopWebhookInboxJob implements ShouldQueue
             );
 
             $unifiedRecorder->recordTikTok($this->payload, $this->signatureOk);
+
+            $onOrderApplicator->applyFromWebhook($this->payload);
 
             if (filled($orderId)) {
                 $this->dispatchCommercePlatformEnrichIfNeeded($orderId);
