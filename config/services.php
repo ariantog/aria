@@ -90,6 +90,19 @@ return [
             'trim',
             explode(',', (string) env('SHOPEE_PUSH_TEST_ORDERSN', '220810QSK8S7BX')),
         ))),
+        /**
+         * On Shopee push code 3 (paid / awaiting shipment), upsert jubelioorders placeholder
+         * with invoice SP-{ordersn}. Does not post SELL — Jubelio webhook + cron unchanged.
+         */
+        'precreate_jubelio_queue' => filter_var(env('SHOPEE_PRECREATE_JUBELIO_QUEUE', false), FILTER_VALIDATE_BOOLEAN),
+        /**
+         * Shopee data.status values that trigger pre-create (uppercase). Empty = use
+         * marketplace.webhook_status_buckets "awaiting_shipment" (READY_TO_SHIP, PROCESSED, RETRY_SHIP).
+         */
+        'precreate_trigger_statuses' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('SHOPEE_PRECREATE_TRIGGER_STATUSES', '')),
+        ))),
     ],
 
     'jubelio' => [

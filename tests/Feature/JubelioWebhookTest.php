@@ -62,6 +62,49 @@ it('accepts jubelio webhook with valid signature and stores shipped order', func
     expect($order->payload)->toBeNull();
 });
 
+it('promotes shopee push placeholder when jubelio webhook ships', function () {
+    config(['services.jubelio.webhook_secret' => 'test-secret']);
+
+    mockJubelioSalesOrder('wh-shopee-pre', [
+        'salesorder_no' => 'SP-SHOPEE-PRE',
+    ]);
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'shopee-push:SHOPEE-PRE',
+        'source' => \App\Models\Jubelioorder::SOURCE_SHOPEE_PUSH,
+        'invoice' => 'SP-SHOPEE-PRE',
+        'type' => 'SELL',
+        'order_status' => 'READY TO SHIP',
+        'run_count' => 0,
+        'status' => 0,
+    ]);
+
+    $body = json_encode([
+        'status' => 'SHIPPED',
+        'salesorder_id' => 'wh-shopee-pre',
+        'salesorder_no' => 'SP-SHOPEE-PRE',
+        'transaction_date' => jubelioRecentTransactionDateOnly(),
+    ]);
+
+    $sign = jubelioWebhookSign($body, 'test-secret');
+
+    $this->call(
+        'POST',
+        route('jubelio.webhook.order'),
+        [],
+        [],
+        [],
+        ['HTTP_SIGN' => $sign, 'CONTENT_TYPE' => 'application/json'],
+        $body,
+    )->assertSuccessful()
+        ->assertJson(['message' => 'Shopee placeholder promoted from webhook']);
+
+    $order = Jubelioorder::where('invoice', 'SP-SHOPEE-PRE')->first();
+    expect($order->jubelio_order_id)->toBe('wh-shopee-pre')
+        ->and($order->order_status)->toBe('SHIPPED')
+        ->and(Jubelioorder::where('invoice', 'SP-SHOPEE-PRE')->count())->toBe(1);
+});
+
 it('skips shipped webhook when a jubelioorders row already exists for the invoice', function () {
     config(['services.jubelio.webhook_secret' => 'test-secret']);
 

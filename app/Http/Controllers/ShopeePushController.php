@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ShopeePushInbox;
 use App\Services\Marketplace\MarketplaceWebhookRecorder;
 use App\Services\Marketplace\MarketplaceWebhookStatusPresenter;
+use App\Services\Marketplace\ShopeeJubelioQueuePrecreator;
 use App\Services\Marketplace\ShopeeOrderShadowRecorder;
 use App\Services\Shopee\ShopeePushSignatureVerifier;
 use Illuminate\Http\Request;
@@ -22,6 +23,7 @@ class ShopeePushController extends Controller
         Request $request,
         ShopeePushSignatureVerifier $verifier,
         ShopeeOrderShadowRecorder $shadowRecorder,
+        ShopeeJubelioQueuePrecreator $jubelioQueuePrecreator,
         MarketplaceWebhookRecorder $webhookRecorder,
         MarketplaceWebhookStatusPresenter $statusPresenter,
     ): Response
@@ -57,6 +59,7 @@ class ShopeePushController extends Controller
         );
 
         $shadowStubUpserted = false;
+        $jubelioPlaceholderUpserted = false;
 
         // Read-only shadow compare (new table only). Jubelio webhooks/cron unchanged.
         if (config('services.shopee_push.shadow_enabled') && $pushCode === 3 && filled($ordersn)) {
@@ -73,11 +76,23 @@ class ShopeePushController extends Controller
             }
         }
 
-        Log::info('Shopee push accepted', [
-            'code' => $pushCode,
-            'ordersn' => $ordersn,
-            'shadow_stub_upserted' => $shadowStubUpserted,
-        ]);
+        if ($pushCode === 3 && filled($ordersn)) {
+            try {
+                $jubelioPlaceholderUpserted = $jubelioQueuePrecreator->upsertFromPush(
+                    $shopId,
+                    $ordersn,
+                    $orderStatus,
+                    $pushCode,
+                    $data,
+                    $payload,
+                );
+            } catch (Throwable $e) {
+                Log::warning('Shopee push jubelio placeholder failed', [
+                    'ordersn' => $ordersn,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+        }
 
         if ($this->shouldPersistInbox($pushCode)) {
             try {
@@ -109,6 +124,13 @@ class ShopeePushController extends Controller
                 ]);
             }
         }
+
+        Log::info('Shopee push accepted', [
+            'code' => $pushCode,
+            'ordersn' => $ordersn,
+            'shadow_stub_upserted' => $shadowStubUpserted,
+            'jubelio_placeholder_upserted' => $jubelioPlaceholderUpserted,
+        ]);
 
         return response('', Response::HTTP_OK);
     }

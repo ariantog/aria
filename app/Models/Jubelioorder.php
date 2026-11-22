@@ -12,6 +12,15 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Jubelioorder extends Model
 {
+    public const SOURCE_WEBHOOK = 1;
+
+    public const SOURCE_GET_ORDERS = 2;
+
+    public const SOURCE_SCAN_RESI = 3;
+
+    /** Shopee order-status push pre-create (placeholder until Jubelio webhook). */
+    public const SOURCE_SHOPEE_PUSH = 4;
+
     /** @use HasFactory<\Database\Factories\JubelioorderFactory> */
     use HasFactory;
 

@@ -38,14 +38,29 @@ Permissions: `omnichannel-view`, `omnichannel-orders`, `omnichannel-settings`, `
 
 **Legacy route:** `/omnichannel` (shadow compare index)
 
-**Read-only guarantee (phase 1):** Shopee push **immediately upserts** a minimal `marketplace_order_shadows` row on HTTP (order status push code 3). **Full** Shopee `get_order_detail` + Jubelio line compare runs **on demand** when ops open `/omnichannel/shopee/{ordersn}` or post **Refresh** — not on every push. Neither path creates `transactions`, changes `warehouse_item`, inserts/updates `jubelioorders`, or calls `ProcessJubelioOrder`. Jubelio webhooks, cron, and manual Process are unchanged.
+**Read-only guarantee (phase 1):** Shopee push **immediately upserts** a minimal `marketplace_order_shadows` row on HTTP (order status push code 3). **Full** Shopee `get_order_detail` + Jubelio line compare runs **on demand** when ops open `/omnichannel/shopee/{ordersn}` or post **Refresh** — not on every push. This path never creates `transactions`, changes `warehouse_item`, or calls `ProcessJubelioOrder`.
 
 Disable shadow entirely: `SHOPEE_PUSH_SHADOW_ENABLED=false` (push callback still returns 200).
+
+### Optional Jubelio queue pre-create (`SHOPEE_PRECREATE_JUBELIO_QUEUE`)
+
+When **`SHOPEE_PRECREATE_JUBELIO_QUEUE=true`** (default **false**), push code **3** with Shopee status in the **awaiting shipment** bucket (`READY_TO_SHIP`, `PROCESSED`, `RETRY_SHIP` by default; override with `SHOPEE_PRECREATE_TRIGGER_STATUSES`) upserts a **`jubelioorders` SELL placeholder**:
+
+| Field | Value |
+|-------|--------|
+| `invoice` | `SP-{ordersn}` (same as Jubelio / resi scan) |
+| `jubelio_order_id` | `shopee-push:{ordersn}` until Jubelio webhook |
+| `source` | `4` (Shopee push) |
+| `order_status` | `READY TO SHIP` (cron hold — not eligible to post until webhook sets SHIPPED/COMPLETED) |
+| `warehouse_id` / store/loc | Best effort from `shopee_syncs` + `jubeliosyncs`; may stay 0 until webhook |
+
+Console test pushes and verify-only statuses are skipped. Jubelio **webhook** promotes a placeholder row (updates `jubelio_order_id` + shipped status) instead of inserting a duplicate. Poll/get-orders and `JubelioSellInvoiceGuard` treat the invoice as already queued. **Still no SELL transaction on push alone.**
 
 Jubelio remains the posting path. Shopee **Order Status push (3)**:
 
 1. **Sync stub** — upsert `marketplace_order_shadows` with `ordersn`, `shop_id`, push status, `compare_status=pending` (no queue worker; list may show `belum dimuat` for lines until detail is opened).
 2. **Lazy enrich** — `OmnichannelController@showShopee` (and `refreshShopee`) calls `ShopeeOrderShadowRecorder::recordFromPush` → Shopee `get_order_detail`, line summary, Jubelio compare (`SP-{ordersn}`). Cached detail reuses the row for `SHOPEE_PUSH_SHADOW_DETAIL_TTL_SECONDS` (default 300).
+3. **Pre-create (flag)** — `ShopeeJubelioQueuePrecreator` after shadow stub; see table above.
 
 Detail page: `/omnichannel/shopee/{ordersn}` — **Refresh** forces a new API fetch.
 

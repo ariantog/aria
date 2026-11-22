@@ -410,6 +410,11 @@ class JubelioController extends Controller
                 ->where('invoice', $invoice)
                 ->first();
 
+            $shopeePlaceholderReady = $scannedOrder !== null
+                && (int) $scannedOrder->source === Jubelioorder::SOURCE_SHOPEE_PUSH
+                && \App\Services\Marketplace\ShopeeJubelioQueuePrecreator::isPlaceholderJubelioOrderId($scannedOrder->jubelio_order_id)
+                && JubelioOrderReadyToShip::isReadyToShipStatus($scannedOrder->order_status);
+
             if ($scannedOrder !== null && JubelioOrderReadyToShip::isReadyToShipStatus($scannedOrder->order_status)) {
                 $payload = $d;
                 if (! Jubeliosync::hasMappedStoreLocationPair(
@@ -419,6 +424,16 @@ class JubelioController extends Controller
                     $apiPayload = app(JubelioService::class)->fetchSalesOrder((string) ($d['salesorder_id'] ?? ''));
                     if (is_array($apiPayload)) {
                         $payload = array_merge($d, $apiPayload);
+                    }
+                }
+
+                if ($shopeePlaceholderReady) {
+                    $queueEligibility = app(JubelioOrderQueueEligibility::class);
+                    if (! $queueEligibility->isEligibleApiOrder($payload)) {
+                        return response()->json([
+                            'status' => 'ok',
+                            'message' => 'Outside catch-up window or ineligible Jubelio status.',
+                        ]);
                     }
                 }
 
@@ -433,7 +448,11 @@ class JubelioController extends Controller
                     'warehouse_id' => $warehouseColumns['warehouse_id'],
                 ]);
 
-                return response()->json(['status' => 'ok', 'message' => 'Scanned order promoted to shipped']);
+                $message = $shopeePlaceholderReady
+                    ? 'Shopee placeholder promoted from webhook'
+                    : 'Scanned order promoted to shipped';
+
+                return response()->json(['status' => 'ok', 'message' => $message]);
             }
 
             $invoiceGuard = app(JubelioSellInvoiceGuard::class);
