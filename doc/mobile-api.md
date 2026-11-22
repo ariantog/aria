@@ -37,7 +37,7 @@ Requires `jubelio-view`. Exposed in `mobile_actions` as `scan_resi` when allowed
 
 For **Shopee**, **TikTok**, and **Tokopedia**, each barcode is resolved via Jubelio (tracking query params, then `q` + date window, then ready-to-pick). AWB may only appear on full order detail — Aria fetches detail to confirm. Requires `JUBELIO_ACTIVE=true` and a valid Jubelio token (System Settings). Skip reasons distinguish **not found** vs **token/API errors** (e.g. `Token Jubelio tidak tersedia…`, `API Jubelio menolak akses (401/403)…`). **Lazada** (and similar prefix-only channels) build `salesorder_no` as `{PREFIX}-{barcode}` and append `-{jubelio_store_id}` from the selected `jubeliosyncs` row so the stored invoice matches Jubelio webhooks (`LZ-…-18697`). **Blibli** / **Zalora** still use prefix rules only (`BL-`, `ZA-`, …).
 
-Creates `jubelioorders` rows (`type=SELL`, `order_status=READY TO SHIP`, `source=3`) — cron does not post these until Jubelio webhook promotes the row to `SHIPPED`. Resolved `salesorder_no` is stored as `invoice`; `user_id` = scanner; warehouse/store/location from `jubeliosyncs`. Duplicates (already in `jubelioorders` or sell `transactions`) are returned in `skipped` without inserting.
+Upserts by invoice: **updates** an existing `jubelioorders` SELL row (`READY TO SHIP`, scanner `user_id`, warehouse from `jubeliosyncs`; promotes placeholder `jubelio_order_id` when Jubelio returns a real id) or **creates** one only when no queue row exists (`source=3`). Response includes `created`, `updated`, and `skipped`. Rows already posted as sell `transactions` stay in `skipped`. Cron does not post `READY TO SHIP` rows until Jubelio webhook sets `SHIPPED`.
 
 ## Dashboard
 

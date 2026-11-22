@@ -349,7 +349,7 @@ class Addrbook extends Model
             'warehouse_item',
             'warehouse_id',
             'item_id',
-        )->withPivot('quantity');
+        )->withPivot(['quantity', 'on_order']);
     }
 
     public function operation()

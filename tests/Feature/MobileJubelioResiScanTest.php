@@ -4,6 +4,7 @@ use App\Models\Addrbook;
 use App\Models\Jubelioorder;
 use App\Models\Jubeliosync;
 use App\Models\User;
+use App\Services\Jubelio\JubelioOrderReadyToShip;
 use App\Services\Jubelio\JubelioResiScanService;
 use App\Services\JubelioService;
 use Mockery\MockInterface;
@@ -93,63 +94,7 @@ it('queues sell orders from mobile shopee resi scan via jubelio awb lookup', fun
         ->and($defaults['marketplace'])->toBe('shopee');
 });
 
-it('does not duplicate shopee push precreate row on resi scan and records scanner', function () {
-    $user = User::factory()->create();
-    $user->givePermissionTo('jubelio-view');
-
-    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Scan']);
-
-    Jubeliosync::create([
-        'jubelio_store_id' => 101,
-        'jubelio_store_name' => 'Shopee Crystal',
-        'jubelio_location_id' => -1,
-        'jubelio_location_name' => 'Pusat',
-        'warehouse_id' => $warehouse->id,
-        'customer_id' => 1,
-        'bin_id' => 0,
-    ]);
-
-    Jubelioorder::create([
-        'jubelio_order_id' => 'shopee-push:PREC_SCAN',
-        'source' => Jubelioorder::SOURCE_SHOPEE_PUSH,
-        'invoice' => 'SP-PREC_SCAN',
-        'type' => 'SELL',
-        'order_status' => 'READY TO SHIP',
-        'run_count' => 0,
-        'status' => 0,
-    ]);
-
-    config(['services.jubelio.active' => true]);
-
-    $this->mock(JubelioService::class, function (MockInterface $mock) {
-        $mock->shouldReceive('resolveSalesOrderByTracking')
-            ->once()
-            ->andReturn([
-                'status' => 'found',
-                'salesorder_no' => 'SP-PREC_SCAN',
-                'salesorder_id' => 'so-from-awb',
-            ]);
-    });
-
-    $response = $this->actingAs($user, 'sanctum')->postJson('/api/mobile/v1/jubelio/resi-scan', [
-        'warehouse_id' => $warehouse->id,
-        'marketplace' => 'shopee',
-        'barcodes' => ['SPX-PREC-SCAN'],
-    ]);
-
-    $response->assertOk()
-        ->assertJsonCount(0, 'created')
-        ->assertJsonCount(1, 'skipped');
-
-    expect(Jubelioorder::where('invoice', 'SP-PREC_SCAN')->count())->toBe(1);
-
-    $order = Jubelioorder::where('invoice', 'SP-PREC_SCAN')->first();
-    expect((int) $order->user_id)->toBe($user->id)
-        ->and($order->jubelio_order_id)->toBe('so-from-awb')
-        ->and((int) $order->warehouse_id)->toBe($warehouse->id);
-});
-
-it('skips duplicate invoices on resi scan submit', function () {
+it('updates existing queue row on resi scan instead of inserting duplicate', function () {
     $user = User::factory()->create();
     $user->givePermissionTo('jubelio-view');
 
@@ -165,9 +110,9 @@ it('skips duplicate invoices on resi scan submit', function () {
         'bin_id' => 0,
     ]);
 
-    Jubelioorder::create([
+    $preexisting = Jubelioorder::create([
         'jubelio_order_id' => 'existing-tt',
-        'source' => 1,
+        'source' => Jubelioorder::SOURCE_WEBHOOK,
         'invoice' => 'TT-DUP-TEST',
         'type' => 'SELL',
         'order_status' => 'SHIPPED',
@@ -208,9 +153,73 @@ it('skips duplicate invoices on resi scan submit', function () {
 
     $response->assertCreated()
         ->assertJsonCount(1, 'created')
-        ->assertJsonCount(1, 'skipped')
+        ->assertJsonCount(1, 'updated')
         ->assertJsonPath('created.0.invoice', 'TT-NEW-TT-001')
-        ->assertJsonPath('skipped.0.invoice', 'TT-DUP-TEST');
+        ->assertJsonPath('updated.0.invoice', 'TT-DUP-TEST');
+
+    expect(Jubelioorder::where('invoice', 'TT-DUP-TEST')->count())->toBe(1);
+
+    $preexisting->refresh();
+    expect($preexisting->order_status)->toBe(JubelioOrderReadyToShip::STATUS)
+        ->and((int) $preexisting->user_id)->toBe($user->id)
+        ->and((int) $preexisting->warehouse_id)->toBe($warehouse->id);
+});
+
+it('updates shopee push placeholder on resi scan without duplicating jubelioorders', function () {
+    $user = User::factory()->create();
+    $user->givePermissionTo('jubelio-view');
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 101,
+        'jubelio_store_name' => 'Shopee Crystal',
+        'jubelio_location_id' => -1,
+        'jubelio_location_name' => 'Pusat',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => 1,
+        'bin_id' => 0,
+    ]);
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'shopee-push:PRECHECK_1',
+        'source' => Jubelioorder::SOURCE_SHOPEE_PUSH,
+        'invoice' => 'SP-PRECHECK_1',
+        'type' => 'SELL',
+        'order_status' => JubelioOrderReadyToShip::STATUS,
+        'run_count' => 0,
+        'status' => 0,
+    ]);
+
+    config(['services.jubelio.active' => true]);
+
+    $this->mock(JubelioService::class, function (MockInterface $mock) {
+        $mock->shouldReceive('resolveSalesOrderByTracking')
+            ->once()
+            ->andReturn([
+                'status' => 'found',
+                'salesorder_no' => 'SP-PRECHECK_1',
+                'salesorder_id' => 'jubelio-so-real',
+            ]);
+    });
+
+    $response = $this->actingAs($user, 'sanctum')->postJson('/api/mobile/v1/jubelio/resi-scan', [
+        'warehouse_id' => $warehouse->id,
+        'marketplace' => 'shopee',
+        'barcodes' => ['SPX-PRECHECK'],
+    ]);
+
+    $response->assertOk()
+        ->assertJsonCount(0, 'created')
+        ->assertJsonCount(1, 'updated')
+        ->assertJsonPath('updated.0.invoice', 'SP-PRECHECK_1');
+
+    expect(Jubelioorder::where('invoice', 'SP-PRECHECK_1')->count())->toBe(1);
+
+    $order = Jubelioorder::where('invoice', 'SP-PRECHECK_1')->first();
+    expect($order->jubelio_order_id)->toBe('jubelio-so-real')
+        ->and($order->source)->toBe(Jubelioorder::SOURCE_SHOPEE_PUSH)
+        ->and((int) $order->user_id)->toBe($user->id);
 });
 
 it('formats invoice prefixes via service', function () {
