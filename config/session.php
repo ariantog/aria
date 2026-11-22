@@ -214,4 +214,17 @@ return [
 
     'partitioned' => env('SESSION_PARTITIONED_COOKIE', false),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Session Serialization
+    |--------------------------------------------------------------------------
+    |
+    | Laravel 13 defaults new apps to "json" for safer sessions. Keep "php"
+    | on upgrade so existing production sessions are not invalidated until
+    | the maintainer deliberately switches and schedules a re-login window.
+    |
+    */
+
+    'serialization' => env('SESSION_SERIALIZATION', 'php'),
+
 ];

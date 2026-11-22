@@ -114,4 +114,16 @@ return [
 
     'prefix' => env('CACHE_PREFIX', Str::slug((string) env('APP_NAME', 'laravel')).'-cache-'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Serializable Cache Classes
+    |--------------------------------------------------------------------------
+    |
+    | When false, cached PHP objects may only be restored if their class is
+    | listed below. Aria stores arrays/scalars in cache only — no allow-list.
+    |
+    */
+
+    'serializable_classes' => false,
+
 ];
