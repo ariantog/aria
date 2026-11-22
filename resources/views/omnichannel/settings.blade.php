@@ -1,0 +1,184 @@
+@extends('layouts.app')
+
+@section('title', 'Omnichannel — Settings')
+
+@section('content')
+@php
+$breadcrumbs = [
+    ['title' => 'Omnichannel', 'href' => route('omnichannel.settings.index')],
+    ['title' => 'Settings', 'href' => route('omnichannel.settings.index')],
+];
+$tabs = [
+    'connections' => 'Connections',
+    'warehouse' => 'Warehouse mapping',
+    'low-stock' => 'Low stock (Shopee)',
+];
+@endphp
+
+<div class="flex flex-col gap-4 p-2 sm:gap-6 sm:p-4" data-testid="omnichannel-settings-page">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900">Omnichannel — Settings</h1>
+        <p class="mt-1 text-sm text-gray-600">Konfigurasi saluran, mapping gudang, dan kebijakan stok rendah (read-only / stored — tanpa push stok otomatis di v1).</p>
+    </div>
+
+    @if(($flash['success'] ?? null))
+    <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{{ $flash['success'] }}</div>
+    @endif
+    @if(($flash['error'] ?? null))
+    <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $flash['error'] }}</div>
+    @endif
+
+    <div class="flex flex-wrap gap-2 border-b border-gray-200 pb-2" data-testid="omnichannel-settings-tabs">
+        @foreach($tabs as $tabKey => $tabLabel)
+        <a href="{{ route('omnichannel.settings.index', ['tab' => $tabKey]) }}"
+           class="rounded-lg px-3 py-2 text-sm font-medium transition-colors {{ $tab === $tabKey ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100' }}">
+            {{ $tabLabel }}
+        </a>
+        @endforeach
+    </div>
+
+    @if($tab === 'connections')
+    <div class="grid gap-4 md:grid-cols-3" data-testid="omnichannel-settings-connections">
+        <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <p class="text-xs font-semibold uppercase text-gray-500">Shopee Admin OAuth</p>
+            <p class="mt-2 text-lg font-semibold {{ ($shopeeAdminConnection['has_token'] ?? false) && !($shopeeAdminConnection['is_expired'] ?? true) ? 'text-green-700' : 'text-red-700' }}">
+                {{ ($shopeeAdminConnection['has_token'] ?? false) ? (($shopeeAdminConnection['is_expired'] ?? false) ? 'Kedaluwarsa' : 'Terhubung') : 'Belum authorize' }}
+            </p>
+            <p class="mt-1 text-xs text-gray-500">Partner / push config: {{ $shopeePushConfigured ? 'OK' : 'belum' }}</p>
+            <a href="{{ route('shopee-admin.authorize', ['return' => 'omnichannel']) }}"
+               class="mt-3 inline-flex rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Reconnect Shopee Admin</a>
+        </div>
+        <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <p class="text-xs font-semibold uppercase text-gray-500">Shopee Stock OAuth</p>
+            <p class="mt-2 text-lg font-semibold {{ ($shopeeStockConnection['has_token'] ?? false) ? 'text-green-700' : 'text-gray-600' }}">
+                {{ ($shopeeStockConnection['configured'] ?? false) ? 'Configured' : 'Env belum lengkap' }}
+            </p>
+            @if($canShopeeSync)
+            <a href="{{ route('shopee.sync.authorize') }}"
+               class="mt-3 inline-flex rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Reconnect stock shop</a>
+            @endif
+        </div>
+        <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <p class="text-xs font-semibold uppercase text-gray-500">TikTok Shop</p>
+            <p class="mt-2 text-lg font-semibold {{ $tiktokAppConfigured ? 'text-green-700' : 'text-gray-600' }}">
+                {{ $tiktokAppConfigured ? 'App key set' : 'App key missing' }}
+            </p>
+            <p class="mt-1 text-xs text-gray-500">Webhook inbox: {{ $tiktokWebhookInbox ? 'on' : 'off' }}</p>
+        </div>
+        <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm md:col-span-3">
+            <p class="text-xs font-semibold uppercase text-gray-500">Jubelio API</p>
+            <p class="mt-2 text-lg font-semibold {{ ($jubelioConnection['has_token'] ?? false) && !($jubelioConnection['is_expired'] ?? true) ? 'text-green-700' : 'text-red-700' }}">
+                {{ $jubelioActive ? 'Aktif' : 'Nonaktif (env)' }} ·
+                {{ ($jubelioConnection['has_token'] ?? false) ? 'Token ada' : 'Tanpa token' }}
+            </p>
+            <a href="{{ route('jubelio.token.index') }}"
+               class="mt-3 inline-flex rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Buka halaman Koneksi Jubelio</a>
+        </div>
+    </div>
+    @elseif($tab === 'warehouse')
+    <div class="space-y-6" data-testid="omnichannel-settings-warehouse">
+        <section class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <h2 class="text-sm font-semibold text-gray-900">Jubelio warehouse map</h2>
+                @if($canJubelioSync)
+                <a href="{{ route('jubelio.sync.index') }}" class="text-xs font-medium text-blue-700 hover:underline">Kelola penuh →</a>
+                @else
+                <span class="text-xs text-gray-500">Perlu permission <code>jubelio-sync</code></span>
+                @endif
+            </div>
+            @if(!$canJubelioSync)
+            <p class="mt-3 text-sm text-gray-500">Anda tidak memiliki akses edit mapping Jubelio.</p>
+            @elseif($jubelioSyncRows->isEmpty())
+            <p class="mt-3 text-sm text-gray-500">Belum ada baris jubeliosyncs.</p>
+            @else
+            <div class="mt-3 overflow-x-auto">
+                <table class="w-full text-left text-xs">
+                    <thead class="border-b border-gray-100 text-[10px] uppercase text-gray-500">
+                        <tr>
+                            <th class="py-2 pr-2">Lokasi Jubelio</th>
+                            <th class="py-2 pr-2">Gudang Aria</th>
+                            <th class="py-2">Customer</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-50">
+                        @foreach($jubelioSyncRows as $sync)
+                        <tr>
+                            <td class="py-2 pr-2">{{ $sync->jubelio_location_name }} ({{ $sync->jubelio_location_id }})</td>
+                            <td class="py-2 pr-2">{{ $sync->warehouse->name ?? $sync->warehouse_id }}</td>
+                            <td class="py-2">{{ $sync->customer->name ?? '—' }}</td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+            @endif
+        </section>
+
+        <section class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <h2 class="text-sm font-semibold text-gray-900">Shopee warehouse map</h2>
+                @if($canShopeeSync)
+                <a href="{{ route('shopee.sync.index') }}" class="text-xs font-medium text-blue-700 hover:underline">Kelola penuh →</a>
+                @else
+                <span class="text-xs text-gray-500">Perlu permission <code>shopee-stock-sync</code></span>
+                @endif
+            </div>
+            @if(!$canShopeeSync)
+            <p class="mt-3 text-sm text-gray-500">Anda tidak memiliki akses edit mapping Shopee.</p>
+            @elseif($shopeeSyncRows->isEmpty())
+            <p class="mt-3 text-sm text-gray-500">Belum ada baris shopee_syncs.</p>
+            @else
+            <div class="mt-3 overflow-x-auto">
+                <table class="w-full text-left text-xs">
+                    <thead class="border-b border-gray-100 text-[10px] uppercase text-gray-500">
+                        <tr>
+                            <th class="py-2 pr-2">Shopee WH</th>
+                            <th class="py-2">Gudang Aria</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-50">
+                        @foreach($shopeeSyncRows as $sync)
+                        <tr>
+                            <td class="py-2 pr-2">{{ $sync->shopee_warehouse_name ?? $sync->shopee_location_id }}</td>
+                            <td class="py-2">{{ $sync->warehouse->name ?? $sync->warehouse_id }}</td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+            @endif
+        </section>
+    </div>
+    @elseif($tab === 'low-stock')
+    <div class="max-w-lg rounded-xl border border-gray-200 bg-white p-4 shadow-sm" data-testid="omnichannel-settings-low-stock">
+        <h2 class="text-sm font-semibold text-gray-900">Kebijakan stok rendah Shopee (v1)</h2>
+        <p class="mt-2 text-sm text-gray-600">
+            Simpan threshold <strong>X</strong>: bila qty listing Shopee &lt; X, kebijakan ini berlaku untuk runbook ops.
+            <strong>Tidak ada push stok otomatis</strong> dari halaman ini (hanya penyimpanan threshold).
+        </p>
+        @if(! $settingsTableExists)
+        <p class="mt-4 text-sm text-amber-800">Migrasi <code>omnichannel_settings</code> belum dijalankan.</p>
+        @else
+        <form method="post" action="{{ route('omnichannel.settings.low-stock.update') }}" class="mt-4 space-y-3">
+            @csrf
+            <div>
+                <label for="shopee_low_stock_threshold" class="mb-1 block text-xs font-medium text-gray-600">Threshold X (integer ≥ 0)</label>
+                <input type="number" name="shopee_low_stock_threshold" id="shopee_low_stock_threshold" min="0" max="999999"
+                       value="{{ old('shopee_low_stock_threshold', $lowStockThreshold) }}"
+                       class="w-full rounded-md border-gray-300 text-sm"
+                       @disabled(! $canEditLowStock)>
+                @error('shopee_low_stock_threshold')
+                <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                @enderror
+            </div>
+            @if($canEditLowStock)
+            <button type="submit" class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800" data-testid="omnichannel-low-stock-save">Simpan</button>
+            @else
+            <p class="text-xs text-gray-500">Perlu permission <code>omnichannel-settings-edit</code> atau superadmin.</p>
+            @endif
+        </form>
+        @endif
+    </div>
+    @endif
+</div>
+@endsection

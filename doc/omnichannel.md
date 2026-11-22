@@ -1,6 +1,32 @@
 # Omnichannel dashboard (phase 1)
 
-**Route:** `/omnichannel` (sidebar **Omnichannel**)
+## Sidebar navigation (v1 unified group)
+
+Collapsible **Omnichannel** menu (like Transactions):
+
+| Label | Route | Permission |
+|-------|-------|------------|
+| **Orders** | `GET /omnichannel/orders` | `omnichannel-orders` or `omnichannel-view` |
+| **Webhook Inbox** | `GET /marketplace/webhooks` | `marketplace-webhook-view`, `tiktok-shop-view`, or `omnichannel-view` |
+| **Compare** | `GET /omnichannel` | `omnichannel-view` (shadow Shopee vs Jubelio — kept separate from Orders) |
+| **Settings** | `GET /omnichannel/settings?tab=…` | `omnichannel-settings` or `omnichannel-view` |
+
+**Compare vs Orders:** **Orders** reads `marketplace_channel_orders` (all channels, webhook-derived state). **Compare** remains the Shopee shadow/Jubelio line-compare dashboard on `marketplace_order_shadows` — not folded into Orders so lazy API enrich on shadow detail stays isolated.
+
+### Orders lazy detail
+
+- List: summary columns only from `marketplace_channel_orders` (no Shopee/TikTok/Jubelio API on first paint).
+- Expand row or `GET /omnichannel/orders/{channel}/{order_ref}` (HTML fragment or `?format=json`) loads webhook events, stored shadow snippet, ingress timeline, and Jubelio invoice links from DB only.
+
+### Settings tabs
+
+- **Warehouse mapping** — read-only preview of `jubeliosyncs` / `shopeesyncs` with links to full Jubelio/Shopee map pages (`jubelio-sync`, `shopee-stock-sync`).
+- **Low stock (Shopee)** — persisted `omnichannel_settings.shopee_low_stock_threshold` (v1: threshold + explanation only; no outbound stock push).
+- **Connections** — read-only OAuth/status cards + reconnect links to existing authorize routes.
+
+Permissions: `omnichannel-view`, `omnichannel-orders`, `omnichannel-settings`, `omnichannel-settings-edit` via `App\Models\Omnichannel` + `PermissionGenerator`.
+
+**Legacy route:** `/omnichannel` (shadow compare index)
 
 **Read-only guarantee (phase 1):** Shopee push **immediately upserts** a minimal `marketplace_order_shadows` row on HTTP (order status push code 3). **Full** Shopee `get_order_detail` + Jubelio line compare runs **on demand** when ops open `/omnichannel/shopee/{ordersn}` or post **Refresh** — not on every push. Neither path creates `transactions`, changes `warehouse_item`, inserts/updates `jubelioorders`, or calls `ProcessJubelioOrder`. Jubelio webhooks, cron, and manual Process are unchanged.
 
