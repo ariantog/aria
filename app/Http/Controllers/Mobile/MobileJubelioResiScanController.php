@@ -97,14 +97,16 @@ class MobileJubelioResiScanController extends Controller
         }
 
         $createdCount = count($result['created']);
+        $updatedCount = count($result['updated'] ?? []);
+        $queuedCount = $createdCount + $updatedCount;
         $skippedCount = count($result['skipped']);
         $firstSkipReason = $skippedCount > 0
             ? trim((string) ($result['skipped'][0]['reason'] ?? ''))
             : '';
 
-        if ($createdCount > 0) {
-            $message = "{$createdCount} resi diantri.".($skippedCount > 0 ? " {$skippedCount} dilewati." : '');
-            $status = 201;
+        if ($queuedCount > 0) {
+            $message = "{$queuedCount} resi diantri.".($skippedCount > 0 ? " {$skippedCount} dilewati." : '');
+            $status = $createdCount > 0 ? 201 : 200;
         } elseif ($skippedCount > 0) {
             $message = $skippedCount === 1 && $firstSkipReason !== ''
                 ? $firstSkipReason
@@ -117,6 +119,7 @@ class MobileJubelioResiScanController extends Controller
 
         return response()->json([
             'created' => $result['created'],
+            'updated' => $result['updated'] ?? [],
             'skipped' => $result['skipped'],
             'message' => $message,
         ], $status);
