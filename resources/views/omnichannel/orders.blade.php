@@ -1,22 +1,30 @@
 @extends('layouts.app')
 
-@section('title', 'Omnichannel — Orders')
+@php
+$isEventsView = ($filters['view'] ?? 'events') === 'events';
+$pageTitle = $isEventsView ? 'Omnichannel — Webhooks' : 'Omnichannel — Orders';
+$crumbLabel = $isEventsView ? 'Webhooks' : 'Orders';
+@endphp
+
+@section('title', $pageTitle)
 
 @section('content')
 @php
 $breadcrumbs = [
-    ['title' => 'Omnichannel', 'href' => route('omnichannel.orders.index')],
-    ['title' => 'Orders', 'href' => route('omnichannel.orders.index')],
+    ['title' => 'Omnichannel', 'href' => route('omnichannel.orders.index', ['view' => $filters['view'] ?? 'events'])],
+    ['title' => $crumbLabel, 'href' => route('omnichannel.orders.index', ['view' => $filters['view'] ?? 'events'])],
 ];
 $th = 'px-2 py-2 text-[10px] font-semibold uppercase tracking-wide text-gray-500';
 $td = 'px-2 py-2 align-top text-xs text-gray-800';
-$channelLabels = ['shopee' => 'Shopee', 'tiktok' => 'TikTok'];
+$channelLabels = ['shopee' => 'Shopee', 'tiktok' => 'TikTok', 'tokopedia' => 'Tokopedia'];
+$resetQuery = ['view' => $filters['view'] ?? 'events'];
 @endphp
 
 <div class="flex flex-col gap-4 p-2 sm:gap-6 sm:p-4"
      data-testid="omnichannel-orders-page"
      x-data="{
          expandedKey: null,
+         expandedId: null,
          detailHtml: {},
          loadingKey: null,
          rowKey(channel, orderRef) {
@@ -56,13 +64,25 @@ $channelLabels = ['shopee' => 'Shopee', 'tiktok' => 'TikTok'];
          },
          detailFor(channel, orderRef) {
              return this.detailHtml[this.rowKey(channel, orderRef)] ?? '';
+         },
+         toggleRow(id) {
+             this.expandedId = this.expandedId === id ? null : id;
+         },
+         isRowExpanded(id) {
+             return this.expandedId === id;
          }
      }">
     <div>
-        <h1 class="text-2xl font-bold text-gray-900">Omnichannel — Orders</h1>
+        <h1 class="text-2xl font-bold text-gray-900">{{ $pageTitle }}</h1>
         <p class="mt-1 max-w-3xl text-sm text-gray-600">
-            Read-only daftar order dari <code class="rounded bg-gray-100 px-1 text-xs">marketplace_channel_orders</code>.
-            Detail (shadow, webhook, ingress) dimuat lazily — tanpa API Shopee/TikTok/Jubelio pada render awal.
+            Read-only log dari unified storage
+            (<code class="rounded bg-gray-100 px-1 text-xs">marketplace_webhook_events</code>
+            / <code class="rounded bg-gray-100 px-1 text-xs">marketplace_channel_orders</code>).
+            @if($isEventsView)
+            Semua webhook termasuk non-order; tidak mem-post order atau memanggil API marketplace pada render daftar.
+            @else
+            Ringkasan per order; detail (shadow, webhook, ingress) dimuat lazily — tanpa API Shopee/TikTok/Jubelio pada render awal.
+            @endif
         </p>
     </div>
 
@@ -73,7 +93,15 @@ $channelLabels = ['shopee' => 'Shopee', 'tiktok' => 'TikTok'];
                 <select name="channel" id="channel" class="w-full rounded-md border-gray-300 text-sm">
                     <option value="all" @selected($filters['channel'] === 'all')>Semua</option>
                     <option value="shopee" @selected($filters['channel'] === 'shopee')>Shopee</option>
-                    <option value="tiktok" @selected($filters['channel'] === 'tiktok')>TikTok</option>
+                    <option value="tiktok" @selected($filters['channel'] === 'tiktok')>TikTok Shop</option>
+                    <option value="tokopedia" @selected($filters['channel'] === 'tokopedia')>Tokopedia (TikTok Partner)</option>
+                </select>
+            </div>
+            <div>
+                <label for="view" class="mb-1 block text-xs font-medium text-gray-600">Tampilan</label>
+                <select name="view" id="view" class="w-full rounded-md border-gray-300 text-sm" data-testid="omnichannel-view-select">
+                    <option value="events" @selected(($filters['view'] ?? 'events') === 'events')>Events (history)</option>
+                    <option value="orders" @selected(($filters['view'] ?? 'events') === 'orders')>Current orders</option>
                 </select>
             </div>
             <div>
@@ -118,32 +146,114 @@ $channelLabels = ['shopee' => 'Shopee', 'tiktok' => 'TikTok'];
             </div>
             <div class="flex items-end gap-2">
                 <button type="submit" class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800">Terapkan</button>
-                <a href="{{ route('omnichannel.orders.index') }}" class="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Reset</a>
+                <a href="{{ route('omnichannel.orders.index', $resetQuery) }}" class="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Reset</a>
             </div>
         </div>
     </form>
 
-    @if(! $ordersTableExists)
+    @php
+    $missingTable = $isEventsView ? ! $eventsTableExists : ! $ordersTableExists;
+    @endphp
+
+    @if($missingTable)
     <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-6 text-sm text-amber-900" data-testid="omnichannel-orders-missing-migration">
         <p class="font-medium">Tabel belum ada</p>
         <p class="mt-1">Jalankan migrasi unified storage:</p>
-        <pre class="mt-2 overflow-x-auto rounded-md bg-white/80 px-3 py-2 font-mono text-xs text-gray-800">php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketplace_channel_orders_table.php</pre>
+        <pre class="mt-2 overflow-x-auto rounded-md bg-white/80 px-3 py-2 font-mono text-xs text-gray-800">php artisan migrate --path=database/migrations/2026_11_21_150000_create_marketplace_webhook_events_table.php
+php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketplace_channel_orders_table.php</pre>
     </div>
     @elseif($rows === null || $rows->isEmpty())
     <div class="rounded-lg border border-gray-200 bg-white px-4 py-8 text-center text-sm text-gray-600 shadow-sm" data-testid="omnichannel-orders-empty">
-        Tidak ada order untuk filter ini.
+        Tidak ada data untuk filter ini.
+        @if($isEventsView)
+        Aktifkan <code>MARKETPLACE_WEBHOOK_UNIFIED_STORAGE</code> atau jalankan
+        <code class="text-xs">php artisan marketplace:backfill-webhook-events</code>.
+        @endif
     </div>
     @else
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div class="border-b border-gray-100 px-3 py-2 text-xs text-gray-500">
-            {{ number_format($rows->total()) }} order — halaman {{ $rows->currentPage() }} / {{ $rows->lastPage() }}
+            {{ number_format($rows->total()) }} baris — halaman {{ $rows->currentPage() }} / {{ $rows->lastPage() }}
+            · {{ $isEventsView ? 'marketplace_webhook_events' : 'marketplace_channel_orders' }}
         </div>
         <div class="min-w-0 overflow-x-auto">
-            <table class="w-full min-w-[52rem] text-left" data-testid="omnichannel-orders-table">
+            @if($isEventsView)
+            <table class="w-full min-w-[58rem] text-left" data-testid="omnichannel-events-table">
+                <thead class="border-b border-gray-200 bg-gray-50">
+                    <tr>
+                        <th class="{{ $th }} w-14">ID</th>
+                        <th class="{{ $th }} w-36">received_at</th>
+                        <th class="{{ $th }} w-20">channel</th>
+                        <th class="{{ $th }} w-24">platform</th>
+                        <th class="{{ $th }} w-16">event</th>
+                        <th class="{{ $th }}">order_ref</th>
+                        <th class="{{ $th }} w-28">order_status</th>
+                        <th class="{{ $th }}">shop_ref</th>
+                        <th class="{{ $th }} w-32">gudang</th>
+                        <th class="{{ $th }} w-20 text-center">sign OK</th>
+                        <th class="{{ $th }} w-24 text-right">payload</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    @foreach($rows as $row)
+                    @php
+                        $gudang = $shopRefToWarehouse[$row->shop_ref ?? ''] ?? null;
+                        $gudangName = $gudang ? ($warehouseNames[$gudang] ?? null) : null;
+                        $payloadJson = json_encode($row->payload ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                        $payloadPreview = \Illuminate\Support\Str::limit($payloadJson, 80, '…');
+                        $channelLabel = $channelLabels[$filters['channel']] ?? strtoupper($row->channel);
+                        if (strtoupper((string) ($row->commerce_platform ?? '')) === 'TOKOPEDIA') {
+                            $channelLabel = 'Tokopedia';
+                        } elseif ($row->channel === 'tiktok') {
+                            $channelLabel = 'TikTok';
+                        } elseif ($row->channel === 'shopee') {
+                            $channelLabel = 'Shopee';
+                        }
+                    @endphp
+                    <tr class="hover:bg-gray-50/80">
+                        <td class="{{ $td }} font-mono text-[11px]">{{ $row->id }}</td>
+                        <td class="{{ $td }} whitespace-nowrap text-gray-600">{{ $row->received_at?->format('Y-m-d H:i:s') ?? '—' }}</td>
+                        <td class="{{ $td }}">{{ $channelLabel }}</td>
+                        <td class="{{ $td }} font-mono text-[10px] uppercase">{{ $row->commerce_platform ?? '—' }}</td>
+                        <td class="{{ $td }} font-mono">{{ $row->event_type ?? '—' }}</td>
+                        <td class="{{ $td }} font-mono text-[11px] break-all">{{ $row->order_ref ?? '—' }}</td>
+                        <td class="{{ $td }}">{{ $row->order_status ?? '—' }}</td>
+                        <td class="{{ $td }} font-mono text-[11px] break-all">{{ $row->shop_ref ?? '—' }}</td>
+                        <td class="{{ $td }} text-gray-600">{{ $gudangName ?? '—' }}</td>
+                        <td class="{{ $td }} text-center">
+                            @if($row->signature_ok)
+                            <span class="inline-flex rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-800">ya</span>
+                            @else
+                            <span class="inline-flex rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-800">tidak</span>
+                            @endif
+                        </td>
+                        <td class="{{ $td }} text-right">
+                            <button type="button"
+                                    @click="toggleRow(@js($row->id))"
+                                    class="rounded-md border border-gray-300 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-50"
+                                    data-testid="omnichannel-event-expand-{{ $row->id }}"
+                                    x-text="isRowExpanded(@js($row->id)) ? 'Tutup' : 'Lihat'">
+                                Lihat
+                            </button>
+                        </td>
+                    </tr>
+                    <tr x-show="isRowExpanded(@js($row->id))" x-cloak class="bg-gray-50">
+                        <td colspan="11" class="px-3 py-3">
+                            <p class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Raw payload (read-only)</p>
+                            <p class="mb-2 font-mono text-[11px] text-gray-500 lg:hidden">{{ $payloadPreview }}</p>
+                            <pre class="max-h-64 overflow-auto rounded-lg border border-gray-200 bg-white p-3 font-mono text-[11px] leading-relaxed text-gray-800 whitespace-pre-wrap break-all">{{ json_encode($row->payload ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}</pre>
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+            @else
+            <table class="w-full min-w-[54rem] text-left" data-testid="omnichannel-orders-table">
                 <thead class="border-b border-gray-200 bg-gray-50">
                     <tr>
                         <th class="{{ $th }} w-12"></th>
                         <th class="{{ $th }} w-20">channel</th>
+                        <th class="{{ $th }} w-24">platform</th>
                         <th class="{{ $th }}">order_ref</th>
                         <th class="{{ $th }} w-28">status</th>
                         <th class="{{ $th }}">shop</th>
@@ -158,6 +268,9 @@ $channelLabels = ['shopee' => 'Shopee', 'tiktok' => 'TikTok'];
                         $gudang = $shopRefToWarehouse[$row->shop_ref ?? ''] ?? null;
                         $gudangName = $gudang ? ($warehouseNames[$gudang] ?? null) : null;
                         $detailUrl = route('omnichannel.orders.show', ['channel' => $row->channel, 'orderRef' => $row->order_ref]);
+                        $channelLabel = strtoupper((string) ($row->commerce_platform ?? '')) === 'TOKOPEDIA'
+                            ? 'Tokopedia'
+                            : ($channelLabels[$row->channel] ?? $row->channel);
                     @endphp
                     <tr class="hover:bg-gray-50/80">
                         <td class="{{ $td }}">
@@ -168,7 +281,8 @@ $channelLabels = ['shopee' => 'Shopee', 'tiktok' => 'TikTok'];
                                 <span x-text="isExpanded(@js($row->channel), @js($row->order_ref)) ? 'Tutup' : 'Detail'">Detail</span>
                             </button>
                         </td>
-                        <td class="{{ $td }} uppercase">{{ $channelLabels[$row->channel] ?? $row->channel }}</td>
+                        <td class="{{ $td }}">{{ $channelLabel }}</td>
+                        <td class="{{ $td }} font-mono text-[10px] uppercase">{{ $row->commerce_platform ?? '—' }}</td>
                         <td class="{{ $td }} font-mono text-[11px] break-all">{{ $row->order_ref }}</td>
                         <td class="{{ $td }}">{{ $row->order_status ?? '—' }}</td>
                         <td class="{{ $td }} font-mono text-[11px] break-all">{{ $row->shop_ref ?? '—' }}</td>
@@ -177,7 +291,7 @@ $channelLabels = ['shopee' => 'Shopee', 'tiktok' => 'TikTok'];
                         <td class="{{ $td }} whitespace-nowrap text-gray-600">{{ $row->first_received_at?->format('Y-m-d H:i:s') ?? '—' }}</td>
                     </tr>
                     <tr x-show="isExpanded(@js($row->channel), @js($row->order_ref))" x-cloak class="bg-gray-50">
-                        <td colspan="8" class="p-0">
+                        <td colspan="9" class="p-0">
                             <template x-if="isLoading(@js($row->channel), @js($row->order_ref))">
                                 <p class="p-4 text-xs text-gray-500">Memuat detail…</p>
                             </template>
@@ -188,6 +302,7 @@ $channelLabels = ['shopee' => 'Shopee', 'tiktok' => 'TikTok'];
                     @endforeach
                 </tbody>
             </table>
+            @endif
         </div>
         @if($rows->hasPages())
         <div class="border-t border-gray-100 px-3 py-3">
