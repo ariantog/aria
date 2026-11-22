@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Models\MarketplaceChannelOrder;
 use App\Models\TikTokShopWebhookInbox;
 use App\Services\Marketplace\MarketplaceWebhookRecorder;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -67,11 +68,36 @@ class PersistTikTokShopWebhookInboxJob implements ShouldQueue
             );
 
             $unifiedRecorder->recordTikTok($this->payload, $this->signatureOk);
+
+            if (filled($orderId)) {
+                $this->dispatchCommercePlatformEnrichIfNeeded($orderId);
+            }
         } catch (Throwable $e) {
             Log::error('TikTok Shop webhook inbox persist failed', [
                 'tts_notification_id' => $notificationId,
                 'message' => $e->getMessage(),
             ]);
         }
+    }
+
+    protected function dispatchCommercePlatformEnrichIfNeeded(string $orderId): void
+    {
+        if (! filter_var(config('tiktok_shop.enrich_commerce_platform', true), FILTER_VALIDATE_BOOLEAN)) {
+            return;
+        }
+
+        if (Schema::hasTable('marketplace_channel_orders')
+            && Schema::hasColumn('marketplace_channel_orders', 'commerce_platform')) {
+            $existing = MarketplaceChannelOrder::query()
+                ->where('channel', MarketplaceWebhookRecorder::CHANNEL_TIKTOK)
+                ->where('order_ref', $orderId)
+                ->value('commerce_platform');
+
+            if (filled($existing)) {
+                return;
+            }
+        }
+
+        EnrichMarketplaceTikTokCommercePlatformJob::dispatch($orderId);
     }
 }

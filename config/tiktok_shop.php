@@ -31,6 +31,12 @@ return [
     /** Order API path version for getOrderDetail (Partner Center → Order API). */
     'order_api_version' => env('TIKTOK_SHOP_ORDER_API_VERSION', '202507'),
 
+    /**
+     * After TikTok Shop webhook ingest, queue read-only Get Order Detail to set commerce_platform
+     * (e.g. TOKOPEDIA) on marketplace_channel_orders + marketplace_webhook_events.
+     */
+    'enrich_commerce_platform' => filter_var(env('TIKTOK_SHOP_ENRICH_COMMERCE_PLATFORM', true), FILTER_VALIDATE_BOOLEAN),
+
     /*
     |--------------------------------------------------------------------------
     | Inbound webhooks (independent of driver=mock|live)
