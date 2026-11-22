@@ -126,6 +126,12 @@ Route::middleware(['auth', 'verified', 'active', 'enforce.readonly'])->group(fun
     Route::get('shopee-admin/authorize', [App\Http\Controllers\ShopeeAdminController::class, 'authorizeShop'])
         ->name('shopee-admin.authorize');
     Route::get('omnichannel', [App\Http\Controllers\OmnichannelController::class, 'index'])->name('omnichannel.index');
+    Route::get('omnichannel/orders', [App\Http\Controllers\OmnichannelOrdersController::class, 'index'])->name('omnichannel.orders.index');
+    Route::get('omnichannel/orders/{channel}/{orderRef}', [App\Http\Controllers\OmnichannelOrdersController::class, 'show'])
+        ->where(['channel' => 'shopee|tiktok', 'orderRef' => '.+'])
+        ->name('omnichannel.orders.show');
+    Route::get('omnichannel/settings', [App\Http\Controllers\OmnichannelSettingsController::class, 'index'])->name('omnichannel.settings.index');
+    Route::post('omnichannel/settings/low-stock', [App\Http\Controllers\OmnichannelSettingsController::class, 'updateLowStock'])->name('omnichannel.settings.low-stock.update');
     Route::get('omnichannel/shopee/{ordersn}', [App\Http\Controllers\OmnichannelController::class, 'showShopee'])
         ->where('ordersn', '[A-Za-z0-9_-]+')
         ->name('omnichannel.shopee.show');

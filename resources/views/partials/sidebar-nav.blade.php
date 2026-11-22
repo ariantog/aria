@@ -146,10 +146,32 @@
         $reportNavLabels[] = 'Reporting Entities';
     }
 
-    $canOmnichannel = $hasPerm('omnichannel-view') || $isSuperAdmin;
+    $canOmnichannelView = $hasPerm('omnichannel-view') || $isSuperAdmin;
+    $canOmnichannelOrders = $hasPerm('omnichannel-orders') || $canOmnichannelView;
+    $canOmnichannelSettings = $hasPerm('omnichannel-settings') || $canOmnichannelView;
     $canMarketplaceWebhooks = $hasPerm('marketplace-webhook-view')
         || $hasPerm('tiktok-shop-view')
-        || $canOmnichannel;
+        || $canOmnichannelView;
+
+    $omnichannelNavLabels = ['Omnichannel'];
+    if ($canOmnichannelOrders) {
+        $omnichannelNavLabels[] = 'Orders';
+    }
+    if ($canMarketplaceWebhooks) {
+        $omnichannelNavLabels[] = 'Webhook Inbox';
+    }
+    if ($canOmnichannelView) {
+        $omnichannelNavLabels[] = 'Compare';
+    }
+    if ($canOmnichannelSettings) {
+        $omnichannelNavLabels[] = 'Settings';
+    }
+
+    $canOmnichannelNav = $isSuperAdmin
+        || $canOmnichannelView
+        || $hasPerm('omnichannel-orders')
+        || $hasPerm('omnichannel-settings')
+        || $canMarketplaceWebhooks;
 
     $jubelioNavLabels = ['Jubelio'];
     if ($hasPerm('jubelio-view') || $isSuperAdmin) {
@@ -582,23 +604,38 @@
 </div>
 @endif
 
-@if($canOmnichannel ?? false)
-<a href="{{ route('omnichannel.index') }}"
-   class="mb-1 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors {{ $isActive('/omnichannel') ? 'bg-violet-50 text-violet-800' : 'text-gray-700 hover:bg-gray-100' }}"
-   x-show="sidebarOpen || @js($isActive('/omnichannel'))">
-    <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
-    <span x-show="sidebarOpen" x-cloak class="flex-1 text-left">Omnichannel</span>
-</a>
-@endif
-
-@if($canMarketplaceWebhooks ?? false)
-@php $marketplaceWebhookActive = $isActive('/marketplace/webhooks') || $isActive('/tiktok-shop/webhooks'); @endphp
-<a href="{{ route('marketplace.webhooks.index') }}"
-   class="mb-1 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors {{ $marketplaceWebhookActive ? 'bg-violet-50 text-violet-800' : 'text-gray-700 hover:bg-gray-100' }}"
-   x-show="sidebarOpen || @js($marketplaceWebhookActive)">
-    <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V4a2 2 0 10-4 0v1.341C8.67 6.165 8 7.388 8 8.75V14l-2 2H4"/></svg>
-    <span x-show="sidebarOpen" x-cloak class="flex-1 text-left">Webhook Inbox</span>
-</a>
+{{-- ── Omnichannel ─────────────────────────────────────────────────────── --}}
+@if($canOmnichannelNav ?? false)
+@php
+    $omniActive = $isActive('/omnichannel') || $isActive('/marketplace/webhooks') || $isActive('/tiktok-shop/webhooks');
+@endphp
+<div x-data="{ open: {{ $omniActive ? 'true' : 'false' }} }"
+     class="mb-1"
+     x-show="navGroupVisible(@js($omnichannelNavLabels))"
+     x-effect="syncNavGroupOpen($data, {{ $omniActive ? 'true' : 'false' }}, @js($omnichannelNavLabels))">
+    <button @click="open = !open"
+            class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors
+                   {{ $omniActive ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
+        <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+        <span x-show="sidebarOpen" x-cloak class="flex-1 text-left">Omnichannel</span>
+        <svg x-show="sidebarOpen" x-cloak :class="open ? 'rotate-90' : ''" class="h-3.5 w-3.5 flex-shrink-0 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+    </button>
+    <div x-show="open && sidebarOpen" x-cloak class="ml-6 mt-1 space-y-0.5">
+        @if($canOmnichannelOrders)
+        <a href="{{ route('omnichannel.orders.index') }}" x-show="navLinkVisible('Orders', 'Omnichannel')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/omnichannel/orders') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Orders</a>
+        @endif
+        @if($canMarketplaceWebhooks)
+        @php $marketplaceWebhookActive = $isActive('/marketplace/webhooks') || $isActive('/tiktok-shop/webhooks'); @endphp
+        <a href="{{ route('marketplace.webhooks.index') }}" x-show="navLinkVisible('Webhook Inbox', 'Omnichannel')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $marketplaceWebhookActive ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Webhook Inbox</a>
+        @endif
+        @if($canOmnichannelView)
+        <a href="{{ route('omnichannel.index') }}" x-show="navLinkVisible('Compare', 'Omnichannel')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $currentUrl === 'omnichannel' || str_starts_with($currentUrl, 'omnichannel/shopee') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Compare</a>
+        @endif
+        @if($canOmnichannelSettings)
+        <a href="{{ route('omnichannel.settings.index') }}" x-show="navLinkVisible('Settings', 'Omnichannel')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/omnichannel/settings') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Settings</a>
+        @endif
+    </div>
+</div>
 @endif
 
 {{-- ── Jubelio ───────────────────────────────────────────────────────── --}}
