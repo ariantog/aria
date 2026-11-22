@@ -50,6 +50,8 @@ it('registers readonly export routes as GET only', function (): void {
         'api.readonly.items',
         'api.readonly.items.cost-history',
         'api.readonly.stock',
+        'api.readonly.restock.context',
+        'api.readonly.restock.insight-period',
         'exports.items.csv',
     ];
 

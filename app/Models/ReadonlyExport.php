@@ -15,6 +15,7 @@ class ReadonlyExport
         return [
             'export' => 'export-readonly',
             'cost-view' => 'cost-view',
+            'restock_apply' => 'restock-grok-apply',
         ];
     }
 }

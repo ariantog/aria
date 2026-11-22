@@ -96,6 +96,10 @@ Same query params as JSON (except pagination). Streams all matching SKUs in chun
 
 Reads **`warehouse_item`** joined to addrbook warehouses. Does not call Jubelio/Shopee.
 
+### Restock context (Grok)
+
+See **`doc/grok-restock-api.md`** — `GET /api/readonly/restock/context`, insight period, optional apply.
+
 ### Cost history (stub)
 
 `GET /api/readonly/items/{id}/cost-history`
