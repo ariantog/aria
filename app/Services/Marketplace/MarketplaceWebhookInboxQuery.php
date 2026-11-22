@@ -20,7 +20,7 @@ class MarketplaceWebhookInboxQuery
     public function parseFilters(Request $request): array
     {
         $channel = strtolower(trim((string) $request->query('channel', 'all')));
-        if (! in_array($channel, ['all', 'shopee', 'tiktok'], true)) {
+        if (! in_array($channel, ['all', 'shopee', 'tiktok', 'tokopedia'], true)) {
             $channel = 'all';
         }
 
@@ -34,6 +34,14 @@ class MarketplaceWebhookInboxQuery
             $request->query('date_from'),
             Carbon::now()->subDays(7)->startOfDay(),
         );
+
+        if (is_string($request->query('date_to')) && preg_match('/^\d{4}-\d{2}-\d{2}$/', trim($request->query('date_to')))) {
+            $dateTo = $dateTo->copy()->endOfDay();
+        }
+
+        if (is_string($request->query('date_from')) && preg_match('/^\d{4}-\d{2}-\d{2}$/', trim($request->query('date_from')))) {
+            $dateFrom = $dateFrom->copy()->startOfDay();
+        }
 
         if ($dateFrom->gt($dateTo)) {
             [$dateFrom, $dateTo] = [$dateTo->copy()->startOfDay(), $dateFrom->copy()->endOfDay()];
@@ -167,9 +175,29 @@ class MarketplaceWebhookInboxQuery
      */
     protected function applyChannel(Builder $query, string $channel): void
     {
-        if ($channel !== 'all') {
-            $query->where('channel', $channel);
+        if ($channel === 'all') {
+            return;
         }
+
+        if ($channel === 'tokopedia') {
+            $query->where('channel', MarketplaceWebhookRecorder::CHANNEL_TIKTOK)
+                ->whereRaw('UPPER(COALESCE(commerce_platform, "")) = ?', ['TOKOPEDIA']);
+
+            return;
+        }
+
+        if ($channel === 'tiktok') {
+            $query->where('channel', MarketplaceWebhookRecorder::CHANNEL_TIKTOK)
+                ->where(function (Builder $inner): void {
+                    $inner->whereNull('commerce_platform')
+                        ->orWhere('commerce_platform', '')
+                        ->orWhereRaw('UPPER(commerce_platform) != ?', ['TOKOPEDIA']);
+                });
+
+            return;
+        }
+
+        $query->where('channel', $channel);
     }
 
     /**

@@ -20,6 +20,7 @@ class MarketplaceWebhookEvent extends Model
         'shop_ref',
         'order_ref',
         'order_status',
+        'commerce_platform',
         'signature_ok',
         'payload',
         'received_at',
