@@ -1,0 +1,107 @@
+<?php
+
+use App\Models\MarketplaceChannelOrder;
+use App\Models\MarketplaceWebhookEvent;
+use App\Services\Marketplace\MarketplaceWebhookRecorder;
+use Illuminate\Support\Facades\Artisan;
+
+beforeEach(function () {
+    config(['marketplace.webhook.unified_storage' => true]);
+});
+
+it('dedupes tiktok webhook events by idempotency key', function () {
+    $recorder = app(MarketplaceWebhookRecorder::class);
+    $payload = [
+        'type' => 1,
+        'tts_notification_id' => 'dedupe-tts-1',
+        'shop_id' => '100',
+        'data' => [
+            'order_id' => 'ORD-TT-1',
+            'order_status' => 'UNPAID',
+        ],
+    ];
+
+    $recorder->recordTikTok($payload, true);
+    $recorder->recordTikTok($payload, true);
+
+    expect(MarketplaceWebhookEvent::count())->toBe(1)
+        ->and(MarketplaceWebhookEvent::query()->value('idempotency_key'))
+        ->toBe('tiktok:dedupe-tts-1');
+});
+
+it('upserts marketplace channel order only on first distinct event', function () {
+    $recorder = app(MarketplaceWebhookRecorder::class);
+    $base = [
+        'type' => 1,
+        'tts_notification_id' => 'upsert-tts-1',
+        'shop_id' => '200',
+        'data' => [
+            'order_id' => 'ORD-UPSERT',
+            'order_status' => 'UNPAID',
+        ],
+    ];
+
+    $recorder->recordTikTok($base, true);
+
+    $dup = $base;
+    $dup['tts_notification_id'] = 'upsert-tts-2';
+    $dup['data']['order_status'] = 'AWAITING_SHIPMENT';
+    $recorder->recordTikTok($dup, true);
+
+    expect(MarketplaceWebhookEvent::count())->toBe(2);
+
+    $order = MarketplaceChannelOrder::query()
+        ->where('channel', MarketplaceWebhookRecorder::CHANNEL_TIKTOK)
+        ->where('order_ref', 'ORD-UPSERT')
+        ->first();
+
+    expect($order)->not->toBeNull()
+        ->and($order->order_status)->toBe('AWAITING_SHIPMENT')
+        ->and($order->shop_ref)->toBe('200');
+});
+
+it('prunes webhook events older than retention with dry-run and delete', function () {
+    config(['marketplace.webhook.events_retention_days' => 90]);
+
+    MarketplaceWebhookEvent::query()->create([
+        'channel' => 'tiktok',
+        'idempotency_key' => 'tiktok:old-1',
+        'event_type' => '1',
+        'shop_ref' => null,
+        'order_ref' => null,
+        'order_status' => null,
+        'signature_ok' => true,
+        'payload' => ['type' => 1],
+        'received_at' => now()->subDays(120),
+    ]);
+
+    MarketplaceWebhookEvent::query()->create([
+        'channel' => 'tiktok',
+        'idempotency_key' => 'tiktok:recent-1',
+        'event_type' => '1',
+        'shop_ref' => null,
+        'order_ref' => null,
+        'order_status' => null,
+        'signature_ok' => true,
+        'payload' => ['type' => 1],
+        'received_at' => now()->subDays(5),
+    ]);
+
+    Artisan::call('marketplace:prune-webhook-events', ['--dry-run' => true]);
+    expect(MarketplaceWebhookEvent::count())->toBe(2);
+
+    Artisan::call('marketplace:prune-webhook-events', ['--days' => 90]);
+    expect(MarketplaceWebhookEvent::count())->toBe(1)
+        ->and(MarketplaceWebhookEvent::query()->value('idempotency_key'))->toBe('tiktok:recent-1');
+});
+
+it('does not write unified tables when unified storage is disabled', function () {
+    config(['marketplace.webhook.unified_storage' => false]);
+
+    app(MarketplaceWebhookRecorder::class)->recordTikTok([
+        'tts_notification_id' => 'off-1',
+        'data' => ['order_id' => 'X'],
+    ]);
+
+    expect(MarketplaceWebhookEvent::count())->toBe(0);
+});
