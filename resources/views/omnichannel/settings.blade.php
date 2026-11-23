@@ -185,6 +185,46 @@ $tabs = [
             @endif
         </section>
 
+        <section id="omnichannel-settings-flexi-staging" class="rounded-xl border border-orange-200 bg-orange-50/30 p-4 shadow-sm" data-testid="omnichannel-settings-flexi-staging">
+            <h2 class="text-sm font-semibold text-gray-900">Shopee FLEXI — gudang staging (shared)</h2>
+            <p class="mt-2 text-sm text-gray-600">
+                Satu gudang fisik untuk alur MOVE → SELL semua shop FLEXI Malaysia/export. Disimpan di <code class="text-xs">omnichannel_settings</code>
+                (bukan env). Env <code class="text-xs">SHOPEE_FLEXI_STAGING_WAREHOUSE_ID</code> hanya override darurat bila DB kosong.
+            </p>
+            @if(! $settingsTableExists)
+            <p class="mt-4 text-sm text-amber-800">Migrasi <code>omnichannel_settings</code> belum dijalankan.</p>
+            @else
+            <form method="post" action="{{ route('omnichannel.settings.flexi-staging.update') }}" class="mt-4 space-y-3 rounded-lg border border-gray-200 bg-white p-3">
+                @csrf
+                <div>
+                    <label for="flexi_staging_warehouse_id" class="mb-1 block text-xs font-medium text-gray-600">Gudang staging</label>
+                    <select name="flexi_staging_warehouse_id" id="flexi_staging_warehouse_id"
+                            class="w-full max-w-md rounded-md border-gray-300 text-sm"
+                            @disabled(! $canEditLowStock)>
+                        <option value="0" @selected((int) old('flexi_staging_warehouse_id', $flexiStagingWarehouseId) === 0)>— Belum dipilih —</option>
+                        @foreach($physicalWarehouses as $wh)
+                        <option value="{{ $wh->id }}"
+                                @selected((int) old('flexi_staging_warehouse_id', $flexiStagingWarehouseId) === (int) $wh->id)>
+                            #{{ $wh->id }} — {{ $wh->name }}
+                            @if($wh->arrangement_enabled)
+                            (arrangement)
+                            @endif
+                        </option>
+                        @endforeach
+                    </select>
+                    @error('flexi_staging_warehouse_id')
+                    <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                    @enderror
+                </div>
+                @if($canEditLowStock)
+                <button type="submit" class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800" data-testid="omnichannel-flexi-staging-save">Simpan gudang staging FLEXI</button>
+                @else
+                <p class="text-xs text-gray-500">Perlu permission <code>omnichannel-settings-edit</code> atau superadmin.</p>
+                @endif
+            </form>
+            @endif
+        </section>
+
         <section class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
             <div class="flex flex-wrap items-center justify-between gap-2">
                 <h2 class="text-sm font-semibold text-gray-900">TikTok Shop / Tokopedia (Partner)</h2>

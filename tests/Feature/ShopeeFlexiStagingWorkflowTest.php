@@ -8,7 +8,9 @@ use App\Models\ShopeeFlexiShop;
 use App\Models\Shopeesync;
 use App\Models\User;
 use App\Models\WarehouseItem;
+use App\Services\Marketplace\OmnichannelSettingStore;
 use App\Services\Marketplace\ShopeeFlexiSellPrefillService;
+use App\Services\Marketplace\ShopeeFlexiStagingWarehouse;
 use App\Services\Shopee\ShopeeAdminOpenApiService;
 use Illuminate\Support\Facades\Http;
 use Spatie\Permission\Models\Permission;
@@ -68,7 +70,11 @@ function flexiStagingWorkflowSetup(): array
     $customer = Addrbook::factory()->create(['type' => Addrbook::TYPE_CUSTOMER]);
     $item = Item::factory()->create(['code' => 'SKU-FLEXI-STG-S', 'price' => 99000]);
 
-    config(['shopee_flexi.staging_warehouse_id' => $staging->id]);
+    app(OmnichannelSettingStore::class)->set(
+        OmnichannelSettingStore::KEY_FLEXI_STAGING_WAREHOUSE_ID,
+        (string) $staging->id,
+    );
+    config(['shopee_flexi.staging_warehouse_id' => 0]);
 
     foreach ([$pickup, $staging] as $wh) {
         WarehouseItem::create([
@@ -214,6 +220,31 @@ it('blocks sell button when escrow is missing', function () {
         ->assertOk()
         ->assertDontSee('data-testid="shopee-flexi-create-sell"', false)
         ->assertSee('Escrow', false);
+});
+
+it('falls back to env staging warehouse id when omnichannel setting is empty', function () {
+    $staging = Addrbook::factory()->warehouse()->create(['name' => 'Env Fallback Staging']);
+    config(['shopee_flexi.staging_warehouse_id' => $staging->id]);
+    app(OmnichannelSettingStore::class)->set(
+        OmnichannelSettingStore::KEY_FLEXI_STAGING_WAREHOUSE_ID,
+        '0',
+    );
+
+    $service = app(ShopeeFlexiStagingWarehouse::class);
+
+    expect($service->configuredId())->toBe($staging->id);
+});
+
+it('prefers omnichannel setting over env for staging warehouse id', function () {
+    $dbStaging = Addrbook::factory()->warehouse()->create(['name' => 'DB Staging']);
+    $envStaging = Addrbook::factory()->warehouse()->create(['name' => 'Env Staging']);
+    app(OmnichannelSettingStore::class)->set(
+        OmnichannelSettingStore::KEY_FLEXI_STAGING_WAREHOUSE_ID,
+        (string) $dbStaging->id,
+    );
+    config(['shopee_flexi.staging_warehouse_id' => $envStaging->id]);
+
+    expect(app(ShopeeFlexiStagingWarehouse::class)->configuredId())->toBe($dbStaging->id);
 });
 
 it('allows sell when completed and escrow ok with staging as sender', function () {

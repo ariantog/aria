@@ -21,7 +21,7 @@ $loadDetailChecked = (bool) old('load_detail', $loadDetail ?? false);
             @else
                 <span class="text-amber-800" data-testid="flexi-staging-unset">belum dikonfigurasi</span>
             @endif
-            (<code>SHOPEE_FLEXI_STAGING_WAREHOUSE_ID</code>).
+            — atur di <a href="{{ route('omnichannel.settings.index', ['tab' => 'warehouse']) }}#omnichannel-settings-flexi-staging" class="text-orange-700 hover:underline">Omnichannel → Settings → Warehouse</a>).
         </p>
         <ol class="mt-3 max-w-3xl list-decimal space-y-1 pl-5 text-sm text-gray-600">
             <li>Cari order (ordersn / invoice prefix)</li>

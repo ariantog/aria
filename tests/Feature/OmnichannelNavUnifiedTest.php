@@ -217,6 +217,24 @@ it('saves shopee low stock threshold with settings-edit permission', function ()
     expect($store->getInt(OmnichannelSettingStore::KEY_SHOPEE_LOW_STOCK_THRESHOLD))->toBe(12);
 });
 
+it('saves flexi staging warehouse with settings-edit permission', function () {
+    $user = User::factory()->create(['id' => 54]);
+    $user->givePermissionTo([
+        Omnichannel::getPermissions()['settings'],
+        Omnichannel::getPermissions()['settings-edit'],
+    ]);
+    $warehouse = \App\Models\Addrbook::factory()->warehouse()->create(['name' => 'FLEXI Staging Save Test']);
+
+    $this->actingAs($user)
+        ->post(route('omnichannel.settings.flexi-staging.update'), [
+            'flexi_staging_warehouse_id' => $warehouse->id,
+        ])
+        ->assertRedirect(route('omnichannel.settings.index', ['tab' => 'warehouse']));
+
+    $store = app(OmnichannelSettingStore::class);
+    expect($store->getInt(OmnichannelSettingStore::KEY_FLEXI_STAGING_WAREHOUSE_ID))->toBe($warehouse->id);
+});
+
 it('forbids low stock save without settings-edit permission', function () {
     $user = User::factory()->create(['id' => 53]);
     $user->givePermissionTo(Omnichannel::getPermissions()['settings']);

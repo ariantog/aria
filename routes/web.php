@@ -138,6 +138,7 @@ Route::middleware(['auth', 'verified', 'active', 'enforce.readonly'])->group(fun
     Route::get('omnichannel/settings', [App\Http\Controllers\OmnichannelSettingsController::class, 'index'])->name('omnichannel.settings.index');
     Route::post('omnichannel/settings/low-stock', [App\Http\Controllers\OmnichannelSettingsController::class, 'updateLowStock'])->name('omnichannel.settings.low-stock.update');
     Route::post('omnichannel/settings/tokopedia', [App\Http\Controllers\OmnichannelSettingsController::class, 'updateTokopedia'])->name('omnichannel.settings.tokopedia.update');
+    Route::post('omnichannel/settings/flexi-staging', [App\Http\Controllers\OmnichannelSettingsController::class, 'updateFlexiStaging'])->name('omnichannel.settings.flexi-staging.update');
     Route::get('omnichannel/shopee/{ordersn}', [App\Http\Controllers\OmnichannelController::class, 'showShopee'])
         ->where('ordersn', '[A-Za-z0-9_-]+')
         ->name('omnichannel.shopee.show');

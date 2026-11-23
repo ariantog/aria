@@ -35,7 +35,7 @@ $breadcrumbs = [
                 @else
                     <span class="text-amber-800" data-testid="flexi-index-staging-unset">belum diset</span>
                 @endif
-                · env <code>SHOPEE_FLEXI_STAGING_WAREHOUSE_ID</code>
+                · atur di <a href="{{ route('omnichannel.settings.index', ['tab' => 'warehouse']) }}#omnichannel-settings-flexi-staging" class="text-orange-700 hover:underline">Omnichannel → Settings → Warehouse</a>
             </p>
         </div>
         <div class="flex flex-wrap gap-2">
