@@ -24,6 +24,7 @@ class ShopeeJubelioQueuePrecreator
         private JubelioSellInvoiceGuard $sellInvoiceGuard,
         private MarketplaceWebhookShopWarehouseResolver $shopWarehouseResolver,
         private WarehouseOnOrderService $warehouseOnOrder,
+        private ShopeeSyncInvoicePrefix $shopeeInvoicePrefix,
     ) {}
 
     public function enabled(): bool
@@ -59,11 +60,11 @@ class ShopeeJubelioQueuePrecreator
             return false;
         }
 
-        if ($this->sellInvoiceGuard->sellInvoiceInTransactions($this->invoiceForOrderSn($orderSn))) {
+        if ($this->sellInvoiceGuard->sellInvoiceInTransactions($this->invoiceForOrderSn($orderSn, $shopId))) {
             return false;
         }
 
-        $invoice = $this->invoiceForOrderSn($orderSn);
+        $invoice = $this->invoiceForOrderSn($orderSn, $shopId);
         $warehouseColumns = $this->resolveWarehouseColumns($shopId);
 
         $existing = Jubelioorder::query()
@@ -98,11 +99,9 @@ class ShopeeJubelioQueuePrecreator
         return true;
     }
 
-    public function invoiceForOrderSn(string $orderSn): string
+    public function invoiceForOrderSn(string $orderSn, ?int $shopId = null): string
     {
-        $prefix = strtoupper((string) config('jubelio_resi_scan.marketplaces.shopee.invoice_prefix', 'SP'));
-
-        return $prefix.'-'.trim($orderSn);
+        return $this->shopeeInvoicePrefix->invoiceForOrderSn($shopId, $orderSn);
     }
 
     public function placeholderJubelioOrderId(string $orderSn): string

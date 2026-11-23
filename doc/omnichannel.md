@@ -117,18 +117,18 @@ Do not duplicate Jubelio’s store/location map inside Shopee-only tables — li
 Jubelio may not enqueue **export / FLEXI Malaysia** orders. Aria can ingest them **directly from Shopee Open Platform**:
 
 1. **Authorize** via **Main account** (not Direct Shop login — Shopee rejects Direct-only OAuth). Omnichannel → Settings → Connections → Shopee Admin; pilih Main + Direct (MY). Callback menyimpan `shop_id_list` di settings dan menampilkan semua Shop ID di tab Connections (tidak perlu menyalin URL redirect).
-2. **Map** `shopee_syncs`: set `shop_id` + **Direct order ingest** on `/shopee-stock-sync/{id}/edit` (warehouse = same gudang as export fulfilment).
+2. **Map** `shopee_syncs` on **Shopee Warehouse Mapping** (`/shopee-sync/{id}/edit`): **satu baris per export shop** — `shop_id`, **invoice prefix** (SPMY / SPSG / SPTH / SPPH / SPBR; Indonesia `SP`), **Direct order ingest**, gudang Aria sama boleh dipakai berkali-kali (mis. CITOS MY + CITOS SG = dua baris, `shop_id` beda).
 3. **Enable** `SHOPEE_ORDER_POLL_ENABLED=true`, `SHOPEE_PRECREATE_JUBELIO_QUEUE=true`, `MARKETPLACE_WEBHOOK_UNIFIED_STORAGE=true` as needed; turn on cron **`shopee:poll-orders`** in Cron Manager.
 4. Optional: register **Push** for the export `shop_id` in Shopee Console (same `/shopee/push` path as Indonesia).
 
-Poll + push both run the same ingest (shadow, unified orders table, `jubelioorders` placeholder `SP-{ordersn}`). **SELL posting** still requires either a future direct Shopee poster or manual transaction — Jubelio cron will not receive MY payloads.
+Poll + push both run the same ingest (shadow, unified orders table, `jubelioorders` placeholder `{prefix}-{ordersn}`). **SELL posting** still requires either a future direct Shopee poster or manual transaction — Jubelio cron will not receive MY/export payloads.
 
 ## Shopee push path
 
 Jubelio remains the default posting path for Indonesia Shopee. Shopee **Order Status push (3)**:
 
 1. **Sync stub** — upsert `marketplace_order_shadows` with `ordersn`, `shop_id`, push status, `compare_status=pending` (no queue worker; list may show `belum dimuat` for lines until detail is opened).
-2. **Lazy enrich** — `OmnichannelController@showShopee` (and `refreshShopee`) calls `ShopeeOrderShadowRecorder::recordFromPush` → Shopee `get_order_detail`, line summary, Jubelio compare (`SP-{ordersn}`). Cached detail reuses the row for `SHOPEE_PUSH_SHADOW_DETAIL_TTL_SECONDS` (default 300).
+2. **Lazy enrich** — `OmnichannelController@showShopee` (and `refreshShopee`) calls `ShopeeOrderShadowRecorder::recordFromPush` → Shopee `get_order_detail`, line summary, Jubelio compare (`{prefix}-{ordersn}` from `shopee_syncs`). Cached detail reuses the row for `SHOPEE_PUSH_SHADOW_DETAIL_TTL_SECONDS` (default 300).
 3. **Pre-create (flag)** — `ShopeeJubelioQueuePrecreator` after shadow stub; see table above.
 
 Detail page: `/omnichannel/shopee/{ordersn}` — **Refresh** forces a new API fetch.

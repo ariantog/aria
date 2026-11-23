@@ -21,6 +21,7 @@ class OmnichannelOrderDetailReader
         protected MarketplaceTikTokCommercePlatformEnricher $commercePlatformEnricher,
         protected TikTokShopOpenApiService $tikTokOpenApi,
         protected TikTokOrderLineSummary $tikTokLineSummary,
+        protected ShopeeSyncInvoicePrefix $shopeeInvoicePrefix,
     ) {}
 
     /**
@@ -292,12 +293,23 @@ class OmnichannelOrderDetailReader
         }
 
         $query = Jubelioorder::query()->where('type', 'SELL');
-        $query->where(function ($q) use ($channel, $orderRef): void {
+        $query->where(function ($q) use ($channel, $orderRef, $shadow): void {
             if ($channel === 'shopee') {
-                $prefix = strtoupper((string) config('jubelio_resi_scan.marketplaces.shopee.invoice_prefix', 'SP'));
+                $shopId = $shadow?->shop_id !== null ? (int) $shadow->shop_id : null;
+                $prefix = $this->shopeeInvoicePrefix->prefixForShopId($shopId > 0 ? $shopId : null);
                 $base = $prefix.'-'.$orderRef;
                 $q->where('invoice', $base)
                     ->orWhere('invoice', 'like', $prefix.'-'.$orderRef.'-%');
+                if ($shopId === null || $shopId <= 0) {
+                    foreach ($this->shopeeInvoicePrefix->allKnownPrefixes() as $altPrefix) {
+                        if ($altPrefix === $prefix) {
+                            continue;
+                        }
+                        $altBase = $altPrefix.'-'.$orderRef;
+                        $q->orWhere('invoice', $altBase)
+                            ->orWhere('invoice', 'like', $altPrefix.'-'.$orderRef.'-%');
+                    }
+                }
             } elseif ($channel === 'tiktok') {
                 $q->where('invoice', $orderRef)
                     ->orWhere('invoice', 'like', 'TT-'.$orderRef.'%')

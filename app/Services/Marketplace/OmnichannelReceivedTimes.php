@@ -17,6 +17,10 @@ use Illuminate\Support\Facades\Schema;
  */
 class OmnichannelReceivedTimes
 {
+    public function __construct(
+        private ShopeeSyncInvoicePrefix $shopeeInvoicePrefix,
+    ) {}
+
     public const PUSH_CODE_ORDER_STATUS = 3;
 
     public const TZ = 'Asia/Jakarta';
@@ -126,11 +130,9 @@ class OmnichannelReceivedTimes
         $ids = $shadows->pluck('jubelio_order_id')->filter()->map(fn ($id) => (int) $id)->unique()->values();
         $invoices = $shadows->pluck('jubelio_invoice')->filter()->unique()->values();
 
-        $prefix = strtoupper((string) config('jubelio_resi_scan.marketplaces.shopee.invoice_prefix', 'SP'));
-
         $query = Jubelioorder::query()->where('type', 'SELL');
 
-        $query->where(function ($q) use ($ids, $invoices, $shadows, $prefix): void {
+        $query->where(function ($q) use ($ids, $invoices, $shadows): void {
             $first = true;
             if ($ids->isNotEmpty()) {
                 $q->whereIn('id', $ids->all());
@@ -146,6 +148,8 @@ class OmnichannelReceivedTimes
                 if ($sn === '') {
                     continue;
                 }
+                $shopId = $shadow->shop_id !== null ? (int) $shadow->shop_id : null;
+                $prefix = $this->shopeeInvoicePrefix->prefixForShopId($shopId > 0 ? $shopId : null);
                 $base = $prefix.'-'.$sn;
                 $method = $first ? 'where' : 'orWhere';
                 $q->{$method}(function ($inner) use ($base, $sn, $prefix): void {
@@ -184,7 +188,8 @@ class OmnichannelReceivedTimes
             }
         }
 
-        $prefix = strtoupper((string) config('jubelio_resi_scan.marketplaces.shopee.invoice_prefix', 'SP'));
+        $shopId = $shadow->shop_id !== null ? (int) $shadow->shop_id : null;
+        $prefix = $this->shopeeInvoicePrefix->prefixForShopId($shopId > 0 ? $shopId : null);
         $baseInvoice = $prefix.'-'.$shadow->external_order_sn;
         $best = null;
         foreach ($jubelioById as $order) {
