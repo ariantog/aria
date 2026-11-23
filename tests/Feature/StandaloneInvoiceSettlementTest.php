@@ -103,6 +103,35 @@ it('sums multiple cash-in and sell transactions toward one invoice', function ()
         ->and($snapshot['is_paid'])->toBeFalse();
 });
 
+it('marks paid when sell matches invoice, cash-in exceeds billed amount, and cash-out links the remainder', function () {
+    sellFor($this->invoice->number, 7_740_000);
+    cashInFor($this->invoice->number, 7_820_000);
+    Transaction::factory()->create([
+        'type' => Transaction::TYPE_CASH_OUT,
+        'invoice' => $this->invoice->number,
+        'sender_type' => (string) Addrbook::TYPE_BANK,
+        'sender_id' => $this->bank->id,
+        'receiver_type' => (string) Addrbook::TYPE_CUSTOMER,
+        'receiver_id' => $this->customer->id,
+        'total' => -80_000,
+        'real_total' => -80_000,
+        'status' => Transaction::STATUS_COMPLETED,
+        'user_id' => $this->user->id,
+    ]);
+
+    $this->invoice->update(['subtotal' => 7_740_000]);
+
+    $invoice = app(StandaloneInvoiceSettlement::class)->reconcile($this->invoice, $this->user);
+
+    expect($invoice->isMarkedPaid())->toBeTrue();
+
+    $snapshot = app(StandaloneInvoiceSettlement::class)->snapshot($invoice);
+    expect($snapshot['is_paid'])->toBeTrue()
+        ->and($snapshot['cash_out_total'])->toBe(80_000.0)
+        ->and($snapshot['credit_total'])->toBe(7_820_000.0)
+        ->and($snapshot['debit_total'])->toBe(7_820_000.0);
+});
+
 it('marks the invoice paid when cash-in plus return equals sell', function () {
     cashInFor($this->invoice->number, 6_000_000);
     sellFor($this->invoice->number, 10_000_000);
