@@ -67,15 +67,24 @@ class TikTokShopOpenApiService
     {
         $platform = str_starts_with(strtoupper($orderId), 'TOKO-') ? 'TOKOPEDIA' : 'TIKTOK_SHOP';
 
+        $order = [
+            'id' => $orderId,
+            'commerce_platform' => $platform,
+        ];
+
+        if (str_starts_with(strtoupper($orderId), 'ONORDER-')) {
+            $order['line_items'] = [
+                [
+                    'seller_sku' => 'SKU-TTS-ON-1',
+                    'quantity' => 2,
+                ],
+            ];
+        }
+
         return [
             'code' => 0,
             'data' => [
-                'orders' => [
-                    [
-                        'id' => $orderId,
-                        'commerce_platform' => $platform,
-                    ],
-                ],
+                'orders' => [$order],
             ],
         ];
     }

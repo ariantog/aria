@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\Jubelio;
 use App\Models\Jubeliosync;
 use App\Models\Omnichannel;
-use App\Models\Shopeesync;
 use App\Models\ShopeeStock;
+use App\Models\Shopeesync;
+use App\Models\TikTokShop;
+use App\Models\TiktokShopSync;
 use App\Services\JubelioService;
 use App\Services\Marketplace\OmnichannelSettingStore;
 use App\Services\Shopee\ShopeeAdminOpenApiService;
@@ -36,6 +38,7 @@ class OmnichannelSettingsController extends Controller
         $jubelioSyncRows = collect();
         $tokopediaSyncRows = collect();
         $shopeeSyncRows = collect();
+        $tiktokSyncRows = collect();
         if ($tab === 'warehouse') {
             if (Gate::check(Jubelio::getPermissions()['sync'])) {
                 $jubelioSyncRows = Jubeliosync::query()
@@ -56,6 +59,14 @@ class OmnichannelSettingsController extends Controller
                     ->limit(25)
                     ->get();
             }
+            if (Gate::check(TikTokShop::getPermissions()['sync'])
+                || Omnichannel::userCanSettingsEdit($request->user())) {
+                $tiktokSyncRows = TiktokShopSync::query()
+                    ->with(['warehouse'])
+                    ->orderByDesc('created_at')
+                    ->limit(25)
+                    ->get();
+            }
         }
 
         $lowStockThreshold = $settings->getInt(
@@ -70,9 +81,12 @@ class OmnichannelSettingsController extends Controller
             'canEditLowStock' => Omnichannel::userCanSettingsEdit($request->user()),
             'canJubelioSync' => Gate::check(Jubelio::getPermissions()['sync']),
             'canShopeeSync' => Gate::check(ShopeeStock::getPermissions()['sync']),
+            'canTiktokSync' => Gate::check(TikTokShop::getPermissions()['sync'])
+                || Omnichannel::userCanSettingsEdit($request->user()),
             'jubelioSyncRows' => $jubelioSyncRows,
             'tokopediaSyncRows' => $tokopediaSyncRows,
             'shopeeSyncRows' => $shopeeSyncRows,
+            'tiktokSyncRows' => $tiktokSyncRows,
             'lowStockThreshold' => $lowStockThreshold,
             'tokopediaStoreId' => $tokopediaStoreId ?? '',
             'tokopediaNotes' => $tokopediaNotes ?? '',

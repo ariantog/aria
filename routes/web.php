@@ -190,6 +190,13 @@ Route::middleware(['auth', 'verified', 'active', 'enforce.readonly'])->group(fun
     Route::patch('shopee-sync/{sync}', [App\Http\Controllers\ShopeeSyncController::class, 'update'])->name('shopee.sync.update');
     Route::delete('shopee-sync/{sync}', [App\Http\Controllers\ShopeeSyncController::class, 'destroy'])->name('shopee.sync.delete');
 
+    Route::get('tiktok-shop-sync', [App\Http\Controllers\TiktokShopSyncController::class, 'index'])->name('tiktok-shop.sync.index');
+    Route::get('tiktok-shop-sync/create', [App\Http\Controllers\TiktokShopSyncController::class, 'create'])->name('tiktok-shop.sync.create');
+    Route::post('tiktok-shop-sync', [App\Http\Controllers\TiktokShopSyncController::class, 'store'])->name('tiktok-shop.sync.store');
+    Route::get('tiktok-shop-sync/{sync}/edit', [App\Http\Controllers\TiktokShopSyncController::class, 'edit'])->name('tiktok-shop.sync.edit');
+    Route::patch('tiktok-shop-sync/{sync}', [App\Http\Controllers\TiktokShopSyncController::class, 'update'])->name('tiktok-shop.sync.update');
+    Route::delete('tiktok-shop-sync/{sync}', [App\Http\Controllers\TiktokShopSyncController::class, 'destroy'])->name('tiktok-shop.sync.delete');
+
     Route::get('shopee/bulk-link', [App\Http\Controllers\ShopeeItemBulkLinkController::class, 'index'])->name('shopee.bulk-link.index');
     Route::post('shopee/bulk-link/preview', [App\Http\Controllers\ShopeeItemBulkLinkController::class, 'preview'])->name('shopee.bulk-link.preview');
     Route::post('shopee/bulk-link/apply', [App\Http\Controllers\ShopeeItemBulkLinkController::class, 'apply'])->name('shopee.bulk-link.apply');

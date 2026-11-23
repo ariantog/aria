@@ -2,6 +2,14 @@
 
 return [
 
+    /** Increment warehouse_item.on_order on TikTok awaiting-shipment webhooks (no transactions). */
+    'tiktok_on_order' => [
+        'enabled' => filter_var(
+            env('TIKTOK_SHOP_ON_ORDER_ENABLED', false),
+            FILTER_VALIDATE_BOOLEAN
+        ),
+    ],
+
     'webhook' => [
         /**
          * Dual-write Shopee/TikTok deliveries to marketplace_webhook_events / marketplace_channel_orders

@@ -15,6 +15,7 @@ class TikTokShop
         return [
             'view' => 'tiktok-shop-view',
             'reply' => 'tiktok-shop-reply',
+            'sync' => 'tiktok-shop-sync',
         ];
     }
 }

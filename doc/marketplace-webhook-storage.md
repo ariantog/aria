@@ -66,10 +66,10 @@ Code: `App\Services\Marketplace\MarketplaceWebhookRecorder`.
 | `date_from`, `date_to` | On `received_at` (events) or `last_event_at` (orders); default last 7 days |
 | `order_status` | Partial `LIKE` match; datalist from distinct values in current scope |
 | `shop_ref` | Exact match on stored shop id |
-| `warehouse_id` | Aria gudang — resolves `shop_ref` via **`shopee_syncs.shop_id`** only (TikTok rows usually show gudang `—`) |
+| `warehouse_id` | Aria gudang — resolves `shop_ref` via **`shopee_syncs.shop_id`** and **`tiktok_shop_syncs.shop_ref`** |
 | `view` | `events` (default) or `orders` |
 
-**Warehouse filter SQL scope:** when `warehouse_id` > 0, load `shop_id` strings from `shopee_syncs` for that warehouse, then `WHERE shop_ref IN (…)`; if the map is empty, the query returns no rows.
+**Warehouse filter SQL scope:** when `warehouse_id` > 0, load shop refs from `shopee_syncs` + `tiktok_shop_syncs` for that warehouse, then `WHERE shop_ref IN (…)`; if the map is empty, the query returns no rows.
 
 ### Backfill
 
