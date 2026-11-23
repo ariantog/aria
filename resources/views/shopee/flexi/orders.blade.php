@@ -15,10 +15,26 @@ $loadDetailChecked = (bool) old('load_detail', $loadDetail ?? false);
     <div>
         <h1 class="text-2xl font-bold">Order export FLEXI</h1>
         <p class="mt-1 max-w-3xl text-sm text-gray-500">
-            Alur posting untuk toko Malaysia / export: cari order di Shopee API, lalu
-            <strong class="font-medium text-gray-700">Buat Transaksi Manual</strong> membuka form SELL
-            yang sudah terisi (gudang, customer channel, invoice, baris item). Simpan form seperti transaksi biasa.
+            Alur staging → SELL untuk toko Malaysia / export. Gudang staging:
+            @if(($stagingWarehouse['valid'] ?? false))
+                <strong class="font-medium text-gray-800" data-testid="flexi-staging-name">#{{ $stagingWarehouse['warehouse_id'] }} {{ $stagingWarehouse['warehouse_name'] }}</strong>
+            @else
+                <span class="text-amber-800" data-testid="flexi-staging-unset">belum dikonfigurasi</span>
+            @endif
+            (<code>SHOPEE_FLEXI_STAGING_WAREHOUSE_ID</code>).
         </p>
+        <ol class="mt-3 max-w-3xl list-decimal space-y-1 pl-5 text-sm text-gray-600">
+            <li>Cari order (ordersn / invoice prefix)</li>
+            <li>Muat detail dari Shopee API</li>
+            <li><strong class="font-medium text-gray-800">Pindah ke gudang FLEXI</strong> — draft MOVE pickup → staging</li>
+            <li>Tunggu status <span class="font-mono text-xs">COMPLETED</span> + escrow (<code>get_escrow_detail</code>)</li>
+            <li><strong class="font-medium text-gray-800">Buat Transaksi Manual</strong> — SELL dari staging (bila dikonfigurasi)</li>
+        </ol>
+        @if(filled($stagingWarehouse['warning'] ?? null))
+            <div class="mt-3 max-w-3xl rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" data-testid="flexi-staging-warning">
+                {{ $stagingWarehouse['warning'] }}
+            </div>
+        @endif
         <details class="mt-3 max-w-3xl rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
             <summary class="cursor-pointer font-medium text-gray-900">Catatan FLEXI</summary>
             <ul class="mt-2 list-disc space-y-1 pl-5 text-gray-600">
@@ -130,7 +146,25 @@ $loadDetailChecked = (bool) old('load_detail', $loadDetail ?? false);
                     Invoice sudah diposting —
                     <a href="{{ route('transactions.show', $result['existing_transaction_id']) }}" class="font-medium text-orange-800 underline">lihat transaksi</a>.
                 </div>
-            @elseif(($result['can_open_sell_form'] ?? false))
+            @else
+                @if(($result['detail_loaded'] ?? false) && ($result['ok'] ?? false))
+                    @if($result['can_move_to_staging'] ?? false)
+                        <form method="POST" action="{{ route('shopee.flexi.orders.move-to-staging') }}" onsubmit="return confirm('Buka form MOVE pickup → gudang FLEXI staging?')" class="inline">
+                            @csrf
+                            <input type="hidden" name="order_ref" value="{{ $orderRef }}">
+                            <input type="hidden" name="shop_id" value="{{ $shopId }}">
+                            <button type="submit"
+                                class="inline-flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800"
+                                data-testid="shopee-flexi-move-to-staging">
+                                Pindah ke gudang FLEXI
+                            </button>
+                        </form>
+                    @elseif(filled($result['move_to_staging_block'] ?? null))
+                        <p class="text-sm text-amber-800" data-testid="shopee-move-to-staging-block">{{ $result['move_to_staging_block'] }}</p>
+                    @endif
+                @endif
+
+                @if(($result['can_open_sell_form'] ?? false))
                 @php
                     $priceSource = $result['amount_resolution']['price_source'] ?? null;
                     $priceSourceLabel = match ($priceSource) {
@@ -158,8 +192,9 @@ $loadDetailChecked = (bool) old('load_detail', $loadDetail ?? false);
                         Buat Transaksi Manual
                     </button>
                 </form>
-            @elseif(($result['detail_loaded'] ?? false) && ($result['ok'] ?? false) && filled($result['manual_sell_block'] ?? null))
-                <p class="text-sm text-amber-800" data-testid="shopee-manual-sell-block">{{ $result['manual_sell_block'] }}</p>
+                @elseif(($result['detail_loaded'] ?? false) && ($result['ok'] ?? false) && filled($result['manual_sell_block'] ?? null))
+                    <p class="text-sm text-amber-800" data-testid="shopee-manual-sell-block">{{ $result['manual_sell_block'] }}</p>
+                @endif
             @endif
 
             <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">

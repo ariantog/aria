@@ -37,10 +37,13 @@ class PrepareMoveTransactionDraft
             ->where('type', AddrbookType::Warehouse)
             ->findOrFail($fromId);
 
-        $to = Addrbook::query()
-            ->where('type', AddrbookType::Warehouse)
-            ->where('arrangement_enabled', true)
-            ->findOrFail($toId);
+        $flexiStagingId = max(0, (int) config('shopee_flexi.staging_warehouse_id', 0));
+        $toQuery = Addrbook::query()->where('type', AddrbookType::Warehouse);
+        if ($flexiStagingId > 0 && $toId === $flexiStagingId) {
+            $to = $toQuery->findOrFail($toId);
+        } else {
+            $to = $toQuery->where('arrangement_enabled', true)->findOrFail($toId);
+        }
 
         $itemIds = $draftItemIds->all();
         $loadedItems = Item::query()

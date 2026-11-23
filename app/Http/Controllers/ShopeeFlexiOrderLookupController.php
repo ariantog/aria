@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Transactions\PrepareMoveTransactionDraft;
 use App\Models\ShopeeFlexiShop;
 use App\Models\ShopeeStock;
 use App\Models\Transaction;
 use App\Services\Jubelio\JubelioSellInvoiceGuard;
+use App\Services\Marketplace\ShopeeFlexiStagingWarehouse;
 use App\Services\Marketplace\ShopeeFlexiOrderLookupService;
 use App\Services\Marketplace\ShopeeFlexiSellPrefillService;
 use App\Services\Marketplace\ShopeeSyncInvoicePrefix;
@@ -119,16 +121,72 @@ class ShopeeFlexiOrderLookupController extends Controller
         return redirect()->route('transactions.create', ['type' => 'sell']);
     }
 
+    public function prepareMoveToStaging(
+        Request $request,
+        ShopeeFlexiOrderLookupService $lookup,
+        PrepareMoveTransactionDraft $prepareMove,
+        ShopeeAdminOpenApiService $shopeeApi,
+    ): RedirectResponse|View {
+        Gate::authorize(ShopeeStock::getPermissions()['sync']);
+
+        if (! Transaction::userCanAccessType($request->user(), 'move')) {
+            return redirect()
+                ->route('shopee.flexi.orders')
+                ->with('error', 'Anda tidak punya izin membuat transaksi MOVE.');
+        }
+
+        $validated = $request->validate([
+            'order_ref' => 'required|string|max:128',
+            'shop_id' => 'required|integer|min:1',
+        ]);
+
+        $shopId = (int) $validated['shop_id'];
+        $orderRef = (string) $validated['order_ref'];
+        $result = $lookup->lookup($shopId, $orderRef, true);
+
+        if (! ($result['can_move_to_staging'] ?? false)) {
+            return $this->ordersView($shopeeApi, [
+                'orderRef' => $orderRef,
+                'shopId' => (string) $shopId,
+                'loadDetail' => true,
+                'result' => $result,
+                'flash' => [
+                    'success' => null,
+                    'error' => $result['move_to_staging_block'] ?? 'Tidak bisa membuat draft move ke staging.',
+                ],
+            ]);
+        }
+
+        $fromId = (int) ($result['warehouse_id'] ?? 0);
+        $toId = (int) (($result['staging']['warehouse_id'] ?? 0));
+        $matched = $result['line_match_items'] ?? [];
+
+        $rows = [];
+        foreach ($matched as $item) {
+            $rows[] = [
+                'item_id' => (int) ($item['itemId'] ?? 0),
+                'quantity' => (float) ($item['quantity'] ?? 0),
+                'from_warehouse_id' => $fromId,
+                'to_warehouse_id' => $toId,
+            ];
+        }
+
+        return $prepareMove->execute($rows);
+    }
+
     /**
      * @param  array{orderRef: string, shopId: string, loadDetail?: bool, result: array<string, mixed>|null, flash?: array{success: ?string, error: ?string}}  $data
      */
     private function ordersView(ShopeeAdminOpenApiService $shopeeApi, array $data): View
     {
+        $staging = app(ShopeeFlexiStagingWarehouse::class)->statusForUi();
+
         return view('shopee.flexi.orders', array_merge($data, [
             'authorizedShopIds' => $shopeeApi->getConnectionStatus()['authorized_shop_ids'] ?? [],
             'shopOptions' => $this->shopOptionsForLookup($shopeeApi->getConnectionStatus()['authorized_shop_ids'] ?? [], (string) ($data['shopId'] ?? '')),
             'loadDetail' => (bool) ($data['loadDetail'] ?? false),
             'flash' => $data['flash'] ?? ['success' => null, 'error' => null],
+            'stagingWarehouse' => $staging,
         ]));
     }
 

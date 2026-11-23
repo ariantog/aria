@@ -13,4 +13,9 @@ return [
     ],
 
     'domestic_prefix' => 'SP',
+
+    /**
+     * Shared physical Aria warehouse for FLEXI staging (move pickup → staging before completed sell).
+     */
+    'staging_warehouse_id' => (int) env('SHOPEE_FLEXI_STAGING_WAREHOUSE_ID', 0),
 ];

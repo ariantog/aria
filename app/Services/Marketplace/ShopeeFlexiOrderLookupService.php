@@ -18,6 +18,9 @@ class ShopeeFlexiOrderLookupService
     /** Same optional fields as {@see ShopeeOrderPollService} / poll ingest (no invalid `region` param). */
     private const ORDER_DETAIL_OPTIONAL_FIELDS = 'order_status,item_list,package_list,total_amount,currency,payment_info';
 
+    /** Shopee MY/export statuses that allow manual SELL prefill (maintainer: completed + escrow). */
+    private const SELL_ELIGIBLE_STATUSES = ['COMPLETED'];
+
     public function __construct(
         private ShopeeAdminOpenApiService $shopeeApi,
         private ShopeeSyncInvoicePrefix $invoicePrefix,
@@ -26,6 +29,7 @@ class ShopeeFlexiOrderLookupService
         private ShopeeFlexiOrderAmountResolver $amountResolver,
         private ShopeeFlexiSellItemMatcher $sellItemMatcher,
         private JubelioSellInvoiceGuard $sellInvoiceGuard,
+        private ShopeeFlexiStagingWarehouse $stagingWarehouse,
     ) {}
 
     /**
@@ -61,6 +65,9 @@ class ShopeeFlexiOrderLookupService
             'can_manual_sell' => false,
             'can_open_sell_form' => false,
             'manual_sell_block' => null,
+            'can_move_to_staging' => false,
+            'move_to_staging_block' => null,
+            'staging' => $this->stagingWarehouse->statusForUi(),
             'api_snippet' => null,
             'order_currency' => null,
             'order_total_original' => null,
@@ -181,6 +188,7 @@ class ShopeeFlexiOrderLookupService
             'error' => $lineMatch['error'],
             'item_count' => count($lineMatch['items']),
         ];
+        $base['line_match_items'] = $lineMatch['items'];
         $base['order_currency'] = $amounts['order_currency'];
         $base['order_total_original'] = $amounts['order_total_original'];
         $base['escrow_snippet'] = $amounts['escrow_snippet'];
@@ -196,9 +204,13 @@ class ShopeeFlexiOrderLookupService
             $base['region_hint'] = strtoupper((string) $orderRow['region']);
         }
 
-        $base['can_manual_sell'] = $this->canManualSell($base, $lineMatch);
+        $base['staging'] = $this->stagingWarehouse->statusForUi();
+        $base['can_move_to_staging'] = $this->canMoveToStaging($base, $lineMatch);
+        $base['move_to_staging_block'] = $base['can_move_to_staging'] ? null : $this->moveToStagingBlockReason($base, $lineMatch);
+
+        $base['can_manual_sell'] = $this->canManualSell($base, $lineMatch, $amounts);
         $base['can_open_sell_form'] = $base['can_manual_sell'];
-        $base['manual_sell_block'] = $base['can_manual_sell'] ? null : $this->manualSellBlockReason($base, $lineMatch);
+        $base['manual_sell_block'] = $base['can_manual_sell'] ? null : $this->manualSellBlockReason($base, $lineMatch, $amounts);
 
         return $base;
     }
@@ -207,7 +219,10 @@ class ShopeeFlexiOrderLookupService
      * @param  array<string, mixed>  $base
      * @param  array{error: ?string, items: list<array<string, mixed>>}  $lineMatch
      */
-    private function canManualSell(array $base, array $lineMatch): bool
+    /**
+     * @param  array<string, mixed>  $amounts
+     */
+    private function canManualSell(array $base, array $lineMatch, array $amounts): bool
     {
         if ($base['duplicate_transaction'] ?? false) {
             return false;
@@ -221,14 +236,32 @@ class ShopeeFlexiOrderLookupService
             return false;
         }
 
-        return ($base['detail_loaded'] ?? false) && ($base['ok'] ?? false);
+        if (! ($base['detail_loaded'] ?? false) || ! ($base['ok'] ?? false)) {
+            return false;
+        }
+
+        if (! $this->orderStatusAllowsManualSell((string) ($base['order_status'] ?? ''))) {
+            return false;
+        }
+
+        if (! $this->amountResolver->amountsUsableForSellPrefill($amounts)) {
+            return false;
+        }
+
+        $staging = $this->stagingWarehouse->resolveWarehouse();
+        if ($staging !== null && ($base['warehouse_id'] ?? 0) === (int) $staging->id) {
+            return false;
+        }
+
+        return true;
     }
 
     /**
      * @param  array<string, mixed>  $base
      * @param  array{error: ?string, items: list<array<string, mixed>>}  $lineMatch
+     * @param  array<string, mixed>  $amounts
      */
-    private function manualSellBlockReason(array $base, array $lineMatch): string
+    private function manualSellBlockReason(array $base, array $lineMatch, array $amounts): string
     {
         if ($base['duplicate_transaction'] ?? false) {
             return 'Invoice sudah ada di Transaksi.';
@@ -246,7 +279,99 @@ class ShopeeFlexiOrderLookupService
             return 'Tidak ada baris item yang bisa diposting.';
         }
 
+        $status = (string) ($base['order_status'] ?? '');
+        if (! $this->orderStatusAllowsManualSell($status)) {
+            return 'Buat Transaksi Manual hanya saat order Shopee COMPLETED (status saat ini: '.($status !== '' ? $status : '—').').';
+        }
+
+        if (! ($amounts['escrow_loaded'] ?? false)) {
+            return 'Escrow belum dimuat dari Shopee (get_escrow_detail) — tunggu escrow tersedia sebelum SELL.';
+        }
+
+        if (! $this->amountResolver->amountsUsableForSellPrefill($amounts)) {
+            $source = (string) ($amounts['price_source'] ?? '');
+            if ($source === ShopeeFlexiOrderAmountResolver::PRICE_SOURCE_CATALOG) {
+                return 'Escrow tanpa kurs SIP — harga tidak bisa diprefill untuk SELL; tunggu escrow dengan exchange_rate atau perbaiki mapping.';
+            }
+
+            return 'Nominal escrow tidak cukup untuk prefill SELL — periksa get_escrow_detail.';
+        }
+
+        $staging = $this->stagingWarehouse->resolveWarehouse();
+        if ($staging !== null && ($base['warehouse_id'] ?? 0) === (int) $staging->id) {
+            return 'SELL dari gudang staging — pastikan stok sudah di pickup gudang (sender SELL = staging setelah move).';
+        }
+
         return 'Prasyarat Buat Transaksi Manual belum terpenuhi.';
+    }
+
+    /**
+     * @param  array{error: ?string, items: list<array<string, mixed>>}  $lineMatch
+     */
+    private function canMoveToStaging(array $base, array $lineMatch): bool
+    {
+        if (! ($base['detail_loaded'] ?? false) || ! ($base['ok'] ?? false)) {
+            return false;
+        }
+
+        if ($this->stagingWarehouse->resolveWarehouse() === null) {
+            return false;
+        }
+
+        if (($base['warehouse_id'] ?? 0) <= 0) {
+            return false;
+        }
+
+        $stagingId = $this->stagingWarehouse->configuredId();
+        if ($stagingId > 0 && (int) ($base['warehouse_id'] ?? 0) === $stagingId) {
+            return false;
+        }
+
+        if ($lineMatch['error'] !== null || $lineMatch['items'] === []) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * @param  array{error: ?string, items: list<array<string, mixed>>}  $lineMatch
+     */
+    private function moveToStagingBlockReason(array $base, array $lineMatch): string
+    {
+        $stagingUi = $this->stagingWarehouse->statusForUi();
+        if (! ($stagingUi['valid'] ?? false)) {
+            return (string) ($stagingUi['warning'] ?? 'Gudang staging FLEXI belum valid.');
+        }
+
+        if (($base['warehouse_id'] ?? 0) <= 0) {
+            return 'Gudang pickup belum ter-resolve.';
+        }
+
+        $stagingId = $this->stagingWarehouse->configuredId();
+        if ($stagingId > 0 && (int) ($base['warehouse_id'] ?? 0) === $stagingId) {
+            return 'Order sudah di-resolve ke gudang staging — tidak perlu move.';
+        }
+
+        if ($lineMatch['error'] !== null) {
+            return $lineMatch['error'];
+        }
+
+        if ($lineMatch['items'] === []) {
+            return 'Tidak ada baris item untuk move.';
+        }
+
+        return 'Prasyarat Pindah ke gudang FLEXI belum terpenuhi.';
+    }
+
+    public function orderStatusAllowsManualSell(string $status): bool
+    {
+        $normalized = strtoupper(trim($status));
+        if ($normalized === '') {
+            return false;
+        }
+
+        return in_array($normalized, self::SELL_ELIGIBLE_STATUSES, true);
     }
 
     /**

@@ -103,7 +103,7 @@ function myrOrderDetailResponse(string $orderSn, float $unitMyr, int $qty = 2): 
             'order_list' => [
                 [
                     'order_sn' => $orderSn,
-                    'order_status' => 'SHIPPED',
+                    'order_status' => 'COMPLETED',
                     'currency' => 'MYR',
                     'total_amount' => round($unitMyr * $qty, 2),
                     'update_time' => now()->timestamp,
@@ -190,9 +190,8 @@ it('uses catalog IDR prices when MYR order has no exchange_rate', function () {
     /** @var ShopeeFlexiSellPrefillService $prefill */
     $prefill = app(ShopeeFlexiSellPrefillService::class);
     $result = $prefill->build(9999, 'ESCROW-NO-FX');
-    $items = $result['prefill']['items'] ?? [];
-    expect((float) $items[0]['price'])->toEqual($catalogPrice)
-        ->and((float) $items[0]['price'])->not->toBe(50.0);
+    expect($result['success'] ?? false)->toBeFalse();
+    expect((string) ($result['message'] ?? ''))->toContain('escrow');
 });
 
 it('shows currency escrow snippet and price source on flexi orders lookup', function () {

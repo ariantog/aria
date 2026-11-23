@@ -23,6 +23,8 @@ class ShopeeFlexiSellPrefillService
         private ShopeeFlexiOrderAmountResolver $amountResolver,
         private ShopeeFlexiSellItemMatcher $itemMatcher,
         private JubelioSellInvoiceGuard $sellInvoiceGuard,
+        private ShopeeFlexiOrderLookupService $orderLookup,
+        private ShopeeFlexiStagingWarehouse $stagingWarehouse,
     ) {}
 
     /**
@@ -60,6 +62,14 @@ class ShopeeFlexiSellPrefillService
             return ['success' => false, 'message' => 'Order tidak ditemukan di Shopee API.'];
         }
 
+        $orderStatus = (string) ($orderRow['order_status'] ?? '');
+        if (! $this->orderLookup->orderStatusAllowsManualSell($orderStatus)) {
+            return [
+                'success' => false,
+                'message' => 'Order belum COMPLETED — Buat Transaksi Manual ditahan (status: '.($orderStatus !== '' ? $orderStatus : '—').').',
+            ];
+        }
+
         $pushData = [
             'ordersn' => $orderSn,
             'order_sn' => $orderSn,
@@ -78,6 +88,14 @@ class ShopeeFlexiSellPrefillService
         }
 
         $amounts = $this->amountResolver->resolve($shopId, $orderSn, $orderRow);
+        if (! ($amounts['escrow_loaded'] ?? false)) {
+            return ['success' => false, 'message' => 'Escrow belum dimuat dari Shopee (get_escrow_detail).'];
+        }
+
+        if (! $this->amountResolver->amountsUsableForSellPrefill($amounts)) {
+            return ['success' => false, 'message' => 'Nominal escrow tidak cukup untuk prefill SELL — periksa exchange_rate / get_escrow_detail.'];
+        }
+
         $matched = $this->itemMatcher->matchLines($amounts['lines']);
         if ($matched['error'] !== null) {
             return ['success' => false, 'message' => $matched['error']];
@@ -87,11 +105,14 @@ class ShopeeFlexiSellPrefillService
             return ['success' => false, 'message' => 'Tidak ada baris item yang bisa diprefill.'];
         }
 
-        $warehouse = Addrbook::find($warehouseId);
+        $pickupWarehouse = Addrbook::find($warehouseId);
         $customer = Addrbook::find($customerId);
-        if (! $warehouse || ! $customer) {
+        if (! $pickupWarehouse || ! $customer) {
             return ['success' => false, 'message' => 'Customer atau gudang tidak ditemukan.'];
         }
+
+        $staging = $this->stagingWarehouse->resolveWarehouse();
+        $warehouse = $staging ?? $pickupWarehouse;
 
         $adjustment = $this->resolveHeaderAdjustment($amounts, $matched['items']);
         $prefillItems = $this->buildPrefillItems($matched['items']);

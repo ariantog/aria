@@ -92,7 +92,7 @@ function flexiManualSellSetup(): array
                 'order_list' => [
                     [
                         'order_sn' => 'MANUAL-SELL-01',
-                        'order_status' => 'SHIPPED',
+                        'order_status' => 'COMPLETED',
                         'total_amount' => 150000,
                         'update_time' => now()->timestamp,
                         'item_list' => [
@@ -104,6 +104,15 @@ function flexiManualSellSetup(): array
                             ],
                         ],
                     ],
+                ],
+            ],
+        ]),
+        'partner.shopeemobile.com/api/v2/payment/get_escrow_detail*' => Http::response([
+            'error' => '',
+            'response' => [
+                'order_income' => [
+                    'escrow_amount' => 150000,
+                    'currency' => 'IDR',
                 ],
             ],
         ]),

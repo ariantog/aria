@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ShopeeFlexiShop;
 use App\Models\ShopeeStock;
+use App\Services\Marketplace\ShopeeFlexiStagingWarehouse;
 use App\Services\Marketplace\ShopeeSyncInvoicePrefix;
 use App\Services\Shopee\ShopeeAdminOpenApiService;
 use Illuminate\Http\RedirectResponse;
@@ -23,6 +24,7 @@ class ShopeeFlexiShopController extends Controller
         return view('shopee.flexi.index', [
             'rows' => $rows,
             'authorizedShopIds' => $status['authorized_shop_ids'] ?? [],
+            'stagingWarehouse' => app(ShopeeFlexiStagingWarehouse::class)->statusForUi(),
             'flash' => ['success' => session('success'), 'error' => session('fail') ?? session('error')],
         ]);
     }
