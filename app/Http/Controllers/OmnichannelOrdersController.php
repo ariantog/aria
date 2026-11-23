@@ -8,10 +8,14 @@ use App\Services\Marketplace\MarketplaceWebhookInboxQuery;
 use App\Services\Marketplace\MarketplaceWebhookStatusPresenter;
 use App\Services\Marketplace\MarketplaceWebhookShopWarehouseResolver;
 use App\Services\Marketplace\OmnichannelOrderDetailReader;
+use App\Services\Shopee\ShopeeShippingDocumentService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+use ZipArchive;
 
 class OmnichannelOrdersController extends Controller
 {
@@ -98,5 +102,113 @@ class OmnichannelOrdersController extends Controller
         return view('omnichannel.partials.order-detail-panel', [
             'detail' => $payload,
         ]);
+    }
+
+    public function downloadShippingDocuments(
+        Request $request,
+        ShopeeShippingDocumentService $awbService,
+    ): StreamedResponse|RedirectResponse {
+        abort_unless(Omnichannel::userCanOrders($request->user()), 403);
+
+        $validated = $request->validate([
+            'rows' => ['required', 'array', 'min:1'],
+            'rows.*.channel' => ['required', 'string', 'max:32'],
+            'rows.*.order_ref' => ['required', 'string', 'max:64'],
+            'rows.*.shop_ref' => ['nullable', 'string', 'max:64'],
+        ]);
+
+        $skippedNonShopee = 0;
+        $byShop = [];
+        foreach ($validated['rows'] as $row) {
+            $channel = strtolower(trim((string) $row['channel']));
+            if ($channel !== 'shopee') {
+                $skippedNonShopee++;
+
+                continue;
+            }
+
+            $orderRef = trim((string) $row['order_ref']);
+            if ($orderRef === '') {
+                continue;
+            }
+
+            $shopId = $awbService->resolveShopId($row['shop_ref'] ?? null);
+            if ($shopId === null) {
+                return redirect()
+                    ->back()
+                    ->with('error', "Shop tidak dikenali atau belum OAuth: shop_ref «{$row['shop_ref']}» (order {$orderRef}).");
+            }
+
+            $byShop[$shopId][] = $orderRef;
+        }
+
+        if ($byShop === []) {
+            $message = $skippedNonShopee > 0
+                ? 'Cetak AWB v1 hanya mendukung Shopee — TikTok/Tokopedia dilewati.'
+                : 'Tidak ada baris Shopee yang valid dipilih.';
+
+            return redirect()->back()->with('error', $message);
+        }
+
+        $files = [];
+        try {
+            foreach ($byShop as $shopId => $orderSns) {
+                $orderSns = array_values(array_unique($orderSns));
+                $pdfs = $awbService->downloadPdfBatchesForShop((int) $shopId, $orderSns);
+                $batchIndex = 0;
+                foreach ($pdfs as $pdfBinary) {
+                    $suffix = count($pdfs) > 1 ? '-batch-'.(++$batchIndex) : '';
+                    $files['shopee-shop-'.$shopId.$suffix.'.pdf'] = $pdfBinary;
+                }
+            }
+        } catch (\Throwable $e) {
+            return redirect()->back()->with('error', $e->getMessage());
+        }
+
+        if ($skippedNonShopee > 0) {
+            session()->flash(
+                'warning',
+                "{$skippedNonShopee} baris non-Shopee (TikTok/Tokopedia) tidak dicetak — v1 Shopee saja.",
+            );
+        }
+
+        if (count($files) === 1) {
+            $filename = array_key_first($files);
+            $binary = $files[$filename];
+
+            return response()->streamDownload(
+                static function () use ($binary) {
+                    echo $binary;
+                },
+                $filename,
+                ['Content-Type' => 'application/pdf'],
+            );
+        }
+
+        return response()->streamDownload(
+            function () use ($files) {
+                $tmp = tempnam(sys_get_temp_dir(), 'awb-zip-');
+                if ($tmp === false) {
+                    throw new \RuntimeException('Gagal membuat file sementara.');
+                }
+
+                $zip = new ZipArchive;
+                if ($zip->open($tmp, ZipArchive::OVERWRITE) !== true) {
+                    @unlink($tmp);
+
+                    throw new \RuntimeException('Gagal membuka arsip ZIP.');
+                }
+
+                foreach ($files as $name => $contents) {
+                    $zip->addFromString($name, $contents);
+                }
+                $zip->close();
+
+                readfile($tmp);
+                @unlink($tmp);
+            },
+            'shopee-awb-'.now()->format('Y-m-d-His').'.zip',
+            ['Content-Type' => 'application/zip'],
+        );
     }
 }

@@ -19,6 +19,16 @@ $td = 'px-2 py-2 align-top text-xs text-gray-800';
 $channelLabels = ['shopee' => 'Shopee', 'tiktok' => 'TikTok', 'tokopedia' => 'Tokopedia'];
 $resetQuery = ['view' => $filters['view'] ?? 'events'];
 $currentOrdersUrl = route('omnichannel.orders.index', array_merge(request()->query(), ['view' => 'orders']));
+$pageOrderRows = [];
+if (! $isEventsView && isset($rows) && $rows !== null) {
+    foreach ($rows as $orderRow) {
+        $pageOrderRows[] = [
+            'channel' => (string) $orderRow->channel,
+            'order_ref' => (string) $orderRow->order_ref,
+            'shop_ref' => (string) ($orderRow->shop_ref ?? ''),
+        ];
+    }
+}
 $hasActiveFilters = collect(request()->query())
     ->only(['channel', 'view', 'date_from', 'date_to', 'order_ref', 'order_status', 'shop_ref', 'warehouse_id', 'per_page'])
     ->filter(fn ($value) => $value !== null && $value !== '')
@@ -32,8 +42,64 @@ $hasActiveFilters = collect(request()->query())
          expandedId: null,
          detailHtml: {},
          loadingKey: null,
+         pageRows: @js($pageOrderRows),
+         selected: {},
          rowKey(channel, orderRef) {
              return channel + ':' + orderRef;
+         },
+         selectionKey(row) {
+             return row.channel + ':' + row.order_ref;
+         },
+         isRowSelected(row) {
+             return !!this.selected[this.selectionKey(row)];
+         },
+         toggleRowSelection(row) {
+             const k = this.selectionKey(row);
+             if (this.selected[k]) {
+                 delete this.selected[k];
+             } else {
+                 this.selected[k] = row;
+             }
+         },
+         selectedCount() {
+             return Object.keys(this.selected).length;
+         },
+         allPageSelected() {
+             if (this.pageRows.length === 0) {
+                 return false;
+             }
+             return this.pageRows.every((row) => this.isRowSelected(row));
+         },
+         toggleSelectAllPage() {
+             if (this.allPageSelected()) {
+                 this.pageRows.forEach((row) => delete this.selected[this.selectionKey(row)]);
+             } else {
+                 this.pageRows.forEach((row) => { this.selected[this.selectionKey(row)] = row; });
+             }
+         },
+         submitAwbPrint(e) {
+             e.preventDefault();
+             const form = this.$refs.awbForm;
+             if (!form) {
+                 return;
+             }
+             form.querySelectorAll('[data-awb-dynamic]').forEach((el) => el.remove());
+             const rows = Object.values(this.selected);
+             if (rows.length === 0) {
+                 alert('Pilih minimal satu baris order.');
+                 return;
+             }
+             rows.forEach((row, index) => {
+                 ['channel', 'order_ref', 'shop_ref'].forEach((field) => {
+                     const input = document.createElement('input');
+                     input.type = 'hidden';
+                     input.name = 'rows[' + index + '][' + field + ']';
+                     input.value = row[field] ?? '';
+                     input.setAttribute('data-awb-dynamic', '1');
+                     form.appendChild(input);
+                 });
+             });
+             form.submit();
          },
          async toggleDetail(channel, orderRef, url) {
              const key = this.rowKey(channel, orderRef);
@@ -107,6 +173,13 @@ $hasActiveFilters = collect(request()->query())
         'defaultOpen' => $hasActiveFilters,
     ])
 
+    @if(session('error'))
+    <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" data-testid="omnichannel-awb-flash-error">{{ session('error') }}</div>
+    @endif
+    @if(session('warning'))
+    <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" data-testid="omnichannel-awb-flash-warning">{{ session('warning') }}</div>
+    @endif
+
     @php
     $missingTable = $isEventsView ? ! $eventsTableExists : ! $ordersTableExists;
     @endphp
@@ -128,6 +201,34 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
     </div>
     @else
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800/50">
+        @if(! $isEventsView)
+        @php
+            require resource_path('views/partials/form-control-class-vars.php');
+        @endphp
+        <form method="post"
+              action="{{ route('omnichannel.orders.shipping-documents') }}"
+              x-ref="awbForm"
+              class="border-b border-gray-100 bg-gray-50 px-3 py-2"
+              data-testid="omnichannel-awb-toolbar">
+            @csrf
+            <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                <p class="text-xs text-gray-600">
+                    <span class="font-medium text-gray-800">Cetak AWB (Shopee)</span>
+                    — v1 hanya Shopee Admin Open API. TikTok/Tokopedia belum didukung.
+                    <span class="text-gray-500" x-show="selectedCount() > 0" x-cloak>
+                        · <span x-text="selectedCount()"></span> terpilih
+                    </span>
+                </p>
+                <button type="button"
+                        @click="submitAwbPrint($event)"
+                        class="{{ $formControlClassSm }} border-blue-600 bg-blue-600 px-3 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        data-testid="omnichannel-awb-print-button"
+                        :disabled="selectedCount() === 0">
+                    Cetak AWB (Shopee)
+                </button>
+            </div>
+        </form>
+        @endif
         <div class="border-b border-gray-100 px-3 py-2 text-xs text-gray-500">
             {{ number_format($rows->total()) }} baris — halaman {{ $rows->currentPage() }} / {{ $rows->lastPage() }}
             · {{ $isEventsView ? 'marketplace_webhook_events' : 'marketplace_channel_orders' }}
@@ -235,9 +336,16 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                 </tbody>
             </table>
             @else
-            <table class="w-full min-w-[54rem] text-left" data-testid="omnichannel-orders-table">
+            <table class="w-full min-w-[56rem] text-left" data-testid="omnichannel-orders-table">
                 <thead class="border-b border-gray-200 bg-gray-50">
                     <tr>
+                        <th class="{{ $th }} w-10 text-center" data-testid="omnichannel-awb-select-all">
+                            <input type="checkbox"
+                                   class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                   :checked="allPageSelected()"
+                                   @change="toggleSelectAllPage()"
+                                   aria-label="Pilih semua di halaman ini">
+                        </th>
                         <th class="{{ $th }} w-12"></th>
                         <th class="{{ $th }} w-20">channel</th>
                         <th class="{{ $th }} w-24">platform</th>
@@ -258,8 +366,21 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                         $channelLabel = strtoupper((string) ($row->commerce_platform ?? '')) === 'TOKOPEDIA'
                             ? 'Tokopedia'
                             : ($channelLabels[$row->channel] ?? $row->channel);
+                        $awbRow = [
+                            'channel' => (string) $row->channel,
+                            'order_ref' => (string) $row->order_ref,
+                            'shop_ref' => (string) ($row->shop_ref ?? ''),
+                        ];
                     @endphp
                     <tr class="hover:bg-gray-50/80">
+                        <td class="{{ $td }} text-center">
+                            <input type="checkbox"
+                                   class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                   data-testid="omnichannel-awb-row-{{ $row->id }}"
+                                   :checked="isRowSelected(@js($awbRow))"
+                                   @change="toggleRowSelection(@js($awbRow))"
+                                   aria-label="Pilih order {{ $row->order_ref }}">
+                        </td>
                         <td class="{{ $td }}">
                             <button type="button"
                                     @click="toggleDetail(@js($row->channel), @js($row->order_ref), @js($detailUrl))"
@@ -288,7 +409,7 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                         <td class="{{ $td }} whitespace-nowrap text-gray-600">{{ $row->first_received_at?->format('Y-m-d H:i:s') ?? '—' }}</td>
                     </tr>
                     <tr x-show="isExpanded(@js($row->channel), @js($row->order_ref))" x-cloak class="bg-gray-50">
-                        <td colspan="9" class="p-0">
+                        <td colspan="10" class="p-0">
                             <template x-if="isLoading(@js($row->channel), @js($row->order_ref))">
                                 <p class="p-4 text-xs text-gray-500">Memuat detail…</p>
                             </template>

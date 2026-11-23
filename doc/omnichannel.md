@@ -24,6 +24,15 @@ Collapsible **Omnichannel** menu (like Transactions):
 - **Orders view:** summary from `marketplace_channel_orders` (no Shopee/TikTok/Jubelio API on first paint).
 - Expand row or `GET /omnichannel/orders/{channel}/{order_ref}` (HTML fragment or `?format=json`) loads webhook events, stored shadow snippet (Shopee), ingress timeline, and Jubelio invoice links from DB. **TikTok:** on expand, a read-only **Get Order Detail** (`TikTokShopOpenApiService`) resolves `shop_cipher` from `tiktok_shop_syncs` for the latest webhook `shop_ref` (fallback `TIKTOK_SHOP_SHOP_CIPHER`), returns `line_summary` (SKU × qty), a compact `channel_order` snippet (status, platform, payment/total when present), `api_detail_loaded` / `api_error` on credential or HTTP failure (webhooks still shown). Persist `commerce_platform` when the API returns it — no `warehouse_item` or transaction writes. **Events view** keeps raw payload only; TikTok events with `order_ref` show a hint to open **Current orders** for line detail.
 
+### Bulk AWB print (Shopee, v1)
+
+**Current orders** only (`view=orders`): checkbox selection + **Cetak AWB (Shopee)** → `POST /omnichannel/orders/shipping-documents` (`omnichannel.orders.shipping-documents`). Permission: `omnichannel-orders` / `Omnichannel::userCanOrders`.
+
+- **v1 channel support:** Shopee rows only (TikTok/Tokopedia skipped with flash message). Uses **Shopee Admin Open API** logistics: `create_shipping_document` → poll `get_shipping_document_result` (≤30s) → `download_shipping_document`. Batches ≤50 orders; grouped per `shop_id` from `shop_ref` + OAuth/`shopee_syncs`. Multi-package orders resolve `package_number` via `get_order_detail` (`package_list`); empty `package_number` is never sent.
+- **Response:** single-shop / single batch → one PDF download; multiple shops or >50 orders → ZIP of PDFs.
+- **Config:** `SHOPEE_SHIPPING_DOCUMENT_TYPE` (default `NORMAL_AIR_WAYBILL`) on `config('services.shopee_admin.shipping_document_type')`.
+- **Code:** `App\Services\Shopee\ShopeeShippingDocumentService`, `OmnichannelOrdersController@downloadShippingDocuments`.
+
 **TikTok shop access token (live driver):** Same pattern as Shopee — Aria stores seller OAuth in `settings` slug **`tiktok_shop_oauth`** (`TikTokShopOAuthService`), refreshes via TikTok `token/refresh`, and serves read-only tokens to Grok at **`GET /api/readonly/tiktok/oauth`** (`doc/grok-readonly-api.md`). Authorize in UI: **`GET /tiktok-shop/authorize`** (Omnichannel → Settings → Connections). Callback: **`/tiktok-shop/oauth/callback`** (`TIKTOK_SHOP_REDIRECT_URL` must match Partner Center). **`shop_cipher`** stays on `tiktok_shop_syncs` (per webhook `shop_ref`) with env fallback `TIKTOK_SHOP_SHOP_CIPHER`. `TIKTOK_SHOP_ACCESS_TOKEN` is emergency-only fallback. Grok needs `export-readonly` + `api.readonly.tiktok.oauth`.
 
 | Aria env | Purpose |
