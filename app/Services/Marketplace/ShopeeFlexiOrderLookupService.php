@@ -5,6 +5,7 @@ namespace App\Services\Marketplace;
 use App\Models\Addrbook;
 use App\Models\ShopeeFlexiShop;
 use App\Models\Shopeesync;
+use App\Models\Transaction;
 use App\Services\Jubelio\JubelioSellInvoiceGuard;
 use App\Services\Shopee\ShopeeAdminOpenApiService;
 use Illuminate\Support\Facades\Schema;
@@ -54,13 +55,25 @@ class ShopeeFlexiOrderLookupService
             'sync_matches' => [],
             'line_summary' => null,
             'line_match' => null,
-            'duplicate_transaction' => $this->sellInvoiceGuard->sellInvoiceInTransactions(
-                $this->invoicePrefix->invoiceForOrderSn($shopId, $orderSn),
-            ),
+            'duplicate_transaction' => false,
+            'invoice_exists' => false,
+            'existing_transaction_id' => null,
             'can_manual_sell' => false,
+            'can_open_sell_form' => false,
             'manual_sell_block' => null,
             'api_snippet' => null,
         ];
+
+        $invoicePreview = (string) $base['invoice_preview'];
+        $invoiceExists = $this->sellInvoiceGuard->sellInvoiceInTransactions($invoicePreview);
+        $base['duplicate_transaction'] = $invoiceExists;
+        $base['invoice_exists'] = $invoiceExists;
+        if ($invoiceExists) {
+            $base['existing_transaction_id'] = Transaction::query()
+                ->where('type', Transaction::TYPE_SELL)
+                ->where('invoice', $invoicePreview)
+                ->value('id');
+        }
 
         if ($shopId <= 0) {
             $base['error'] = 'shop_id wajib diisi — lihat OAuth shop IDs di halaman FLEXI atau Seller Centre.';
@@ -164,6 +177,7 @@ class ShopeeFlexiOrderLookupService
         }
 
         $base['can_manual_sell'] = $this->canManualSell($base, $lineMatch);
+        $base['can_open_sell_form'] = $base['can_manual_sell'];
         $base['manual_sell_block'] = $base['can_manual_sell'] ? null : $this->manualSellBlockReason($base, $lineMatch);
 
         return $base;

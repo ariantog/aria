@@ -15,6 +15,8 @@ use Spatie\Permission\Models\Permission;
 
 beforeEach(function () {
     Permission::findOrCreate('shopee-stock-sync', 'web');
+    Permission::findOrCreate('transactions-type-sell', 'web');
+    Permission::findOrCreate('transactions-create', 'web');
 
     config([
         'services.shopee_admin.partner_id' => '2053195',
@@ -110,31 +112,32 @@ function flexiManualSellSetup(): array
     return compact('warehouse', 'customer', 'item');
 }
 
-it('posts shopee flexi sell manually and redirects to transaction show', function () {
+it('redirects flexi manual sell to prefilled sell create form', function () {
     $user = User::factory()->create();
-    $user->givePermissionTo('shopee-stock-sync');
+    $user->givePermissionTo(['shopee-stock-sync', 'transactions-type-sell', 'transactions-create']);
     flexiManualSellSetup();
 
     $response = $this->actingAs($user)
-        ->post(route('shopee.flexi.lookup.create-sell'), [
+        ->post(route('shopee.flexi.orders.create-sell'), [
             'order_ref' => 'SPMY-MANUAL-SELL-01',
             'shop_id' => 9999,
         ]);
 
-    $txn = Transaction::query()
-        ->where('type', Transaction::TYPE_SELL)
-        ->where('invoice', 'SPMY-MANUAL-SELL-01')
-        ->first();
+    $response->assertRedirect(route('transactions.create', ['type' => 'sell']));
 
-    expect($txn)->not->toBeNull()
-        ->and((float) $txn->total)->toBe(-150000.0);
+    expect(Transaction::query()->where('invoice', 'SPMY-MANUAL-SELL-01')->exists())->toBeFalse();
 
-    $response->assertRedirect(route('transactions.show', $txn));
+    $follow = $this->actingAs($user)
+        ->get($response->headers->get('Location'));
+
+    $follow->assertOk()
+        ->assertSee('SPMY-MANUAL-SELL-01', false)
+        ->assertSee('SKU-FLEXI-MY-S', false);
 });
 
 it('rejects duplicate invoice on flexi manual sell', function () {
     $user = User::factory()->create();
-    $user->givePermissionTo('shopee-stock-sync');
+    $user->givePermissionTo(['shopee-stock-sync', 'transactions-type-sell', 'transactions-create']);
     $setup = flexiManualSellSetup();
 
     Transaction::factory()->create([
@@ -147,11 +150,12 @@ it('rejects duplicate invoice on flexi manual sell', function () {
     ]);
 
     $this->actingAs($user)
-        ->post(route('shopee.flexi.lookup.create-sell'), [
+        ->post(route('shopee.flexi.orders.create-sell'), [
             'order_ref' => 'MANUAL-SELL-01',
             'shop_id' => 9999,
         ])
         ->assertOk()
-        ->assertSee('Transaction sudah ada', false)
-        ->assertSee('data-testid="shopee-lookup-flash-error"', false);
+        ->assertSee('Invoice sudah ada di Transaksi', false)
+        ->assertSee('data-testid="shopee-orders-flash-error"', false)
+        ->assertDontSee('data-testid="shopee-flexi-create-sell"', false);
 });

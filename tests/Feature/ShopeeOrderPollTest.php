@@ -42,7 +42,7 @@ beforeEach(function () {
     );
 });
 
-it('polls direct ingest shop and creates jubelio placeholder', function () {
+it('polls flexi shop without creating jubelio placeholder', function () {
     if (! Schema::hasTable('shopee_flexi_shops')) {
         $this->markTestSkipped('shopee_flexi_shops missing');
     }
@@ -79,7 +79,5 @@ it('polls direct ingest shop and creates jubelio placeholder', function () {
 
     $this->artisan('shopee:poll-orders')->assertSuccessful();
 
-    $order = Jubelioorder::where('invoice', 'SPMY-MYFLEXI001')->first();
-    expect($order)->not->toBeNull()
-        ->and($order->jubelio_order_id)->toBe('shopee-push:MYFLEXI001');
+    expect(Jubelioorder::where('invoice', 'SPMY-MYFLEXI001')->exists())->toBeFalse();
 });

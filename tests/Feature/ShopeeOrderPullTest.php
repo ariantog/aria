@@ -74,8 +74,7 @@ it('pulls a single shopee order by ordersn and records unified webhook', functio
         '--shop-id' => 8888,
     ])->assertSuccessful();
 
-    $order = Jubelioorder::where('invoice', 'SPMY-MY-PULL-001')->first();
-    expect($order)->not->toBeNull();
+    expect(Jubelioorder::where('invoice', 'SPMY-MY-PULL-001')->exists())->toBeFalse();
 
     $event = MarketplaceWebhookEvent::query()
         ->where('channel', 'shopee')

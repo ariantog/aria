@@ -196,9 +196,11 @@ Route::middleware(['auth', 'verified', 'active', 'enforce.readonly'])->group(fun
     Route::delete('shopee-sync/{sync}', [App\Http\Controllers\ShopeeSyncController::class, 'destroy'])->name('shopee.sync.delete');
 
     Route::get('shopee-flexi', [App\Http\Controllers\ShopeeFlexiShopController::class, 'index'])->name('shopee.flexi.index');
-    Route::get('shopee-flexi/lookup', [App\Http\Controllers\ShopeeFlexiOrderLookupController::class, 'show'])->name('shopee.flexi.lookup');
+    Route::get('shopee-flexi/orders', [App\Http\Controllers\ShopeeFlexiOrderLookupController::class, 'show'])->name('shopee.flexi.orders');
+    Route::post('shopee-flexi/orders', [App\Http\Controllers\ShopeeFlexiOrderLookupController::class, 'store'])->name('shopee.flexi.orders.search');
+    Route::post('shopee-flexi/orders/create-sell', [App\Http\Controllers\ShopeeFlexiOrderLookupController::class, 'createSell'])->name('shopee.flexi.orders.create-sell');
+    Route::get('shopee-flexi/lookup', fn () => redirect()->route('shopee.flexi.orders'))->name('shopee.flexi.lookup');
     Route::post('shopee-flexi/lookup', [App\Http\Controllers\ShopeeFlexiOrderLookupController::class, 'store'])->name('shopee.flexi.lookup.search');
-    Route::post('shopee-flexi/lookup/ingest', [App\Http\Controllers\ShopeeFlexiOrderLookupController::class, 'ingest'])->name('shopee.flexi.lookup.ingest');
     Route::post('shopee-flexi/lookup/create-sell', [App\Http\Controllers\ShopeeFlexiOrderLookupController::class, 'createSell'])->name('shopee.flexi.lookup.create-sell');
     Route::get('shopee-flexi/create', [App\Http\Controllers\ShopeeFlexiShopController::class, 'create'])->name('shopee.flexi.create');
     Route::post('shopee-flexi', [App\Http\Controllers\ShopeeFlexiShopController::class, 'store'])->name('shopee.flexi.store');

@@ -44,6 +44,10 @@ class ShopeeJubelioQueuePrecreator
         array $pushData = [],
         array $fullPayload = [],
     ): bool {
+        if ($this->shopeeInvoicePrefix->isFlexiExportShop($shopId)) {
+            return false;
+        }
+
         if (! $this->enabled()) {
             return false;
         }

@@ -187,6 +187,8 @@
     }
     if ($hasPerm('shopee-stock-sync') || $isSuperAdmin) {
         $shopeeNavLabels[] = 'Warehouse Map';
+        $shopeeNavLabels[] = 'FLEXI Orders';
+        $shopeeNavLabels[] = 'FLEXI Shops';
         $shopeeNavLabels[] = 'Auto Link';
         $shopeeNavLabels[] = 'Bulk Link';
     }
@@ -673,7 +675,7 @@
 
 {{-- ── Shopee (Ads + Stock Checker) ──────────────────────────────────── --}}
 @if($hasPerm('shopee-ads-view') || $hasPerm('shopee-stock-sync') || $isSuperAdmin)
-@php $shopeActive = $isActive('/shopee-ads') || $isActive('/shopee-sync') || $isActive('/shopee/auto-link') || $isActive('/shopee/bulk-link'); @endphp
+@php $shopeActive = $isActive('/shopee-ads') || $isActive('/shopee-sync') || $isActive('/shopee-flexi') || $isActive('/shopee/auto-link') || $isActive('/shopee/bulk-link'); @endphp
 <div x-data="{ open: {{ $shopeActive ? 'true' : 'false' }} }"
      class="mb-1"
      x-show="navGroupVisible(@js($shopeeNavLabels))"
@@ -691,7 +693,8 @@
         @endif
         @if($hasPerm('shopee-stock-sync') || $isSuperAdmin)
         <a href="{{ route('shopee.sync.index') }}" x-show="navLinkVisible('Warehouse Map', 'Shopee')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/shopee-sync') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Warehouse Map</a>
-        <a href="{{ route('shopee.flexi.index') }}" x-show="navLinkVisible('FLEXI Shops', 'Shopee')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/shopee-flexi') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">FLEXI Shops</a>
+        <a href="{{ route('shopee.flexi.orders') }}" x-show="navLinkVisible('FLEXI Orders', 'Shopee')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/shopee-flexi/orders') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">FLEXI Orders</a>
+        <a href="{{ route('shopee.flexi.index') }}" x-show="navLinkVisible('FLEXI Shops', 'Shopee')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/shopee-flexi') && ! $isActive('/shopee-flexi/orders') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">FLEXI Shops</a>
         <a href="{{ route('shopee.auto-link.index') }}" x-show="navLinkVisible('Auto Link', 'Shopee')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/shopee/auto-link') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Auto Link</a>
         <a href="{{ route('shopee.bulk-link.index') }}" x-show="navLinkVisible('Bulk Link', 'Shopee')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/shopee/bulk-link') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Bulk Link</a>
         @endif

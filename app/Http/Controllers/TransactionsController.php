@@ -969,6 +969,13 @@ class TransactionsController extends Controller
             }
         }
 
+        if ($type === 'sell') {
+            $sessionPrefill = session()->pull('transaction_sell_prefill');
+            if ($sessionPrefill) {
+                return $sessionPrefill;
+            }
+        }
+
         return $userPreferences->transactionPrefill(Auth::user(), $type);
     }
 
