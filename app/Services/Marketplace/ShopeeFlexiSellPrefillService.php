@@ -14,8 +14,6 @@ use Illuminate\Support\Facades\Schema;
  */
 class ShopeeFlexiSellPrefillService
 {
-    private const ORDER_DETAIL_OPTIONAL_FIELDS = 'order_status,item_list,package_list,total_amount,currency,payment_info';
-
     public function __construct(
         private ShopeeAdminOpenApiService $shopeeApi,
         private ShopeeSyncInvoicePrefix $invoicePrefix,
@@ -47,7 +45,7 @@ class ShopeeFlexiSellPrefillService
             return ['success' => false, 'message' => "Shop {$shopId} belum diotorisasi OAuth."];
         }
 
-        $detail = $this->shopeeApi->getOrderDetail($orderSn, $shopId, self::ORDER_DETAIL_OPTIONAL_FIELDS);
+        $detail = $this->shopeeApi->getOrderDetail($orderSn, $shopId, ShopeeFlexiOrderDetailFields::OPTIONAL);
         if ($detail === null || filled($detail['error'] ?? null)) {
             $message = (string) ($detail['message'] ?? $detail['error'] ?? 'get_order_detail gagal.');
 

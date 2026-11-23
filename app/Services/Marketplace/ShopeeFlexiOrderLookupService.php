@@ -15,9 +15,6 @@ use Illuminate\Support\Facades\Schema;
  */
 class ShopeeFlexiOrderLookupService
 {
-    /** Same optional fields as {@see ShopeeOrderPollService} / poll ingest (no invalid `region` param). */
-    private const ORDER_DETAIL_OPTIONAL_FIELDS = 'order_status,item_list,package_list,total_amount,currency,payment_info';
-
     /** Shopee MY/export statuses that allow manual SELL prefill (maintainer: completed + escrow). */
     private const SELL_ELIGIBLE_STATUSES = ['COMPLETED'];
 
@@ -63,7 +60,6 @@ class ShopeeFlexiOrderLookupService
             'invoice_exists' => false,
             'existing_transaction_id' => null,
             'can_manual_sell' => false,
-            'can_open_sell_form' => false,
             'manual_sell_block' => null,
             'can_move_to_staging' => false,
             'move_to_staging_block' => null,
@@ -128,7 +124,7 @@ class ShopeeFlexiOrderLookupService
         $detail = $this->shopeeApi->getOrderDetail(
             $orderSn,
             $shopId,
-            self::ORDER_DETAIL_OPTIONAL_FIELDS,
+            ShopeeFlexiOrderDetailFields::OPTIONAL,
         );
 
         if ($detail === null) {
@@ -212,7 +208,6 @@ class ShopeeFlexiOrderLookupService
         $base['move_to_staging_block'] = $base['can_move_to_staging'] ? null : $this->moveToStagingBlockReason($base, $lineMatch);
 
         $base['can_manual_sell'] = $this->canManualSell($base, $lineMatch, $amounts);
-        $base['can_open_sell_form'] = $base['can_manual_sell'];
         $base['manual_sell_block'] = $base['can_manual_sell'] ? null : $this->manualSellBlockReason($base, $lineMatch, $amounts);
 
         return $base;
@@ -221,8 +216,6 @@ class ShopeeFlexiOrderLookupService
     /**
      * @param  array<string, mixed>  $base
      * @param  array{error: ?string, items: list<array<string, mixed>>}  $lineMatch
-     */
-    /**
      * @param  array<string, mixed>  $amounts
      */
     private function canManualSell(array $base, array $lineMatch, array $amounts): bool
