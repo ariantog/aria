@@ -218,9 +218,9 @@ it('shows 100 percent invoice discount as the full amount and a zero payable', f
 
     expect($html)->not->toContain('data-testid="legacy-total-mismatch"')
         ->and(preg_match('/data-testid="tx-invoice-discount-amount"[^>]*>(-?[^<]+)/', $html, $discountMatch))->toBe(1)
-        ->and(trim($discountMatch[1]))->toBe('+1,591,000')
+        ->and(trim($discountMatch[1]))->toBe('+1,591,000.00')
         ->and(preg_match('/data-testid="tx-grand-total"[^>]*>IDR ([^<]+)/', $html, $totalMatch))->toBe(1)
-        ->and(trim($totalMatch[1]))->toBe('0');
+        ->and(trim($totalMatch[1]))->toBe('0.00');
 
     $list = $this->actingAs($this->user)
         ->get(route('transactions.index'))
@@ -229,7 +229,7 @@ it('shows 100 percent invoice discount as the full amount and a zero payable', f
         ->getContent();
 
     expect(preg_match('/data-testid="tx-list-total-'.$transaction->id.'"[^>]*>([^<]+)/', $list, $listMatch))->toBe(1)
-        ->and(trim($listMatch[1]))->toBe('0');
+        ->and(trim($listMatch[1]))->toBe('0.00');
 });
 
 it('exposes display helpers on deleted transactions and renders deleted show', function () {
@@ -302,9 +302,9 @@ it('reconstructs sell payable from signed discount and adjustment contributions'
 
     expect($html)->not->toContain('data-testid="legacy-total-mismatch"')
         ->and(preg_match('/data-testid="tx-invoice-discount-amount"[^>]*>(-?[^<]+)/', $html, $discountMatch))->toBe(1)
-        ->and(trim($discountMatch[1]))->toBe('+2,000')
+        ->and(trim($discountMatch[1]))->toBe('+2,000.00')
         ->and(preg_match('/data-testid="tx-adjustment-amount"[^>]*>(-?[^<]+)/', $html, $adjMatch))->toBe(1)
-        ->and(trim($adjMatch[1]))->toBe('+1,000');
+        ->and(trim($adjMatch[1]))->toBe('+1,000.00');
 });
 
 it('reconstructs jubelio sell receivable from a negative marketplace adjustment', function () {

@@ -11,7 +11,6 @@ use Spatie\Permission\Models\Permission;
 
 beforeEach(function () {
     app(PermissionGenerator::class)->generateForModule('Omnichannel');
-    app(PermissionGenerator::class)->generateForModule('MarketplaceWebhook');
 });
 
 it('renders sidebar omnichannel group with child links for superadmin', function () {

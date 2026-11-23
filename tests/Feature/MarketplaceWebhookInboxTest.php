@@ -306,7 +306,7 @@ it('backfills legacy inbox tables idempotently', function () {
     expect(MarketplaceWebhookEvent::count())->toBe(2);
 });
 
-it('denies webhook legacy route without marketplace tiktok or omnichannel permission', function () {
+it('denies webhook legacy route without tiktok or omnichannel permission', function () {
     $limited = User::factory()->create();
     expect($limited->is_superadmin)->toBeFalse();
 

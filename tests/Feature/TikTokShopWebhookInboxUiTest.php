@@ -1,16 +1,13 @@
 <?php
 
 use App\Models\MarketplaceChannelOrder;
-use App\Models\MarketplaceWebhook;
 use App\Models\TikTokShop;
 use App\Models\User;
-use App\Services\PermissionGenerator;
 use Spatie\Permission\Models\Permission;
 
 beforeEach(function () {
     Permission::findOrCreate(TikTokShop::getPermissions()['view'], 'web');
     Permission::findOrCreate(TikTokShop::getPermissions()['reply'], 'web');
-    app(PermissionGenerator::class)->generateForModule('MarketplaceWebhook');
 });
 
 it('redirects legacy tiktok webhook inbox to omnichannel orders', function () {
