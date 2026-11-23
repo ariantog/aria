@@ -5,11 +5,15 @@ namespace App\Actions\Transactions;
 use App\Enums\AddrbookType;
 use App\Models\Addrbook;
 use App\Models\Item;
+use App\Services\Marketplace\ShopeeFlexiStagingWarehouse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Session;
 
 class PrepareMoveTransactionDraft
 {
+    public function __construct(
+        private ShopeeFlexiStagingWarehouse $flexiStagingWarehouse,
+    ) {}
     /**
      * @param  list<array{item_id: int, quantity: float, from_warehouse_id: int, to_warehouse_id: int}>  $items
      */
@@ -37,7 +41,7 @@ class PrepareMoveTransactionDraft
             ->where('type', AddrbookType::Warehouse)
             ->findOrFail($fromId);
 
-        $flexiStagingId = max(0, (int) config('shopee_flexi.staging_warehouse_id', 0));
+        $flexiStagingId = $this->flexiStagingWarehouse->configuredId();
         $toQuery = Addrbook::query()->where('type', AddrbookType::Warehouse);
         if ($flexiStagingId > 0 && $toId === $flexiStagingId) {
             $to = $toQuery->findOrFail($toId);

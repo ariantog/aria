@@ -6,7 +6,7 @@ use App\Enums\AddrbookType;
 use App\Models\Addrbook;
 
 /**
- * Shared FLEXI staging gudang (physical warehouse) — omnichannel_settings first, env legacy fallback.
+ * Shared FLEXI staging gudang (physical warehouse) — {@see OmnichannelSettingStore::KEY_FLEXI_STAGING_WAREHOUSE_ID} only.
  */
 class ShopeeFlexiStagingWarehouse
 {
@@ -16,15 +16,10 @@ class ShopeeFlexiStagingWarehouse
 
     public function configuredId(): int
     {
-        $fromDb = $this->settings->getInt(
+        return max(0, $this->settings->getInt(
             OmnichannelSettingStore::KEY_FLEXI_STAGING_WAREHOUSE_ID,
             0,
-        );
-        if ($fromDb > 0) {
-            return $fromDb;
-        }
-
-        return max(0, (int) config('shopee_flexi.staging_warehouse_id', 0));
+        ));
     }
 
     public function isConfiguredDestination(int $warehouseId): bool
