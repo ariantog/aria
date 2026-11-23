@@ -85,6 +85,17 @@ curl -sS -o /dev/null -w "%{http_code}\n" -X POST "https://your-host/tiktok-shop
 5. Run the migration on the host TikTok calls; keep `TIKTOK_SHOP_WEBHOOK_VERIFY_SIGNATURE=true`.
 6. Trigger a test notification or wait for a real order transition; confirm a row in `tiktok_shop_webhook_inbox`.
 
+## Warehouse mapping UI (`/tiktok-shop-sync/create`)
+
+`TIKTOK_SHOP_DRIVER=live` + OAuth authorize (Omnichannel → Settings atau **Authorize** dari form mapping) memuat:
+
+| Partner API | Use on form |
+|-------------|-------------|
+| `GET /authorization/202309/shops` | Dropdown toko → autofills `shop_ref`, `shop_cipher`, `shop_name` |
+| `GET /logistics/202309/warehouses?shop_cipher=` | Read-only seller warehouse list (bantu pilih gudang **Aria**; tidak disimpan di DB v1) |
+
+Tokopedia storefront pada seller yang sama memakai logistics TikTok — tidak ada endpoint terpisah. `driver=mock` mengembalikan fixture di UI tanpa HTTP.
+
 ## What’s next (not in this PR)
 
 - Shadow compare to `jubelioorders` (like Shopee omnichannel) — read-only `GET` order detail behind a separate flag, default off.

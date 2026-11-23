@@ -160,6 +160,76 @@ class TikTokShopOpenApiService
         return filled($this->oauthService->getAccessToken());
     }
 
+    public function partnerListReady(): bool
+    {
+        if ($this->isMock()) {
+            return true;
+        }
+
+        $appKey = (string) config('tiktok_shop.app_key', '');
+        $appSecret = (string) config('tiktok_shop.app_secret', '');
+
+        return $appKey !== '' && $appSecret !== '' && $this->liveAccessTokenAvailable();
+    }
+
+    /**
+     * Authorized shops for the seller token (Partner GET /authorization/{version}/shops).
+     *
+     * @return list<array{id: string, cipher: string, name: string}>
+     */
+    public function listAuthorizedShops(): array
+    {
+        if ($this->isMock()) {
+            return $this->mockAuthorizedShops();
+        }
+
+        $version = (string) config('tiktok_shop.api_version', '202309');
+        $json = $this->liveSignedGet('/authorization/'.$version.'/shops', []);
+
+        return $this->normalizeAuthorizedShops($json);
+    }
+
+    /**
+     * Seller warehouses for a shop cipher (read-only helper for mapping UI).
+     *
+     * @return list<array{id: string, name: string, type: string, effect_status: string}>
+     */
+    public function listSellerWarehouses(?string $shopCipher): array
+    {
+        $shopCipher = trim((string) $shopCipher);
+        if ($shopCipher === '') {
+            return [];
+        }
+
+        if ($this->isMock()) {
+            return $this->mockSellerWarehouses($shopCipher);
+        }
+
+        $version = (string) config('tiktok_shop.api_version', '202309');
+        $json = $this->liveSignedGet('/logistics/'.$version.'/warehouses', [
+            'shop_cipher' => $shopCipher,
+        ]);
+
+        return $this->normalizeSellerWarehouses($json);
+    }
+
+    /**
+     * @return array<string, list<array{id: string, name: string, type: string, effect_status: string}>>
+     */
+    public function listSellerWarehousesByShopCipher(array $shops): array
+    {
+        $map = [];
+        foreach ($shops as $shop) {
+            $cipher = trim((string) ($shop['cipher'] ?? ''));
+            if ($cipher === '') {
+                continue;
+            }
+            $map[$cipher] = $this->listSellerWarehouses($cipher);
+        }
+
+        return $map;
+    }
+
     public function liveCredentialsReady(?string $shopCipher = null, ?string $shopRef = null): bool
     {
         $appKey = (string) config('tiktok_shop.app_key', '');
@@ -234,6 +304,76 @@ class TikTokShopOpenApiService
     }
 
     /**
+     * @param  array<string, string>  $extraQuery
+     * @return array<string, mixed>|null
+     */
+    protected function liveSignedGet(string $path, array $extraQuery = []): ?array
+    {
+        $appKey = (string) config('tiktok_shop.app_key', '');
+        $appSecret = (string) config('tiktok_shop.app_secret', '');
+        $accessToken = (string) ($this->oauthService->getAccessToken() ?? '');
+
+        if ($appKey === '' || $appSecret === '' || $accessToken === '') {
+            Log::info('TikTok Shop Open API GET skipped — missing credentials', ['path' => $path]);
+
+            return null;
+        }
+
+        $timestamp = time();
+        $query = array_merge([
+            'app_key' => $appKey,
+            'timestamp' => (string) $timestamp,
+        ], $extraQuery);
+
+        $sign = $this->signOpenApiRequest($path, $query, $appSecret);
+        $query['sign'] = $sign;
+
+        $base = rtrim((string) config('tiktok_shop.api_base_url'), '/');
+        $url = $base.$path;
+
+        try {
+            $response = Http::timeout(15)
+                ->acceptJson()
+                ->withHeaders(['x-tts-access-token' => $accessToken])
+                ->get($url, $query);
+
+            if (! $response->successful()) {
+                Log::warning('TikTok Shop Open API GET HTTP error', [
+                    'path' => $path,
+                    'status' => $response->status(),
+                ]);
+
+                return null;
+            }
+
+            $json = $response->json();
+            if (! is_array($json)) {
+                return null;
+            }
+
+            $apiCode = $json['code'] ?? null;
+            if ($apiCode !== null && (int) $apiCode !== 0) {
+                Log::warning('TikTok Shop Open API GET API error', [
+                    'path' => $path,
+                    'code' => $apiCode,
+                    'message' => $json['message'] ?? null,
+                ]);
+
+                return null;
+            }
+
+            return $json;
+        } catch (\Throwable $e) {
+            Log::warning('TikTok Shop Open API GET failed', [
+                'path' => $path,
+                'message' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
     protected function liveOrderDetail(string $orderId, ?string $shopCipherOverride = null): ?array
@@ -253,61 +393,126 @@ class TikTokShopOpenApiService
 
         $version = (string) config('tiktok_shop.order_api_version', '202507');
         $path = '/order/'.$version.'/orders';
-        $timestamp = time();
 
-        $query = [
-            'app_key' => $appKey,
+        return $this->liveSignedGet($path, [
             'shop_cipher' => $shopCipher,
-            'timestamp' => (string) $timestamp,
             'ids' => $orderId,
-        ];
+        ]);
+    }
 
-        $sign = $this->signOpenApiRequest($path, $query, $appSecret);
-        $query['sign'] = $sign;
-
-        $base = rtrim((string) config('tiktok_shop.api_base_url'), '/');
-        $url = $base.$path;
-
-        try {
-            $response = Http::timeout(15)
-                ->acceptJson()
-                ->withHeaders(['x-tts-access-token' => $accessToken])
-                ->get($url, $query);
-
-            if (! $response->successful()) {
-                Log::warning('TikTok Shop getOrderDetail HTTP error', [
-                    'order_id' => $orderId,
-                    'status' => $response->status(),
-                ]);
-
-                return null;
-            }
-
-            $json = $response->json();
-            if (! is_array($json)) {
-                return null;
-            }
-
-            $apiCode = $json['code'] ?? null;
-            if ($apiCode !== null && (int) $apiCode !== 0) {
-                Log::warning('TikTok Shop getOrderDetail API error', [
-                    'order_id' => $orderId,
-                    'code' => $apiCode,
-                    'message' => $json['message'] ?? null,
-                ]);
-
-                return null;
-            }
-
-            return $json;
-        } catch (\Throwable $e) {
-            Log::warning('TikTok Shop getOrderDetail failed', [
-                'order_id' => $orderId,
-                'message' => $e->getMessage(),
-            ]);
-
-            return null;
+    /**
+     * @param  array<string, mixed>|null  $response
+     * @return list<array{id: string, cipher: string, name: string}>
+     */
+    protected function normalizeAuthorizedShops(?array $response): array
+    {
+        if ($response === null) {
+            return [];
         }
+
+        $shops = $response['data']['shops'] ?? $response['data']['shop_list'] ?? [];
+        if (! is_array($shops)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($shops as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $id = (string) ($row['id'] ?? $row['shop_id'] ?? '');
+            $cipher = (string) ($row['cipher'] ?? $row['shop_cipher'] ?? '');
+            $name = (string) ($row['name'] ?? $row['shop_name'] ?? $row['region'] ?? '');
+            if ($id === '' && $cipher === '') {
+                continue;
+            }
+
+            $normalized[] = [
+                'id' => $id,
+                'cipher' => $cipher,
+                'name' => $name !== '' ? $name : ($id !== '' ? $id : $cipher),
+            ];
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $response
+     * @return list<array{id: string, name: string, type: string, effect_status: string}>
+     */
+    protected function normalizeSellerWarehouses(?array $response): array
+    {
+        if ($response === null) {
+            return [];
+        }
+
+        $rows = $response['data']['warehouses'] ?? $response['data']['warehouse_list'] ?? [];
+        if (! is_array($rows)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($rows as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $id = (string) ($row['id'] ?? $row['warehouse_id'] ?? '');
+            if ($id === '') {
+                continue;
+            }
+
+            $normalized[] = [
+                'id' => $id,
+                'name' => (string) ($row['name'] ?? $row['warehouse_name'] ?? $id),
+                'type' => (string) ($row['type'] ?? $row['warehouse_type'] ?? ''),
+                'effect_status' => (string) ($row['effect_status'] ?? $row['status'] ?? ''),
+            ];
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @return list<array{id: string, cipher: string, name: string}>
+     */
+    protected function mockAuthorizedShops(): array
+    {
+        return [
+            [
+                'id' => '7490000000000000123',
+                'cipher' => 'MOCK_TTS_SHOP_CIPHER',
+                'name' => 'Mock TikTok Shop (dev)',
+            ],
+            [
+                'id' => '7490000000000000456',
+                'cipher' => 'MOCK_TOKO_SHOP_CIPHER',
+                'name' => 'Mock Tokopedia via TikTok (dev)',
+            ],
+        ];
+    }
+
+    /**
+     * @return list<array{id: string, name: string, type: string, effect_status: string}>
+     */
+    protected function mockSellerWarehouses(string $shopCipher): array
+    {
+        return [
+            [
+                'id' => 'WH-MOCK-'.$shopCipher,
+                'name' => 'Seller warehouse (mock)',
+                'type' => 'SALES_WAREHOUSE',
+                'effect_status' => 'ENABLED',
+            ],
+            [
+                'id' => 'WH-MOCK-RETURN-'.$shopCipher,
+                'name' => 'Return warehouse (mock)',
+                'type' => 'RETURN_WAREHOUSE',
+                'effect_status' => 'ENABLED',
+            ],
+        ];
     }
 
     /**
