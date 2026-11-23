@@ -47,7 +47,6 @@ class Omnichannel
 
         return $user->can($perms['orders'])
             || $user->can($perms['view'])
-            || $user->can(MarketplaceWebhook::getPermissions()['view'])
             || $user->can(TikTokShop::getPermissions()['view']);
     }
 
@@ -91,7 +90,6 @@ class Omnichannel
 
         return self::userCanView($user)
             || self::userCanOrders($user)
-            || self::userCanSettings($user)
-            || MarketplaceWebhook::userCanView($user);
+            || self::userCanSettings($user);
     }
 }

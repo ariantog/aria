@@ -54,7 +54,7 @@ Code: `App\Services\Marketplace\MarketplaceWebhookRecorder`.
 
 **Route:** `GET /marketplace/webhooks` redirects to `GET /omnichannel/orders` (query preserved; `view` stripped). Legacy `GET /tiktok-shop/webhooks` redirects to the same Orders list.
 
-**Permission:** `marketplace-webhook-view` (generated via `PermissionGenerator` / `App\Models\MarketplaceWebhook`). Users with `tiktok-shop-view` or `omnichannel-view` may also open the page (superadmin as usual).
+**Permission:** same as Omnichannel Orders — `omnichannel-orders`, `omnichannel-view`, or `tiktok-shop-view` (superadmin as usual). Legacy `marketplace-webhook-view` was removed; use omnichannel permissions only.
 
 **Data:** Primary list reads `marketplace_webhook_events`; optional **Current orders** tab reads `marketplace_channel_orders`. Enable dual-write (`MARKETPLACE_WEBHOOK_UNIFIED_STORAGE=true`) or backfill from legacy inbox tables.
 

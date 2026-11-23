@@ -3,7 +3,9 @@
 namespace App\Models;
 
 /**
- * Permissions for unified Shopee/TikTok webhook inbox (read-only).
+ * Legacy permission stub for unified Shopee/TikTok webhook inbox redirects.
+ *
+ * Access is gated via {@see Omnichannel::userCanOrders()} only; no Spatie permissions are generated.
  */
 class MarketplaceWebhook
 {
@@ -12,25 +14,11 @@ class MarketplaceWebhook
      */
     public static function getPermissions(): array
     {
-        return [
-            'view' => 'marketplace-webhook-view',
-        ];
+        return [];
     }
 
     public static function userCanView(?User $user): bool
     {
-        if ($user === null) {
-            return false;
-        }
-
-        if ($user->is_superadmin) {
-            return true;
-        }
-
-        $perms = self::getPermissions();
-
-        return $user->can($perms['view'])
-            || $user->can(TikTokShop::getPermissions()['view'])
-            || $user->can(Omnichannel::getPermissions()['view']);
+        return Omnichannel::userCanOrders($user);
     }
 }

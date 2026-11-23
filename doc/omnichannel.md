@@ -6,7 +6,7 @@ Collapsible **Omnichannel** menu (like Transactions):
 
 | Label | Route | Permission |
 |-------|-------|------------|
-| **Orders** | `GET /omnichannel/orders` | `omnichannel-orders`, `omnichannel-view`, `marketplace-webhook-view`, or `tiktok-shop-view` |
+| **Orders** | `GET /omnichannel/orders` | `omnichannel-orders`, `omnichannel-view`, or `tiktok-shop-view` |
 | **Compare** | `GET /omnichannel` | `omnichannel-view` (shadow Shopee vs Jubelio — kept separate from Orders) |
 | **Settings** | `GET /omnichannel/settings?tab=…` | `omnichannel-settings` or `omnichannel-view` |
 

@@ -149,7 +149,6 @@
     $canOmnichannelView = $hasPerm('omnichannel-view') || $isSuperAdmin;
     $canOmnichannelOrders = $hasPerm('omnichannel-orders')
         || $canOmnichannelView
-        || $hasPerm('marketplace-webhook-view')
         || $hasPerm('tiktok-shop-view');
     $canOmnichannelSettings = $hasPerm('omnichannel-settings') || $canOmnichannelView;
 
