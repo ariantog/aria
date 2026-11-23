@@ -179,13 +179,13 @@ class OmnichannelOrderDetailReader
         $shopRef = $this->resolveShopRefForTikTok($webhookEvents, $channelOrder);
         $shopCipher = $this->resolveTikTokShopCipher($shopRef);
 
-        if (! $this->tikTokOpenApi->isMock() && ! $this->tikTokOpenApi->liveCredentialsReady($shopCipher)) {
+        if (! $this->tikTokOpenApi->isMock() && ! $this->tikTokOpenApi->liveCredentialsReady($shopCipher, $shopRef)) {
             return array_merge($empty, [
                 'api_error' => 'Kredensial TikTok Shop tidak lengkap (access_token / shop_cipher).',
             ]);
         }
 
-        $apiResponse = $this->tikTokOpenApi->getOrderDetail($orderRef, $shopCipher);
+        $apiResponse = $this->tikTokOpenApi->getOrderDetail($orderRef, $shopCipher, $shopRef);
         if ($apiResponse === null) {
             return array_merge($empty, [
                 'api_error' => 'Get Order Detail gagal atau tidak ada respons.',

@@ -25,8 +25,25 @@ return [
 
     'api_version' => env('TIKTOK_SHOP_API_VERSION', '202309'),
 
-    /** Shop access token for read-only Open API calls (order detail enrichment). */
+    /** Shop access token fallback when Grok fetch is off or fails (prefer Grok cache in settings). */
     'access_token' => env('TIKTOK_SHOP_ACCESS_TOKEN'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Grok bot — outbound TikTok token (Aria → Grok, inverse of Shopee readonly export)
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, Aria GETs access_token from the bot before live Open API calls.
+    | Cached in settings slug tiktok_shop_oauth (see TikTokShopAccessTokenResolver).
+    |
+    */
+    'grok_token' => [
+        'enabled' => filter_var(env('TIKTOK_SHOP_GROK_TOKEN_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+        'url' => env('TIKTOK_SHOP_GROK_TOKEN_URL'),
+        /** Shared secret with Grok; defaults to READONLY_EXPORT_BEARER_TOKEN when unset. */
+        'bearer_token' => env('TIKTOK_SHOP_GROK_TOKEN_BEARER', env('READONLY_EXPORT_BEARER_TOKEN')),
+        'timeout_seconds' => (int) env('TIKTOK_SHOP_GROK_TOKEN_TIMEOUT', 15),
+    ],
 
     /** Order API path version for getOrderDetail (Partner Center → Order API). */
     'order_api_version' => env('TIKTOK_SHOP_ORDER_API_VERSION', '202507'),

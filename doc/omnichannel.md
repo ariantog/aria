@@ -24,7 +24,36 @@ Collapsible **Omnichannel** menu (like Transactions):
 - **Orders view:** summary from `marketplace_channel_orders` (no Shopee/TikTok/Jubelio API on first paint).
 - Expand row or `GET /omnichannel/orders/{channel}/{order_ref}` (HTML fragment or `?format=json`) loads webhook events, stored shadow snippet (Shopee), ingress timeline, and Jubelio invoice links from DB. **TikTok:** on expand, a read-only **Get Order Detail** (`TikTokShopOpenApiService`) resolves `shop_cipher` from `tiktok_shop_syncs` for the latest webhook `shop_ref` (fallback `TIKTOK_SHOP_SHOP_CIPHER`), returns `line_summary` (SKU × qty), a compact `channel_order` snippet (status, platform, payment/total when present), `api_detail_loaded` / `api_error` on credential or HTTP failure (webhooks still shown). Persist `commerce_platform` when the API returns it — no `warehouse_item` or transaction writes. **Events view** keeps raw payload only; TikTok events with `order_ref` show a hint to open **Current orders** for line detail.
 
-**TikTok ingest-time enrich (Tokopedia label):** When `TIKTOK_SHOP_ENRICH_COMMERCE_PLATFORM=true` (default), each TikTok Shop webhook with `order_id` dispatches `EnrichMarketplaceTikTokCommercePlatformJob` after unified storage writes — so Orders / Events lists can show **Tokopedia** without opening detail first. Requires `TIKTOK_SHOP_ACCESS_TOKEN` on `TIKTOK_SHOP_DRIVER=live`; mock driver works without a token. Backfill existing rows: `php artisan marketplace:enrich-tiktok-commerce-platform` (`--order=`, `--limit=`, `--since=`).
+**TikTok shop access token (live driver):** Shopee tokens flow **Grok → Aria** via `GET /api/readonly/shopee/oauth`. TikTok is the opposite: **Aria → Grok** fetches a shop `access_token` before read-only Get Order Detail (`TikTokShopAccessTokenResolver` + `TikTokShopGrokTokenClient`). Tokens are cached in `settings` slug **`tiktok_shop_oauth`** with `expires_at`; Aria refreshes from Grok inside the expiry buffer (~5 minutes). **`shop_cipher`** stays on `tiktok_shop_syncs` (per webhook `shop_ref`) with env fallback `TIKTOK_SHOP_SHOP_CIPHER`. Env `TIKTOK_SHOP_ACCESS_TOKEN` remains a **fallback** when `TIKTOK_SHOP_GROK_TOKEN_ENABLED=false` or Grok is unreachable. There is **no** `GET /api/readonly/tiktok/oauth` on Aria (by design).
+
+| Aria env | Purpose |
+|----------|---------|
+| `TIKTOK_SHOP_GROK_TOKEN_ENABLED=true` | Turn on outbound Grok fetch |
+| `TIKTOK_SHOP_GROK_TOKEN_URL` | Full URL to Grok (e.g. `https://<grok-host>/api/tiktok/oauth`) |
+| `TIKTOK_SHOP_GROK_TOKEN_BEARER` | `Authorization: Bearer …` shared secret (defaults to `READONLY_EXPORT_BEARER_TOKEN` if unset) |
+| `TIKTOK_SHOP_APP_KEY` / `TIKTOK_SHOP_APP_SECRET` | Partner app (signing); stay in env — never stored in `settings` |
+| `TIKTOK_SHOP_ACCESS_TOKEN` | Static fallback only |
+
+**Grok endpoint contract (implement on the bot — not in this repo):**
+
+- **Method:** `GET {TIKTOK_SHOP_GROK_TOKEN_URL}` (documented default path: `/api/tiktok/oauth` on the Grok bot base URL).
+- **Auth:** `Authorization: Bearer <TIKTOK_SHOP_GROK_TOKEN_BEARER>` (same secret family as Aria’s read-only export API, but Grok **hosts** this route).
+- **Query (optional):** `shop_ref` — TikTok `shop_id` from webhooks when multiple shops share one bot vault.
+- **200 JSON:**
+
+```json
+{
+  "access_token": "…",
+  "expires_at": "2026-11-23T12:00:00+00:00",
+  "expires_at_unix": 1732363200,
+  "expires_in": 7200,
+  "shop_cipher": "optional-hint-not-authoritative"
+}
+```
+
+At least `access_token` is required. Aria ignores `shop_cipher` from Grok for API calls when `tiktok_shop_syncs` or env already resolve cipher. **4xx/5xx** or missing `access_token` → Aria uses cached token if still valid, else `TIKTOK_SHOP_ACCESS_TOKEN` env, else order detail returns `api_error`. Maintainer checklist for **aria3:** set live driver, app key/secret, enable Grok fetch + URL, map sync rows with `shop_cipher`, keep Grok bot serving the contract above (OAuth refresh lives on Grok, not Aria). Optional future: Aria-native TikTok OAuth UI (like `shopee-admin/authorize`) — not in scope unless env fallback is insufficient.
+
+**TikTok ingest-time enrich (Tokopedia label):** When `TIKTOK_SHOP_ENRICH_COMMERCE_PLATFORM=true` (default), each TikTok Shop webhook with `order_id` dispatches `EnrichMarketplaceTikTokCommercePlatformJob` after unified storage writes — so Orders / Events lists can show **Tokopedia** without opening detail first. On `TIKTOK_SHOP_DRIVER=live`, requires resolvable `access_token` (Grok fetch or env); mock driver works without a token. Backfill existing rows: `php artisan marketplace:enrich-tiktok-commerce-platform` (`--order=`, `--limit=`, `--since=`).
 
 **TikTok ingest without `tts_notification_id`:** unified recorder and legacy inbox use idempotency `tiktok:body:` + SHA-256 prefix of the raw JSON body (warning logged).
 
