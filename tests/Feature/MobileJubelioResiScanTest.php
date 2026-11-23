@@ -3,7 +3,9 @@
 use App\Models\Addrbook;
 use App\Models\Jubelioorder;
 use App\Models\Jubeliosync;
+use App\Models\MarketplaceChannelOrder;
 use App\Models\User;
+use App\Services\Marketplace\MarketplaceWebhookRecorder;
 use App\Services\Jubelio\JubelioOrderReadyToShip;
 use App\Services\Jubelio\JubelioResiScanService;
 use App\Services\JubelioService;
@@ -257,6 +259,87 @@ it('formats invoice prefixes via service', function () {
         ->and($service->formatInvoice('tiktok', 'TT-999'))->toBe('TT-999');
 });
 
+it('matches tiktok resi scan to queue row with bare order ref via omnichannel order', function () {
+    $user = User::factory()->create();
+    $user->givePermissionTo('jubelio-view');
+
+    $orderRef = '587339752188839754';
+    $jubelioStoreId = 32327;
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+
+    Jubeliosync::create([
+        'jubelio_store_id' => $jubelioStoreId,
+        'jubelio_store_name' => 'TikTok Crystal',
+        'jubelio_location_id' => -1,
+        'jubelio_location_name' => 'Pusat',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => 1,
+        'bin_id' => 0,
+    ]);
+
+    MarketplaceChannelOrder::query()->create([
+        'channel' => MarketplaceWebhookRecorder::CHANNEL_TIKTOK,
+        'order_ref' => $orderRef,
+        'shop_ref' => '7494083630891238919',
+        'order_status' => 'AWAITING_SHIPMENT',
+        'last_event_at' => now(),
+        'first_received_at' => now(),
+    ]);
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'wh-bare-ref',
+        'source' => Jubelioorder::SOURCE_WEBHOOK,
+        'invoice' => $orderRef,
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 0,
+        'status' => 0,
+    ]);
+
+    config(['services.jubelio.active' => true]);
+
+    $canonical = 'TT-'.$orderRef.'-'.$jubelioStoreId;
+
+    $this->mock(JubelioService::class, function (MockInterface $mock) use ($canonical, $orderRef) {
+        $mock->shouldReceive('resolveSalesOrderByTracking')
+            ->once()
+            ->andReturn([
+                'status' => 'found',
+                'salesorder_no' => 'TT-'.$orderRef,
+                'salesorder_id' => 'jubelio-so-587',
+            ]);
+    });
+
+    $response = $this->actingAs($user, 'sanctum')->postJson('/api/mobile/v1/jubelio/resi-scan', [
+        'warehouse_id' => $warehouse->id,
+        'marketplace' => 'tiktok',
+        'barcodes' => ['JNT-AWB-587339'],
+    ]);
+
+    $response->assertOk()
+        ->assertJsonCount(0, 'created')
+        ->assertJsonCount(1, 'updated')
+        ->assertJsonPath('updated.0.invoice', $canonical);
+
+    expect(Jubelioorder::where('type', 'SELL')->count())->toBe(1);
+
+    $order = Jubelioorder::query()->where('type', 'SELL')->first();
+    expect($order->invoice)->toBe($canonical)
+        ->and($order->order_status)->toBe(JubelioOrderReadyToShip::STATUS);
+});
+
+it('canonicalizes tiktok invoice with jubelio store suffix from sync row', function () {
+    $service = app(JubelioResiScanService::class);
+
+    expect($service->canonicalInvoiceForResiScan('tiktok', '587339752188839754', 32327))
+        ->toBe('TT-587339752188839754-32327')
+        ->and($service->canonicalInvoiceForResiScan('tiktok', 'TT-587339752188839754', 32327))
+        ->toBe('TT-587339752188839754-32327')
+        ->and($service->channelOrderRefFromInvoice('tiktok', 'TT-587339752188839754-32327', 32327))
+        ->toBe('587339752188839754');
+});
+
 it('creates tiktok queue row when awb resolves and no queue row exists', function () {
     $user = User::factory()->create();
     $user->givePermissionTo('jubelio-view');
@@ -350,9 +433,12 @@ it('updates tiktok queue row when invoice omits jubelio store suffix', function 
     $response->assertOk()
         ->assertJsonCount(0, 'created')
         ->assertJsonCount(1, 'updated')
-        ->assertJsonPath('updated.0.invoice', 'TT-586928090015303551');
+        ->assertJsonPath('updated.0.invoice', 'TT-586928090015303551-32327');
 
     expect(Jubelioorder::where('type', 'SELL')->count())->toBe(1);
+
+    $order = Jubelioorder::query()->where('type', 'SELL')->first();
+    expect($order->invoice)->toBe('TT-586928090015303551-32327');
 });
 
 it('does not insert jubelioorders when awb resolves but queue row is missing', function () {

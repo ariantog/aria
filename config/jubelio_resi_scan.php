@@ -24,6 +24,8 @@ return [
             'invoice_prefix' => 'TT',
             'store_name_patterns' => ['tiktok'],
             'resolve_invoice_from_tracking' => true,
+            /** Jubelio salesorder_no is `TT-{order_id}-{jubelio_store_id}` (see JubelioOrderWarehouseResolver). */
+            'append_jubelio_store_id' => true,
             /** No Shopee-style push placeholder — scan may queue when AWB resolves before webhook. */
             'insert_queue_row_on_scan' => true,
         ],
@@ -32,6 +34,7 @@ return [
             'invoice_prefix' => 'TP',
             'store_name_patterns' => ['tokopedia'],
             'resolve_invoice_from_tracking' => true,
+            'append_jubelio_store_id' => true,
             'insert_queue_row_on_scan' => true,
         ],
         'lazada' => [
