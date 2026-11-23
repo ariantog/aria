@@ -91,6 +91,7 @@ class ShopeeOrderShadowRecorder
             $orderSn,
             $channelStatus !== '' ? $channelStatus : $pushStatus,
             $lineSummary,
+            $shopId,
         );
 
         $compareNote = $compare['compare_note'];

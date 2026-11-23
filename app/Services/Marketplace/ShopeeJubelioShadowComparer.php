@@ -12,6 +12,7 @@ class ShopeeJubelioShadowComparer
         private JubelioOrderPayloadService $payloadService,
         private JubelioOrderLineSummary $jubelioLineSummary,
         private ShopeeJubelioShadowLineCompare $lineCompare,
+        private ShopeeSyncInvoicePrefix $shopeeInvoicePrefix,
     ) {}
 
     /**
@@ -27,9 +28,9 @@ class ShopeeJubelioShadowComparer
      *     line_compare_note: ?string,
      * }
      */
-    public function compare(string $orderSn, ?string $shopeeStatus, ?array $shopeeLineSummary = null): array
+    public function compare(string $orderSn, ?string $shopeeStatus, ?array $shopeeLineSummary = null, ?int $shopId = null): array
     {
-        $prefix = strtoupper((string) config('jubelio_resi_scan.marketplaces.shopee.invoice_prefix', 'SP'));
+        $prefix = $this->shopeeInvoicePrefix->prefixForShopId($shopId);
         $baseInvoice = $prefix.'-'.$orderSn;
 
         $jubelio = Jubelioorder::query()

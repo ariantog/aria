@@ -8,6 +8,7 @@ use App\Models\Jubeliosync;
 use App\Models\User;
 use App\Services\LocationAccessService;
 use App\Services\Marketplace\ShopeeJubelioQueuePrecreator;
+use App\Services\Marketplace\ShopeeSyncInvoicePrefix;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
@@ -18,6 +19,7 @@ class JubelioResiScanService
         private JubelioSellInvoiceGuard $sellInvoiceGuard,
         private LocationAccessService $locationAccess,
         private JubelioResiInvoiceResolver $invoiceResolver,
+        private ShopeeSyncInvoicePrefix $shopeeInvoicePrefix,
     ) {}
 
     /**
@@ -293,16 +295,14 @@ class JubelioResiScanService
             }
         }
 
-        if (preg_match('/^SP-(.+)$/i', $invoice, $matches) === 1) {
-            $orderSn = trim($matches[1]);
-            if ($orderSn !== '') {
-                $placeholderId = ShopeeJubelioQueuePrecreator::PLACEHOLDER_PREFIX.$orderSn;
+        $orderSn = $this->shopeeOrderSnFromPrefixedInvoice($invoice);
+        if ($orderSn !== null) {
+            $placeholderId = ShopeeJubelioQueuePrecreator::PLACEHOLDER_PREFIX.$orderSn;
 
-                return Jubelioorder::query()
-                    ->where('type', 'SELL')
-                    ->where('jubelio_order_id', $placeholderId)
-                    ->first();
-            }
+            return Jubelioorder::query()
+                ->where('type', 'SELL')
+                ->where('jubelio_order_id', $placeholderId)
+                ->first();
         }
 
         return null;
@@ -409,6 +409,25 @@ class JubelioResiScanService
                 if (str_contains($needle, strtolower($pattern))) {
                     return $key;
                 }
+            }
+        }
+
+        return null;
+    }
+
+    private function shopeeOrderSnFromPrefixedInvoice(string $invoice): ?string
+    {
+        $invoice = trim($invoice);
+        if ($invoice === '') {
+            return null;
+        }
+
+        foreach ($this->shopeeInvoicePrefix->allKnownPrefixes() as $prefix) {
+            $quoted = preg_quote($prefix, '/');
+            if (preg_match('/^'.$quoted.'-(.+)$/i', $invoice, $matches) === 1) {
+                $orderSn = trim($matches[1]);
+
+                return $orderSn !== '' ? $orderSn : null;
             }
         }
 
