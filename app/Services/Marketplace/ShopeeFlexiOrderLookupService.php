@@ -197,6 +197,9 @@ class ShopeeFlexiOrderLookupService
             'exchange_rate' => $amounts['exchange_rate'],
             'banner' => $amounts['banner'],
             'escrow_loaded' => $amounts['escrow_loaded'],
+            'escrow_usable' => $amounts['escrow_usable'],
+            'idr_escrow_total' => $amounts['idr_escrow_total'],
+            'escrow_fetch' => $amounts['escrow_fetch'],
         ];
         $base['api_snippet'] = $this->safeSnippet($orderRow);
 
@@ -291,7 +294,7 @@ class ShopeeFlexiOrderLookupService
         if (! $this->amountResolver->amountsUsableForSellPrefill($amounts)) {
             $source = (string) ($amounts['price_source'] ?? '');
             if ($source === ShopeeFlexiOrderAmountResolver::PRICE_SOURCE_CATALOG) {
-                return 'Escrow tanpa kurs SIP — harga tidak bisa diprefill untuk SELL; tunggu escrow dengan exchange_rate atau perbaiki mapping.';
+                return 'Escrow IDR/kurs tidak ditemukan — SELL tidak tersedia (coba shop primary + ref MY-{ordersn}, atau tunggu exchange_rate).';
             }
 
             return 'Nominal escrow tidak cukup untuk prefill SELL — periksa get_escrow_detail.';

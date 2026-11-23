@@ -169,7 +169,8 @@ $loadDetailChecked = (bool) old('load_detail', $loadDetail ?? false);
                     $priceSource = $result['amount_resolution']['price_source'] ?? null;
                     $priceSourceLabel = match ($priceSource) {
                         'escrow_fx' => 'Harga prefill: kurs escrow Shopee (IDR)',
-                        'catalog_fallback' => 'Harga prefill: katalog Aria (tanpa kurs SIP)',
+                        'escrow_idr' => 'Harga prefill: penghasilan IDR dari escrow (tanpa kurs)',
+                        'catalog_fallback' => 'Harga prefill: katalog Aria (escrow IDR/kurs tidak ditemukan)',
                         'shopee_idr' => 'Harga prefill: nominal Shopee (IDR)',
                         default => null,
                     };
@@ -235,6 +236,19 @@ $loadDetailChecked = (bool) old('load_detail', $loadDetail ?? false);
                                     —
                                 @endif
                             </td></tr>
+                        @if(! empty($result['amount_resolution']['escrow_fetch'] ?? null))
+                        <tr><th class="bg-gray-50 px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600">Sumber escrow API</th>
+                            <td class="px-4 py-3 font-mono text-xs" data-testid="result-escrow-fetch">
+                                shop_id {{ $result['amount_resolution']['escrow_fetch']['shop_id'] ?? '—' }}
+                                · order_sn {{ $result['amount_resolution']['escrow_fetch']['order_sn'] ?? '—' }}
+                                @if($result['amount_resolution']['escrow_fetch']['via_primary_shop'] ?? false)
+                                    <span class="text-blue-800">· primary ID shop</span>
+                                @endif
+                                @if(filled($result['amount_resolution']['idr_escrow_total'] ?? null))
+                                    <span class="block text-green-800">IDR escrow: Rp{{ number_format((float) $result['amount_resolution']['idr_escrow_total'], 0, '.', ',') }}</span>
+                                @endif
+                            </td></tr>
+                        @endif
                         @if(! empty($result['escrow_snippet']))
                         <tr><th class="bg-gray-50 px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600">Escrow</th>
                             <td class="px-4 py-3 font-mono text-xs" data-testid="result-escrow-snippet">
