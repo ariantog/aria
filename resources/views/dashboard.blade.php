@@ -20,7 +20,7 @@
     $roleChecklist = $dashboard['role_checklist'] ?? [];
     $hasRoleChecklist = $roleChecklist['has_checklists'] ?? false;
     $fmtNum = fn ($v) => format_amount($v, 0);
-    $fmtMoney = fn ($v) => format_amount($v, 0);
+    $fmtMoney = fn ($v) => format_table_amount($v);
 @endphp
 
 <div class="flex h-full flex-1 flex-col gap-4 p-4">

@@ -9,8 +9,8 @@ $breadcrumbs = [
     ['title' => 'Groups', 'href' => route('items.group')],
     ['title' => $detail['label'], 'href' => '#'],
 ];
-$fmt = fn ($v) => format_amount($v, 0);
-$idr = fn ($v) => 'Rp '.format_amount($v, 0);
+$fmt = fn ($v) => format_table_amount($v, 0);
+$idr = fn ($v) => format_table_currency($v);
 @endphp
 
 <div class="p-4 sm:p-6" x-data="groupWarehousePicker(@js($detail['warehouse_names']), @js($detail['anchor_group_id']))">

@@ -4,7 +4,7 @@
 
 @section('content')
 @php
-$fmt = fn ($v) => format_amount($v);
+$fmt = fn ($v) => format_table_amount($v);
 $monthNames = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 $monthKeys = $report['month_keys'];
 $showMonths = count($monthKeys) > 1;

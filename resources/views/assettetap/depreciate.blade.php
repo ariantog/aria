@@ -8,7 +8,7 @@ $breadcrumbs = [
     ['title' => 'Asset Tetap', 'href' => route('assettetap.index')],
     ['title' => 'Penyusutan', 'href' => route('assettetap.depreciate')],
 ];
-$fmt = fn ($v) => 'Rp '.format_amount($v, 0);
+$fmt = fn ($v) => format_table_currency($v);
 $previewTotal = collect($preview)->sum('amount');
 @endphp
 

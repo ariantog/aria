@@ -34,7 +34,7 @@ $sortKey = $sort ?? '';
                     <td class="px-3 py-2 text-gray-700">{{ $row['color'] }}</td>
                     <td class="px-3 py-2 text-gray-700">{{ $row['size'] }}</td>
                     <td class="px-3 py-2 text-right tabular-nums text-gray-700">
-                        {{ format_amount($row['sold_12m'] ?? 0, 0) }}
+                        {{ format_table_amount($row['sold_12m'] ?? 0, 0) }}
                     </td>
                     @foreach($whList as $warehouse)
                         @php

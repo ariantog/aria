@@ -217,7 +217,7 @@ $exportQuery = array_filter(
                         </td>
                         <td class="{{ $td }} text-right font-mono text-[11px] text-gray-800" data-copy-col="total" data-copy-value="{{ $copyTotal }}">
                             @if($summary['real_total'] !== null)
-                                {{ format_amount($summary['real_total']) }}
+                                {{ format_table_amount($summary['real_total']) }}
                             @else
                                 —
                             @endif

@@ -44,9 +44,9 @@
             @foreach($invoice->lines as $line)
             <tr>
                 <td>{{ $line->description }}</td>
-                <td class="right">{{ format_amount($line->quantity) }}</td>
-                <td class="right">{{ format_currency($line->price) }}</td>
-                <td class="right">{{ format_currency($line->total) }}</td>
+                <td class="right">{{ format_table_amount($line->quantity) }}</td>
+                <td class="right">{{ format_table_currency($line->price) }}</td>
+                <td class="right">{{ format_table_currency($line->total) }}</td>
             </tr>
             @endforeach
         </tbody>

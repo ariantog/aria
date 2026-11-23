@@ -361,6 +361,11 @@ function formatAmountId(value) {
     return Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
+function formatTableAmountId(value, fractionDigits = 2) {
+    const digits = Math.max(0, Math.min(2, Number(fractionDigits) || 0));
+    return Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+
 function formatNumberId(value) {
     return Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
 }

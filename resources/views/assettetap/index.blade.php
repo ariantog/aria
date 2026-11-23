@@ -8,7 +8,7 @@ $breadcrumbs = [
     ['title' => 'Stuff', 'href' => route('items.index')],
     ['title' => 'Asset Tetap', 'href' => route('assettetap.index')],
 ];
-$fmt = fn ($v) => 'Rp '.format_amount($v, 0);
+$fmt = fn ($v) => format_table_currency($v);
 @endphp
 
 <div class="flex flex-col gap-3 p-3 sm:p-4">

@@ -20,6 +20,14 @@ test('format_currency prefixes formatted amounts', function () {
     expect(format_currency(1500, 'Rp ', 0))->toBe('Rp 1,500');
 });
 
+test('format_table_amount keeps fixed decimal places for column alignment', function () {
+    expect(format_table_amount(2))->toBe('2.00')
+        ->and(format_table_amount(1000.5))->toBe('1,000.50')
+        ->and(format_table_amount(1.55))->toBe('1.55')
+        ->and(format_table_amount(1234, 0))->toBe('1,234')
+        ->and(format_table_currency(500))->toBe('Rp 500.00');
+});
+
 test('format_copy_number drops currency grouping for spreadsheet paste', function () {
     expect(format_copy_number(214500))->toBe('214500')
         ->and(format_copy_number(214500.5))->toBe('214500.5')

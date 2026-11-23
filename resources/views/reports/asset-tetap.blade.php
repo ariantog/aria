@@ -8,7 +8,7 @@ $breadcrumbs = [
     ['title' => 'Reports', 'href' => '#'],
     ['title' => 'Nilai Buku Asset Tetap', 'href' => route('reports.asset-tetap')],
 ];
-$fmt = fn ($v) => 'Rp '.format_amount($v, 0);
+$fmt = fn ($v) => format_table_currency($v);
 @endphp
 
 <div class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">

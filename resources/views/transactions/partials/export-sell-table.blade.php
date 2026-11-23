@@ -106,9 +106,9 @@
                                     <span class="text-gray-400">—</span>
                                 @endif
                             </td>
-                            <td class="whitespace-nowrap px-3 py-2 text-right font-mono" data-copy-col="qty" data-copy-value="{{ format_copy_number($row->quantity) }}">{{ format_amount($row->quantity) }}</td>
-                            <td class="whitespace-nowrap px-3 py-2 text-right font-mono" data-copy-col="item_discount" data-copy-value="{{ format_copy_number($row->discount) }}">{{ format_amount($row->discount) }}%</td>
-                            <td class="whitespace-nowrap px-3 py-2 text-right font-mono" data-copy-col="subtotal" data-copy-value="{{ format_copy_number($row->total) }}">{{ format_currency($row->total) }}</td>
+                            <td class="whitespace-nowrap px-3 py-2 text-right font-mono" data-copy-col="qty" data-copy-value="{{ format_copy_number($row->quantity) }}">{{ format_table_amount($row->quantity) }}</td>
+                            <td class="whitespace-nowrap px-3 py-2 text-right font-mono" data-copy-col="item_discount" data-copy-value="{{ format_copy_number($row->discount) }}">{{ format_table_amount($row->discount) }}%</td>
+                            <td class="whitespace-nowrap px-3 py-2 text-right font-mono" data-copy-col="subtotal" data-copy-value="{{ format_copy_number($row->total) }}">{{ format_table_currency($row->total) }}</td>
                             <td class="whitespace-nowrap px-3 py-2 text-right font-mono" data-copy-col="adjustment" data-copy-value="{{ $isFirstLineForTransaction ? format_copy_number($transaction?->adjustment ?? 0) : '' }}" x-show="showTxAdjustment">
                                 @if($isFirstLineForTransaction)
                                     <span class="{{ ($transaction?->adjustment ?? 0) < 0 ? 'text-red-600' : (($transaction?->adjustment ?? 0) > 0 ? 'text-green-600' : 'text-gray-700') }}">

@@ -85,7 +85,7 @@ $typeColors = [
                         <td class="whitespace-nowrap px-6 py-3" data-copy-col="invoice">
                             <a href="/transactions/{{ $td->transaction_id }}" class="font-mono text-blue-600 hover:underline">{{ optional($td->transaction)->invoice ?? '-' }}</a>
                         </td>
-                        <td class="whitespace-nowrap px-6 py-3 text-right font-medium text-gray-600" data-copy-col="price" data-copy-value="{{ format_copy_number($td->price) }}">{{ format_currency($td->price) }}</td>
+                        <td class="whitespace-nowrap px-6 py-3 text-right font-medium text-gray-600" data-copy-col="price" data-copy-value="{{ format_copy_number($td->price) }}">{{ format_table_currency($td->price) }}</td>
                         <td class="px-6 py-3" data-copy-col="sender">
                             <div class="flex flex-col">
                                 @if(optional($td->transaction)->sender)

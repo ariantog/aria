@@ -9,7 +9,7 @@ $breadcrumbs = [
     ['title' => 'Transactions', 'href' => route('archive.transactions.index')],
     ['title' => 'Invoice #' . ($transaction->invoice ?: $transaction->id), 'href' => route('archive.transactions.show', $transaction->id)],
 ];
-$fmt = fn ($n) => format_amount($n);
+$fmt = fn ($n) => format_table_amount($n);
 $fmtDate = fn ($d) => $d ? \Illuminate\Support\Carbon::parse($d)->format('d/m/Y') : '-';
 $tb = $typeBadges[$transaction->type] ?? ['Unknown', 'border-gray-200 bg-white text-gray-600'];
 @endphp

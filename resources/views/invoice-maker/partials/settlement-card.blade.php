@@ -86,7 +86,7 @@
             this.discount = Math.max(0, Math.round((this.subtotal - credit) * 100) / 100);
         },
         formatRp(value) {
-            return new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(value);
+            return formatTableAmountId(value, 2);
         }
      }">
     <div class="mb-3 flex items-start justify-between gap-3">

@@ -1,5 +1,5 @@
 @php
-$fmt = fn ($v) => format_amount($v);
+$fmt = fn ($v) => format_table_amount($v);
 $monthNames = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 $kindLabel = $report['kind'] === \App\Services\Reporting\AgingReportService::KIND_PAYABLE ? 'Hutang Usaha' : 'Piutang Usaha';
 $routeName = $report['kind'] === \App\Services\Reporting\AgingReportService::KIND_PAYABLE ? 'reports.payables' : 'reports.receivables';

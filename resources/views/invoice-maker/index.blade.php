@@ -66,7 +66,7 @@ $breadcrumbs = [
                         <td class="px-4 py-3 text-gray-600">{{ $row->date?->format('d/m/Y') }}</td>
                         <td class="px-4 py-3 text-gray-700">{{ Str::limit($row->recipient, 60) }}</td>
                         <td class="px-4 py-3 text-gray-500">{{ \App\Models\StandaloneInvoice::TEMPLATES[$row->template] ?? $row->template }}</td>
-                        <td class="px-4 py-3 text-right font-mono text-gray-900">{{ format_currency($row->subtotal) }}</td>
+                        <td class="px-4 py-3 text-right font-mono text-gray-900">{{ format_table_currency($row->subtotal) }}</td>
                         <td class="px-4 py-3">
                             @php $rowStatus = $invoiceStatuses[$row->id] ?? \App\Models\StandaloneInvoice::STATUS_UNPAID; @endphp
                             @include('invoice-maker.partials.status-badge', [

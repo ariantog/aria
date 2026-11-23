@@ -77,34 +77,34 @@
             @foreach($invoice->lines as $line)
             <tr>
                 <td class="item">{{ $line->description }}</td>
-                <td class="qty">{{ format_amount($line->quantity) }}</td>
-                <td class="money">{{ format_currency($line->price) }}</td>
-                <td class="money">{{ format_currency($line->total) }}</td>
+                <td class="qty">{{ format_table_amount($line->quantity) }}</td>
+                <td class="money">{{ format_table_currency($line->price) }}</td>
+                <td class="money">{{ format_table_currency($line->total) }}</td>
             </tr>
             @endforeach
         </tbody>
         <tfoot>
             <tr>
                 <td class="item">TOTAL</td>
-                <td class="qty">{{ format_amount($invoice->total_qty) }}</td>
+                <td class="qty">{{ format_table_amount($invoice->total_qty) }}</td>
                 <td class="money">SUB TOTAL</td>
-                <td class="money">{{ format_currency($invoice->subtotal) }}</td>
+                <td class="money">{{ format_table_currency($invoice->subtotal) }}</td>
             </tr>
             @if($invoice->discountAmount() > 0)
             <tr>
                 <td colspan="3" class="money" style="text-align:right;">DISCOUNT</td>
-                <td class="money">{{ format_currency($invoice->discountAmount()) }}</td>
+                <td class="money">{{ format_table_currency($invoice->discountAmount()) }}</td>
             </tr>
             @endif
             @if($invoice->hasDownPayment())
             <tr>
                 <td colspan="3" class="money dp" style="text-align:right;">DP</td>
-                <td class="money dp">{{ format_currency($invoice->dp_amount) }}</td>
+                <td class="money dp">{{ format_table_currency($invoice->dp_amount) }}</td>
             </tr>
             @endif
             <tr>
                 <td colspan="3" class="money" style="text-align:right;">TOTAL</td>
-                <td class="money">{{ format_currency(max(0, $invoice->balanceDue() - $invoice->discountAmount())) }}</td>
+                <td class="money">{{ format_table_currency(max(0, $invoice->balanceDue() - $invoice->discountAmount())) }}</td>
             </tr>
         </tfoot>
     </table>

@@ -8,7 +8,7 @@ $breadcrumbs = [
     ['title' => 'Archive', 'href' => route('archive.index')],
     ['title' => 'Items', 'href' => route('archive.items.index')],
 ];
-$idr = fn ($v) => 'Rp ' . format_amount($v, 0);
+$idr = fn ($v) => format_table_currency($v);
 @endphp
 
 <div class="flex flex-col gap-4 p-4">

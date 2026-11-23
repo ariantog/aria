@@ -34,7 +34,7 @@
         ? ($sellCashIn['cash_in_store_url'] ?? '#')
         : ($transaction ? route('transactions.sell-cash-in.store', $transaction) : '#');
     $hasCashInErrors = $errors->has('amount') || $errors->has('account_id') || $errors->has('date') || $errors->has('sender_id');
-    $fmt = fn ($n) => format_amount($n);
+    $fmt = fn ($n) => format_table_amount($n);
     $initialEnabled = ($autoEnable || $hasCashInErrors) ? 'true' : 'false';
     $initialAmount = $hasCashInErrors && old('amount') !== null ? (float) old('amount') : $defaultAmount;
     $showCard = $sellCashIn && ($transaction || $invoiceOnly) && ($canCreate || $linked->isNotEmpty());

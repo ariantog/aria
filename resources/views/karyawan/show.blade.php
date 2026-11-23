@@ -11,7 +11,7 @@ $breadcrumbs = [
 $user = auth()->user();
 $isSuper = $user && $user->is_superadmin;
 $canEditGaji = $user && ($isSuper || $user->can('karyawan-gaji-edit'));
-$fmt = fn($v) => format_amount($v ?? 0, 0);
+$fmt = fn($v) => format_table_amount($v ?? 0);
 $canEditCuti = $user && ($isSuper || $user->can('karyawan-cuti-edit'));
 $canDeleteCuti = $user && ($isSuper || $user->can('karyawan-cuti-delete'));
 $tipeCuti = \App\Models\Cuti::$typeStyles;
