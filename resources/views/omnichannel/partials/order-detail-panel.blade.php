@@ -4,6 +4,12 @@ $shadow = $detail['shadow'] ?? null;
 $links = $detail['links'] ?? [];
 $events = $detail['webhook_events'] ?? [];
 $jubelio = $detail['jubelio'] ?? null;
+$isTiktok = ($detail['channel'] ?? '') === 'tiktok';
+$tiktokLines = $detail['line_summary'] ?? [];
+$channelOrder = $detail['channel_order'] ?? null;
+$apiDetailLoaded = (bool) ($detail['api_detail_loaded'] ?? false);
+$apiError = $detail['api_error'] ?? null;
+$apiDetail = $detail['api_detail'] ?? null;
 @endphp
 
 <div class="space-y-3 p-3 text-xs text-gray-800" data-testid="omnichannel-order-detail">
@@ -24,6 +30,74 @@ $jubelio = $detail['jubelio'] ?? null;
         <span class="text-gray-500">Tidak ada tautan detail tambahan.</span>
         @endif
     </div>
+
+    @if($isTiktok)
+    <div class="rounded-lg border border-gray-200 bg-white p-3" data-testid="omnichannel-tiktok-api-detail">
+        <p class="text-[10px] font-semibold uppercase text-gray-500">TikTok Get Order Detail</p>
+        @if($apiError)
+        <p class="mt-1 text-[11px] text-amber-800" data-testid="omnichannel-tiktok-api-error">{{ $apiError }}</p>
+        @elseif($apiDetailLoaded)
+        <p class="mt-1 text-[11px] text-gray-600">Detail API dimuat (read-only).</p>
+        @else
+        <p class="mt-1 text-[11px] text-gray-500">Detail API belum dimuat.</p>
+        @endif
+
+        @if(is_array($channelOrder) && $channelOrder !== [])
+        <dl class="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] sm:grid-cols-3">
+            @if(!empty($channelOrder['status']))
+            <dt class="text-gray-500">Status</dt>
+            <dd class="font-mono text-gray-800">{{ $channelOrder['status'] }}</dd>
+            @endif
+            @if(!empty($channelOrder['commerce_platform']))
+            <dt class="text-gray-500">Platform</dt>
+            <dd class="font-mono uppercase text-gray-800">{{ $channelOrder['commerce_platform'] }}</dd>
+            @endif
+            @if(!empty($channelOrder['payment_method']))
+            <dt class="text-gray-500">Bayar</dt>
+            <dd class="text-gray-800">{{ $channelOrder['payment_method'] }}</dd>
+            @endif
+            @if(isset($channelOrder['total_amount']))
+            <dt class="text-gray-500">Total</dt>
+            <dd class="font-mono text-gray-800">
+                @if(!empty($channelOrder['currency']))
+                {{ $channelOrder['currency'] }}
+                @endif
+                {{ $channelOrder['total_amount'] }}
+            </dd>
+            @endif
+        </dl>
+        @endif
+
+        @if(!empty($tiktokLines) && is_array($tiktokLines))
+        <p class="mt-3 text-[10px] font-semibold uppercase text-gray-500">Baris (SKU × qty)</p>
+        <table class="mt-1 w-full max-w-md text-left" data-testid="omnichannel-tiktok-line-table">
+            <thead>
+                <tr class="border-b border-gray-100 text-[10px] uppercase text-gray-500">
+                    <th class="py-1 pr-2">SKU</th>
+                    <th class="py-1 text-right">Qty</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach(array_slice($tiktokLines, 0, 50) as $line)
+                <tr class="border-b border-gray-50">
+                    <td class="py-1 pr-2 font-mono text-[11px]">{{ $line['sku'] ?? '—' }}</td>
+                    <td class="py-1 text-right font-mono text-[11px]">{{ $line['qty'] ?? '—' }}</td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+        @elseif($apiDetailLoaded)
+        <p class="mt-2 text-[11px] text-gray-500">Tidak ada baris SKU pada respons API (webhook mungkin tanpa item_list).</p>
+        @endif
+
+        @if($apiDetailLoaded && is_array($apiDetail))
+        <details class="mt-3">
+            <summary class="cursor-pointer text-[10px] font-semibold uppercase text-gray-500 hover:text-gray-700">JSON API (ringkas)</summary>
+            <pre class="mt-2 max-h-48 overflow-auto rounded-lg border border-gray-200 bg-gray-50 p-2 font-mono text-[10px] leading-relaxed text-gray-800 whitespace-pre-wrap break-all">{{ json_encode($apiDetail, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}</pre>
+        </details>
+        @endif
+    </div>
+    @endif
 
     @if($shadow)
     <div class="rounded-lg border border-gray-200 bg-white p-3">

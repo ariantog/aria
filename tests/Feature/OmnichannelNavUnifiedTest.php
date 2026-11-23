@@ -113,6 +113,63 @@ it('enriches tiktok order detail with commerce_platform when driver is mock', fu
         ->toBe('TOKOPEDIA');
 });
 
+it('loads tiktok line summary from mock get order detail on orders expand', function () {
+    config([
+        'tiktok_shop.driver' => 'mock',
+        'tiktok_shop.enrich_commerce_platform' => false,
+    ]);
+
+    MarketplaceChannelOrder::query()->create([
+        'channel' => 'tiktok',
+        'order_ref' => 'ONORDER-DETAIL-1',
+        'shop_ref' => '7495540735365777507',
+        'order_status' => 'AWAITING_SHIPMENT',
+        'last_event_at' => now(),
+        'first_received_at' => now(),
+    ]);
+
+    $admin = User::factory()->create();
+
+    $this->actingAs($admin)
+        ->getJson(route('omnichannel.orders.show', ['channel' => 'tiktok', 'orderRef' => 'ONORDER-DETAIL-1']))
+        ->assertOk()
+        ->assertJsonPath('api_detail_loaded', true)
+        ->assertJsonPath('line_summary.0.sku', 'SKU-TTS-ON-1')
+        ->assertJsonPath('line_summary.0.qty', 2)
+        ->assertJsonPath('channel_order.status', 'AWAITING_SHIPMENT');
+
+    $this->actingAs($admin)
+        ->get(route('omnichannel.orders.show', ['channel' => 'tiktok', 'orderRef' => 'ONORDER-DETAIL-1']))
+        ->assertOk()
+        ->assertSee('data-testid="omnichannel-tiktok-line-table"', false)
+        ->assertSee('SKU-TTS-ON-1', false);
+});
+
+it('reports tiktok api_error when live credentials are missing', function () {
+    config([
+        'tiktok_shop.driver' => 'live',
+        'tiktok_shop.app_key' => '',
+        'tiktok_shop.enrich_commerce_platform' => false,
+    ]);
+
+    MarketplaceChannelOrder::query()->create([
+        'channel' => 'tiktok',
+        'order_ref' => 'LIVE-MISSING-CRED',
+        'shop_ref' => 'shop-y',
+        'order_status' => 'UNPAID',
+        'last_event_at' => now(),
+        'first_received_at' => now(),
+    ]);
+
+    $admin = User::factory()->create();
+
+    $this->actingAs($admin)
+        ->getJson(route('omnichannel.orders.show', ['channel' => 'tiktok', 'orderRef' => 'LIVE-MISSING-CRED']))
+        ->assertOk()
+        ->assertJsonPath('api_detail_loaded', false)
+        ->assertJson(fn ($json) => $json->where('api_error', fn ($msg) => is_string($msg) && $msg !== '')->etc());
+});
+
 it('forbids omnichannel settings without permission', function () {
     $user = User::factory()->create(['id' => 51]);
     Permission::findOrCreate(Omnichannel::getPermissions()['settings'], 'web');
