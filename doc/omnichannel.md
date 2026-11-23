@@ -120,7 +120,7 @@ Jubelio may not enqueue **export / FLEXI Malaysia** orders. Aria can ingest them
 2. **FLEXI shops** (`/shopee-flexi`): satu baris per **`shop_id` + invoice prefix** (SPMY / SPSG / …) + poll ingest. Warehouse tidak relevan di sini.
 3. **Warehouse Map** (`/shopee-sync`): Shopee pickup → Aria gudang (stok). Placeholder `jubelioorders.warehouse_id` dari `product_location_id` vs `shopee_location_id` pada baris pickup ini.
 4. **Enable** `SHOPEE_ORDER_POLL_ENABLED=true`, `SHOPEE_PRECREATE_JUBELIO_QUEUE=true`, `MARKETPLACE_WEBHOOK_UNIFIED_STORAGE=true` as needed; turn on cron **`shopee:poll-orders`** in Cron Manager.
-5. **Satu order manual** (tidak muncul di webhook): `php artisan shopee:pull-order {ordersn} --shop-id={MY_shop_id}` — sama ingest dengan poll (`source: shopee_pull` di payload).
+5. **Satu order manual** (tidak muncul di webhook): UI **Tarik & masukkan ke antrean** di `/shopee-flexi/lookup`, atau CLI `php artisan shopee:pull-order {ordersn} --shop-id={MY_shop_id}` — sama ingest dengan poll (`source: shopee_pull` di payload). Bukan posting SELL Jubelio.
 6. Optional: register **Push** for the export `shop_id` in Shopee Console (same `/shopee/push` path as Indonesia).
 
 Poll + push both run the same ingest (shadow, unified orders table, `jubelioorders` placeholder `{prefix}-{ordersn}`). **SELL posting** still requires either a future direct Shopee poster or manual transaction — Jubelio cron will not receive MY/export payloads.

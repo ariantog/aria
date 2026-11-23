@@ -18,6 +18,14 @@ $breadcrumbs = [
             <strong class="font-medium text-gray-700">shop_id</strong>, status, lokasi pickup, dan preview mapping gudang.
             <strong class="font-medium text-gray-700">shop_id</strong> dan <strong class="font-medium text-gray-700">ordersn</strong> keduanya wajib (token OAuth per shop).
         </p>
+        <details class="mt-3 max-w-3xl rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+            <summary class="cursor-pointer font-medium text-gray-900">FLEXI: push, poll, dan tarik manual</summary>
+            <ul class="mt-2 list-disc space-y-1 pl-5 text-gray-600">
+                <li>Export/MY <strong>bisa</strong> dapat Shopee push ke <code>/shopee/push</code> jika <code>shop_id</code> didaftarkan di Console (sama seperti ID). Sering tanpa webhook Jubelio.</li>
+                <li>Catch-up otomatis: cron <code>shopee:poll-orders</code> untuk baris <code>shopee_flexi_shops</code> dengan <code>direct_order_ingest=true</code> + env/cron aktif.</li>
+                <li><strong>Tarik &amp; masukkan ke antrean</strong> di bawah = sama dengan <code>php artisan shopee:pull-order</code> (shadow, placeholder <code>jubelioorders</code>, omnichannel) — <em>bukan</em> posting SELL seperti &quot;Buat Transaksi Manual&quot; Jubelio.</li>
+            </ul>
+        </details>
     </div>
 
     @if(! empty($authorizedShopIds))
@@ -42,19 +50,68 @@ $breadcrumbs = [
         </div>
         <div>
             <label for="shop_id" class="block text-sm font-medium text-gray-700">Shop ID</label>
-            <input type="number" name="shop_id" id="shop_id" value="{{ $shopId }}" required min="1"
-                placeholder="contoh: 1925605693"
-                class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 font-mono text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
-                data-testid="shopee-lookup-shop-id">
+            @if(($shopOptions ?? []) === [])
+                <p class="mt-1 text-sm text-amber-800">Belum ada shop di <a href="{{ route('shopee.flexi.index') }}" class="underline">FLEXI shops</a> atau OAuth — authorize Shopee Admin dulu.</p>
+                <input type="hidden" name="shop_id" value="">
+            @else
+                <select name="shop_id" id="shop_id" required
+                    class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 font-mono text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
+                    data-testid="shopee-lookup-shop-id">
+                    <option value="" disabled @selected($shopId === '')>Pilih shop…</option>
+                    @foreach($shopOptions as $option)
+                        <option value="{{ $option['id'] }}" @selected((string) $option['id'] === (string) $shopId)>{{ $option['label'] }}</option>
+                    @endforeach
+                </select>
+            @endif
             @error('shop_id') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
         </div>
         <div class="flex flex-wrap gap-2">
             <button type="submit" class="rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700">
                 Lookup
             </button>
+            <button type="submit"
+                formaction="{{ route('shopee.flexi.lookup.ingest') }}"
+                formmethod="POST"
+                class="rounded-lg border border-orange-300 bg-orange-50 px-4 py-2 text-sm font-medium text-orange-900 hover:bg-orange-100"
+                data-testid="shopee-flexi-ingest-btn"
+                onclick="return confirm('Tarik order dari Shopee API dan masukkan ke antrean Aria (shadow / jubelio placeholder / omnichannel)?')">
+                Tarik &amp; masukkan ke antrean
+            </button>
             <a href="{{ route('shopee.flexi.index') }}" class="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">FLEXI shops</a>
         </div>
     </form>
+
+    @if($ingestResult !== null)
+        <div class="space-y-3 rounded-xl border border-gray-200 bg-white p-6 shadow-sm" data-testid="shopee-ingest-result">
+            <h2 class="text-sm font-semibold text-gray-900">Hasil tarik &amp; ingest</h2>
+            @if(filled($ingestResult['error'] ?? null))
+                <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                    {{ $ingestResult['error'] }}
+                </div>
+            @else
+                <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
+                    Ingest selesai — status <span class="font-mono font-semibold">{{ $ingestResult['order_status'] ?? '—' }}</span>,
+                    invoice <span class="font-mono">{{ $ingestResult['invoice_preview'] ?? '—' }}</span>
+                </div>
+            @endif
+            <table class="w-full text-left text-sm">
+                <tbody class="divide-y divide-gray-100">
+                    <tr><th class="w-56 bg-gray-50 px-3 py-2 text-xs font-semibold uppercase text-gray-600">Shadow</th><td class="px-3 py-2">{{ ($ingestResult['shadow'] ?? false) ? 'Ya' : 'Tidak' }}</td></tr>
+                    <tr><th class="bg-gray-50 px-3 py-2 text-xs font-semibold uppercase text-gray-600">Jubelio placeholder</th><td class="px-3 py-2" data-testid="ingest-jubelio-placeholder">{{ ($ingestResult['jubelio_placeholder'] ?? false) ? 'Ya' : 'Tidak' }}</td></tr>
+                    <tr><th class="bg-gray-50 px-3 py-2 text-xs font-semibold uppercase text-gray-600">Omnichannel event</th><td class="px-3 py-2" data-testid="ingest-webhook-event">{{ ($ingestResult['webhook_event'] ?? false) ? 'Ya' : 'Tidak' }}</td></tr>
+                    <tr><th class="bg-gray-50 px-3 py-2 text-xs font-semibold uppercase text-gray-600">Ingested (any layer)</th><td class="px-3 py-2">{{ ($ingestResult['ingested'] ?? false) ? 'Ya' : 'Tidak' }}</td></tr>
+                </tbody>
+            </table>
+            <div class="flex flex-wrap gap-3 text-sm">
+                @if(filled($ingestResult['omnichannel_url'] ?? null))
+                    <a href="{{ $ingestResult['omnichannel_url'] }}" class="text-orange-700 hover:underline">Omnichannel Shopee order</a>
+                @endif
+                @if(filled($ingestResult['jubelio_queue_url'] ?? null))
+                    <a href="{{ $ingestResult['jubelio_queue_url'] }}" class="text-orange-700 hover:underline">Antrean Jubelio</a>
+                @endif
+            </div>
+        </div>
+    @endif
 
     @if($result !== null)
         <div class="space-y-4" data-testid="shopee-lookup-result">
