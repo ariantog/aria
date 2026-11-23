@@ -6,10 +6,14 @@ use App\Models\Shopeesync;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Map Shopee pickup location → Aria warehouse via shopee_syncs (stock rows only).
+ * Map Shopee pickup location → Aria warehouse via marketplace_warehouse_syncs (legacy shopee_syncs fallback).
  */
 class ShopeeSyncWarehouseResolver
 {
+    public function __construct(
+        private MarketplaceWarehouseSyncResolver $warehouseSyncResolver,
+    ) {}
+
     /**
      * @param  array<string, mixed>  $pushData
      * @param  array<string, mixed>|null  $orderRow
@@ -28,7 +32,12 @@ class ShopeeSyncWarehouseResolver
             return $this->fallbackWarehouseForShop($shopId);
         }
 
-        return $this->matchPickup($pickup);
+        $hit = $this->warehouseSyncResolver->ariaWarehouseForShopeePickup($shopId, $pickup);
+        if ($hit > 0) {
+            return $hit;
+        }
+
+        return $this->fallbackWarehouseForShop($shopId);
     }
 
     /**
@@ -51,39 +60,6 @@ class ShopeeSyncWarehouseResolver
 
         if ($warehouseIds->count() === 1) {
             return (int) $warehouseIds->first();
-        }
-
-        return 0;
-    }
-
-    /**
-     * @param  array{shopee_location_id: string, shopee_warehouse_id: int}  $pickup
-     */
-    private function matchPickup(array $pickup): int
-    {
-        $query = Shopeesync::query()->where('warehouse_id', '>', 0);
-
-        $locationId = (string) ($pickup['shopee_location_id'] ?? '');
-        $warehouseId = (int) ($pickup['shopee_warehouse_id'] ?? 0);
-
-        if ($locationId !== '') {
-            $hit = (clone $query)
-                ->where('shopee_location_id', $locationId)
-                ->value('warehouse_id');
-
-            if ($hit !== null && (int) $hit > 0) {
-                return (int) $hit;
-            }
-        }
-
-        if ($warehouseId > 0) {
-            $hit = (clone $query)
-                ->where('shopee_warehouse_id', $warehouseId)
-                ->value('warehouse_id');
-
-            if ($hit !== null && (int) $hit > 0) {
-                return (int) $hit;
-            }
         }
 
         return 0;

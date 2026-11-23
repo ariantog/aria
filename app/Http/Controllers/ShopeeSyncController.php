@@ -6,6 +6,7 @@ use App\Models\Addrbook;
 use App\Models\ShopeeStock;
 use App\Models\Shopeesync;
 use App\Services\Shopee\ShopeeAdminOpenApiService;
+use App\Services\Marketplace\MarketplaceWarehouseSyncService;
 use App\Services\Shopee\ShopeeStockApiService;
 use App\Services\Shopee\ShopeeStockOpenApiService;
 use App\Support\ShopeeAdminOAuthCallbackHandler;
@@ -95,13 +96,15 @@ class ShopeeSyncController extends Controller
             'shopee_warehouse_name' => 'required|string|max:255',
         ]);
 
-        Shopeesync::create([
+        $legacy = Shopeesync::create([
             'warehouse_id' => (int) $request->warehouse_id,
             'shop_id' => 0,
             'shopee_location_id' => (string) ($request->shopee_location_id ?? ''),
             'shopee_warehouse_id' => (int) $request->shopee_warehouse_id,
             'shopee_warehouse_name' => (string) $request->shopee_warehouse_name,
         ]);
+
+        app(MarketplaceWarehouseSyncService::class)->mirrorShopeeLegacyRow($legacy);
 
         return redirect()->route('shopee.sync.index')->with('success', 'Shopee warehouse mapping created.');
     }

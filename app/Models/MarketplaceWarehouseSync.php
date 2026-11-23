@@ -5,12 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
-/**
- * Maps TikTok Partner platform warehouse_id (per shop) to an Aria gudang.
- */
-class TiktokShopWarehouseSync extends Model
+class MarketplaceWarehouseSync extends Model
 {
-    protected $table = 'tiktok_shop_warehouse_syncs';
+    public const CHANNEL_SHOPEE = 'shopee';
+
+    public const CHANNEL_TIKTOK = 'tiktok';
+
+    protected $table = 'marketplace_warehouse_syncs';
 
     protected $guarded = [];
 
@@ -19,6 +20,7 @@ class TiktokShopWarehouseSync extends Model
         return [
             'warehouse_id' => 'integer',
             'last_synced_at' => 'datetime',
+            'meta' => 'array',
         ];
     }
 

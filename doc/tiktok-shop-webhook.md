@@ -85,13 +85,15 @@ curl -sS -o /dev/null -w "%{http_code}\n" -X POST "https://your-host/tiktok-shop
 5. Run the migration on the host TikTok calls; keep `TIKTOK_SHOP_WEBHOOK_VERIFY_SIGNATURE=true`.
 6. Trigger a test notification or wait for a real order transition; confirm a row in `tiktok_shop_webhook_inbox`.
 
-## Warehouse mapping UI (`/tiktok-shop-sync`)
+## Warehouse mapping UI (unified `marketplace_warehouse_syncs`)
 
-Alur per **platform `warehouse_id`** (tabel `tiktok_shop_warehouse_syncs`):
+Shopee + TikTok/Tokopedia memakai **satu tabel** `marketplace_warehouse_syncs` (`channel` = `shopee` \| `tiktok`). UI: **`/marketplace-warehouse-sync?channel=tiktok`** (legacy `/tiktok-shop-sync` redirect).
 
-1. **Tambah toko** (`/tiktok-shop-sync/create`) — pilih toko OAuth → isi `shop_ref` / `shop_cipher`.
-2. **Sinkron** — `GET /logistics/{version}/warehouses?shop_cipher=` via `TikTokShopWarehouseSyncService` → upsert baris platform (nama/tipe diperbarui; `warehouse_id` Aria **tidak** di-reset).
-3. **Matrix** (`/tiktok-shop-sync/shop/{shop_ref}/matrix`) — petakan tiap `platform_warehouse_id` → gudang Aria; opsional `commerce_platform` (`TIKTOK_SHOP` / `TOKOPEDIA` / kosong = keduanya). Tombol **Refresh dari TikTok** memanggil upsert lagi.
+Alur TikTok per **platform `warehouse_id`**:
+
+1. **Tambah toko** — pilih OAuth → `shop_ref` / `shop_cipher`.
+2. **Sinkron** — `GET /logistics/{version}/warehouses?shop_cipher=` via `MarketplaceWarehouseSyncService` → upsert (preserves mapped `warehouse_id`).
+3. **Matrix** — `/marketplace-warehouse-sync/tiktok/{shop_ref}/matrix` — petakan `platform_warehouse_id` → gudang Aria; opsional `commerce_platform`.
 
 | Partner API | Use |
 |-------------|-----|

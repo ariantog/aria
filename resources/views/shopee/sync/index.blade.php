@@ -20,7 +20,7 @@ $breadcrumbs = [
     <div class="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div>
             <h1 class="text-2xl font-bold">Shopee Warehouse Mapping</h1>
-            <p class="mt-1 text-sm text-gray-500">Map Aria gudang to Shopee pickup warehouse / stock location for live sellable qty.</p>
+            <p class="mt-1 text-sm text-gray-500">Map Aria gudang to Shopee pickup warehouse / stock location for live sellable qty. Matrix terpadu: <a href="{{ route('marketplace.warehouse-sync.index', ['channel' => 'shopee']) }}" class="font-medium text-orange-700 underline">Marketplace gudang (Shopee)</a>.</p>
         </div>
 
         <div class="flex flex-wrap items-center gap-2">

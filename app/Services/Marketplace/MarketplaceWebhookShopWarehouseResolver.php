@@ -3,20 +3,22 @@
 namespace App\Services\Marketplace;
 
 use App\Models\Addrbook;
+use App\Models\MarketplaceWarehouseSync;
 use App\Models\Shopeesync;
 use App\Models\TiktokShopSync;
-use App\Models\TiktokShopWarehouseSync;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 
 /**
  * Best-effort shop_ref → Aria warehouse mapping for webhook inbox filters.
  *
- * Shopee: shopee_syncs.shop_id (string match on marketplace_webhook_events.shop_ref).
- * TikTok: tiktok_shop_warehouse_syncs (shop_ref + platform_warehouse_id), legacy tiktok_shop_syncs fallback.
+ * Primary: `marketplace_warehouse_syncs`. Legacy: shopee_syncs / tiktok_shop_syncs.
  */
 class MarketplaceWebhookShopWarehouseResolver
 {
+    public function __construct(
+        private MarketplaceWarehouseSyncResolver $warehouseSyncResolver,
+    ) {}
     /**
      * @return array<int, string> warehouse_id => addrbook name
      */
@@ -33,9 +35,9 @@ class MarketplaceWebhookShopWarehouseResolver
             );
         }
 
-        if (Schema::hasTable('tiktok_shop_warehouse_syncs')) {
+        if (Schema::hasTable('marketplace_warehouse_syncs')) {
             $warehouseIds = $warehouseIds->merge(
-                TiktokShopWarehouseSync::query()
+                MarketplaceWarehouseSync::query()
                     ->where('warehouse_id', '>', 0)
                     ->distinct()
                     ->pluck('warehouse_id'),
@@ -84,8 +86,8 @@ class MarketplaceWebhookShopWarehouseResolver
                 ->all());
         }
 
-        if (Schema::hasTable('tiktok_shop_warehouse_syncs')) {
-            $refs = array_merge($refs, TiktokShopWarehouseSync::query()
+        if (Schema::hasTable('marketplace_warehouse_syncs')) {
+            $refs = array_merge($refs, MarketplaceWarehouseSync::query()
                 ->where('warehouse_id', $warehouseId)
                 ->where('shop_ref', '!=', '')
                 ->pluck('shop_ref')
@@ -161,32 +163,17 @@ class MarketplaceWebhookShopWarehouseResolver
         $shopRef = $this->normalizeShopRef($shopRef);
         $platformWarehouseId = trim((string) $platformWarehouseId);
 
-        if ($shopRef === '' || $platformWarehouseId === '' || ! Schema::hasTable('tiktok_shop_warehouse_syncs')) {
+        if ($shopRef === '' || $platformWarehouseId === '') {
             return $this->warehouseIdForShopRef($shopRef);
         }
 
-        $commercePlatform = $this->normalizeCommercePlatform($commercePlatform);
-
-        $base = TiktokShopWarehouseSync::query()
-            ->where('shop_ref', $shopRef)
-            ->where('platform_warehouse_id', $platformWarehouseId)
-            ->where('warehouse_id', '>', 0);
-
-        if ($commercePlatform !== '') {
-            $matched = (clone $base)->where('commerce_platform', $commercePlatform)->value('warehouse_id');
-            if ($matched) {
-                return (int) $matched;
-            }
-        }
-
-        $wildcard = (clone $base)->where('commerce_platform', '')->value('warehouse_id');
-        if ($wildcard) {
-            return (int) $wildcard;
-        }
-
-        $distinct = (clone $base)->distinct()->pluck('warehouse_id');
-        if ($distinct->count() === 1) {
-            return (int) $distinct->first();
+        $hit = $this->warehouseSyncResolver->ariaWarehouseForTikTok(
+            $shopRef,
+            $platformWarehouseId,
+            $commercePlatform,
+        );
+        if ($hit > 0) {
+            return $hit;
         }
 
         return $this->warehouseIdForShopRef($shopRef);
