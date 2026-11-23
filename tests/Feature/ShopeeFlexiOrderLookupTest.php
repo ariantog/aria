@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Addrbook;
+use App\Models\Jubelioorder;
 use App\Models\Setting;
 use App\Models\ShopeeFlexiShop;
 use App\Models\Shopeesync;
@@ -17,6 +18,9 @@ beforeEach(function () {
         'services.shopee_admin.partner_key' => 'test-admin-partner-key',
         'services.shopee_admin.base_url' => 'https://partner.shopeemobile.com',
         'services.shopee_admin.primary_shop_id' => 100,
+        'services.shopee_push.shadow_enabled' => false,
+        'services.shopee_push.precreate_jubelio_queue' => true,
+        'marketplace.webhook.unified_storage' => true,
     ]);
 
     Setting::query()->updateOrCreate(
@@ -34,6 +38,12 @@ beforeEach(function () {
                         'shop_id' => 7777777,
                         'access_token' => 'access-my',
                         'refresh_token' => 'refresh-my',
+                        'expires_at' => now()->addHours(2)->toIso8601String(),
+                    ],
+                    '8888' => [
+                        'shop_id' => 8888,
+                        'access_token' => 'access-my-2',
+                        'refresh_token' => 'refresh-my-2',
                         'expires_at' => now()->addHours(2)->toIso8601String(),
                     ],
                 ],
@@ -124,6 +134,63 @@ it('shows shop_id and order status from mocked get_order_detail', function () {
         ->assertSee('data-testid="result-order-status"', false)
         ->assertSee('PROCESSED', false)
         ->assertSee('Store BSD', false);
+});
+
+it('lists flexi mapped shops in shop_id select', function () {
+    $user = User::factory()->create();
+    $user->givePermissionTo('shopee-stock-sync');
+
+    ShopeeFlexiShop::query()->create([
+        'shop_id' => 1575873373,
+        'invoice_prefix' => 'SPMY',
+        'direct_order_ingest' => true,
+        'label' => 'Malaysia',
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('shopee.flexi.lookup'))
+        ->assertOk()
+        ->assertSee('1575873373 — SPMY — Malaysia', false)
+        ->assertSee('data-testid="shopee-lookup-shop-id"', false);
+});
+
+it('ingests order via lookup ingest action with same flags as pull command', function () {
+    $user = User::factory()->create();
+    $user->givePermissionTo('shopee-stock-sync');
+
+    ShopeeFlexiShop::query()->create([
+        'shop_id' => 8888,
+        'invoice_prefix' => 'SPMY',
+        'direct_order_ingest' => true,
+    ]);
+
+    Http::fake([
+        'partner.shopeemobile.com/api/v2/order/get_order_detail*' => Http::response([
+            'error' => '',
+            'response' => [
+                'order_list' => [
+                    [
+                        'order_sn' => 'UI-INGEST-1',
+                        'order_status' => 'PROCESSED',
+                        'update_time' => 1_700_000_200,
+                        'item_list' => [],
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    $this->actingAs($user)
+        ->post(route('shopee.flexi.lookup.ingest'), [
+            'order_ref' => 'SPMY-UI-INGEST-1',
+            'shop_id' => 8888,
+        ])
+        ->assertOk()
+        ->assertSee('data-testid="shopee-ingest-result"', false)
+        ->assertSee('Ingest selesai', false);
+
+    $order = Jubelioorder::where('invoice', 'SPMY-UI-INGEST-1')->first();
+    expect($order)->not->toBeNull();
 });
 
 it('surfaces shopee api error from last_error when get_order_detail fails', function () {

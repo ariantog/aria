@@ -10,7 +10,6 @@ return [
         'SPSG' => 'Singapore',
         'SPTH' => 'Thailand',
         'SPPH' => 'Philippines',
-        'SPBR' => 'Brunei',
     ],
 
     'domestic_prefix' => 'SP',
