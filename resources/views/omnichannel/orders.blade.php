@@ -17,6 +17,17 @@ $breadcrumbs = [
 $th = 'px-2 py-2 text-[10px] font-semibold uppercase tracking-wide text-gray-500';
 $td = 'px-2 py-2 align-top text-xs text-gray-800';
 $channelLabels = ['shopee' => 'Shopee', 'tiktok' => 'TikTok', 'tokopedia' => 'Tokopedia'];
+$omnichannelChannelLabel = static function (object $row) use ($channelLabels): string {
+    if (strtoupper((string) ($row->commerce_platform ?? '')) === 'TOKOPEDIA') {
+        return 'Tokopedia';
+    }
+
+    return match ($row->channel ?? '') {
+        'shopee' => 'Shopee',
+        'tiktok' => 'TikTok',
+        default => $channelLabels[$row->channel ?? ''] ?? (string) ($row->channel ?? '—'),
+    };
+};
 $resetQuery = ['view' => $filters['view'] ?? 'events'];
 $currentOrdersUrl = route('omnichannel.orders.index', array_merge(request()->query(), ['view' => 'orders']));
 $pageOrderRows = [];
@@ -235,13 +246,12 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
         </div>
         <div class="min-w-0 overflow-x-auto">
             @if($isEventsView)
-            <table class="w-full min-w-[58rem] text-left" data-testid="omnichannel-events-table">
+            <table class="w-full min-w-[52rem] text-left" data-testid="omnichannel-events-table">
                 <thead class="border-b border-gray-200 bg-gray-50">
                     <tr>
                         <th class="{{ $th }} w-14">ID</th>
                         <th class="{{ $th }} w-36">received_at</th>
-                        <th class="{{ $th }} w-20">channel</th>
-                        <th class="{{ $th }} w-24">platform</th>
+                        <th class="{{ $th }} w-24">channel</th>
                         <th class="{{ $th }} w-16">event</th>
                         <th class="{{ $th }}">order_ref</th>
                         <th class="{{ $th }} w-28">order_status</th>
@@ -254,24 +264,16 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                 <tbody class="divide-y divide-gray-100">
                     @foreach($rows as $row)
                     @php
-                        $gudang = $shopRefToWarehouse[$row->shop_ref ?? ''] ?? null;
-                        $gudangName = $gudang ? ($warehouseNames[$gudang] ?? null) : null;
+                        $gudangName = $shopResolver->warehouseNameForShopRef($row->shop_ref ?? null, $shopRefToWarehouse, $warehouseNames);
+                        $gudangUnmapped = filled($row->shop_ref) && $gudangName === null;
                         $payloadJson = json_encode($row->payload ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
                         $payloadPreview = \Illuminate\Support\Str::limit($payloadJson, 80, '…');
-                        $channelLabel = $channelLabels[$filters['channel']] ?? strtoupper($row->channel);
-                        if (strtoupper((string) ($row->commerce_platform ?? '')) === 'TOKOPEDIA') {
-                            $channelLabel = 'Tokopedia';
-                        } elseif ($row->channel === 'tiktok') {
-                            $channelLabel = 'TikTok';
-                        } elseif ($row->channel === 'shopee') {
-                            $channelLabel = 'Shopee';
-                        }
+                        $channelLabel = $omnichannelChannelLabel($row);
                     @endphp
                     <tr class="hover:bg-gray-50/80">
                         <td class="{{ $td }} font-mono text-[11px]">{{ $row->id }}</td>
                         <td class="{{ $td }} whitespace-nowrap text-gray-600">{{ $row->received_at?->format('Y-m-d H:i:s') ?? '—' }}</td>
                         <td class="{{ $td }}">{{ $channelLabel }}</td>
-                        <td class="{{ $td }} font-mono text-[10px] uppercase">{{ $row->commerce_platform ?? '—' }}</td>
                         <td class="{{ $td }} text-[11px] text-gray-700">{{ $statusPresenter->eventTypeLabel($row->channel, $row->event_type) }}</td>
                         <td class="{{ $td }} font-mono text-[11px] break-all">{{ $row->order_ref ?? '—' }}</td>
                         <td class="{{ $td }}">
@@ -286,7 +288,17 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                             @endif
                         </td>
                         <td class="{{ $td }} font-mono text-[11px] break-all">{{ $row->shop_ref ?? '—' }}</td>
-                        <td class="{{ $td }} text-gray-600">{{ $gudangName ?? '—' }}</td>
+                        <td class="{{ $td }} text-gray-600"
+                            data-testid="omnichannel-event-gudang-{{ $row->id }}">
+                            @if($gudangName)
+                            {{ $gudangName }}
+                            @else
+                            <span @if($gudangUnmapped) title="belum di-sync" @endif>—</span>
+                            @if($gudangUnmapped)
+                            <span class="block text-[10px] text-gray-400">belum di-sync</span>
+                            @endif
+                            @endif
+                        </td>
                         <td class="{{ $td }} text-center">
                             @if($row->signature_ok)
                             <span class="inline-flex rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-800">ya</span>
@@ -305,7 +317,7 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                         </td>
                     </tr>
                     <tr x-show="isRowExpanded(@js($row->id))" x-cloak class="bg-gray-50">
-                        <td colspan="11" class="px-3 py-3">
+                        <td colspan="10" class="px-3 py-3">
                             @if(filled($row->order_ref))
                             @php
                                 $eventToOrdersUrl = route('omnichannel.orders.index', array_merge(request()->query(), [
@@ -336,7 +348,7 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                 </tbody>
             </table>
             @else
-            <table class="w-full min-w-[56rem] text-left" data-testid="omnichannel-orders-table">
+            <table class="w-full min-w-[50rem] text-left" data-testid="omnichannel-orders-table">
                 <thead class="border-b border-gray-200 bg-gray-50">
                     <tr>
                         <th class="{{ $th }} w-10 text-center" data-testid="omnichannel-awb-select-all">
@@ -347,8 +359,7 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                                    aria-label="Pilih semua di halaman ini">
                         </th>
                         <th class="{{ $th }} w-12"></th>
-                        <th class="{{ $th }} w-20">channel</th>
-                        <th class="{{ $th }} w-24">platform</th>
+                        <th class="{{ $th }} w-24">channel</th>
                         <th class="{{ $th }}">order_ref</th>
                         <th class="{{ $th }} w-28">status</th>
                         <th class="{{ $th }}">shop</th>
@@ -360,12 +371,10 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                 <tbody class="divide-y divide-gray-100">
                     @foreach($rows as $row)
                     @php
-                        $gudang = $shopRefToWarehouse[$row->shop_ref ?? ''] ?? null;
-                        $gudangName = $gudang ? ($warehouseNames[$gudang] ?? null) : null;
+                        $gudangName = $shopResolver->warehouseNameForShopRef($row->shop_ref ?? null, $shopRefToWarehouse, $warehouseNames);
+                        $gudangUnmapped = filled($row->shop_ref) && $gudangName === null;
                         $detailUrl = route('omnichannel.orders.show', ['channel' => $row->channel, 'orderRef' => $row->order_ref]);
-                        $channelLabel = strtoupper((string) ($row->commerce_platform ?? '')) === 'TOKOPEDIA'
-                            ? 'Tokopedia'
-                            : ($channelLabels[$row->channel] ?? $row->channel);
+                        $channelLabel = $omnichannelChannelLabel($row);
                         $awbRow = [
                             'channel' => (string) $row->channel,
                             'order_ref' => (string) $row->order_ref,
@@ -390,7 +399,6 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                             </button>
                         </td>
                         <td class="{{ $td }}">{{ $channelLabel }}</td>
-                        <td class="{{ $td }} font-mono text-[10px] uppercase">{{ $row->commerce_platform ?? '—' }}</td>
                         <td class="{{ $td }} font-mono text-[11px] break-all">{{ $row->order_ref }}</td>
                         <td class="{{ $td }}">
                             @php
@@ -404,12 +412,22 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                             @endif
                         </td>
                         <td class="{{ $td }} font-mono text-[11px] break-all">{{ $row->shop_ref ?? '—' }}</td>
-                        <td class="{{ $td }} text-gray-600">{{ $gudangName ?? '—' }}</td>
+                        <td class="{{ $td }} text-gray-600"
+                            data-testid="omnichannel-order-gudang-{{ $row->id }}">
+                            @if($gudangName)
+                            {{ $gudangName }}
+                            @else
+                            <span @if($gudangUnmapped) title="belum di-sync" @endif>—</span>
+                            @if($gudangUnmapped)
+                            <span class="block text-[10px] text-gray-400">belum di-sync</span>
+                            @endif
+                            @endif
+                        </td>
                         <td class="{{ $td }} whitespace-nowrap text-gray-600">{{ $row->last_event_at?->format('Y-m-d H:i:s') ?? '—' }}</td>
                         <td class="{{ $td }} whitespace-nowrap text-gray-600">{{ $row->first_received_at?->format('Y-m-d H:i:s') ?? '—' }}</td>
                     </tr>
                     <tr x-show="isExpanded(@js($row->channel), @js($row->order_ref))" x-cloak class="bg-gray-50">
-                        <td colspan="10" class="p-0">
+                        <td colspan="9" class="p-0">
                             <template x-if="isLoading(@js($row->channel), @js($row->order_ref))">
                                 <p class="p-4 text-xs text-gray-500">Memuat detail…</p>
                             </template>

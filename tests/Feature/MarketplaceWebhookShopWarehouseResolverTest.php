@@ -37,4 +37,9 @@ it('resolves shop_ref to warehouse from shopee and tiktok sync tables', function
 
     $options = $resolver->warehouseOptions();
     expect($options)->toHaveKeys([(string) $warehouseA->id, (string) $warehouseB->id]);
+
+    expect($resolver->warehouseIdForShopRef('042'))->toBe($warehouseA->id);
+    expect($resolver->warehouseNameForShopRef('42', $map, $options))->toBe($warehouseA->name);
+    expect($resolver->warehouseNameForShopRef('7495540735365777507', $map, $options))->toBe($warehouseB->name);
+    expect($resolver->warehouseNameForShopRef('999999999', $map, $options))->toBeNull();
 });
