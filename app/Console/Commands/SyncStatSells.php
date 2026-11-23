@@ -72,6 +72,10 @@ class SyncStatSells extends Command
                 ];
             })->toArray();
 
+            if ($data === []) {
+                return;
+            }
+
             DB::table('stat_sells')->upsert(
                 $data,
                 ['group_id', 'bulan', 'tahun', 'sender_id', 'type'],
