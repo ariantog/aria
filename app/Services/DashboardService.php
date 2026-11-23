@@ -24,7 +24,7 @@ use Illuminate\Support\Facades\Gate;
 
 class DashboardService
 {
-    public const CACHE_VERSION = 'v1';
+    public const CACHE_VERSION = 'v2';
 
     public const CACHE_TTL_QUEUE = 30;
 
@@ -102,7 +102,10 @@ class DashboardService
         }
 
         if ($canStockAlerts) {
-            $data['stock_alerts'] = $this->rememberSitewidePanel('stock-alerts', self::CACHE_TTL_FAST, fn () => $this->stockAlertsPanel());
+            $data['stock_alerts'] = $this->rememberSitewidePanel('stock-alerts', self::CACHE_TTL_FAST, fn () => [
+                'unread_count' => ItemStockNotification::query()->unread()->count(),
+            ]);
+            $data['stock_alerts']['recent'] = $this->stockAlertsRecent();
         }
 
         if ($canCron || $canJubelio) {
@@ -197,7 +200,9 @@ class DashboardService
                 'error' => (int) ($stats->error ?? 0),
             ],
             'pending_cancellations' => (int) Jubelioreturn::query()->where('status', 0)->count(),
-            'running_import' => $runningImport,
+            'running_import' => $runningImport !== null ? [
+                'progress_percent' => $runningImport->progressPercent(),
+            ] : null,
         ];
     }
 
@@ -218,8 +223,8 @@ class DashboardService
             ->first();
 
         return [
-            'active_job' => $activeJob,
-            'latest_completed' => $latestCompleted,
+            'active_job' => $activeJob !== null ? ['id' => (int) $activeJob->id] : null,
+            'latest_completed' => $latestCompleted !== null ? ['id' => (int) $latestCompleted->id] : null,
             'latest_discrepancies' => (int) ($latestCompleted?->discrepancies_count ?? 0),
         ];
     }
@@ -253,23 +258,22 @@ class DashboardService
     }
 
     /**
-     * @return array<string, mixed>
+     * Recent alerts are loaded outside sitewide cache (Eloquent rows are not cache-safe under L13).
+     *
+     * @return \Illuminate\Support\Collection<int, ItemStockNotification>
      */
-    protected function stockAlertsPanel(): array
+    protected function stockAlertsRecent(): Collection
     {
-        return [
-            'unread_count' => ItemStockNotification::query()->unread()->count(),
-            'recent' => ItemStockNotification::query()
-                ->unread()
-                ->with([
-                    'item:id,code,name,type',
-                    'soldOutWarehouse:id,name,type',
-                    'sourceWarehouse:id,name,type',
-                ])
-                ->orderByDesc('created_at')
-                ->limit(5)
-                ->get(),
-        ];
+        return ItemStockNotification::query()
+            ->unread()
+            ->with([
+                'item:id,code,name,type',
+                'soldOutWarehouse:id,name,type',
+                'sourceWarehouse:id,name,type',
+            ])
+            ->orderByDesc('created_at')
+            ->limit(5)
+            ->get();
     }
 
     /**
@@ -334,7 +338,13 @@ class DashboardService
             ->get();
 
         return [
-            'active_jobs' => $activeJobs,
+            'active_jobs' => $activeJobs->map(fn (WarehouseArrangementRefreshJob $job) => [
+                'destination_warehouse_id' => (int) $job->destination_warehouse_id,
+                'destination_name' => $job->destinationWarehouse?->name,
+                'phase' => (string) $job->phase,
+                'initiated_by_label' => $job->initiatedByLabel(),
+                'progress_percent' => $job->progressPercent(),
+            ])->all(),
             'active_count' => $activeJobs->count(),
         ];
     }

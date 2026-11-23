@@ -99,17 +99,17 @@
            class="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-800 transition-colors hover:opacity-90"
            data-testid="dashboard-jubelio-import">
             <span class="h-2 w-2 animate-pulse rounded-full bg-blue-500"></span>
-            Get Orders import running ({{ $import->progressPercent() }}%)
+            Get Orders import running ({{ $import['progress_percent'] }}%)
         </a>
         @endif
 
         @if(($can['jubelio_stock_check'] ?? false) && $jubelioStockCheck && $jubelioStockCheck['active_job'])
         @php $stockCheckJob = $jubelioStockCheck['active_job']; @endphp
-        <a href="{{ route('jubelio-stock-checks.show', $stockCheckJob->id) }}"
+        <a href="{{ route('jubelio-stock-checks.show', $stockCheckJob['id']) }}"
            class="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-800 transition-colors hover:opacity-90"
            data-testid="dashboard-stock-check-active">
             <span class="h-2 w-2 animate-pulse rounded-full bg-blue-500"></span>
-            Stock check running (#{{ $stockCheckJob->id }})
+            Stock check running (#{{ $stockCheckJob['id'] }})
         </a>
         @endif
 
@@ -215,14 +215,14 @@
 
         @if(($can['jubelio_stock_check'] ?? false) && $jubelioStockCheck)
         @php $discrepancies = $jubelioStockCheck['latest_discrepancies']; @endphp
-        <a href="{{ $jubelioStockCheck['latest_completed'] ? route('jubelio-stock-checks.show', $jubelioStockCheck['latest_completed']->id) : route('jubelio-stock-checks.index') }}"
+        <a href="{{ $jubelioStockCheck['latest_completed'] ? route('jubelio-stock-checks.show', $jubelioStockCheck['latest_completed']['id']) : route('jubelio-stock-checks.index') }}"
            class="rounded-xl border p-5 shadow-sm transition-all hover:shadow-md {{ $discrepancies > 0 ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-white' }}"
            data-testid="dashboard-kpi-stock-discrepancies">
             <p class="text-xs font-semibold uppercase tracking-wide {{ $discrepancies > 0 ? 'text-red-700/80' : 'text-gray-500' }}">Stock Discrepancies</p>
             <p class="mt-2 text-3xl font-bold {{ $discrepancies > 0 ? 'text-red-900' : 'text-gray-900' }}">{{ $fmtNum($discrepancies) }}</p>
             <p class="mt-1 text-sm {{ $discrepancies > 0 ? 'text-red-700/80' : 'text-gray-500' }}">
                 @if($jubelioStockCheck['latest_completed'])
-                Latest check #{{ $jubelioStockCheck['latest_completed']->id }}
+                Latest check #{{ $jubelioStockCheck['latest_completed']['id'] }}
                 @else
                 No completed checks yet
                 @endif
@@ -313,7 +313,7 @@
     </div>
     @endif
 
-    @if(($can['warehouse_arrangement'] ?? false) && $warehouseArrangement && $warehouseArrangement['active_jobs']->isNotEmpty())
+    @if(($can['warehouse_arrangement'] ?? false) && $warehouseArrangement && count($warehouseArrangement['active_jobs']) > 0)
     <div class="rounded-xl border border-violet-200 bg-violet-50/50 shadow-sm" data-testid="dashboard-arrangement-jobs">
         <div class="border-b border-violet-100 px-5 py-4">
             <h3 class="text-sm font-semibold text-violet-900">Warehouse Arrangement Refresh</h3>
@@ -323,12 +323,12 @@
             @foreach($warehouseArrangement['active_jobs'] as $refreshJob)
             <li class="flex flex-wrap items-center justify-between gap-2 py-3">
                 <div>
-                    <p class="font-medium text-gray-900">{{ $refreshJob->destinationWarehouse?->name ?? 'Warehouse #'.$refreshJob->destination_warehouse_id }}</p>
-                    <p class="text-xs text-gray-500">{{ $refreshJob->phase }} · {{ $refreshJob->initiatedByLabel() }}</p>
+                    <p class="font-medium text-gray-900">{{ $refreshJob['destination_name'] ?? 'Warehouse #'.$refreshJob['destination_warehouse_id'] }}</p>
+                    <p class="text-xs text-gray-500">{{ $refreshJob['phase'] }} · {{ $refreshJob['initiated_by_label'] }}</p>
                 </div>
                 <div class="flex items-center gap-3">
-                    <span class="text-xs font-medium text-violet-800">{{ $refreshJob->progressPercent() }}%</span>
-                    <a href="{{ route('reports.warehouse-arrangement', ['warehouse_id' => $refreshJob->destination_warehouse_id]) }}"
+                    <span class="text-xs font-medium text-violet-800">{{ $refreshJob['progress_percent'] }}%</span>
+                    <a href="{{ route('reports.warehouse-arrangement', ['warehouse_id' => $refreshJob['destination_warehouse_id']]) }}"
                        class="text-xs font-medium text-blue-700 hover:underline">View</a>
                 </div>
             </li>
