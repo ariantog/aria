@@ -22,7 +22,7 @@ class ShopeeJubelioQueuePrecreator
     public function __construct(
         private MarketplaceWebhookStatusPresenter $statusPresenter,
         private JubelioSellInvoiceGuard $sellInvoiceGuard,
-        private MarketplaceWebhookShopWarehouseResolver $shopWarehouseResolver,
+        private ShopeeSyncWarehouseResolver $shopeeSyncWarehouseResolver,
         private WarehouseOnOrderService $warehouseOnOrder,
         private ShopeeSyncInvoicePrefix $shopeeInvoicePrefix,
     ) {}
@@ -65,7 +65,7 @@ class ShopeeJubelioQueuePrecreator
         }
 
         $invoice = $this->invoiceForOrderSn($orderSn, $shopId);
-        $warehouseColumns = $this->resolveWarehouseColumns($shopId);
+        $warehouseColumns = $this->resolveWarehouseColumns($shopId, $pushData);
 
         $existing = Jubelioorder::query()
             ->where('type', 'SELL')
@@ -174,7 +174,10 @@ class ShopeeJubelioQueuePrecreator
     /**
      * @return array{warehouse_id: int, jubelio_store_id: int, jubelio_location_id: int}
      */
-    private function resolveWarehouseColumns(?int $shopId): array
+    /**
+     * @param  array<string, mixed>  $pushData
+     */
+    private function resolveWarehouseColumns(?int $shopId, array $pushData = []): array
     {
         $defaults = [
             'warehouse_id' => 0,
@@ -186,8 +189,10 @@ class ShopeeJubelioQueuePrecreator
             return $defaults;
         }
 
-        $map = $this->shopWarehouseResolver->shopRefToWarehouseMap();
-        $warehouseId = $map[(string) $shopId] ?? 0;
+        $orderRow = isset($pushData['order_detail']) && is_array($pushData['order_detail'])
+            ? $pushData['order_detail']
+            : null;
+        $warehouseId = $this->shopeeSyncWarehouseResolver->ariaWarehouseIdForIngest($shopId, $pushData, $orderRow);
         if ($warehouseId <= 0) {
             return $defaults;
         }

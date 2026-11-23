@@ -691,6 +691,7 @@
         @endif
         @if($hasPerm('shopee-stock-sync') || $isSuperAdmin)
         <a href="{{ route('shopee.sync.index') }}" x-show="navLinkVisible('Warehouse Map', 'Shopee')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/shopee-sync') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Warehouse Map</a>
+        <a href="{{ route('shopee.flexi.index') }}" x-show="navLinkVisible('FLEXI Shops', 'Shopee')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/shopee-flexi') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">FLEXI Shops</a>
         <a href="{{ route('shopee.auto-link.index') }}" x-show="navLinkVisible('Auto Link', 'Shopee')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/shopee/auto-link') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Auto Link</a>
         <a href="{{ route('shopee.bulk-link.index') }}" x-show="navLinkVisible('Bulk Link', 'Shopee')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/shopee/bulk-link') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Bulk Link</a>
         @endif

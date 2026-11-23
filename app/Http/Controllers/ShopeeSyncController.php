@@ -8,7 +8,6 @@ use App\Models\Shopeesync;
 use App\Services\Shopee\ShopeeAdminOpenApiService;
 use App\Services\Shopee\ShopeeStockApiService;
 use App\Services\Shopee\ShopeeStockOpenApiService;
-use App\Services\Marketplace\ShopeeSyncInvoicePrefix;
 use App\Support\ShopeeAdminOAuthCallbackHandler;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -116,7 +115,6 @@ class ShopeeSyncController extends Controller
             'addrbookTypes' => [
                 'warehouse' => Addrbook::TYPE_WAREHOUSE,
             ],
-            'invoicePrefixOptions' => ShopeeSyncInvoicePrefix::selectablePrefixes(),
             'flash' => ['success' => session('success'), 'error' => session('errorMessage') ?? session('error')],
         ]);
     }
@@ -125,20 +123,12 @@ class ShopeeSyncController extends Controller
     {
         Gate::authorize(ShopeeStock::getPermissions()['sync']);
 
-        $allowedPrefixes = array_keys(ShopeeSyncInvoicePrefix::selectablePrefixes());
-
         $request->validate([
             'warehouse_id' => 'required|exists:customers,id',
-            'shop_id' => 'nullable|integer|min:0',
-            'invoice_prefix' => 'required|string|in:'.implode(',', $allowedPrefixes),
-            'direct_order_ingest' => 'sometimes|boolean',
         ]);
 
         $sync->update([
             'warehouse_id' => (int) $request->warehouse_id,
-            'shop_id' => (int) $request->input('shop_id', $sync->shop_id),
-            'invoice_prefix' => strtoupper((string) $request->input('invoice_prefix', 'SP')),
-            'direct_order_ingest' => $request->boolean('direct_order_ingest'),
         ]);
 
         return redirect()->route('shopee.sync.index')->with('success', 'Shopee warehouse mapping updated.');
