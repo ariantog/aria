@@ -52,6 +52,11 @@ class ShopeeAdminOpenApiService
             'configured' => $this->isConfigured(),
             'has_token' => filled($oauth['access_token'] ?? null) || filled($oauth['refresh_token'] ?? null),
             'shop_id' => $oauth['shop_id'] ?? null,
+            'authorized_shop_ids' => ShopeeAdminOAuthStore::authorizedShopIds($oauth),
+            'shop_id_list' => $oauth['shop_id_list'] ?? [],
+            'main_account_id' => $oauth['main_account_id'] ?? null,
+            'last_oauth_callback_at' => $oauth['last_oauth_callback_at'] ?? null,
+            'last_oauth_callback_query' => $oauth['last_oauth_callback_query'] ?? null,
             'expires_at' => $expiresAt?->toIso8601String(),
             'expires_in_minutes' => $expiresAt ? (int) now()->diffInMinutes($expiresAt, false) : null,
             'is_expired' => ShopeeOAuthExpiry::requiresReauthorization($oauth),
@@ -115,17 +120,52 @@ class ShopeeAdminOpenApiService
     }
 
     /**
+     * @param  array<string, mixed>  $query
+     */
+    public function recordOAuthCallbackQuery(array $query): void
+    {
+        $oauth = $this->getOAuthPayload();
+        $safe = [];
+        foreach ($query as $key => $value) {
+            if ($key === 'code') {
+                continue;
+            }
+            if (is_scalar($value) || $value === null) {
+                $safe[(string) $key] = $value;
+            }
+        }
+
+        $oauth['last_oauth_callback_at'] = now()->toIso8601String();
+        $oauth['last_oauth_callback_query'] = $safe;
+        $this->persistOAuth($oauth);
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
-    public function exchangeAuthCode(string $code, int $shopId): ?array
+    public function exchangeAuthCode(string $code, ?int $shopId = null, ?int $mainAccountId = null): ?array
     {
+        $shopId = $shopId ?? 0;
+        $mainAccountId = $mainAccountId ?? 0;
+
+        if ($shopId <= 0 && $mainAccountId <= 0) {
+            $this->recordOAuthError('Token exchange missing shop_id and main_account_id');
+
+            return null;
+        }
+
         $path = '/api/v2/auth/token/get';
         $timestamp = time();
         $body = [
             'code' => $code,
-            'shop_id' => $shopId,
             'partner_id' => (int) config('services.shopee_admin.partner_id'),
         ];
+
+        if ($mainAccountId > 0) {
+            $body['main_account_id'] = $mainAccountId;
+        } else {
+            $body['shop_id'] = $shopId;
+        }
 
         $response = $this->postPublic($path, $timestamp, $body);
 
@@ -149,8 +189,39 @@ class ShopeeAdminOpenApiService
             'last_refreshed_at' => now()->toIso8601String(),
         ];
 
-        $merged = ShopeeAdminOAuthStore::mergeShopAuthorization($this->getOAuthPayload(), $shopId, $shopTokens);
+        $shopIdList = array_values(array_unique(array_filter(array_map(
+            'intval',
+            $payload['shop_id_list'] ?? [],
+        ), fn (int $id) => $id > 0)));
+
+        $merged = $this->getOAuthPayload();
+
+        if ($mainAccountId > 0) {
+            $merged['main_account_id'] = $mainAccountId;
+            $merged['shop_id_list'] = $shopIdList;
+            $merged['merchant_id_list'] = $payload['merchant_id_list'] ?? [];
+        }
+
+        if ($shopIdList !== []) {
+            foreach ($shopIdList as $authorizedShopId) {
+                $merged = ShopeeAdminOAuthStore::mergeShopAuthorization($merged, $authorizedShopId, $shopTokens);
+            }
+        } elseif ($shopId > 0) {
+            $merged = ShopeeAdminOAuthStore::mergeShopAuthorization($merged, $shopId, $shopTokens);
+            $list = $merged['shop_id_list'] ?? [];
+            if (! is_array($list)) {
+                $list = [];
+            }
+            if (! in_array($shopId, $list, true)) {
+                $list[] = $shopId;
+            }
+            $merged['shop_id_list'] = array_values(array_unique($list));
+        }
+
         $merged['last_error'] = null;
+        if (isset($merged['last_oauth_callback_query']) && is_array($merged['last_oauth_callback_query'])) {
+            unset($merged['last_oauth_callback_query']['code']);
+        }
         $this->persistOAuth($merged);
 
         return $payload;

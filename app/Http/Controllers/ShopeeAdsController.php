@@ -194,28 +194,12 @@ class ShopeeAdsController extends Controller
         return redirect()->route('shopee-admin.authorize', ['return' => 'shopee-ads']);
     }
 
-    public function oauthCallback(Request $request, ShopeeAdminOpenApiService $admin): RedirectResponse
-    {
-        $code = $request->query('code');
-        $shopId = (int) $request->query('shop_id');
-
-        if (! $code || $shopId <= 0) {
-            return redirect()->route('shopee-ads.index')->with('error', 'OAuth callback tidak lengkap (code / shop_id).');
-        }
-
-        $result = $admin->exchangeAuthCode($code, $shopId);
-
-        if (! $result) {
-            $detail = $admin->formatOAuthErrorForUser($admin->getLastOAuthError());
-            $message = 'Gagal menukar kode OAuth Shopee (CORENATION ADMIN).';
-            if ($detail) {
-                $message .= ' '.$detail;
-            }
-
-            return redirect()->route('shopee-ads.index')->with('error', $message);
-        }
-
-        return redirect()->route('shopee-ads.index')->with('success', 'Toko Shopee berhasil diotorisasi (sama dengan Omnichannel / Stock API).');
+    public function oauthCallback(
+        Request $request,
+        ShopeeAdminOpenApiService $admin,
+        \App\Support\ShopeeAdminOAuthCallbackHandler $handler,
+    ): RedirectResponse {
+        return $handler->handle($request, $admin, 'shopee-ads.index');
     }
 
     public function runSchedules(ShopeeAdsEngineService $engine): RedirectResponse
