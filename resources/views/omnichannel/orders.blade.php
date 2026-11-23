@@ -249,6 +249,13 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                     </tr>
                     <tr x-show="isRowExpanded(@js($row->id))" x-cloak class="bg-gray-50">
                         <td colspan="11" class="px-3 py-3">
+                            @if($row->channel === 'tiktok' && filled($row->order_ref))
+                            <p class="mb-2 text-[11px] text-gray-600" data-testid="omnichannel-event-tiktok-lines-hint">
+                                Baris order (SKU × qty) dari TikTok API: buka tab
+                                <a href="{{ route('omnichannel.orders.index', array_merge(request()->query(), ['view' => 'orders'])) }}" class="font-medium text-blue-700 underline">Current orders</a>
+                                lalu expand order <span class="font-mono">{{ $row->order_ref }}</span>.
+                            </p>
+                            @endif
                             <p class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Raw payload (read-only)</p>
                             <p class="mb-2 font-mono text-[11px] text-gray-500 lg:hidden">{{ $payloadPreview }}</p>
                             <pre class="max-h-64 overflow-auto rounded-lg border border-gray-200 bg-white p-3 font-mono text-[11px] leading-relaxed text-gray-800 whitespace-pre-wrap break-all">{{ json_encode($row->payload ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}</pre>

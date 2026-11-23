@@ -18,7 +18,7 @@ class TikTokShopOpenApiService
     /**
      * @return array<string, mixed>|null Decoded API JSON on success.
      */
-    public function getOrderDetail(string $orderId): ?array
+    public function getOrderDetail(string $orderId, ?string $shopCipher = null): ?array
     {
         $orderId = trim($orderId);
         if ($orderId === '') {
@@ -29,7 +29,134 @@ class TikTokShopOpenApiService
             return $this->mockOrderDetail($orderId);
         }
 
-        return $this->liveOrderDetail($orderId);
+        return $this->liveOrderDetail($orderId, $shopCipher);
+    }
+
+    /**
+     * @return array<string, mixed>|null First order object from Get Order Detail JSON.
+     */
+    public function extractFirstOrder(?array $response): ?array
+    {
+        if ($response === null) {
+            return null;
+        }
+
+        $orders = $response['data']['orders'] ?? null;
+        if (! is_array($orders) || $orders === []) {
+            $single = $response['data']['order'] ?? null;
+
+            return is_array($single) ? $single : null;
+        }
+
+        $first = $orders[0] ?? null;
+
+        return is_array($first) ? $first : null;
+    }
+
+    /**
+     * Safe display fields for omnichannel order detail (no PII dump).
+     *
+     * @return array<string, mixed>
+     */
+    public function buildDisplaySnippet(?array $response): array
+    {
+        $order = $this->extractFirstOrder($response);
+        if ($order === null) {
+            return [];
+        }
+
+        $snippet = [];
+
+        foreach (['status', 'order_status'] as $key) {
+            if (filled($order[$key] ?? null)) {
+                $snippet['status'] = (string) $order[$key];
+                break;
+            }
+        }
+
+        if (filled($order['commerce_platform'] ?? null)) {
+            $snippet['commerce_platform'] = strtoupper((string) $order['commerce_platform']);
+        }
+
+        foreach (['payment_method', 'payment_method_name'] as $key) {
+            if (filled($order[$key] ?? null)) {
+                $snippet['payment_method'] = (string) $order[$key];
+                break;
+            }
+        }
+
+        foreach (['total_amount', 'payment_total_amount', 'order_amount', 'sub_total'] as $key) {
+            if (isset($order[$key]) && $order[$key] !== '' && $order[$key] !== null) {
+                $snippet['total_amount'] = $order[$key];
+                break;
+            }
+        }
+
+        if (filled($order['currency'] ?? null)) {
+            $snippet['currency'] = (string) $order['currency'];
+        }
+
+        return $snippet;
+    }
+
+    /**
+     * Compact JSON-safe subset for optional UI expand (strips buyer/shipping PII keys).
+     *
+     * @return array<string, mixed>|null
+     */
+    public function redactDetailForDisplay(?array $response): ?array
+    {
+        if ($response === null) {
+            return null;
+        }
+
+        $order = $this->extractFirstOrder($response);
+        if ($order === null) {
+            return [
+                'code' => $response['code'] ?? null,
+                'message' => $response['message'] ?? null,
+            ];
+        }
+
+        $stripKeys = [
+            'buyer_email', 'buyer_message', 'recipient_address', 'shipping_address',
+            'full_address', 'phone_number', 'buyer_phone', 'name', 'buyer_name',
+        ];
+
+        $redactedOrder = $order;
+        foreach ($stripKeys as $key) {
+            unset($redactedOrder[$key]);
+        }
+
+        if (isset($redactedOrder['line_items']) && is_array($redactedOrder['line_items'])) {
+            $redactedOrder['line_items'] = array_map(function ($line) {
+                if (! is_array($line)) {
+                    return $line;
+                }
+                foreach (['product_image', 'product_name', 'sku_image'] as $drop) {
+                    unset($line[$drop]);
+                }
+
+                return $line;
+            }, $redactedOrder['line_items']);
+        }
+
+        return [
+            'code' => $response['code'] ?? null,
+            'order' => $redactedOrder,
+        ];
+    }
+
+    public function liveCredentialsReady(?string $shopCipher = null): bool
+    {
+        $appKey = (string) config('tiktok_shop.app_key', '');
+        $appSecret = (string) config('tiktok_shop.app_secret', '');
+        $accessToken = (string) config('tiktok_shop.access_token', '');
+        $cipher = filled($shopCipher)
+            ? trim((string) $shopCipher)
+            : (string) config('tiktok_shop.shop_cipher', '');
+
+        return $appKey !== '' && $appSecret !== '' && $accessToken !== '' && $cipher !== '';
     }
 
     /**
@@ -73,6 +200,10 @@ class TikTokShopOpenApiService
         ];
 
         if (str_starts_with(strtoupper($orderId), 'ONORDER-')) {
+            $order['order_status'] = 'AWAITING_SHIPMENT';
+            $order['payment_method_name'] = 'COD';
+            $order['total_amount'] = '128000';
+            $order['currency'] = 'IDR';
             $order['line_items'] = [
                 [
                     'seller_sku' => 'SKU-TTS-ON-1',
@@ -92,11 +223,13 @@ class TikTokShopOpenApiService
     /**
      * @return array<string, mixed>|null
      */
-    protected function liveOrderDetail(string $orderId): ?array
+    protected function liveOrderDetail(string $orderId, ?string $shopCipherOverride = null): ?array
     {
         $appKey = (string) config('tiktok_shop.app_key', '');
         $appSecret = (string) config('tiktok_shop.app_secret', '');
-        $shopCipher = (string) config('tiktok_shop.shop_cipher', '');
+        $shopCipher = filled($shopCipherOverride)
+            ? trim((string) $shopCipherOverride)
+            : (string) config('tiktok_shop.shop_cipher', '');
         $accessToken = (string) config('tiktok_shop.access_token', '');
 
         if ($appKey === '' || $appSecret === '' || $shopCipher === '' || $accessToken === '') {
