@@ -119,7 +119,7 @@ $hasActiveFilters = collect(request()->query())
 php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketplace_channel_orders_table.php</pre>
     </div>
     @elseif($rows === null || $rows->isEmpty())
-    <div class="rounded-lg border border-gray-200 bg-white px-4 py-8 text-center text-sm text-gray-600 shadow-sm" data-testid="omnichannel-orders-empty">
+    <div class="rounded-lg border border-gray-200 bg-white px-4 py-8 text-center text-sm text-gray-600 shadow-sm dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-300" data-testid="omnichannel-orders-empty">
         Tidak ada data untuk filter ini.
         @if($isEventsView)
         Aktifkan <code>MARKETPLACE_WEBHOOK_UNIFIED_STORAGE</code> atau jalankan
@@ -127,7 +127,7 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
         @endif
     </div>
     @else
-    <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+    <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800/50">
         <div class="border-b border-gray-100 px-3 py-2 text-xs text-gray-500">
             {{ number_format($rows->total()) }} baris — halaman {{ $rows->currentPage() }} / {{ $rows->lastPage() }}
             · {{ $isEventsView ? 'marketplace_webhook_events' : 'marketplace_channel_orders' }}

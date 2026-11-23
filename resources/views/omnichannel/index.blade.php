@@ -19,6 +19,7 @@ $lineLabels = [
     'unavailable' => ['Baris N/A', 'bg-gray-50 text-gray-600 border-gray-200'],
     'skipped' => ['—', 'bg-gray-50 text-gray-500 border-gray-200'],
 ];
+    require resource_path('views/partials/form-control-class-vars.php');
 @endphp
 
 <div class="flex flex-col gap-4 p-2 sm:gap-6 sm:p-4">
@@ -40,12 +41,12 @@ $lineLabels = [
     @endif
 
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800/50">
             <p class="text-xs font-semibold uppercase text-gray-500">Jubelio</p>
             <p class="mt-1 text-lg font-semibold {{ $jubelioActive ? 'text-green-700' : 'text-gray-500' }}">{{ $jubelioActive ? 'Aktif' : 'Nonaktif' }}</p>
             <p class="text-xs text-gray-500">{{ number_format($jubelioPending) }} antrian sell pending</p>
         </div>
-        <div class="rounded-xl border border-orange-200 bg-white p-4 shadow-sm" data-testid="shopee-admin-oauth-panel">
+        <div class="rounded-xl border border-orange-200 bg-white p-4 shadow-sm dark:border-orange-800/60 dark:bg-gray-800/50" data-testid="shopee-admin-oauth-panel">
             <p class="text-xs font-semibold uppercase text-gray-500">Shopee Admin API</p>
             <p class="mt-1 text-lg font-semibold {{ ($shopeeAdminConnection['has_token'] ?? false) ? 'text-green-700' : 'text-red-700' }}" data-testid="shopee-admin-oauth-status">
                 {{ ($shopeeAdminConnection['has_token'] ?? false) ? 'Terhubung' : 'Belum OAuth' }}
@@ -69,24 +70,24 @@ $lineLabels = [
             @endif
             <p class="mt-1 text-[10px] text-gray-400">Warehouse stok memakai app STOCK CHECKER terpisah (Shopee Sync).</p>
         </div>
-        <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800/50">
             <p class="text-xs font-semibold uppercase text-gray-500">Shopee Push</p>
             <p class="mt-1 text-lg font-semibold {{ $shopeePushConfigured ? 'text-green-700' : 'text-amber-700' }}">
                 {{ $shopeePushConfigured ? 'Live Push key' : 'Key kosong' }}
             </p>
             <p class="text-xs text-gray-500">Shadow {{ $shopeeShadowEnabled ? 'on' : 'off' }}</p>
         </div>
-        <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800/50">
             <p class="text-xs font-semibold uppercase text-gray-500">Shadow compare</p>
             <p class="mt-1 text-sm text-gray-800">{{ $stats['matched'] }} match · {{ $stats['mismatch'] }} mismatch</p>
             <p class="text-xs text-gray-500">{{ $stats['line_mismatch'] }} beda baris · {{ $stats['jubelio_missing'] }} tanpa Jubelio</p>
         </div>
     </div>
 
-    <form method="GET" action="{{ route('omnichannel.index') }}" class="flex flex-wrap items-end gap-2">
+    <form method="GET" action="{{ route('omnichannel.index') }}" class="flex flex-wrap items-end gap-2 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800/50">
         <label class="flex flex-col gap-0.5">
-            <span class="text-[10px] font-semibold uppercase text-gray-500">Compare</span>
-            <select name="compare" class="h-9 rounded-md border border-gray-300 bg-white px-2 text-sm">
+            <span class="text-[10px] font-semibold uppercase text-gray-500 dark:text-gray-400">Compare</span>
+            <select name="compare" class="{{ $formControlClassSm }}">
                 <option value="">Semua</option>
                 @foreach(array_keys($statusLabels) as $key)
                 <option value="{{ $key }}" @selected(($filters['compare'] ?? '') === $key)>{{ $statusLabels[$key][0] }}</option>
@@ -94,8 +95,8 @@ $lineLabels = [
             </select>
         </label>
         <label class="flex flex-col gap-0.5">
-            <span class="text-[10px] font-semibold uppercase text-gray-500">Baris item</span>
-            <select name="line" class="h-9 rounded-md border border-gray-300 bg-white px-2 text-sm">
+            <span class="text-[10px] font-semibold uppercase text-gray-500 dark:text-gray-400">Baris item</span>
+            <select name="line" class="{{ $formControlClassSm }}">
                 <option value="">Semua</option>
                 @foreach(array_keys($lineLabels) as $key)
                 @if($key === 'skipped') @continue @endif
@@ -104,16 +105,16 @@ $lineLabels = [
             </select>
         </label>
         <label class="flex flex-col gap-0.5">
-            <span class="text-[10px] font-semibold uppercase text-gray-500">Order / invoice</span>
-            <input type="text" name="invoice" value="{{ $filters['invoice'] ?? '' }}" class="h-9 w-48 rounded-md border border-gray-300 px-2 text-sm" placeholder="ordersn atau SP-…">
+            <span class="text-[10px] font-semibold uppercase text-gray-500 dark:text-gray-400">Order / invoice</span>
+            <input type="text" name="invoice" value="{{ $filters['invoice'] ?? '' }}" class="w-48 {{ $formControlClassSm }}" placeholder="ordersn atau SP-…">
         </label>
         <button type="submit" class="h-9 rounded-lg bg-gray-800 px-3 text-sm font-medium text-white hover:bg-gray-900">Filter</button>
         @if(($filters['compare'] ?? '') !== '' || ($filters['line'] ?? '') !== '' || ($filters['invoice'] ?? '') !== '')
-        <a href="{{ route('omnichannel.index') }}" class="h-9 inline-flex items-center rounded-lg border border-gray-300 px-3 text-sm text-gray-700 hover:bg-gray-50">Reset</a>
+        <a href="{{ route('omnichannel.index') }}" class="inline-flex h-9 items-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">Reset</a>
         @endif
     </form>
 
-    <div class="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+    <div class="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800/50">
         <table class="min-w-full divide-y divide-gray-200 text-sm">
             <thead class="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500">
                 <tr>
