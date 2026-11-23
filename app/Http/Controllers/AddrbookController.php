@@ -304,7 +304,7 @@ class AddrbookController extends Controller
             'addrbook' => $a,
             'transactions' => $q->paginate(50)->withQueryString(),
             'transactionTypes' => \App\Models\Transaction::getTypes(),
-            'filters' => $request->all(['from', 'to', 'type', 'total', 'order_date']),
+            'filters' => $request->all(['from', 'to', 'type', 'invoice', 'total', 'order_date']),
             'can' => [
                 'edit_transaction' => request()->user()?->can(\App\Models\Transaction::getPermissions()['edit']) ?? false,
                 'delete_transaction' => request()->user()?->can(\App\Models\Transaction::getPermissions()['delete']) ?? false,

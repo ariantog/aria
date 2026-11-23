@@ -63,3 +63,34 @@ it('filters bank addrbook transactions when amount is entered opposite sign', fu
         ->assertSee('BANK-OUT-MATCH', false)
         ->assertDontSee('BANK-OUT-OTHER', false);
 });
+
+it('filters warehouse addrbook transactions by invoice substring', function () {
+    $warehouse = Addrbook::factory()->create(['type' => Addrbook::TYPE_WAREHOUSE]);
+    $customer = Addrbook::factory()->customer()->create();
+
+    Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'WH-INV-1001',
+        'sender_id' => $warehouse->id,
+        'receiver_id' => $customer->id,
+        'total' => -100_000,
+    ]);
+    Transaction::factory()->create([
+        'type' => Transaction::TYPE_SELL,
+        'invoice' => 'WH-INV-2002',
+        'sender_id' => $warehouse->id,
+        'receiver_id' => $customer->id,
+        'total' => -50_000,
+    ]);
+
+    $url = route('addrbook.type.transactions', ['type' => 'warehouse', 'addrbook' => $warehouse->id]);
+
+    $this->get($url)
+        ->assertOk()
+        ->assertSee('data-testid="addrbook-tx-filter-invoice"', false);
+
+    $this->get($url.'?invoice=1001')
+        ->assertOk()
+        ->assertSee('WH-INV-1001', false)
+        ->assertDontSee('WH-INV-2002', false);
+});
