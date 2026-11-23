@@ -1,5 +1,5 @@
 @php
-    $fmt = $fmt ?? fn ($v) => format_amount($v);
+    $fmt = $fmt ?? fn ($v) => format_table_amount($v);
     $hargaJual = (float) $hargaJual;
     $potongan = (float) $potongan;
     $uangMuka = (float) $uangMuka;

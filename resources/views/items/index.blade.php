@@ -12,7 +12,7 @@ $typeTags = ($tags[\App\Models\Tag::TYPE_TYPE] ?? collect());
 $sizeTags = ($tags[\App\Models\Tag::TYPE_SIZE] ?? collect());
 $warnaTags = ($tags[\App\Models\Tag::TYPE_WARNA] ?? collect());
 $jahitTags = ($tags[\App\Models\Tag::TYPE_JAHIT] ?? collect());
-$idr = fn ($v) => 'Rp ' . format_amount($v, 0);
+$idr = fn ($v) => format_table_currency($v);
 $filtersStorageKey = $isAsset ? 'aria-assetlancar-index-filters-open' : 'aria-items-index-filters-open';
 $columnsStorageKey = $isAsset ? 'aria-assetlancar-index-columns' : 'aria-items-index-columns';
 @endphp
@@ -167,7 +167,7 @@ $columnsStorageKey = $isAsset ? 'aria-assetlancar-index-columns' : 'aria-items-i
                             <div class="truncate" title="{{ $item->catalogDescription2() }}">{{ $item->catalogDescription2() ?: '--' }}</div>
                         </td>
                         @endif
-                        <td class="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-emerald-600">{{ format_amount((float) ($item->active_qty ?? 0), 0) }}</td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-emerald-600">{{ format_table_amount((float) ($item->active_qty ?? 0), 0) }}</td>
                         <td class="whitespace-nowrap px-3 py-2.5">
                             @if($item->jubelio_item_id)
                                 <span class="inline-flex rounded-full border border-blue-200 bg-blue-100 px-2 py-0.5 text-[10px] text-blue-700">{{ $item->jubelio_item_id }}</span>

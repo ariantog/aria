@@ -243,9 +243,9 @@ $sc = $statusConfig[$order->status] ?? ['label' => 'Unknown', 'cls' => 'border b
                                     {{ $item['aria_stock'] !== null ? format_amount((float) $item['aria_stock'], 0) : '—' }}
                                 </td>
                                 @endif
-                                <td class="px-3 py-2 text-right font-mono text-xs">{{ format_amount((float) $item['quantity'], 0) }}</td>
-                                <td class="px-3 py-2 text-right font-mono text-xs">{{ $item['price'] !== null ? format_amount($item['price']) : '—' }}</td>
-                                <td class="px-3 py-2 text-right font-mono text-xs">{{ $item['price'] !== null ? format_amount($lineTotal) : '—' }}</td>
+                                <td class="px-3 py-2 text-right font-mono text-xs">{{ format_table_amount((float) $item['quantity'], 0) }}</td>
+                                <td class="px-3 py-2 text-right font-mono text-xs">{{ $item['price'] !== null ? format_table_amount($item['price']) : '—' }}</td>
+                                <td class="px-3 py-2 text-right font-mono text-xs">{{ $item['price'] !== null ? format_table_amount($lineTotal) : '—' }}</td>
                             </tr>
                             @endforeach
                         </tbody>

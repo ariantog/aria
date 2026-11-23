@@ -28,9 +28,27 @@ class AmountFormatter
         return rtrim(rtrim($formatted, '0'), self::DECIMAL_SEPARATOR);
     }
 
+    /**
+     * Format amounts for HTML tables — always shows fixed decimal places (e.g. 2 → 1,234.00).
+     */
+    public static function formatTable(float|int|string|null $value, int $decimals = 2): string
+    {
+        return number_format(
+            (float) ($value ?? 0),
+            $decimals,
+            self::DECIMAL_SEPARATOR,
+            self::THOUSANDS_SEPARATOR,
+        );
+    }
+
     public static function currency(float|int|string|null $value, string $prefix = 'Rp ', int $maxDecimals = 2): string
     {
         return $prefix.self::format($value, $maxDecimals);
+    }
+
+    public static function tableCurrency(float|int|string|null $value, string $prefix = 'Rp ', int $decimals = 2): string
+    {
+        return $prefix.self::formatTable($value, $decimals);
     }
 
     /**

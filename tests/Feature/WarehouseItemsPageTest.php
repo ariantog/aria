@@ -546,7 +546,7 @@ it('shows colorway group price when type tag code differs from sku code prefix',
     $this->actingAs($user)
         ->get(route('addrbook.type.items', ['warehouse', $warehouse->id]))
         ->assertOk()
-        ->assertSee('IDR '.format_amount(312_000, 0), false)
+        ->assertSee(format_table_currency(312_000, 'IDR ', 2), false)
         ->assertSee('data-copy-value="312000"', false);
 });
 
@@ -573,7 +573,7 @@ it('shows effective selling price when sku price is zero', function () {
     $this->actingAs($user)
         ->get(route('addrbook.type.items', ['warehouse', $warehouse->id]))
         ->assertOk()
-        ->assertSee('IDR '.format_amount($item->effectivePrice(), 0), false);
+        ->assertSee(format_table_currency($item->effectivePrice(), 'IDR ', 2), false);
 });
 
 it('shows optional item and group alias column toggles on warehouse stock page', function () {

@@ -1,5 +1,5 @@
 @php
-    $fmt = fn ($n) => format_amount($n);
+    $fmt = fn ($n) => format_table_amount($n);
     $itemView = $itemView ?? \App\Support\TransactionItemViewOptions::defaults();
 @endphp
 

@@ -32,7 +32,7 @@ $maxTableCols = 4 + 4
     + ($hasAriaOnOrder ? 1 : 0)
     + ($hasJubelio ? 4 : 0)
     + ($hasShopee ? 2 : 0);
-$idr = fn ($v) => 'IDR ' . format_amount($v, 0);
+$idr = fn ($v) => format_table_currency($v, 'IDR ', 2);
 $currentSort = $filters['sort'] ?? 'codeasc';
 $sortColumn = preg_replace('/(asc|desc)$/', '', $currentSort);
 $sortDirection = str_ends_with($currentSort, 'desc') ? 'desc' : 'asc';
@@ -290,9 +290,9 @@ $sortLink = function (string $column) use ($filters, $sortColumn, $sortDirection
                             <div class="truncate" title="{{ $desc }}">{{ $desc }}</div>
                         </td>
                         <td class="whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold tabular-nums text-gray-700" data-copy-col="price" data-copy-value="{{ format_copy_number($item->effectivePrice()) }}">{{ $idr($item->effectivePrice()) }}</td>
-                        <td class="whitespace-nowrap px-3 py-2.5 text-right font-mono text-xs font-bold tabular-nums {{ $qty > 0 ? 'text-emerald-600' : 'text-gray-400' }}" data-copy-col="qty" data-copy-value="{{ format_copy_number($qty) }}">{{ format_amount($qty, 0) }}</td>
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right font-mono text-xs font-bold tabular-nums {{ $qty > 0 ? 'text-emerald-600' : 'text-gray-400' }}" data-copy-col="qty" data-copy-value="{{ format_copy_number($qty) }}">{{ format_table_amount($qty, 0) }}</td>
                         @if($hasAriaOnOrder)
-                            <td class="whitespace-nowrap px-3 py-2.5 text-right font-mono text-xs tabular-nums {{ $ariaOnOrder > 0 ? 'text-orange-600 font-semibold' : 'text-gray-400' }}" data-copy-col="aria_on_order" data-copy-value="{{ format_copy_number($ariaOnOrder) }}">{{ format_amount($ariaOnOrder, 0) }}</td>
+                            <td class="whitespace-nowrap px-3 py-2.5 text-right font-mono text-xs tabular-nums {{ $ariaOnOrder > 0 ? 'text-orange-600 font-semibold' : 'text-gray-400' }}" data-copy-col="aria_on_order" data-copy-value="{{ format_copy_number($ariaOnOrder) }}">{{ format_table_amount($ariaOnOrder, 0) }}</td>
                         @endif
                         @if($hasJubelio)
                             @if(! $jubelioLinked)

@@ -674,7 +674,7 @@ $saInnerCardWhite = 'space-y-3 rounded-lg border border-gray-200 bg-white p-4';
                         <td class="{{ $saTd }}">{{ $adTypeLabels[$row->ad_type] ?? $row->ad_type ?? '—' }}</td>
                         <td class="{{ $saTd }} font-mono text-xs">
                             @if($row->before_budget !== null || $row->after_budget !== null)
-                            {{ format_amount($row->before_budget ?? 0, 0) }} → {{ format_amount($row->after_budget ?? 0, 0) }}
+                            {{ format_table_amount($row->before_budget ?? 0) }} → {{ format_table_amount($row->after_budget ?? 0) }}
                             @else — @endif
                         </td>
                         <td class="{{ $saTd }} {{ $saTextBody }}">{{ $row->message }}</td>

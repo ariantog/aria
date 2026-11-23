@@ -114,7 +114,7 @@ $fmt = fn ($n) => format_currency($n);
                         @foreach($invoice->lines as $line)
                         <tr>
                             <td class="px-4 py-3 font-medium text-gray-900">{{ $line->description }}</td>
-                            <td class="px-4 py-3 text-right font-mono text-gray-700">{{ format_amount($line->quantity) }}</td>
+                            <td class="px-4 py-3 text-right font-mono text-gray-700">{{ format_table_amount($line->quantity) }}</td>
                             <td class="px-4 py-3 text-right font-mono text-gray-700">{{ $fmt($line->price) }}</td>
                             <td class="px-4 py-3 text-right font-mono font-medium text-gray-900">{{ $fmt($line->total) }}</td>
                         </tr>
@@ -123,7 +123,7 @@ $fmt = fn ($n) => format_currency($n);
                     <tfoot class="border-t border-gray-200 bg-gray-50">
                         <tr>
                             <td class="px-4 py-3 font-semibold text-gray-900">TOTAL</td>
-                            <td class="px-4 py-3 text-right font-mono font-semibold text-gray-900">{{ format_amount($invoice->total_qty) }}</td>
+                            <td class="px-4 py-3 text-right font-mono font-semibold text-gray-900">{{ format_table_amount($invoice->total_qty) }}</td>
                             <td class="px-4 py-3 text-right text-gray-500">SUB TOTAL</td>
                             <td class="px-4 py-3 text-right font-mono text-lg font-bold text-gray-900">{{ $fmt($invoice->subtotal) }}</td>
                         </tr>

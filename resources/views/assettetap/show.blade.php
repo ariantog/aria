@@ -8,7 +8,7 @@ $breadcrumbs = [
     ['title' => 'Asset Tetap', 'href' => route('assettetap.index')],
     ['title' => $item->name, 'href' => route('assettetap.show', $item)],
 ];
-$fmt = fn ($v) => 'Rp '.format_amount($v, 0);
+$fmt = fn ($v) => format_table_currency($v);
 $bought = $register && $register->hasBuyTransaction();
 @endphp
 

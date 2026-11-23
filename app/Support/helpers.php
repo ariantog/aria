@@ -23,6 +23,20 @@ if (! function_exists('format_currency')) {
     }
 }
 
+if (! function_exists('format_table_amount')) {
+    function format_table_amount(float|int|string|null $value, int $decimals = 2): string
+    {
+        return AmountFormatter::formatTable($value, $decimals);
+    }
+}
+
+if (! function_exists('format_table_currency')) {
+    function format_table_currency(float|int|string|null $value, string $prefix = 'Rp ', int $decimals = 2): string
+    {
+        return AmountFormatter::tableCurrency($value, $prefix, $decimals);
+    }
+}
+
 if (! function_exists('format_copy_number')) {
     function format_copy_number(float|int|string|null $value, int $maxDecimals = 2): string
     {

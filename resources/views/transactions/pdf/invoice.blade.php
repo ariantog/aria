@@ -67,29 +67,29 @@
     <table class="totals" style="width: 280px; margin-left: auto; margin-top: 12px;">
         <tr>
             <td>Subtotal</td>
-            <td class="right">{{ format_amount($transaction->itemsSubtotalAmount()) }}</td>
+            <td class="right">{{ format_table_amount($transaction->itemsSubtotalAmount()) }}</td>
         </tr>
         @if((float) $transaction->discount > 0)
         <tr>
             <td>Discount</td>
-            <td class="right">-{{ format_amount($transaction->displayInvoiceDiscountAmount()) }}</td>
+            <td class="right">-{{ format_table_amount($transaction->displayInvoiceDiscountAmount()) }}</td>
         </tr>
         @endif
         @if((float) $transaction->adjustment != 0)
         <tr>
             <td>Adjustment</td>
-            <td class="right">{{ format_amount($transaction->adjustment) }}</td>
+            <td class="right">{{ format_table_amount($transaction->adjustment) }}</td>
         </tr>
         @endif
         @if((float) $transaction->ppn > 0)
         <tr>
             <td>PPN</td>
-            <td class="right">{{ format_amount($transaction->ppn) }}</td>
+            <td class="right">{{ format_table_amount($transaction->ppn) }}</td>
         </tr>
         @endif
         <tr>
             <td><strong>Grand Total</strong></td>
-            <td class="right"><strong>{{ format_amount($transaction->displayGrandTotal()) }}</strong></td>
+            <td class="right"><strong>{{ format_table_amount($transaction->displayGrandTotal()) }}</strong></td>
         </tr>
     </table>
 

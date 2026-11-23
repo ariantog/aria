@@ -4,7 +4,7 @@
 
 @section('content')
 @php
-$fmt = fn ($v) => format_amount($v);
+$fmt = fn ($v) => format_table_amount($v);
 $gross = $parsed->grossIncludingTax();
 @endphp
 

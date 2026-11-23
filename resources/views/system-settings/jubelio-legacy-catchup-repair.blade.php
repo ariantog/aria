@@ -136,7 +136,7 @@ $breadcrumbs = [
                             <td class="px-4 py-3 align-top whitespace-nowrap">{{ $sell->date?->toDateString() }}</td>
                             <td class="px-4 py-3 align-top whitespace-nowrap text-xs text-gray-600">{{ $sell->created_at?->format('Y-m-d H:i') }}</td>
                             <td class="px-4 py-3 align-top">{{ $sell->sender?->name ?? '—' }}</td>
-                            <td class="px-4 py-3 align-top">{{ format_amount($sell->total_items, 0) }}</td>
+                            <td class="px-4 py-3 align-top">{{ format_table_amount($sell->total_items, 0) }}</td>
                             <td class="px-4 py-3 align-top text-xs">
                                 @if($restoredMoveId)
                                 <span class="rounded bg-emerald-100 px-2 py-0.5 text-emerald-800">Sudah restore</span>

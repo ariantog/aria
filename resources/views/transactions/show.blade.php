@@ -17,7 +17,7 @@
     $statusKey = $transaction->status instanceof \BackedEnum ? $transaction->status->value : $transaction->status;
     $status = $statuses[$statusKey] ?? ['label' => 'Unknown', 'color' => 'bg-gray-100 text-gray-800'];
 
-    $fmt = fn ($n) => format_amount($n);
+    $fmt = fn ($n) => format_table_amount($n);
     $grandTotalFormatted = $fmt($transaction->displaySignedGrandTotal());
     $grandTotalHeroClass = \App\Support\AmountFormatter::displayTextClass($grandTotalFormatted, 'hero');
     $grandTotalCompactClass = \App\Support\AmountFormatter::displayTextClass($grandTotalFormatted, 'compact');

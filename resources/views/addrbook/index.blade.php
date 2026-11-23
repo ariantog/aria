@@ -125,7 +125,7 @@ $tableColumnCount = $showArrangementColumn ? 6 : 5;
                                 @endif
                             </td>
                             @endif
-                            <td class="whitespace-nowrap px-3 py-2.5 text-right font-medium tabular-nums text-gray-900">IDR {{ format_amount($bal) }}</td>
+                            <td class="whitespace-nowrap px-3 py-2.5 text-right font-medium tabular-nums text-gray-900">IDR {{ format_table_amount($bal) }}</td>
                             <td class="px-3 py-2.5 text-center">
                                 <div class="flex justify-center gap-1">
                                     @if($can['edit'])

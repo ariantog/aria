@@ -88,11 +88,11 @@ $breadcrumbs = [
                         @foreach($locationInterpretation as $row)
                         <tr>
                             <td class="py-2 pr-4">{{ $row['location_id'] }}</td>
-                            <td class="py-2 pr-4 text-right text-blue-700">{{ format_amount($row['on_hand'], 0) }}</td>
-                            <td class="py-2 pr-4 text-right text-orange-700">{{ format_amount($row['on_order'], 0) }}</td>
-                            <td class="py-2 pr-4 text-right text-violet-700">{{ format_amount($row['reserved'], 0) }}</td>
-                            <td class="py-2 pr-4 text-right text-gray-600">{{ format_amount($row['available'], 0) }}</td>
-                            <td class="py-2 text-right font-semibold text-gray-900">{{ format_amount($row['parity_for_aria'], 0) }}</td>
+                            <td class="py-2 pr-4 text-right text-blue-700">{{ format_table_amount($row['on_hand'], 0) }}</td>
+                            <td class="py-2 pr-4 text-right text-orange-700">{{ format_table_amount($row['on_order'], 0) }}</td>
+                            <td class="py-2 pr-4 text-right text-violet-700">{{ format_table_amount($row['reserved'], 0) }}</td>
+                            <td class="py-2 pr-4 text-right text-gray-600">{{ format_table_amount($row['available'], 0) }}</td>
+                            <td class="py-2 text-right font-semibold text-gray-900">{{ format_table_amount($row['parity_for_aria'], 0) }}</td>
                         </tr>
                         @endforeach
                     </tbody>

@@ -98,7 +98,7 @@ $healthBase = route('reports.inventory-health');
                             <a href="{{ $item->showUrl() }}" class="font-medium text-blue-600 hover:underline">{{ $item->name }}</a>
                         </td>
                         <td class="px-4 py-2.5 font-mono text-xs text-gray-700">{{ $item->code }}</td>
-                        <td class="px-4 py-2.5 text-right font-mono tabular-nums">{{ format_amount($item->warehouse_qty ?? 0, 0) }}</td>
+                        <td class="px-4 py-2.5 text-right font-mono tabular-nums">{{ format_table_amount($item->warehouse_qty ?? 0, 0) }}</td>
                         <td class="px-4 py-2.5 font-mono text-xs text-gray-700">{{ $meta['last_inbound_date'] ?? '—' }}</td>
                         <td class="px-4 py-2.5 text-right font-mono tabular-nums text-gray-900">
                             @if(($meta['inbound_age_days'] ?? null) !== null)

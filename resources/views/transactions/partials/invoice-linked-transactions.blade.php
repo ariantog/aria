@@ -2,7 +2,7 @@
     $invoiceLinked = $invoiceLinked ?? null;
     $linked = $invoiceLinked['linked'] ?? collect();
     $party = $invoiceLinked['party'] ?? 'receiver';
-    $fmt = fn ($n) => format_amount($n);
+    $fmt = fn ($n) => format_table_amount($n);
 @endphp
 @if($invoiceLinked && $linked->isNotEmpty())
 <div class="print:hidden rounded-xl border border-gray-200 bg-white shadow-sm"

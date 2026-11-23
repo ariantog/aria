@@ -9,7 +9,7 @@
         ['title' => 'Deleted', 'href' => route('transactions.deleted.index')],
     ];
 
-    $fmt = fn ($n) => format_amount($n);
+    $fmt = fn ($n) => format_table_amount($n);
     $fmtDate = function ($d) {
         if (! $d) return '-';
         return \Illuminate\Support\Carbon::parse($d)->format('d/m/y');

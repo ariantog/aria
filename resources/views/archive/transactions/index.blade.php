@@ -8,7 +8,7 @@ $breadcrumbs = [
     ['title' => 'Archive', 'href' => route('archive.index')],
     ['title' => 'Transactions', 'href' => route('archive.transactions.index')],
 ];
-$fmt = fn ($n) => format_amount($n);
+$fmt = fn ($n) => format_table_amount($n);
 $fmtDate = fn ($d) => $d ? \Illuminate\Support\Carbon::parse($d)->format('d/m/y') : '-';
 @endphp
 
