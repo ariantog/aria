@@ -39,7 +39,7 @@ $lineLabels = [
             <form method="POST" action="{{ route('omnichannel.shopee.refresh', $shadow->external_order_sn) }}">
                 @csrf
                 <button type="submit"
-                        class="inline-flex h-9 items-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-800 hover:bg-gray-50"
+                        class="inline-flex h-9 items-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-800 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
                         data-testid="shadow-refresh-button">
                     Refresh dari Shopee
                 </button>
@@ -60,15 +60,15 @@ $lineLabels = [
         @endif
     </div>
 
-    <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <h2 class="text-sm font-semibold text-gray-900">Ingress (Aria)</h2>
+    <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800/50">
+        <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Ingress (Aria)</h2>
         <p class="mt-1 text-xs text-gray-500">Waktu baris pertama muncul di Aria — bukan waktu order di marketplace.</p>
         @include('omnichannel.partials.ingress-timeline', ['ingress' => $ingress ?? [], 'dataTestid' => 'omnichannel-ingress-timeline'])
     </div>
 
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-            <h2 class="text-sm font-semibold text-gray-900">Ringkasan Shopee</h2>
+        <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800/50">
+            <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Ringkasan Shopee</h2>
             <dl class="mt-3 space-y-1 text-sm text-gray-700">
                 <div class="flex justify-between gap-4"><dt class="text-gray-500">Status</dt><dd>{{ $shadow->channel_status ?? '—' }}</dd></div>
                 <div class="flex justify-between gap-4"><dt class="text-gray-500">Baris</dt>
@@ -97,8 +97,8 @@ $lineLabels = [
             @endif
         </div>
 
-        <div class="rounded-xl border border-blue-200 bg-white p-4 shadow-sm">
-            <h2 class="text-sm font-semibold text-gray-900">Jubelio terkait</h2>
+        <div class="rounded-xl border border-blue-200 bg-white p-4 shadow-sm dark:border-blue-800/60 dark:bg-gray-800/50">
+            <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Jubelio terkait</h2>
             @if($jubelioOrder)
             <dl class="mt-3 space-y-1 text-sm text-gray-700">
                 <div class="flex justify-between gap-4"><dt class="text-gray-500">Invoice</dt>
@@ -130,9 +130,9 @@ $lineLabels = [
     </div>
 
     @if($payloadSnippet)
-    <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
-        <h2 class="text-sm font-semibold text-gray-900">Cuplikan JSON Shopee (disimpan di shadow)</h2>
-        <pre class="mt-2 max-h-80 overflow-auto rounded-lg bg-white p-3 text-xs text-gray-800">{{ json_encode($payloadSnippet, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
+    <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/30">
+        <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Cuplikan JSON Shopee (disimpan di shadow)</h2>
+        <pre class="mt-2 max-h-80 overflow-auto rounded-lg bg-white p-3 text-xs text-gray-800 dark:bg-gray-900 dark:text-gray-100">{{ json_encode($payloadSnippet, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
     </div>
     @endif
 </div>
