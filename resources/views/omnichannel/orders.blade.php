@@ -18,6 +18,7 @@ $th = 'px-2 py-2 text-[10px] font-semibold uppercase tracking-wide text-gray-500
 $td = 'px-2 py-2 align-top text-xs text-gray-800';
 $channelLabels = ['shopee' => 'Shopee', 'tiktok' => 'TikTok', 'tokopedia' => 'Tokopedia'];
 $resetQuery = ['view' => $filters['view'] ?? 'events'];
+$currentOrdersUrl = route('omnichannel.orders.index', array_merge(request()->query(), ['view' => 'orders']));
 @endphp
 
 <div class="flex flex-col gap-4 p-2 sm:gap-6 sm:p-4"
@@ -84,6 +85,13 @@ $resetQuery = ['view' => $filters['view'] ?? 'events'];
             Ringkasan per order; detail (shadow, webhook, ingress) dimuat lazily — tanpa API Shopee/TikTok/Jubelio pada render awal.
             @endif
         </p>
+        @if($isEventsView)
+        <span class="mt-3 block max-w-3xl rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900" data-testid="omnichannel-events-current-orders-callout">
+            Untuk detail per order (expand baris, shadow compare, dan baris SKU × qty TikTok API), buka
+            <a href="{{ $currentOrdersUrl }}" class="font-semibold text-blue-800 underline hover:text-blue-950">Current orders (detail baris &amp; API TikTok)</a>
+            — filter saat ini tetap dipakai.
+        </span>
+        @endif
     </div>
 
     <form method="get" action="{{ route('omnichannel.orders.index') }}" class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm" data-testid="omnichannel-orders-filters">
@@ -249,11 +257,25 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                     </tr>
                     <tr x-show="isRowExpanded(@js($row->id))" x-cloak class="bg-gray-50">
                         <td colspan="11" class="px-3 py-3">
-                            @if($row->channel === 'tiktok' && filled($row->order_ref))
-                            <p class="mb-2 text-[11px] text-gray-600" data-testid="omnichannel-event-tiktok-lines-hint">
-                                Baris order (SKU × qty) dari TikTok API: buka tab
-                                <a href="{{ route('omnichannel.orders.index', array_merge(request()->query(), ['view' => 'orders'])) }}" class="font-medium text-blue-700 underline">Current orders</a>
-                                lalu expand order <span class="font-mono">{{ $row->order_ref }}</span>.
+                            @if(filled($row->order_ref))
+                            @php
+                                $eventToOrdersUrl = route('omnichannel.orders.index', array_merge(request()->query(), [
+                                    'view' => 'orders',
+                                    'order_ref' => $row->order_ref,
+                                ]));
+                            @endphp
+                            <p class="mb-2 text-[11px] text-gray-600" data-testid="omnichannel-event-current-orders-hint">
+                                @if($row->channel === 'tiktok')
+                                Baris order (SKU × qty) dari TikTok API:
+                                @else
+                                Detail per order (expand baris):
+                                @endif
+                                <a href="{{ $eventToOrdersUrl }}" class="font-medium text-blue-700 underline">Current orders</a>
+                                @if($row->channel === 'tiktok')
+                                untuk order <span class="font-mono">{{ $row->order_ref }}</span>.
+                                @else
+                                — filter order <span class="font-mono">{{ $row->order_ref }}</span>.
+                                @endif
                             </p>
                             @endif
                             <p class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Raw payload (read-only)</p>
