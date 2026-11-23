@@ -13,6 +13,8 @@ class OmnichannelSettingStore
 
     public const KEY_TOKOPEDIA_NOTES = 'tokopedia_notes';
 
+    public const KEY_FLEXI_STAGING_WAREHOUSE_ID = 'flexi_staging_warehouse_id';
+
     public function tableExists(): bool
     {
         return Schema::hasTable('omnichannel_settings');

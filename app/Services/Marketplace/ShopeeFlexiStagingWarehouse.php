@@ -6,12 +6,24 @@ use App\Enums\AddrbookType;
 use App\Models\Addrbook;
 
 /**
- * Shared FLEXI staging gudang (physical warehouse) from config.
+ * Shared FLEXI staging gudang (physical warehouse) — omnichannel_settings first, env legacy fallback.
  */
 class ShopeeFlexiStagingWarehouse
 {
+    public function __construct(
+        private OmnichannelSettingStore $settings,
+    ) {}
+
     public function configuredId(): int
     {
+        $fromDb = $this->settings->getInt(
+            OmnichannelSettingStore::KEY_FLEXI_STAGING_WAREHOUSE_ID,
+            0,
+        );
+        if ($fromDb > 0) {
+            return $fromDb;
+        }
+
         return max(0, (int) config('shopee_flexi.staging_warehouse_id', 0));
     }
 
@@ -60,7 +72,7 @@ class ShopeeFlexiStagingWarehouse
                 'valid' => false,
                 'warehouse_id' => 0,
                 'warehouse_name' => null,
-                'warning' => 'Gudang staging FLEXI belum dikonfigurasi — set SHOPEE_FLEXI_STAGING_WAREHOUSE_ID di environment.',
+                'warning' => 'Gudang staging FLEXI belum dikonfigurasi — atur di Omnichannel → Settings → Warehouse (tab Warehouse mapping).',
                 'arrangement_enabled' => false,
             ];
         }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Addrbook;
 use App\Models\Jubelio;
 use App\Models\Jubeliosync;
 use App\Models\Omnichannel;
@@ -17,6 +18,7 @@ use App\Services\TikTokShop\TikTokShopOAuthService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
@@ -77,6 +79,17 @@ class OmnichannelSettingsController extends Controller
         );
         $tokopediaStoreId = $settings->getString(OmnichannelSettingStore::KEY_TOKOPEDIA_STORE_ID, '');
         $tokopediaNotes = $settings->getString(OmnichannelSettingStore::KEY_TOKOPEDIA_NOTES, '');
+        $flexiStagingWarehouseId = $settings->getInt(
+            OmnichannelSettingStore::KEY_FLEXI_STAGING_WAREHOUSE_ID,
+            0,
+        );
+        $physicalWarehouses = collect();
+        if ($tab === 'warehouse') {
+            $physicalWarehouses = Addrbook::query()
+                ->where('type', Addrbook::TYPE_WAREHOUSE)
+                ->orderBy('name')
+                ->get(['id', 'name', 'arrangement_enabled']);
+        }
 
         return view('omnichannel.settings', [
             'tab' => $tab,
@@ -92,6 +105,8 @@ class OmnichannelSettingsController extends Controller
             'lowStockThreshold' => $lowStockThreshold,
             'tokopediaStoreId' => $tokopediaStoreId ?? '',
             'tokopediaNotes' => $tokopediaNotes ?? '',
+            'flexiStagingWarehouseId' => $flexiStagingWarehouseId,
+            'physicalWarehouses' => $physicalWarehouses,
             'settingsTableExists' => $settings->tableExists(),
             'shopeeAdminConnection' => $shopeeAdmin->getConnectionStatus(),
             'shopeeStockConnection' => $shopeeStockOpen->getConnectionStatus(),
@@ -149,5 +164,31 @@ class OmnichannelSettingsController extends Controller
         return redirect()
             ->route('omnichannel.settings.index', ['tab' => 'warehouse'])
             ->with('success', 'Catatan Tokopedia disimpan.');
+    }
+
+    public function updateFlexiStaging(Request $request, OmnichannelSettingStore $settings): RedirectResponse
+    {
+        abort_unless(Omnichannel::userCanSettingsEdit($request->user()), 403);
+        abort_unless($settings->tableExists(), 503, 'Migrasi omnichannel_settings belum dijalankan.');
+
+        $rules = [
+            'flexi_staging_warehouse_id' => ['nullable', 'integer', 'min:0'],
+        ];
+        if ((int) $request->input('flexi_staging_warehouse_id', 0) > 0) {
+            $rules['flexi_staging_warehouse_id'][] = Rule::exists('customers', 'id')
+                ->where(fn ($query) => $query->where('type', Addrbook::TYPE_WAREHOUSE));
+        }
+
+        $validated = $request->validate($rules);
+
+        $id = (int) ($validated['flexi_staging_warehouse_id'] ?? 0);
+        $settings->set(
+            OmnichannelSettingStore::KEY_FLEXI_STAGING_WAREHOUSE_ID,
+            (string) $id,
+        );
+
+        return redirect()
+            ->route('omnichannel.settings.index', ['tab' => 'warehouse'])
+            ->with('success', 'Gudang staging FLEXI disimpan.');
     }
 }
