@@ -20,6 +20,10 @@ $selectedCipher = old('shop_cipher');
         <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">Tambah toko TikTok</h1>
     </div>
 
+    @if($flash['error'] ?? null)
+        <div class="max-w-2xl rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-100" data-testid="tiktok-warehouse-sync-error">{{ $flash['error'] }}</div>
+    @endif
+
     @if(! $connectionReady)
         <div class="max-w-2xl rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
             @if(! $oauthAuthorized)
@@ -65,6 +69,41 @@ $selectedCipher = old('shop_cipher');
             <div class="flex justify-end gap-3">
                 <a href="{{ route('marketplace.warehouse-sync.index', ['channel' => 'tiktok']) }}" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm dark:border-gray-600 dark:bg-gray-800">Batal</a>
                 <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white dark:bg-gray-100 dark:text-gray-900" data-testid="tiktok-shop-sync-sync-warehouses">Sinkron gudang</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="max-w-2xl rounded-xl border border-dashed border-gray-300 bg-gray-50/80 p-6 dark:border-gray-600 dark:bg-gray-900/30">
+        <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Tambah gudang manual (tanpa API)</h2>
+        <p class="mt-1 text-xs text-gray-600 dark:text-gray-400">Jika <code class="font-mono">GET /logistics/…/warehouses</code> gagal atau kosong, isi <code class="font-mono">platform_warehouse_id</code> dari Partner Center / payload webhook.</p>
+        <form method="POST" action="{{ route('marketplace.warehouse-sync.tiktok.manual') }}" class="mt-4 space-y-4">
+            @csrf
+            <div class="grid gap-4 sm:grid-cols-2">
+            <div>
+                <label for="manual_shop_ref" class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">shop_ref</label>
+                <input type="text" name="shop_ref" id="manual_shop_ref" value="{{ old('shop_ref') }}" required maxlength="64" class="{{ $formControlClassLg }} font-mono text-sm">
+            </div>
+            <div>
+                <label for="manual_shop_cipher" class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">shop_cipher</label>
+                <input type="text" name="shop_cipher" id="manual_shop_cipher" value="{{ old('shop_cipher') }}" required maxlength="64" class="{{ $formControlClassLg }} font-mono text-sm">
+            </div>
+            </div>
+            <div>
+                <label for="manual_shop_name" class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">Nama toko</label>
+                <input type="text" name="shop_name" id="manual_shop_name" value="{{ old('shop_name') }}" maxlength="255" class="{{ $formControlClassLg }} text-sm">
+            </div>
+            <div class="grid gap-4 sm:grid-cols-2">
+                <div>
+                    <label for="manual_platform_warehouse_id" class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">platform_warehouse_id</label>
+                    <input type="text" name="platform_warehouse_id" id="manual_platform_warehouse_id" value="{{ old('platform_warehouse_id') }}" required maxlength="64" class="{{ $formControlClassLg }} font-mono text-sm" placeholder="7392489215199020821">
+                </div>
+                <div>
+                    <label for="manual_platform_warehouse_name" class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">Nama platform</label>
+                    <input type="text" name="platform_warehouse_name" id="manual_platform_warehouse_name" value="{{ old('platform_warehouse_name') }}" maxlength="255" class="{{ $formControlClassLg }} text-sm" placeholder="CITOS">
+                </div>
+            </div>
+            <div class="flex justify-end">
+                <button type="submit" class="rounded-lg border border-gray-400 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 dark:border-gray-500 dark:bg-gray-800 dark:text-gray-100" data-testid="tiktok-shop-sync-manual-warehouse">Simpan baris manual</button>
             </div>
         </form>
     </div>

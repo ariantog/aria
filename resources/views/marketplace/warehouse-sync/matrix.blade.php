@@ -79,5 +79,26 @@
             <button type="submit" class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white dark:bg-gray-100 dark:text-gray-900">Simpan mapping</button>
         </div>
     </form>
+
+    @if($channel === 'tiktok')
+    <div class="rounded-xl border border-dashed border-gray-300 bg-gray-50/80 p-4 dark:border-gray-600 dark:bg-gray-900/30">
+        <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Tambah baris manual</h2>
+        <p class="mt-1 text-xs text-gray-600 dark:text-gray-400">Tanpa refresh API — petakan <code class="font-mono">platform_warehouse_id</code> lalu simpan mapping di atas.</p>
+        <form method="POST" action="{{ route('marketplace.warehouse-sync.tiktok.matrix.manual-row', ['shopRef' => $matrixShopRef]) }}" class="mt-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+            @csrf
+            <input type="hidden" name="shop_cipher" value="{{ $shopCipher }}">
+            <input type="hidden" name="shop_name" value="{{ $shopName }}">
+            <div class="min-w-[12rem] flex-1">
+                <label for="matrix_manual_platform_warehouse_id" class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">platform_warehouse_id</label>
+                <input type="text" name="platform_warehouse_id" id="matrix_manual_platform_warehouse_id" required maxlength="64" class="{{ $formControlClassLg }} font-mono text-sm" data-testid="tiktok-matrix-manual-warehouse-id">
+            </div>
+            <div class="min-w-[12rem] flex-1">
+                <label for="matrix_manual_platform_warehouse_name" class="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">Nama platform</label>
+                <input type="text" name="platform_warehouse_name" id="matrix_manual_platform_warehouse_name" maxlength="255" class="{{ $formControlClassLg }} text-sm">
+            </div>
+            <button type="submit" class="rounded-lg border border-gray-400 bg-white px-4 py-2 text-sm font-medium dark:border-gray-500 dark:bg-gray-800" data-testid="tiktok-matrix-manual-add">Tambah baris</button>
+        </form>
+    </div>
+    @endif
 </div>
 @endsection

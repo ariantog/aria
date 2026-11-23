@@ -2,12 +2,15 @@
 
 use App\Models\Addrbook;
 use App\Models\MarketplaceWarehouseSync;
+use App\Models\Setting;
 use App\Models\Shopeesync;
 use App\Models\TiktokShopSync;
 use App\Models\User;
 use App\Services\Marketplace\MarketplaceWarehouseSyncBackfill;
 use App\Services\Marketplace\MarketplaceWarehouseSyncResolver;
 use App\Services\Marketplace\MarketplaceWarehouseSyncService;
+use App\Services\TikTokShop\TikTokShopOAuthService;
+use Illuminate\Support\Facades\Http;
 
 beforeEach(function (): void {
     config(['tiktok_shop.driver' => 'mock']);
@@ -109,6 +112,80 @@ it('bootstraps tiktok shop and opens unified matrix', function (): void {
         ->get(route('marketplace.warehouse-sync.matrix', ['channel' => 'tiktok', 'shopRef' => '7490000000000000123']))
         ->assertOk()
         ->assertSee('data-testid="tiktok-shop-sync-matrix"', false);
+});
+
+it('flashes concrete partner error when tiktok warehouse sync returns empty', function (): void {
+    config([
+        'tiktok_shop.driver' => 'live',
+        'tiktok_shop.app_key' => 'test-app-key',
+        'tiktok_shop.app_secret' => 'test-app-secret',
+        'tiktok_shop.api_base_url' => 'https://open-api.tiktokglobalshop.com',
+    ]);
+
+    Setting::query()->updateOrCreate(
+        ['slug' => TikTokShopOAuthService::OAUTH_SETTING_SLUG],
+        [
+            'group' => 'tiktok_shop',
+            'name' => 'TikTok Shop OAuth',
+            'value' => [
+                'access_token' => 'live-access-token',
+                'refresh_token' => 'refresh-token',
+                'expires_at' => now()->addHours(2)->toIso8601String(),
+            ],
+        ]
+    );
+
+    Http::fake([
+        '*' => Http::response([
+            'code' => 401001,
+            'message' => 'scope not granted',
+            'data' => [],
+        ], 200),
+    ]);
+
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->from(route('marketplace.warehouse-sync.create', ['channel' => 'tiktok']))
+        ->post(route('marketplace.warehouse-sync.store', ['channel' => 'tiktok']), [
+            'shop_ref' => '749111',
+            'shop_cipher' => 'cipher-abc',
+            'shop_name' => 'CA TikTok',
+        ])
+        ->assertRedirect(route('marketplace.warehouse-sync.create', ['channel' => 'tiktok']));
+
+    $msg = (string) $response->getSession()->get('errorMessage');
+    expect($msg)->toContain('401001')
+        ->and($msg)->toContain('scope not granted')
+        ->and($msg)->toContain('seller.logistics');
+});
+
+it('creates manual tiktok warehouse row and opens matrix', function (): void {
+    $user = User::factory()->create();
+    $shopRef = '7495540735365777507';
+    $platformWhId = '7392489215199020821';
+
+    $this->actingAs($user)
+        ->post(route('marketplace.warehouse-sync.tiktok.manual'), [
+            'shop_ref' => $shopRef,
+            'shop_cipher' => 'cipher-manual',
+            'shop_name' => 'TTS CITOS',
+            'platform_warehouse_id' => $platformWhId,
+            'platform_warehouse_name' => 'CITOS',
+        ])
+        ->assertRedirect(route('marketplace.warehouse-sync.matrix', [
+            'channel' => 'tiktok',
+            'shopRef' => $shopRef,
+        ]));
+
+    $row = MarketplaceWarehouseSync::query()
+        ->where('shop_ref', $shopRef)
+        ->where('platform_warehouse_id', $platformWhId)
+        ->first();
+
+    expect($row)->not->toBeNull()
+        ->and($row->platform_warehouse_name)->toBe('CITOS')
+        ->and(($row->meta ?? [])['manual'] ?? false)->toBeTrue();
 });
 
 it('renders unified index with channel tabs', function (): void {

@@ -10,9 +10,22 @@ use Illuminate\Support\Facades\Log;
  */
 class TikTokShopOpenApiService
 {
+    /** @var array{http_status: int|null, code: int|string|null, message: string|null, path: string}|null */
+    private ?array $lastOpenApiError = null;
+
     public function __construct(
         protected TikTokShopOAuthService $oauthService,
     ) {}
+
+    /**
+     * Last failure from {@see liveSignedGet()} (HTTP status, API code, message, path).
+     *
+     * @return array{http_status: int|null, code: int|string|null, message: string|null, path: string}|null
+     */
+    public function getLastOpenApiError(): ?array
+    {
+        return $this->lastOpenApiError;
+    }
 
     public function isMock(): bool
     {
@@ -309,12 +322,20 @@ class TikTokShopOpenApiService
      */
     protected function liveSignedGet(string $path, array $extraQuery = []): ?array
     {
+        $this->lastOpenApiError = null;
+
         $appKey = (string) config('tiktok_shop.app_key', '');
         $appSecret = (string) config('tiktok_shop.app_secret', '');
         $accessToken = (string) ($this->oauthService->getAccessToken() ?? '');
 
         if ($appKey === '' || $appSecret === '' || $accessToken === '') {
             Log::info('TikTok Shop Open API GET skipped — missing credentials', ['path' => $path]);
+            $this->lastOpenApiError = [
+                'http_status' => null,
+                'code' => 'missing_credentials',
+                'message' => 'App key, app secret, atau access token OAuth kosong.',
+                'path' => $path,
+            ];
 
             return null;
         }
@@ -338,9 +359,14 @@ class TikTokShopOpenApiService
                 ->get($url, $query);
 
             if (! $response->successful()) {
+                $json = $response->json();
+                $this->recordOpenApiGetFailure($path, $response->status(), $json);
+
                 Log::warning('TikTok Shop Open API GET HTTP error', [
                     'path' => $path,
                     'status' => $response->status(),
+                    'code' => is_array($json) ? ($json['code'] ?? null) : null,
+                    'message' => is_array($json) ? ($json['message'] ?? null) : null,
                 ]);
 
                 return null;
@@ -348,11 +374,20 @@ class TikTokShopOpenApiService
 
             $json = $response->json();
             if (! is_array($json)) {
+                $this->lastOpenApiError = [
+                    'http_status' => $response->status(),
+                    'code' => 'invalid_json',
+                    'message' => 'Respons bukan JSON.',
+                    'path' => $path,
+                ];
+
                 return null;
             }
 
             $apiCode = $json['code'] ?? null;
             if ($apiCode !== null && (int) $apiCode !== 0) {
+                $this->recordOpenApiGetFailure($path, $response->status(), $json);
+
                 Log::warning('TikTok Shop Open API GET API error', [
                     'path' => $path,
                     'code' => $apiCode,
@@ -364,6 +399,13 @@ class TikTokShopOpenApiService
 
             return $json;
         } catch (\Throwable $e) {
+            $this->lastOpenApiError = [
+                'http_status' => null,
+                'code' => 'exception',
+                'message' => $e->getMessage(),
+                'path' => $path,
+            ];
+
             Log::warning('TikTok Shop Open API GET failed', [
                 'path' => $path,
                 'message' => $e->getMessage(),
@@ -448,7 +490,12 @@ class TikTokShopOpenApiService
             return [];
         }
 
-        $rows = $response['data']['warehouses'] ?? $response['data']['warehouse_list'] ?? [];
+        $data = $response['data'] ?? null;
+        if (is_array($data) && array_is_list($data)) {
+            $rows = $data;
+        } else {
+            $rows = $response['data']['warehouses'] ?? $response['data']['warehouse_list'] ?? [];
+        }
         if (! is_array($rows)) {
             return [];
         }
@@ -512,6 +559,26 @@ class TikTokShopOpenApiService
                 'type' => 'RETURN_WAREHOUSE',
                 'effect_status' => 'ENABLED',
             ],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $json
+     */
+    protected function recordOpenApiGetFailure(string $path, ?int $httpStatus, ?array $json): void
+    {
+        $message = null;
+        $code = null;
+        if (is_array($json)) {
+            $message = isset($json['message']) ? (string) $json['message'] : null;
+            $code = $json['code'] ?? null;
+        }
+
+        $this->lastOpenApiError = [
+            'http_status' => $httpStatus,
+            'code' => $code,
+            'message' => $message,
+            'path' => $path,
         ];
     }
 

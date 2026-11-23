@@ -218,6 +218,8 @@ Route::middleware(['auth', 'verified', 'active', 'enforce.readonly'])->group(fun
     Route::get('marketplace-warehouse-sync/{channel}/{shopRef}/matrix', [App\Http\Controllers\MarketplaceWarehouseSyncController::class, 'matrix'])->name('marketplace.warehouse-sync.matrix');
     Route::patch('marketplace-warehouse-sync/{channel}/{shopRef}/matrix', [App\Http\Controllers\MarketplaceWarehouseSyncController::class, 'updateMatrix'])->name('marketplace.warehouse-sync.matrix.update');
     Route::post('marketplace-warehouse-sync/{channel}/{shopRef}/refresh', [App\Http\Controllers\MarketplaceWarehouseSyncController::class, 'refreshMatrix'])->name('marketplace.warehouse-sync.matrix.refresh');
+    Route::post('marketplace-warehouse-sync/tiktok/manual', [App\Http\Controllers\MarketplaceWarehouseSyncController::class, 'storeManualTikTok'])->name('marketplace.warehouse-sync.tiktok.manual');
+    Route::post('marketplace-warehouse-sync/tiktok/{shopRef}/manual-row', [App\Http\Controllers\MarketplaceWarehouseSyncController::class, 'storeManualTikTokMatrixRow'])->name('marketplace.warehouse-sync.tiktok.matrix.manual-row');
 
     Route::get('tiktok-shop-sync', [App\Http\Controllers\TiktokShopSyncController::class, 'index'])->name('tiktok-shop.sync.index');
     Route::get('tiktok-shop-sync/create', [App\Http\Controllers\TiktokShopSyncController::class, 'create'])->name('tiktok-shop.sync.create');

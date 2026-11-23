@@ -8,6 +8,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Services\TikTokShop\LiveTikTokShopChatClient;
 use App\Services\TikTokShop\MockTikTokShopChatClient;
+use App\Services\TikTokShop\TikTokShopOpenApiService;
 use App\Observers\TransactionObserver;
 use App\Support\PermissionTableConfig;
 use App\View\Composers\AppComposer;
@@ -36,6 +37,8 @@ class AppServiceProvider extends ServiceProvider
                 ? $app->make(LiveTikTokShopChatClient::class)
                 : $app->make(MockTikTokShopChatClient::class);
         });
+
+        $this->app->singleton(TikTokShopOpenApiService::class);
     }
 
     public function boot(): void

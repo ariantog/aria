@@ -96,6 +96,48 @@ it('lists seller warehouses for shop cipher from logistics api', function (): vo
         ->and($rows[0]['name'])->toBe('Jakarta WH');
 });
 
+it('exposes partner error when logistics warehouses api returns api code', function (): void {
+    Http::fake([
+        '*' => Http::response([
+            'code' => 105001,
+            'message' => 'Invalid credentials',
+            'data' => [],
+        ], 200),
+    ]);
+
+    $service = app(TikTokShopOpenApiService::class);
+    $rows = $service->listSellerWarehouses('cipher-abc');
+
+    expect($rows)->toBe([])
+        ->and($service->getLastOpenApiError())->toMatchArray([
+            'http_status' => 200,
+            'code' => 105001,
+            'message' => 'Invalid credentials',
+        ])
+        ->and($service->getLastOpenApiError()['path'] ?? '')->toContain('/logistics/');
+});
+
+it('parses seller warehouses when data is a bare list', function (): void {
+    Http::fake([
+        '*' => Http::response([
+            'code' => 0,
+            'data' => [
+                [
+                    'id' => '80002',
+                    'name' => 'Surabaya WH',
+                    'type' => 'SALES_WAREHOUSE',
+                    'effect_status' => 'ENABLED',
+                ],
+            ],
+        ]),
+    ]);
+
+    $rows = app(TikTokShopOpenApiService::class)->listSellerWarehouses('cipher-abc');
+
+    expect($rows)->toHaveCount(1)
+        ->and($rows[0]['id'])->toBe('80002');
+});
+
 it('returns mock shop and warehouse fixtures when driver is mock', function (): void {
     config(['tiktok_shop.driver' => 'mock']);
 
@@ -120,6 +162,7 @@ it('renders tiktok shop sync create with partner shop picker', function () {
         ->get(route('marketplace.warehouse-sync.create', ['channel' => 'tiktok']))
         ->assertOk()
         ->assertSee('data-testid="tiktok-shop-sync-create"', false)
-        ->assertSee('Pilih toko dari Partner API', false)
-        ->assertSee('Sinkron gudang', false);
+        ->assertSee('Pilih toko', false)
+        ->assertSee('Sinkron gudang', false)
+        ->assertSee('Tambah gudang manual', false);
 });
