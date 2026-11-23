@@ -17,14 +17,31 @@ it('renders sidebar omnichannel group with child links for superadmin', function
     $admin = User::factory()->create();
     expect($admin->is_superadmin)->toBeTrue();
 
+    $webhooksUrl = route('omnichannel.orders.index', ['view' => 'events']);
+    $currentOrdersUrl = route('omnichannel.orders.index', ['view' => 'orders']);
+
     $this->actingAs($admin)
         ->get(route('omnichannel.orders.index'))
         ->assertOk()
         ->assertSee('data-testid="omnichannel-orders-page"', false)
-        ->assertSee(route('omnichannel.orders.index'), false)
+        ->assertSee('data-testid="omnichannel-events-current-orders-callout"', false)
+        ->assertSee(route('omnichannel.orders.index', ['view' => 'orders']), false)
+        ->assertSee($webhooksUrl, false)
+        ->assertSee($currentOrdersUrl, false)
+        ->assertSee('Webhooks', false)
+        ->assertSee('Current orders', false)
         ->assertDontSee('Webhook Inbox', false)
         ->assertSee(route('omnichannel.index'), false)
         ->assertSee(route('omnichannel.settings.index'), false);
+});
+
+it('does not show events callout on current orders view', function () {
+    $admin = User::factory()->create();
+
+    $this->actingAs($admin)
+        ->get(route('omnichannel.orders.index', ['view' => 'orders']))
+        ->assertOk()
+        ->assertDontSee('data-testid="omnichannel-events-current-orders-callout"', false);
 });
 
 it('forbids omnichannel orders without permission', function () {
