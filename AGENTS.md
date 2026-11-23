@@ -1,6 +1,7 @@
 # AGENTS.md
 
-Aria Core — a Laravel 12 inventory / accounting / transaction ERP, server-rendered with
+Aria Core — a **Laravel 13** inventory / accounting / transaction ERP (upgraded from L12 via PR #1080;
+**PHP ^8.3** minimum, **Pest 4**), server-rendered with
 **Blade + Alpine.js** (Tailwind + Alpine load from CDN; the old React/Inertia SPA has been
 removed). Indonesian domain terms throughout.
 
@@ -9,6 +10,10 @@ removed). Indonesian domain terms throughout.
 The migration from the React/Inertia SPA to Blade+Alpine and a batch of UI/bug fixes are
 **complete and merged**. A new chat should build on this, not revisit it:
 
+- **Framework is Laravel 13** (`laravel/framework` ^13, `composer.json`). Do not downgrade or target
+  L12 APIs (`VerifyCsrfToken`, etc.). New agents assume L13 upgrade-guide defaults (e.g.
+  `PreventRequestForgery`, `cache.serializable_classes`, session `serialization` default `php`). Production
+  and CI must run **PHP 8.3+** (8.5 still blocked by `phpoffice/phpspreadsheet` for CI only).
 - **React / Inertia / Vite / TypeScript stack is fully removed** — see **AI agent restrictions** (do not
   reintroduce a SPA or JS build step). Frontend is Blade + Alpine + Tailwind (CDN).
 - **Blank list pages are fixed.** `items`, `assetlancar`, and `addrbook` index/transactions/items
@@ -297,8 +302,9 @@ not "modernize" or refactor Alpine style:
 
 ## Environment / running
 
-- Tooling in the VM image: **PHP 8.3** (+ sqlite3, mbstring, xml, curl, zip, gd, bcmath, intl, mysql),
-  **Composer 2**, **Node 22**. The startup update script only refreshes deps (`composer install`).
+- Tooling in the VM image: **PHP 8.3+** (matches Laravel 13; + sqlite3, mbstring, xml, curl, zip, gd,
+  bcmath, intl, mysql), **Composer 2**, **Node 22**. The startup update script only refreshes deps
+  (`composer install`). After pulling `main`, run `composer install` locally; do not assume PHP 8.2.
 - Config in `.env` (from `.env.example`), DB is SQLite at `database/database.sqlite` (both gitignored,
   persist in the VM snapshot). Migrate + seed: `php artisan migrate`, then `SuperAdminSeeder`,
   `SettingSeeder`, `DemoDataSeeder`. On a fresh dev DB, generate permissions once:
