@@ -31,6 +31,34 @@ class JubelioOrderReadyToShip
         });
     }
 
+    /**
+     * @param  Builder<Jubelioorder>  $query
+     * @return Builder<Jubelioorder>
+     */
+    public static function scopeOnlyCourierHold(Builder $query): Builder
+    {
+        return $query
+            ->where('type', 'SELL')
+            ->whereRaw('UPPER(TRIM(order_status)) = ?', [self::STATUS]);
+    }
+
+    /**
+     * Pending sync tab (status = 0) without SELL rows held for courier pickup.
+     *
+     * @param  Builder<Jubelioorder>  $query
+     * @return Builder<Jubelioorder>
+     */
+    public static function scopeExcludingCourierHoldFromPendingTab(Builder $query): Builder
+    {
+        return $query->where(function (Builder $q) {
+            $q->where('type', '!=', 'SELL')
+                ->orWhere(function (Builder $inner) {
+                    $inner->whereRaw('UPPER(TRIM(order_status)) != ?', [self::STATUS])
+                        ->orWhereNull('order_status');
+                });
+        });
+    }
+
     public static function sourceLabel(int $source): string
     {
         return match ($source) {

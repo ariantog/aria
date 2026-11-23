@@ -69,14 +69,15 @@ $exportQuery = array_filter(
     @endif
 
     {{-- Stat cards --}}
-    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 md:gap-4">
+    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6 md:gap-4">
         @php
         $cards = [
-            ['status' => 'all',     'title' => 'Semua',      'value' => $stats['total'],   'border' => 'border-gray-400',   'bg' => 'bg-gray-50 text-gray-700',     'ring' => 'ring-2 ring-gray-500'],
-            ['status' => 'pending', 'title' => 'Pending',    'value' => $stats['pending'], 'border' => 'border-blue-500',   'bg' => 'bg-blue-50 text-blue-600',     'ring' => 'ring-2 ring-blue-500'],
-            ['status' => 'success', 'title' => 'Success',    'value' => $stats['success'], 'border' => 'border-green-500',  'bg' => 'bg-green-50 text-green-600',   'ring' => 'ring-2 ring-green-500'],
-            ['status' => 'warning', 'title' => 'Duplicate',  'value' => $stats['warning'], 'border' => 'border-yellow-500', 'bg' => 'bg-yellow-50 text-yellow-600', 'ring' => 'ring-2 ring-yellow-500'],
-            ['status' => 'error',   'title' => 'Error SKU',  'value' => $stats['error'],   'border' => 'border-red-500',    'bg' => 'bg-red-50 text-red-600',       'ring' => 'ring-2 ring-red-500'],
+            ['status' => 'all',           'title' => 'Semua',         'value' => $stats['total'],          'border' => 'border-gray-400',    'bg' => 'bg-gray-50 text-gray-700',       'ring' => 'ring-2 ring-gray-500'],
+            ['status' => 'pending',       'title' => 'Pending',       'value' => $stats['pending'],        'border' => 'border-blue-500',    'bg' => 'bg-blue-50 text-blue-600',       'ring' => 'ring-2 ring-blue-500'],
+            ['status' => 'ready_to_ship', 'title' => 'Ready to ship', 'value' => $stats['ready_to_ship'],  'border' => 'border-indigo-500',  'bg' => 'bg-indigo-50 text-indigo-700',   'ring' => 'ring-2 ring-indigo-500'],
+            ['status' => 'success',       'title' => 'Success',       'value' => $stats['success'],        'border' => 'border-green-500',   'bg' => 'bg-green-50 text-green-600',     'ring' => 'ring-2 ring-green-500'],
+            ['status' => 'warning',       'title' => 'Duplicate',     'value' => $stats['warning'],        'border' => 'border-yellow-500',  'bg' => 'bg-yellow-50 text-yellow-600',   'ring' => 'ring-2 ring-yellow-500'],
+            ['status' => 'error',         'title' => 'Error SKU',     'value' => $stats['error'],          'border' => 'border-red-500',     'bg' => 'bg-red-50 text-red-600',         'ring' => 'ring-2 ring-red-500'],
         ];
         $activeStatus = $filters['status'] ?? '';
         @endphp

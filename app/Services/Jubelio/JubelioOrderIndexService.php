@@ -50,10 +50,14 @@ class JubelioOrderIndexService
             $q->where('status', 1)->whereIn('error_type', JubelioOrderSyncStatus::ATTENTION_ERROR_TYPES);
         } elseif ($request->status == 'pending') {
             $q->where('status', 0);
+            JubelioOrderReadyToShip::scopeExcludingCourierHoldFromPendingTab($q);
+        } elseif ($request->status === 'ready_to_ship') {
+            JubelioOrderReadyToShip::scopeOnlyCourierHold($q);
         } elseif ($request->status === 'all') {
             // No sync-status filter.
         } elseif (! $request->invoice && $warehouseId <= 0) {
             $q->where('status', 0);
+            JubelioOrderReadyToShip::scopeExcludingCourierHoldFromPendingTab($q);
         }
         $q->when($request->invoice, fn ($q) => $q->where('invoice', 'like', '%'.$request->invoice.'%'));
 

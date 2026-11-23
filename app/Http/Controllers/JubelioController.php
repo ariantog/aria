@@ -142,7 +142,15 @@ class JubelioController extends Controller
         $perPage = $indexService->resolvePerPage($request);
 
         $attentionErrorTypes = implode(',', JubelioOrderSyncStatus::ATTENTION_ERROR_TYPES);
-        $stats = Jubelioorder::selectRaw("COUNT(CASE WHEN status=0 THEN 1 END) as pending, COUNT(CASE WHEN status=2 AND error_type=10 THEN 1 END) as success, COUNT(CASE WHEN status=2 AND error_type=2 THEN 1 END) as warning, COUNT(CASE WHEN status=1 AND error_type IN ({$attentionErrorTypes}) THEN 1 END) as error, COUNT(*) as total")->first();
+        $readyStatus = JubelioOrderReadyToShip::STATUS;
+        $stats = Jubelioorder::selectRaw(
+            "COUNT(CASE WHEN status=0 AND NOT (type='SELL' AND UPPER(TRIM(order_status)) = '{$readyStatus}') THEN 1 END) as pending,"
+            ." COUNT(CASE WHEN type='SELL' AND UPPER(TRIM(order_status)) = '{$readyStatus}' THEN 1 END) as ready_to_ship,"
+            ." COUNT(CASE WHEN status=2 AND error_type=10 THEN 1 END) as success,"
+            ." COUNT(CASE WHEN status=2 AND error_type=2 THEN 1 END) as warning,"
+            ." COUNT(CASE WHEN status=1 AND error_type IN ({$attentionErrorTypes}) THEN 1 END) as error,"
+            .' COUNT(*) as total'
+        )->first();
         $orders = $indexService->buildIndexQuery($request)->paginate($perPage)->withQueryString();
 
         $refreshedOrderId = (int) session('jubelio_refreshed_order_id', 0);
@@ -159,6 +167,7 @@ class JubelioController extends Controller
             'perPage' => $perPage,
             'stats' => [
                 'pending' => (int) $stats->pending,
+                'ready_to_ship' => (int) $stats->ready_to_ship,
                 'success' => (int) $stats->success,
                 'warning' => (int) $stats->warning,
                 'error' => (int) $stats->error,

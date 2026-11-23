@@ -81,6 +81,50 @@ it('promotes READY TO SHIP row to SHIPPED when webhook arrives', function () {
         ->and(Jubelioorder::where('invoice', 'SP-WH-UPGRADE')->count())->toBe(1);
 });
 
+it('lists READY TO SHIP sells on ready_to_ship tab and excludes them from pending', function () {
+    Permission::findOrCreate('jubelio-view', 'web');
+    $user = User::factory()->create();
+    $user->givePermissionTo('jubelio-view');
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'pending-shipped',
+        'source' => 1,
+        'invoice' => 'INV-PEND-SHIPPED',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 0,
+        'status' => 0,
+    ]);
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'rts-tab',
+        'source' => 3,
+        'invoice' => 'INV-RTS-TAB',
+        'type' => 'SELL',
+        'order_status' => JubelioOrderReadyToShip::STATUS,
+        'run_count' => 0,
+        'status' => 0,
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('jubelio.index'))
+        ->assertSuccessful()
+        ->assertSee('INV-PEND-SHIPPED')
+        ->assertDontSee('INV-RTS-TAB');
+
+    $this->actingAs($user)
+        ->get(route('jubelio.index', ['status' => 'ready_to_ship']))
+        ->assertSuccessful()
+        ->assertSee('INV-RTS-TAB')
+        ->assertDontSee('INV-PEND-SHIPPED');
+
+    $this->actingAs($user)
+        ->get(route('jubelio.index', ['status' => 'pending']))
+        ->assertSuccessful()
+        ->assertSee('INV-PEND-SHIPPED')
+        ->assertDontSee('INV-RTS-TAB');
+});
+
 it('shows scanner on jubelio order detail when user_id is set', function () {
     Permission::findOrCreate('jubelio-view', 'web');
     $viewer = User::factory()->create();
