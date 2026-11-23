@@ -28,7 +28,7 @@ class MarketplaceTikTokCommercePlatformEnricher
             return true;
         }
 
-        if ((string) config('tiktok_shop.access_token', '') === '') {
+        if (! $this->tikTokOpenApi->liveAccessTokenAvailable()) {
             once(function (): void {
                 Log::info('TikTok Shop commerce_platform enrich skipped — missing access_token');
             });
@@ -67,7 +67,8 @@ class MarketplaceTikTokCommercePlatformEnricher
         }
 
         try {
-            $apiResponse = $this->tikTokOpenApi->getOrderDetail($orderRef);
+            $shopRef = filled($channelOrder?->shop_ref) ? (string) $channelOrder->shop_ref : null;
+            $apiResponse = $this->tikTokOpenApi->getOrderDetail($orderRef, null, $shopRef);
             $platform = $this->tikTokOpenApi->extractCommercePlatform($apiResponse);
             if (! filled($platform)) {
                 return null;

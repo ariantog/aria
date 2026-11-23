@@ -17,6 +17,18 @@ return [
     'app_secret' => env('TIKTOK_SHOP_APP_SECRET'),
     'shop_cipher' => env('TIKTOK_SHOP_SHOP_CIPHER'),
 
+    /** Partner Center → App & Service service id (Seller authorization link). */
+    'service_id' => env('TIKTOK_SHOP_SERVICE_ID'),
+
+    /** OAuth callback registered in Partner Center (e.g. https://aria3…/tiktok-shop/oauth/callback). */
+    'redirect_url' => env('TIKTOK_SHOP_REDIRECT_URL', 'https://aria3.corenationactive.com/tiktok-shop/oauth/callback'),
+
+    /** Seller authorization entry (ROW). Override for US: services.us.tiktokshop.com */
+    'authorize_url' => env('TIKTOK_SHOP_AUTHORIZE_URL', 'https://services.tiktokshop.com/open/authorize'),
+
+    /** Token exchange + refresh host (global). */
+    'token_base_url' => env('TIKTOK_SHOP_TOKEN_BASE_URL', 'https://auth.tiktok-shops.com/api/v2/token'),
+
     /** Production Open API base; mock routes are served under /tiktok-shop/mock/open_api/… */
     'api_base_url' => env('TIKTOK_SHOP_API_BASE_URL', 'https://open-api.tiktokglobalshop.com'),
 
@@ -25,7 +37,7 @@ return [
 
     'api_version' => env('TIKTOK_SHOP_API_VERSION', '202309'),
 
-    /** Shop access token for read-only Open API calls (order detail enrichment). */
+    /** Emergency fallback when settings OAuth row is empty (prefer tiktok_shop_oauth + authorize UI). */
     'access_token' => env('TIKTOK_SHOP_ACCESS_TOKEN'),
 
     /** Order API path version for getOrderDetail (Partner Center → Order API). */

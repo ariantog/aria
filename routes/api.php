@@ -14,6 +14,7 @@ use App\Http\Controllers\Mobile\MobileUserController;
 use App\Http\Controllers\Readonly\ReadonlyItemExportController;
 use App\Http\Controllers\Readonly\ReadonlyRestockExportController;
 use App\Http\Controllers\Readonly\ReadonlyShopeeOAuthController;
+use App\Http\Controllers\Readonly\ReadonlyTikTokOAuthController;
 use App\Http\Controllers\Readonly\ReadonlyStockExportController;
 use Illuminate\Support\Facades\Route;
 
@@ -39,6 +40,9 @@ Route::middleware(['auth.readonly-export', 'active', 'can:export-readonly', 'enf
         ->name('api.readonly.restock.insight-period');
     Route::get('readonly/shopee/oauth', [ReadonlyShopeeOAuthController::class, 'show'])
         ->name('api.readonly.shopee.oauth');
+    Route::get('readonly/tiktok/oauth', [ReadonlyTikTokOAuthController::class, 'show'])
+        ->middleware('can:api.readonly.tiktok.oauth')
+        ->name('api.readonly.tiktok.oauth');
 });
 
 Route::middleware(['auth.readonly-export', 'active', 'can:restock-grok-apply', 'throttle:readonly-export', 'restock.grok.apply.enabled'])->group(function (): void {

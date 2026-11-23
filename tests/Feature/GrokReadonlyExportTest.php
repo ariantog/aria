@@ -52,6 +52,7 @@ it('registers readonly export routes as GET only', function (): void {
         'api.readonly.restock.context',
         'api.readonly.restock.insight-period',
         'api.readonly.shopee.oauth',
+        'api.readonly.tiktok.oauth',
         'exports.items.csv',
     ];
 
