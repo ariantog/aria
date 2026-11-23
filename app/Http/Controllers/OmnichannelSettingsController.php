@@ -13,6 +13,7 @@ use App\Services\JubelioService;
 use App\Services\Marketplace\OmnichannelSettingStore;
 use App\Services\Shopee\ShopeeAdminOpenApiService;
 use App\Services\Shopee\ShopeeStockOpenApiService;
+use App\Services\TikTokShop\TikTokShopOAuthService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -26,6 +27,7 @@ class OmnichannelSettingsController extends Controller
         OmnichannelSettingStore $settings,
         ShopeeAdminOpenApiService $shopeeAdmin,
         ShopeeStockOpenApiService $shopeeStockOpen,
+        TikTokShopOAuthService $tikTokOAuth,
         JubelioService $jubelioService,
     ): View {
         abort_unless(Omnichannel::userCanSettings($request->user()), 403);
@@ -96,6 +98,7 @@ class OmnichannelSettingsController extends Controller
             'jubelioConnection' => $jubelioService->getConnectionStatus(),
             'shopeePushConfigured' => filled(config('services.shopee_push.partner_key')),
             'tiktokAppConfigured' => filled(config('tiktok_shop.app_key')) && filled(config('tiktok_shop.app_secret')),
+            'tiktokOAuthConnection' => $tikTokOAuth->getConnectionStatus(),
             'tiktokWebhookInbox' => (bool) config('tiktok_shop.webhook.store_inbox'),
             'jubelioActive' => (bool) config('services.jubelio.active'),
             'flash' => [

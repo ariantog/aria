@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Log;
 class TikTokShopOpenApiService
 {
     public function __construct(
-        protected TikTokShopAccessTokenResolver $accessTokenResolver,
+        protected TikTokShopOAuthService $oauthService,
     ) {}
 
     public function isMock(): bool
@@ -33,7 +33,7 @@ class TikTokShopOpenApiService
             return $this->mockOrderDetail($orderId);
         }
 
-        return $this->liveOrderDetail($orderId, $shopCipher, $shopRef);
+        return $this->liveOrderDetail($orderId, $shopCipher);
     }
 
     /**
@@ -151,20 +151,20 @@ class TikTokShopOpenApiService
         ];
     }
 
-    public function liveAccessTokenAvailable(?string $shopRef = null): bool
+    public function liveAccessTokenAvailable(): bool
     {
         if ($this->isMock()) {
             return true;
         }
 
-        return $this->accessTokenResolver->hasAccessToken($shopRef);
+        return filled($this->oauthService->getAccessToken());
     }
 
     public function liveCredentialsReady(?string $shopCipher = null, ?string $shopRef = null): bool
     {
         $appKey = (string) config('tiktok_shop.app_key', '');
         $appSecret = (string) config('tiktok_shop.app_secret', '');
-        $accessToken = (string) ($this->accessTokenResolver->resolveAccessToken($shopRef) ?? '');
+        $accessToken = (string) ($this->oauthService->getAccessToken() ?? '');
         $cipher = filled($shopCipher)
             ? trim((string) $shopCipher)
             : (string) config('tiktok_shop.shop_cipher', '');
@@ -236,14 +236,14 @@ class TikTokShopOpenApiService
     /**
      * @return array<string, mixed>|null
      */
-    protected function liveOrderDetail(string $orderId, ?string $shopCipherOverride = null, ?string $shopRef = null): ?array
+    protected function liveOrderDetail(string $orderId, ?string $shopCipherOverride = null): ?array
     {
         $appKey = (string) config('tiktok_shop.app_key', '');
         $appSecret = (string) config('tiktok_shop.app_secret', '');
         $shopCipher = filled($shopCipherOverride)
             ? trim((string) $shopCipherOverride)
             : (string) config('tiktok_shop.shop_cipher', '');
-        $accessToken = (string) ($this->accessTokenResolver->resolveAccessToken($shopRef) ?? '');
+        $accessToken = (string) ($this->oauthService->getAccessToken() ?? '');
 
         if ($appKey === '' || $appSecret === '' || $shopCipher === '' || $accessToken === '') {
             Log::info('TikTok Shop getOrderDetail skipped — missing credentials', ['order_id' => $orderId]);

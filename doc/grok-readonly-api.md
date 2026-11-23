@@ -135,6 +135,32 @@ curl -sS -H "Authorization: Bearer $GROK_TOKEN" \
   "https://aria3.corenationactive.com/api/readonly/shopee/oauth"
 ```
 
+### TikTok Shop OAuth (access token only)
+
+`GET /api/readonly/tiktok/oauth`
+
+Returns the current TikTok Shop seller `access_token` for the Grok bot (same stored row as omnichannel order detail: `tiktok_shop_oauth` in `settings`).
+
+| Field | Notes |
+|-------|--------|
+| `access_token` | Valid token; refreshed proactively within ~5 minutes of `expires_at` (`TikTokShopOAuthService::getAccessToken()`) |
+| `expires_at` | ISO-8601; also `expires_at_unix` when known |
+| `partner_app` | Always `tiktok_shop` |
+| `oauth_setting_slug` | `tiktok_shop_oauth` |
+
+**Never returned:** `refresh_token`, `app_secret`, env secrets.
+
+**Permissions:** `export-readonly` **and** `api.readonly.tiktok.oauth` (generate via `PermissionGenerator` on `ReadonlyExport`).
+
+**Errors:** `tiktok_not_connected` (401), `tiktok_not_configured` (503), `tiktok_token_unavailable` (503). Emergency env-only fallback may return `source: env_fallback` when `TIKTOK_SHOP_ACCESS_TOKEN` is set but OAuth row is empty.
+
+Aria authorize: `GET /tiktok-shop/authorize` (Connections tab on `/omnichannel/settings`). See **`doc/omnichannel.md`**.
+
+```bash
+curl -sS -H "Authorization: Bearer $GROK_TOKEN" \
+  "https://aria3.corenationactive.com/api/readonly/tiktok/oauth"
+```
+
 ### Cost history (stub)
 
 `GET /api/readonly/items/{id}/cost-history`

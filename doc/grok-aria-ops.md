@@ -6,7 +6,7 @@ Human maintainers use Aria in a browser (Blade + Alpine.js). Grok should behave 
 
 **Preferred bulk path:** use the **read-only export API** (`doc/grok-readonly-api.md`) — `GET /api/readonly/items`, `GET /exports/items.csv`, `GET /api/readonly/stock`. Do not scrape thousands of item show pages.
 
-**Shopee Open API from the bot:** `GET /api/readonly/shopee/oauth` (bearer auth) returns a fresh `access_token` + `shop_id` for direct Shopee calls — never use browser OAuth or copy tokens from the UI. See **`doc/grok-readonly-api.md`** (Shopee section).
+**Marketplace Open API from the bot:** `GET /api/readonly/shopee/oauth` and `GET /api/readonly/tiktok/oauth` (bearer auth) return fresh `access_token` values for direct marketplace calls — never use browser OAuth or copy tokens from the UI. TikTok additionally requires permission `api.readonly.tiktok.oauth`. See **`doc/grok-readonly-api.md`**.
 
 ---
 
