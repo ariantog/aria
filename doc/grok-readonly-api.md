@@ -166,84 +166,19 @@ Emergency env-only fallback may return `source: env_fallback` when `TIKTOK_SHOP_
 
 Aria authorize: `GET /tiktok-shop/authorize` (Connections tab on `/omnichannel/settings`). See **`doc/omnichannel.md`**.
 
-**Grok bot env (vault, not chat):**
-
-```env
-ARIA_READONLY_BEARER=your-long-random-secret
-# or the same value Aria uses as:
-READONLY_EXPORT_BEARER_TOKEN=your-long-random-secret
-```
-
-**One-liner (bash):**
-
 ```bash
-curl -sS -H "Authorization: Bearer ${ARIA_READONLY_BEARER:-$READONLY_EXPORT_BEARER_TOKEN}" \
+curl -sS -H "Authorization: Bearer $READONLY_EXPORT_BEARER_TOKEN" \
   "https://aria3.corenationactive.com/api/readonly/tiktok/oauth"
 ```
 
-**PHP (in-memory cache; refetch when within 300s of `expires_at_unix`):**
+#### Grok bot prompt (copy-paste)
 
-```php
-function aria_tiktok_shop_access_token(): ?string
-{
-    static $cache = null; // ['token' => string, 'expires_at_unix' => ?int]
+Paste into the Grok bot system / instruction field:
 
-    $skew = 300;
-    $now = time();
-    if (
-        is_array($cache)
-        && isset($cache['token'], $cache['expires_at_unix'])
-        && $cache['expires_at_unix'] !== null
-        && $cache['expires_at_unix'] - $skew > $now
-    ) {
-        return $cache['token'];
-    }
-
-    $bearer = getenv('ARIA_READONLY_BEARER') ?: getenv('READONLY_EXPORT_BEARER_TOKEN');
-    if ($bearer === false || $bearer === '') {
-        throw new RuntimeException('Missing ARIA_READONLY_BEARER or READONLY_EXPORT_BEARER_TOKEN');
-    }
-
-    $url = 'https://aria3.corenationactive.com/api/readonly/tiktok/oauth';
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => ['Authorization: Bearer '.$bearer, 'Accept: application/json'],
-        CURLOPT_TIMEOUT => 30,
-    ]);
-    $body = curl_exec($ch);
-    $http = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($body === false) {
-        throw new RuntimeException('Aria TikTok OAuth request failed');
-    }
-
-    $json = json_decode($body, true);
-    if (! is_array($json)) {
-        throw new RuntimeException('Aria TikTok OAuth invalid JSON');
-    }
-
-    if ($http === 401 && ($json['error'] ?? '') === 'tiktok_not_connected') {
-        throw new RuntimeException('TikTok Shop not connected in Aria — re-authorize in browser');
-    }
-    if ($http === 503 && ($json['error'] ?? '') === 'tiktok_token_unavailable') {
-        throw new RuntimeException('TikTok access token unavailable — retry or fix OAuth in Aria');
-    }
-    if ($http >= 400 || empty($json['access_token'])) {
-        $msg = (string) ($json['message'] ?? $json['error'] ?? 'unknown error');
-
-        throw new RuntimeException('Aria TikTok OAuth HTTP '.$http.': '.$msg);
-    }
-
-    $cache = [
-        'token' => (string) $json['access_token'],
-        'expires_at_unix' => isset($json['expires_at_unix']) ? (int) $json['expires_at_unix'] : null,
-    ];
-
-    return $cache['token'];
-}
-```
+- Never store `refresh_token` or call TikTok token refresh in the bot; Aria owns refresh in `tiktok_shop_oauth`.
+- `GET /api/readonly/tiktok/oauth` with Bearer `READONLY_EXPORT_BEARER_TOKEN`; use `access_token` as `x-tts-access-token`; cache using `expires_at_unix`, refetch when <300s left.
+- Handle `401` `tiktok_not_connected`, `503` errors; no secrets in logs/chat.
+- Shopee: same with `/api/readonly/shopee/oauth`.
 
 ### Cost history (stub)
 
