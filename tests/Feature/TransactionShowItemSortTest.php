@@ -160,7 +160,7 @@ it('displays total item quantity from line details on transaction show', functio
         ->get(route('transactions.show', $sell))
         ->assertOk()
         ->assertSee('data-testid="tx-total-items"', false)
-        ->assertSee('>5<', false)
+        ->assertSee('>5.00<', false)
         ->assertSee('2 lines', false)
         ->assertSee('data-testid="tx-total-items-summary"', false)
         ->assertSee('data-testid="tx-total-items-footer"', false);
