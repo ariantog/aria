@@ -84,6 +84,36 @@ it('validates shop_id and order_ref on lookup', function () {
         ->assertSessionHasErrors(['order_ref', 'shop_id']);
 });
 
+it('skips get_order_detail when load_detail is not checked', function () {
+    $user = User::factory()->create();
+    $user->givePermissionTo('shopee-stock-sync');
+
+    ShopeeFlexiShop::query()->create([
+        'shop_id' => 7777777,
+        'invoice_prefix' => 'SPMY',
+        'direct_order_ingest' => true,
+    ]);
+
+    Http::fake([
+        'partner.shopeemobile.com/api/v2/order/get_order_detail*' => Http::response([
+            'error' => 'should_not_be_called',
+        ]),
+    ]);
+
+    $this->actingAs($user)
+        ->post(route('shopee.flexi.lookup.search'), [
+            'order_ref' => 'SPMY-FAST-ONLY',
+            'shop_id' => 7777777,
+        ])
+        ->assertOk()
+        ->assertSee('data-testid="result-detail-loaded"', false)
+        ->assertSee('Belum', false)
+        ->assertSee('SPMY-FAST-ONLY', false)
+        ->assertSee('data-testid="shopee-load-detail-btn"', false);
+
+    Http::assertNothingSent();
+});
+
 it('shows shop_id and order status from mocked get_order_detail', function () {
     $user = User::factory()->create();
     $user->givePermissionTo('shopee-stock-sync');
@@ -126,6 +156,7 @@ it('shows shop_id and order status from mocked get_order_detail', function () {
         ->post(route('shopee.flexi.lookup.search'), [
             'order_ref' => 'SPMY-MYLOOKUP99',
             'shop_id' => 7777777,
+            'load_detail' => '1',
         ]);
 
     $response->assertOk()
@@ -209,6 +240,7 @@ it('surfaces shopee api error from last_error when get_order_detail fails', func
         ->post(route('shopee.flexi.lookup.search'), [
             'order_ref' => 'TESTSN99',
             'shop_id' => 7777777,
+            'load_detail' => '1',
         ])
         ->assertOk()
         ->assertSee('data-testid="shopee-lookup-error"', false)

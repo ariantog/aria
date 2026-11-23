@@ -5,6 +5,7 @@ namespace App\Services\Marketplace;
 use App\Models\Addrbook;
 use App\Models\ShopeeFlexiShop;
 use App\Models\Shopeesync;
+use App\Services\Jubelio\JubelioSellInvoiceGuard;
 use App\Services\Shopee\ShopeeAdminOpenApiService;
 use Illuminate\Support\Facades\Schema;
 
@@ -21,12 +22,15 @@ class ShopeeFlexiOrderLookupService
         private ShopeeSyncInvoicePrefix $invoicePrefix,
         private ShopeeSyncWarehouseResolver $warehouseResolver,
         private ShopeeOrderPickupLocation $pickupLocation,
+        private ShopeeOrderLineSummary $lineSummary,
+        private ShopeeFlexiSellItemMatcher $sellItemMatcher,
+        private JubelioSellInvoiceGuard $sellInvoiceGuard,
     ) {}
 
     /**
      * @return array<string, mixed>
      */
-    public function lookup(int $shopId, string $orderRef): array
+    public function lookup(int $shopId, string $orderRef, bool $loadDetail = true): array
     {
         $orderSn = $this->normalizeOrderSn($orderRef);
 
@@ -38,6 +42,7 @@ class ShopeeFlexiOrderLookupService
             'order_ref_input' => trim($orderRef),
             'shop_id' => $shopId,
             'shop_authorized' => false,
+            'detail_loaded' => false,
             'invoice_prefix' => $this->invoicePrefix->prefixForShopId($shopId),
             'invoice_preview' => $this->invoicePrefix->invoiceForOrderSn($shopId, $orderSn),
             'flexi_mapping' => $this->flexiSummary($shopId),
@@ -47,6 +52,13 @@ class ShopeeFlexiOrderLookupService
             'warehouse_id' => 0,
             'warehouse_name' => null,
             'sync_matches' => [],
+            'line_summary' => null,
+            'line_match' => null,
+            'duplicate_transaction' => $this->sellInvoiceGuard->sellInvoiceInTransactions(
+                $this->invoicePrefix->invoiceForOrderSn($shopId, $orderSn),
+            ),
+            'can_manual_sell' => false,
+            'manual_sell_block' => null,
             'api_snippet' => null,
         ];
 
@@ -71,6 +83,13 @@ class ShopeeFlexiOrderLookupService
         $base['shop_authorized'] = $this->shopeeApi->hasShopAuthorizationFor($shopId);
         if (! $base['shop_authorized']) {
             $base['error'] = "Shop {$shopId} belum diotorisasi — authorize lewat Omnichannel → Shopee Admin OAuth.";
+
+            return $base;
+        }
+
+        if (! $loadDetail) {
+            $base['ok'] = true;
+            $base['manual_sell_block'] = 'Muat detail dari Shopee API untuk status, baris item, gudang, dan Buat Transaksi Manual.';
 
             return $base;
         }
@@ -123,19 +142,77 @@ class ShopeeFlexiOrderLookupService
         $pickup = $this->pickupLocation->extract($pushData, $orderRow);
         $warehouseId = $this->warehouseResolver->ariaWarehouseIdForIngest($shopId, $pushData, $orderRow);
 
+        $lineSummary = $this->lineSummary->fromOrderRow($orderRow);
+        $lineMatch = $this->sellItemMatcher->matchLines($lineSummary['lines']);
+
         $base['ok'] = true;
+        $base['detail_loaded'] = true;
         $base['order_status'] = (string) ($orderRow['order_status'] ?? '');
         $base['pickup'] = $pickup;
         $base['warehouse_id'] = $warehouseId;
         $base['warehouse_name'] = $this->warehouseLabel($warehouseId);
         $base['sync_matches'] = $this->syncRowsForPickup($pickup, $warehouseId);
+        $base['line_summary'] = $lineSummary;
+        $base['line_match'] = [
+            'error' => $lineMatch['error'],
+            'item_count' => count($lineMatch['items']),
+        ];
         $base['api_snippet'] = $this->safeSnippet($orderRow);
 
         if (filled($orderRow['region'] ?? null)) {
             $base['region_hint'] = strtoupper((string) $orderRow['region']);
         }
 
+        $base['can_manual_sell'] = $this->canManualSell($base, $lineMatch);
+        $base['manual_sell_block'] = $base['can_manual_sell'] ? null : $this->manualSellBlockReason($base, $lineMatch);
+
         return $base;
+    }
+
+    /**
+     * @param  array<string, mixed>  $base
+     * @param  array{error: ?string, items: list<array<string, mixed>>}  $lineMatch
+     */
+    private function canManualSell(array $base, array $lineMatch): bool
+    {
+        if ($base['duplicate_transaction'] ?? false) {
+            return false;
+        }
+
+        if (($base['warehouse_id'] ?? 0) <= 0) {
+            return false;
+        }
+
+        if ($lineMatch['error'] !== null || $lineMatch['items'] === []) {
+            return false;
+        }
+
+        return ($base['detail_loaded'] ?? false) && ($base['ok'] ?? false);
+    }
+
+    /**
+     * @param  array<string, mixed>  $base
+     * @param  array{error: ?string, items: list<array<string, mixed>>}  $lineMatch
+     */
+    private function manualSellBlockReason(array $base, array $lineMatch): string
+    {
+        if ($base['duplicate_transaction'] ?? false) {
+            return 'Invoice sudah ada di Transaksi.';
+        }
+
+        if (($base['warehouse_id'] ?? 0) <= 0) {
+            return 'Gudang belum ter-resolve.';
+        }
+
+        if ($lineMatch['error'] !== null) {
+            return $lineMatch['error'];
+        }
+
+        if ($lineMatch['items'] === []) {
+            return 'Tidak ada baris item yang bisa diposting.';
+        }
+
+        return 'Prasyarat Buat Transaksi Manual belum terpenuhi.';
     }
 
     /**
