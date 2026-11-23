@@ -46,7 +46,7 @@ $warehouseRoute = route('transactions.lookup', ['type' => 'sell', 'role' => 'sen
 
                 <div class="space-y-2">
                     <label for="shop_id" class="block text-sm font-medium text-gray-700">Shopee shop_id</label>
-                    <p class="text-xs text-gray-500">Satu baris = satu toko Shopee (shop_id dari Seller Centre / OAuth). Untuk CITOS + MY dan CITOS + SG, buat <strong>dua</strong> mapping (gudang Aria sama, shop_id &amp; prefix beda). Authorize lewat Omnichannel → Settings.</p>
+                    <p class="text-xs text-gray-500">Satu baris = satu toko Shopee <em>atau</em> kombinasi toko + gudang pickup Shopee. Toko export (SPMY, SPSG, …): isi <code>shop_id</code> yang sama di <strong>setiap</strong> baris pickup (CITOS / BSD / …) yang memenuhi order itu — Aria gudang ikut baris pickup. Buka ingest pada semua baris export itu (poll sekali per shop). Authorize lewat Omnichannel → Settings.</p>
                     <input type="number" name="shop_id" id="shop_id" min="0" value="{{ old('shop_id', $sync->shop_id) }}"
                         class="h-10 w-full max-w-xs rounded-md border border-gray-300 px-3 text-sm font-mono focus:border-orange-500 focus:ring-1 focus:ring-orange-500">
                     @error('shop_id')<p class="text-sm text-red-500">{{ $message }}</p>@enderror

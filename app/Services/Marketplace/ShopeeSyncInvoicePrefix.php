@@ -31,9 +31,12 @@ class ShopeeSyncInvoicePrefix
         if ($shopId !== null && $shopId > 0 && Schema::hasTable('shopee_syncs')) {
             $row = Shopeesync::query()
                 ->where('shop_id', $shopId)
+                ->whereNotNull('invoice_prefix')
+                ->where('invoice_prefix', '!=', '')
                 ->orderByDesc('direct_order_ingest')
-                ->orderByDesc('id')
-                ->first();
+                ->orderBy('id')
+                ->first()
+                ?? Shopeesync::query()->where('shop_id', $shopId)->orderBy('id')->first();
 
             if ($row !== null && filled($row->invoice_prefix)) {
                 return strtoupper((string) $row->invoice_prefix);

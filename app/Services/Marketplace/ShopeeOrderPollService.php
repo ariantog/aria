@@ -54,7 +54,7 @@ class ShopeeOrderPollService
           $query->where('shop_id', $onlyShopId);
       }
 
-      $syncRows = $query->orderBy('id')->get();
+      $syncRows = $query->orderBy('id')->get()->unique('shop_id')->values();
       $summary['shops'] = $syncRows->count();
 
       $statuses = $this->pollStatuses();
@@ -119,7 +119,11 @@ class ShopeeOrderPollService
                           'update_time' => $updateTime,
                       ];
 
-                      $detail = $this->shopeeApi->getOrderDetail($orderSn, $shopId);
+                      $detail = $this->shopeeApi->getOrderDetail(
+                          $orderSn,
+                          $shopId,
+                          'order_status,item_list,package_list,total_amount',
+                      );
                       $detailRow = is_array($detail) ? ($detail['response']['order_list'][0] ?? null) : null;
                       if (is_array($detailRow)) {
                           $status = (string) ($detailRow['order_status'] ?? $status);
@@ -127,6 +131,7 @@ class ShopeeOrderPollService
                           if (isset($detailRow['item_list']) && is_array($detailRow['item_list'])) {
                               $pushData['item_list'] = $detailRow['item_list'];
                           }
+                          $pushData['order_detail'] = $detailRow;
                       }
 
                       $fullPayload = [
@@ -163,7 +168,10 @@ class ShopeeOrderPollService
           }
 
           if (Schema::hasColumn('shopee_syncs', 'last_order_poll_at')) {
-              $sync->forceFill(['last_order_poll_at' => Carbon::now()])->save();
+              Shopeesync::query()
+                  ->where('shop_id', $shopId)
+                  ->where('direct_order_ingest', true)
+                  ->update(['last_order_poll_at' => Carbon::now()]);
           }
       }
 
