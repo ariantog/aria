@@ -88,7 +88,12 @@ class StandaloneInvoicesController extends Controller
         Gate::authorize(StandaloneInvoice::getPermissions()['view']);
 
         $invoice->load(['lines', 'sender', 'user']);
-        $settlement = app(StandaloneInvoiceSettlement::class)->snapshot($invoice);
+        $settlementService = app(StandaloneInvoiceSettlement::class);
+        $settlement = $settlementService->snapshot($invoice);
+        if ($settlement['amounts_match']) {
+            $invoice = $settlementService->reconcile($invoice, auth()->user());
+            $settlement = $settlementService->snapshot($invoice);
+        }
         $sellCashInPresenter = app(SellCashInPresenter::class);
 
         return view('invoice-maker.show', [

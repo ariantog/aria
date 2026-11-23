@@ -178,8 +178,23 @@ class StandaloneInvoiceSettlement
         $invoiceAmount = $invoice->billedAmount();
         $discount = round($invoice->discountAmount(), 2);
         $due = round($invoice->balanceDue(), 2);
-        $amountsMatch = $this->amountsMatch($invoiceAmount, $creditTotal, $debitTotal, $linkingComplete, $discount);
-        $status = $this->statusFromTotals($invoiceAmount, $creditTotal, $debitTotal, $linkingComplete, $discount);
+        $cashOutTotal = round($cashOutTotal, 2);
+        $amountsMatch = $this->amountsMatch(
+            $invoiceAmount,
+            $creditTotal,
+            $debitTotal,
+            $linkingComplete,
+            $discount,
+            $cashOutTotal,
+        );
+        $status = $this->statusFromTotals(
+            $invoiceAmount,
+            $creditTotal,
+            $debitTotal,
+            $linkingComplete,
+            $discount,
+            $cashOutTotal,
+        );
 
         return [
             'invoice' => $invoice,
@@ -216,6 +231,7 @@ class StandaloneInvoiceSettlement
             $linkTotals['debit'],
             $linkTotals['is_complete'],
             round($invoice->discountAmount(), 2),
+            round($linkTotals['cash_out'], 2),
         );
     }
 
@@ -262,8 +278,9 @@ class StandaloneInvoiceSettlement
         float $debitTotal,
         bool $linkingComplete,
         float $discount = 0.0,
+        float $cashOutTotal = 0.0,
     ): string {
-        if ($this->amountsMatch($invoiceAmount, $creditTotal, $debitTotal, $linkingComplete, $discount)) {
+        if ($this->amountsMatch($invoiceAmount, $creditTotal, $debitTotal, $linkingComplete, $discount, $cashOutTotal)) {
             return StandaloneInvoice::STATUS_PAID;
         }
 
@@ -278,11 +295,13 @@ class StandaloneInvoiceSettlement
         float $debitTotal,
         bool $linkingComplete,
         float $discount = 0.0,
+        float $cashOutTotal = 0.0,
     ): bool {
         $invoiceAmount = round($invoiceAmount, 2);
         $creditTotal = round($creditTotal, 2);
         $debitTotal = round($debitTotal, 2);
         $discount = round($discount, 2);
+        $cashOutTotal = round($cashOutTotal, 2);
 
         if ($invoiceAmount <= 0) {
             return false;
@@ -291,6 +310,15 @@ class StandaloneInvoiceSettlement
         $creditMatchesInvoice = $creditTotal === $invoiceAmount;
         $creditMatchesSubtotalWithDocumentDiscount = $discount > 0
             && round($invoiceAmount + $discount, 2) === $creditTotal;
+        $cashOutSettlesOverpayment = $cashOutTotal > 0
+            && $linkingComplete
+            && $creditTotal === $debitTotal
+            && round($creditTotal - $cashOutTotal, 2) === $invoiceAmount
+            && round($debitTotal - $cashOutTotal, 2) === $invoiceAmount;
+
+        if ($cashOutSettlesOverpayment) {
+            return true;
+        }
 
         if (! $creditMatchesInvoice && ! $creditMatchesSubtotalWithDocumentDiscount) {
             return false;

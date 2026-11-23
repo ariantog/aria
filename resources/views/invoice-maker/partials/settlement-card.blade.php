@@ -52,6 +52,8 @@
         creditMatchesInvoiceAmount() {
             const invoice = this.billedAmount();
             const credit = this.creditTotal();
+            const debit = this.debitTotal();
+            const cashOut = Math.round(Number(this.cashOut || 0) * 100) / 100;
             const discount = Math.round(Number(this.discount || 0) * 100) / 100;
             if (invoice <= 0) {
                 return false;
@@ -59,7 +61,15 @@
             if (credit === invoice) {
                 return true;
             }
-            return discount > 0 && Math.round((invoice + discount) * 100) / 100 === credit;
+            if (discount > 0 && Math.round((invoice + discount) * 100) / 100 === credit) {
+                return true;
+            }
+            if (cashOut > 0 && this.linkingComplete() && credit === debit
+                && Math.round((credit - cashOut) * 100) / 100 === invoice
+                && Math.round((debit - cashOut) * 100) / 100 === invoice) {
+                return true;
+            }
+            return false;
         },
         amountsMatch() {
             const credit = this.creditTotal();
@@ -146,7 +156,7 @@
             <dt class="font-semibold text-gray-900">Match</dt>
             <dd class="text-sm font-semibold" :class="amountsMatch() ? 'text-green-700' : 'text-amber-700'">
                 <span x-show="amountsMatch()">Paid — amounts match</span>
-                <span x-show="!amountsMatch()">Waiting for credit to match subtotal or after-discount amount, and (credit = debit, or debit − credit = discount write-off)</span>
+                <span x-show="!amountsMatch()">Waiting for credit to match subtotal or after-discount amount (or cash-in − cash-out = billed amount when credit = debit), and (credit = debit, or debit − credit = discount write-off)</span>
             </dd>
         </div>
     </dl>
