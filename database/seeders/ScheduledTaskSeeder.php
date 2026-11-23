@@ -235,6 +235,16 @@ class ScheduledTaskSeeder extends Seeder
         );
 
         \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'shopee:refresh-oauth'],
+            [
+                'name' => 'Shopee Refresh OAuth',
+                'frequency' => 'hourly',
+                'active' => true,
+                'description' => 'Proactively refreshes the shared Shopee shop access token (shopee_admin_oauth) before it expires (~4h TTL).',
+            ]
+        );
+
+        \App\Models\ScheduledTask::updateOrCreate(
             ['command' => 'app:purge-restock-cell-histories'],
             [
                 'name' => 'Purge Old Restock Change History',

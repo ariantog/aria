@@ -4,6 +4,7 @@ namespace App\Services\ShopeeAds;
 
 use App\Services\Shopee\Concerns\UsesShopeeAdminOAuth;
 use App\Services\Shopee\ShopeeAdminOpenApiService;
+use App\Support\ShopeeOAuthExpiry;
 use Carbon\Carbon;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -36,7 +37,8 @@ class ShopeeAdsApiService
     {
         $oauth = $this->getOAuthPayload();
 
-        return filled($oauth['access_token'] ?? null) && filled($oauth['shop_id'] ?? null);
+        return filled($oauth['shop_id'] ?? null)
+            && (filled($oauth['access_token'] ?? null) || filled($oauth['refresh_token'] ?? null));
     }
 
     /**
@@ -45,14 +47,16 @@ class ShopeeAdsApiService
     public function getConnectionStatus(): array
     {
         $oauth = $this->getOAuthPayload();
-        $expiresAt = isset($oauth['expires_at']) ? Carbon::parse($oauth['expires_at']) : null;
+        $expiresAt = ShopeeOAuthExpiry::accessExpiresAt($oauth);
 
         return [
             'configured' => $this->isConfigured(),
-            'has_token' => filled($oauth['access_token'] ?? null),
+            'has_token' => filled($oauth['access_token'] ?? null) || filled($oauth['refresh_token'] ?? null),
             'shop_id' => $oauth['shop_id'] ?? null,
             'expires_at' => $expiresAt?->toIso8601String(),
-            'is_expired' => $expiresAt?->isPast() ?? true,
+            'expires_in_minutes' => $expiresAt ? (int) now()->diffInMinutes($expiresAt, false) : null,
+            'is_expired' => ShopeeOAuthExpiry::requiresReauthorization($oauth),
+            'can_refresh' => filled($oauth['refresh_token'] ?? null) && (int) ($oauth['shop_id'] ?? 0) > 0,
             'last_error' => $oauth['last_error'] ?? null,
         ];
     }
@@ -113,8 +117,9 @@ class ShopeeAdsApiService
             'access_token' => $payload['access_token'],
             'refresh_token' => $payload['refresh_token'] ?? null,
             'shop_id' => $shopId,
-            'expires_at' => now()->addSeconds((int) ($payload['expire_in'] ?? 14400))->toIso8601String(),
+            'expires_at' => now()->addSeconds(ShopeeOAuthExpiry::expireInSecondsFromPayload($payload))->toIso8601String(),
             'last_error' => null,
+            'last_refreshed_at' => now()->toIso8601String(),
         ]);
 
         return $payload;
@@ -157,8 +162,9 @@ class ShopeeAdsApiService
             'access_token' => $payload['access_token'],
             'refresh_token' => $payload['refresh_token'] ?? $refreshToken,
             'shop_id' => $shopId,
-            'expires_at' => now()->addSeconds((int) ($payload['expire_in'] ?? 14400))->toIso8601String(),
+            'expires_at' => now()->addSeconds(ShopeeOAuthExpiry::expireInSecondsFromPayload($payload))->toIso8601String(),
             'last_error' => null,
+            'last_refreshed_at' => now()->toIso8601String(),
         ]);
 
         return $payload['access_token'];
@@ -168,9 +174,8 @@ class ShopeeAdsApiService
     {
         $oauth = $this->getOAuthPayload();
         $token = $oauth['access_token'] ?? null;
-        $expiresAt = isset($oauth['expires_at']) ? Carbon::parse($oauth['expires_at']) : null;
 
-        if ($token && $expiresAt && $expiresAt->isFuture()) {
+        if ($token && ! ShopeeOAuthExpiry::shouldRefreshAccessToken($oauth)) {
             return $token;
         }
 
