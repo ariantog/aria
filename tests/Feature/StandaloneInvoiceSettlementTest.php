@@ -221,6 +221,37 @@ it('auto-pays when discount is edited after sell and cash-in already exist', fun
         ->and($invoice->isMarkedPaid())->toBeTrue();
 });
 
+it('shows discount controls on invoice detail when paid with a write-off discount', function () {
+    cashInFor($this->invoice->number, 9_400_000);
+    sellFor($this->invoice->number, 10_000_000);
+    $this->invoice->update(['discount_amount' => 600_000]);
+    app(StandaloneInvoiceSettlement::class)->reconcile($this->invoice, $this->user);
+
+    $this->actingAs($this->user)
+        ->get(route('invoice-maker.show', $this->invoice))
+        ->assertOk()
+        ->assertSee('data-testid="invoice-discount-input"', false)
+        ->assertSee('data-testid="invoice-clear-discount"', false)
+        ->assertSee('Save discount', false);
+});
+
+it('clears discount from the invoice detail payment card', function () {
+    cashInFor($this->invoice->number, 9_400_000);
+    sellFor($this->invoice->number, 10_000_000);
+    $this->invoice->update(['discount_amount' => 600_000]);
+    app(StandaloneInvoiceSettlement::class)->reconcile($this->invoice, $this->user);
+
+    $this->actingAs($this->user)
+        ->patch(route('invoice-maker.discount', $this->invoice), [
+            'discount_amount' => 0,
+        ])
+        ->assertRedirect(route('invoice-maker.show', $this->invoice));
+
+    $invoice = $this->invoice->fresh();
+    expect((float) $invoice->discount_amount)->toBe(0.0)
+        ->and($invoice->isMarkedPaid())->toBeFalse();
+});
+
 it('auto-pays when the invoice maker form is saved after sell and cash-in', function () {
     cashInFor($this->invoice->number, 9_400_000);
     sellFor($this->invoice->number, 9_400_000);
