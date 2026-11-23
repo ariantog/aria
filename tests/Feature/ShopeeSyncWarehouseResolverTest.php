@@ -35,6 +35,20 @@ it('maps pickup location to aria warehouse without shop_id on sync row', functio
     expect($resolver->ariaWarehouseIdForIngest(1925605693, $pushData))->toBe($bsd->id);
 });
 
+it('falls back to sole shop_id mapping when push omits pickup location', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create();
+
+    Shopeesync::create([
+        'warehouse_id' => $warehouse->id,
+        'shop_id' => 9,
+        'shopee_location_id' => 'IDZ',
+        'shopee_warehouse_id' => 1,
+        'shopee_warehouse_name' => 'Test WH',
+    ]);
+
+    expect(app(ShopeeSyncWarehouseResolver::class)->ariaWarehouseIdForIngest(9, []))->toBe($warehouse->id);
+});
+
 it('returns zero when push has no pickup location', function () {
     Addrbook::factory()->create(['type' => Addrbook::TYPE_WAREHOUSE]);
 
