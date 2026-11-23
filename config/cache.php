@@ -119,11 +119,16 @@ return [
     | Serializable Cache Classes
     |--------------------------------------------------------------------------
     |
-    | When false, cached PHP objects may only be restored if their class is
-    | listed below. Aria stores arrays/scalars in cache only — no allow-list.
+    | Passed to unserialize() as allowed_classes. Laravel 13 skeleton uses false
+    | (no objects). That breaks existing cache rows that contain Carbon, models,
+    | or collections — use php artisan cache:clear after tightening.
+    |
+    | null = legacy permissive unserialize (L12 behavior). false = block all
+    | objects. An array = class whitelist. Prefer arrays/scalars in new cache
+    | writes; set CACHE_SERIALIZABLE_CLASSES=false only after a full cache flush.
     |
     */
 
-    'serializable_classes' => false,
+    'serializable_classes' => env('CACHE_SERIALIZABLE_CLASSES'),
 
 ];
