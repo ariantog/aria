@@ -121,5 +121,5 @@ it('renders tiktok shop sync create with partner shop picker', function () {
         ->assertOk()
         ->assertSee('data-testid="tiktok-shop-sync-create"', false)
         ->assertSee('Pilih toko dari Partner API', false)
-        ->assertSee('Gudang penjual TikTok', false);
+        ->assertSee('Sinkron gudang', false);
 });

@@ -5,6 +5,7 @@ namespace App\Services\Marketplace;
 use App\Models\Addrbook;
 use App\Models\Shopeesync;
 use App\Models\TiktokShopSync;
+use App\Models\TiktokShopWarehouseSync;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 
@@ -12,7 +13,7 @@ use Illuminate\Support\Facades\Schema;
  * Best-effort shop_ref → Aria warehouse mapping for webhook inbox filters.
  *
  * Shopee: shopee_syncs.shop_id (string match on marketplace_webhook_events.shop_ref).
- * TikTok: tiktok_shop_syncs.shop_ref (webhook shop_id).
+ * TikTok: tiktok_shop_warehouse_syncs (shop_ref + platform_warehouse_id), legacy tiktok_shop_syncs fallback.
  */
 class MarketplaceWebhookShopWarehouseResolver
 {
@@ -26,6 +27,15 @@ class MarketplaceWebhookShopWarehouseResolver
         if (Schema::hasTable('shopee_syncs')) {
             $warehouseIds = $warehouseIds->merge(
                 Shopeesync::query()
+                    ->where('warehouse_id', '>', 0)
+                    ->distinct()
+                    ->pluck('warehouse_id'),
+            );
+        }
+
+        if (Schema::hasTable('tiktok_shop_warehouse_syncs')) {
+            $warehouseIds = $warehouseIds->merge(
+                TiktokShopWarehouseSync::query()
                     ->where('warehouse_id', '>', 0)
                     ->distinct()
                     ->pluck('warehouse_id'),
@@ -71,6 +81,15 @@ class MarketplaceWebhookShopWarehouseResolver
                 ->where('shop_id', '>', 0)
                 ->pluck('shop_id')
                 ->map(fn ($id) => (string) $id)
+                ->all());
+        }
+
+        if (Schema::hasTable('tiktok_shop_warehouse_syncs')) {
+            $refs = array_merge($refs, TiktokShopWarehouseSync::query()
+                ->where('warehouse_id', $warehouseId)
+                ->where('shop_ref', '!=', '')
+                ->pluck('shop_ref')
+                ->map(fn ($ref) => (string) $ref)
                 ->all());
         }
 
@@ -134,6 +153,61 @@ class MarketplaceWebhookShopWarehouseResolver
         return (int) ($this->shopRefToWarehouseMap()[$shopRef] ?? 0);
     }
 
+    public function warehouseIdForTikTokShopRef(
+        ?string $shopRef,
+        ?string $platformWarehouseId = null,
+        ?string $commercePlatform = null,
+    ): int {
+        $shopRef = $this->normalizeShopRef($shopRef);
+        $platformWarehouseId = trim((string) $platformWarehouseId);
+
+        if ($shopRef === '' || $platformWarehouseId === '' || ! Schema::hasTable('tiktok_shop_warehouse_syncs')) {
+            return $this->warehouseIdForShopRef($shopRef);
+        }
+
+        $commercePlatform = $this->normalizeCommercePlatform($commercePlatform);
+
+        $base = TiktokShopWarehouseSync::query()
+            ->where('shop_ref', $shopRef)
+            ->where('platform_warehouse_id', $platformWarehouseId)
+            ->where('warehouse_id', '>', 0);
+
+        if ($commercePlatform !== '') {
+            $matched = (clone $base)->where('commerce_platform', $commercePlatform)->value('warehouse_id');
+            if ($matched) {
+                return (int) $matched;
+            }
+        }
+
+        $wildcard = (clone $base)->where('commerce_platform', '')->value('warehouse_id');
+        if ($wildcard) {
+            return (int) $wildcard;
+        }
+
+        $distinct = (clone $base)->distinct()->pluck('warehouse_id');
+        if ($distinct->count() === 1) {
+            return (int) $distinct->first();
+        }
+
+        return $this->warehouseIdForShopRef($shopRef);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $payload
+     */
+    public function resolveAriaWarehouseId(
+        ?string $shopRef,
+        ?array $payload = null,
+        ?string $commercePlatform = null,
+    ): int {
+        $platformWarehouseId = $this->extractPlatformWarehouseIdFromPayload($payload);
+        if ($platformWarehouseId !== null) {
+            return $this->warehouseIdForTikTokShopRef($shopRef, $platformWarehouseId, $commercePlatform);
+        }
+
+        return $this->warehouseIdForShopRef($shopRef);
+    }
+
     public function warehouseNameForShopRef(?string $shopRef, array $shopRefToWarehouse, array $warehouseNames): ?string
     {
         $shopRef = $this->normalizeShopRef($shopRef);
@@ -147,6 +221,66 @@ class MarketplaceWebhookShopWarehouseResolver
         }
 
         return $warehouseNames[$warehouseId] ?? $warehouseNames[(string) $warehouseId] ?? null;
+    }
+
+    /**
+     * Gudang label for omnichannel list rows (TikTok uses platform warehouse when present in payload).
+     *
+     * @param  object{shop_ref?: ?string, channel?: ?string, commerce_platform?: ?string, payload?: mixed}  $row
+     */
+    public function warehouseNameForListRow(
+        object $row,
+        array $shopRefToWarehouse,
+        array $warehouseNames,
+    ): ?string {
+        $channel = strtolower((string) ($row->channel ?? ''));
+
+        if ($channel === MarketplaceWebhookRecorder::CHANNEL_TIKTOK) {
+            $payload = is_array($row->payload ?? null) ? $row->payload : null;
+            $warehouseId = $this->resolveAriaWarehouseId(
+                $row->shop_ref ?? null,
+                $payload,
+                isset($row->commerce_platform) ? (string) $row->commerce_platform : null,
+            );
+            if ($warehouseId > 0) {
+                return $warehouseNames[$warehouseId] ?? $warehouseNames[(string) $warehouseId] ?? null;
+            }
+
+            return null;
+        }
+
+        return $this->warehouseNameForShopRef($row->shop_ref ?? null, $shopRefToWarehouse, $warehouseNames);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $payload
+     */
+    public function extractPlatformWarehouseIdFromPayload(?array $payload): ?string
+    {
+        if ($payload === null || $payload === []) {
+            return null;
+        }
+
+        $paths = [
+            $payload['data']['warehouse_id'] ?? null,
+            $payload['data']['shipping_warehouse_id'] ?? null,
+            $payload['data']['fulfillment_warehouse_id'] ?? null,
+            $payload['warehouse_id'] ?? null,
+        ];
+
+        foreach ($paths as $candidate) {
+            $normalized = $this->normalizePlatformWarehouseId($candidate);
+            if ($normalized !== null) {
+                return $normalized;
+            }
+        }
+
+        $data = $payload['data'] ?? null;
+        if (! is_array($data)) {
+            return null;
+        }
+
+        return $this->findPlatformWarehouseIdRecursive($data, 0);
     }
 
     public function normalizeShopRef(?string $shopRef): string
@@ -185,5 +319,76 @@ class MarketplaceWebhookShopWarehouseResolver
             ->orderBy('shop_ref')
             ->limit(200)
             ->pluck('shop_ref');
+    }
+
+    protected function normalizeCommercePlatform(?string $commercePlatform): string
+    {
+        $commercePlatform = strtoupper(trim((string) $commercePlatform));
+        if ($commercePlatform === '') {
+            return '';
+        }
+
+        if ($commercePlatform === 'TOKOPEDIA') {
+            return 'TOKOPEDIA';
+        }
+
+        if (in_array($commercePlatform, ['TIKTOK_SHOP', 'TIKTOK', 'TTS'], true)) {
+            return 'TIKTOK_SHOP';
+        }
+
+        return '';
+    }
+
+    protected function normalizePlatformWarehouseId(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if (is_scalar($value)) {
+            $id = trim((string) $value);
+            if ($id === '' || $id === '0') {
+                return null;
+            }
+
+            return $id;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $node
+     */
+    protected function findPlatformWarehouseIdRecursive(array $node, int $depth): ?string
+    {
+        if ($depth > 6) {
+            return null;
+        }
+
+        foreach ($node as $key => $value) {
+            if (is_string($key) && in_array($key, [
+                'warehouse_id',
+                'shipping_warehouse_id',
+                'fulfillment_warehouse_id',
+                'seller_warehouse_id',
+            ], true)) {
+                $normalized = $this->normalizePlatformWarehouseId($value);
+                if ($normalized !== null) {
+                    return $normalized;
+                }
+            }
+        }
+
+        foreach ($node as $value) {
+            if (is_array($value)) {
+                $found = $this->findPlatformWarehouseIdRecursive($value, $depth + 1);
+                if ($found !== null) {
+                    return $found;
+                }
+            }
+        }
+
+        return null;
     }
 }

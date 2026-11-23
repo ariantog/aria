@@ -85,16 +85,24 @@ curl -sS -o /dev/null -w "%{http_code}\n" -X POST "https://your-host/tiktok-shop
 5. Run the migration on the host TikTok calls; keep `TIKTOK_SHOP_WEBHOOK_VERIFY_SIGNATURE=true`.
 6. Trigger a test notification or wait for a real order transition; confirm a row in `tiktok_shop_webhook_inbox`.
 
-## Warehouse mapping UI (`/tiktok-shop-sync/create`)
+## Warehouse mapping UI (`/tiktok-shop-sync`)
 
-`TIKTOK_SHOP_DRIVER=live` + OAuth authorize (Omnichannel → Settings atau **Authorize** dari form mapping) memuat:
+Alur per **platform `warehouse_id`** (tabel `tiktok_shop_warehouse_syncs`):
 
-| Partner API | Use on form |
-|-------------|-------------|
-| `GET /authorization/202309/shops` | Dropdown toko → autofills `shop_ref`, `shop_cipher`, `shop_name` |
-| `GET /logistics/202309/warehouses?shop_cipher=` | Read-only seller warehouse list (bantu pilih gudang **Aria**; tidak disimpan di DB v1) |
+1. **Tambah toko** (`/tiktok-shop-sync/create`) — pilih toko OAuth → isi `shop_ref` / `shop_cipher`.
+2. **Sinkron** — `GET /logistics/{version}/warehouses?shop_cipher=` via `TikTokShopWarehouseSyncService` → upsert baris platform (nama/tipe diperbarui; `warehouse_id` Aria **tidak** di-reset).
+3. **Matrix** (`/tiktok-shop-sync/shop/{shop_ref}/matrix`) — petakan tiap `platform_warehouse_id` → gudang Aria; opsional `commerce_platform` (`TIKTOK_SHOP` / `TOKOPEDIA` / kosong = keduanya). Tombol **Refresh dari TikTok** memanggil upsert lagi.
 
-Tokopedia storefront pada seller yang sama memakai logistics TikTok — tidak ada endpoint terpisah. `driver=mock` mengembalikan fixture di UI tanpa HTTP.
+| Partner API | Use |
+|-------------|-----|
+| `GET /authorization/202309/shops` | Dropdown toko pada create |
+| `GET /logistics/202309/warehouses?shop_cipher=` | Sinkron + refresh matrix |
+
+**Legacy:** `tiktok_shop_syncs` (satu gudang per shop) masih dipakai sebagai fallback resolver jika webhook/order tidak membawa `warehouse_id`. Halaman edit lama redirect ke matrix.
+
+Tokopedia storefront pada seller yang sama memakai logistics TikTok — tidak ada endpoint terpisah. `driver=mock` mengembalikan fixture tanpa HTTP.
+
+**Omnichannel gudang column:** `MarketplaceWebhookShopWarehouseResolver::resolveAriaWarehouseId()` memakai `(shop_ref, platform_warehouse_id dari payload, commerce_platform?)` bila tersedia.
 
 ## What’s next (not in this PR)
 
