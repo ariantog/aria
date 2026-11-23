@@ -3,6 +3,7 @@
 use App\Models\Jubelioorder;
 use App\Models\Setting;
 use App\Models\ShopeeFlexiShop;
+use App\Services\Marketplace\ShopeeOrderPollService;
 use App\Services\Shopee\ShopeeAdminOpenApiService;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
@@ -80,4 +81,35 @@ it('polls flexi shop without creating jubelio placeholder', function () {
     $this->artisan('shopee:poll-orders')->assertSuccessful();
 
     expect(Jubelioorder::where('invoice', 'SPMY-MYFLEXI001')->exists())->toBeFalse();
+});
+
+it('excludes RETRY_SHIP from default shopee order poll statuses', function () {
+    expect(config('services.shopee_order_poll.order_statuses'))
+        ->not->toContain('RETRY_SHIP')
+        ->and(config('services.shopee_order_poll.order_statuses'))
+        ->toEqual(['READY_TO_SHIP', 'PROCESSED', 'SHIPPED', 'COMPLETED']);
+
+    config(['services.shopee_order_poll.order_statuses' => []]);
+
+    $service = app(ShopeeOrderPollService::class);
+    $method = new ReflectionMethod($service, 'pollStatuses');
+    $method->setAccessible(true);
+
+    expect($method->invoke($service))->not->toContain('RETRY_SHIP');
+});
+
+it('returns success from poll command when orders ingested despite list errors', function () {
+    $poll = Mockery::mock(ShopeeOrderPollService::class);
+    $poll->shouldReceive('enabled')->andReturn(true);
+    $poll->shouldReceive('poll')->andReturn([
+        'shops' => 1,
+        'orders_seen' => 1,
+        'ingested' => 1,
+        'skipped' => 0,
+        'errors' => ['Shop 8888: get_order_list gagal (RETRY_SHIP).'],
+    ]);
+
+    $this->app->instance(ShopeeOrderPollService::class, $poll);
+
+    $this->artisan('shopee:poll-orders')->assertSuccessful();
 });

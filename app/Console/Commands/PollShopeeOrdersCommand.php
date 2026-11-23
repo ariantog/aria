@@ -40,6 +40,11 @@ class PollShopeeOrdersCommand extends Command
             $this->warn($error);
         }
 
-        return $result['errors'] === [] ? self::SUCCESS : self::FAILURE;
+        if ($result['errors'] === []) {
+            return self::SUCCESS;
+        }
+
+        // Partial list failures (e.g. invalid order_status filter) should not fail cron when orders were ingested.
+        return $result['ingested'] > 0 ? self::SUCCESS : self::FAILURE;
     }
 }
