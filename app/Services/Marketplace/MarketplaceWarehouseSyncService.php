@@ -77,6 +77,50 @@ class MarketplaceWarehouseSyncService
     }
 
     /**
+     * Manual TikTok warehouse row when Partner logistics API is unavailable.
+     */
+    public function createManualTikTokWarehouse(
+        string $shopRef,
+        string $shopCipher,
+        string $shopName,
+        string $platformWarehouseId,
+        string $platformWarehouseName = '',
+    ): MarketplaceWarehouseSync {
+        $shopRef = trim($shopRef);
+        $shopCipher = trim($shopCipher);
+        $platformWarehouseId = trim($platformWarehouseId);
+        $platformWarehouseName = trim($platformWarehouseName);
+
+        $existing = $this->findTikTokRow($shopRef, $platformWarehouseId, '');
+
+        if ($existing !== null) {
+            $existing->update([
+                'shop_cipher' => $shopCipher !== '' ? $shopCipher : $existing->shop_cipher,
+                'shop_name' => $shopName !== '' ? $shopName : $existing->shop_name,
+                'platform_warehouse_name' => $platformWarehouseName !== '' ? $platformWarehouseName : $existing->platform_warehouse_name,
+                'meta' => array_merge($existing->meta ?? [], ['manual' => true]),
+            ]);
+
+            return $existing->fresh() ?? $existing;
+        }
+
+        return MarketplaceWarehouseSync::query()->create([
+            'channel' => MarketplaceWarehouseSync::CHANNEL_TIKTOK,
+            'commerce_platform' => '',
+            'shop_ref' => $shopRef,
+            'shop_cipher' => $shopCipher,
+            'shop_name' => trim($shopName),
+            'platform_location_id' => '',
+            'platform_warehouse_id' => $platformWarehouseId,
+            'platform_warehouse_name' => $platformWarehouseName,
+            'platform_warehouse_type' => '',
+            'warehouse_id' => 0,
+            'last_synced_at' => null,
+            'meta' => ['manual' => true],
+        ]);
+    }
+
+    /**
      * Refresh Shopee pickup warehouses for the OAuth-connected shop (single seller token).
      *
      * @return int Number of rows touched

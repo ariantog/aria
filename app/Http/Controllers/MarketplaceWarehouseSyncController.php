@@ -112,7 +112,7 @@ class MarketplaceWarehouseSyncController extends Controller
             );
 
             if ($count === 0) {
-                return redirect()->back()->withInput()->with('errorMessage', 'Partner API tidak mengembalikan gudang.');
+                return redirect()->back()->withInput()->with('errorMessage', $this->tiktokWarehouseListFailureMessage());
             }
 
             return redirect()
@@ -230,6 +230,73 @@ class MarketplaceWarehouseSyncController extends Controller
             ->with('success', 'Mapping gudang disimpan.');
     }
 
+    public function storeManualTikTok(Request $request): RedirectResponse
+    {
+        $this->authorizeChannel(MarketplaceWarehouseSync::CHANNEL_TIKTOK);
+
+        $validated = $request->validate([
+            'shop_ref' => 'required|string|max:64',
+            'shop_cipher' => 'required|string|max:64',
+            'shop_name' => 'nullable|string|max:255',
+            'platform_warehouse_id' => 'required|string|max:64',
+            'platform_warehouse_name' => 'nullable|string|max:255',
+        ]);
+
+        $shopRef = trim($validated['shop_ref']);
+        $shopCipher = trim($validated['shop_cipher']);
+
+        $this->syncService->createManualTikTokWarehouse(
+            $shopRef,
+            $shopCipher,
+            trim((string) ($validated['shop_name'] ?? '')),
+            trim($validated['platform_warehouse_id']),
+            trim((string) ($validated['platform_warehouse_name'] ?? '')),
+        );
+
+        return redirect()
+            ->route('marketplace.warehouse-sync.matrix', [
+                'channel' => MarketplaceWarehouseSync::CHANNEL_TIKTOK,
+                'shopRef' => $shopRef,
+            ])
+            ->with('success', 'Baris gudang manual ditambahkan — petakan ke gudang Aria.');
+    }
+
+    public function storeManualTikTokMatrixRow(Request $request, string $shopRef): RedirectResponse
+    {
+        $this->authorizeChannel(MarketplaceWarehouseSync::CHANNEL_TIKTOK);
+
+        $shopRef = trim($shopRef);
+        $anchor = MarketplaceWarehouseSync::query()
+            ->where('channel', MarketplaceWarehouseSync::CHANNEL_TIKTOK)
+            ->where('shop_ref', $shopRef)
+            ->first();
+
+        $validated = $request->validate([
+            'shop_cipher' => 'nullable|string|max:64',
+            'shop_name' => 'nullable|string|max:255',
+            'platform_warehouse_id' => 'required|string|max:64',
+            'platform_warehouse_name' => 'nullable|string|max:255',
+        ]);
+
+        $shopCipher = trim((string) ($validated['shop_cipher'] ?? ($anchor->shop_cipher ?? '')));
+        $shopName = trim((string) ($validated['shop_name'] ?? ($anchor->shop_name ?? '')));
+
+        $this->syncService->createManualTikTokWarehouse(
+            $shopRef,
+            $shopCipher,
+            $shopName,
+            trim($validated['platform_warehouse_id']),
+            trim((string) ($validated['platform_warehouse_name'] ?? '')),
+        );
+
+        return redirect()
+            ->route('marketplace.warehouse-sync.matrix', [
+                'channel' => MarketplaceWarehouseSync::CHANNEL_TIKTOK,
+                'shopRef' => $shopRef,
+            ])
+            ->with('success', 'Baris gudang manual ditambahkan.');
+    }
+
     public function refreshMatrix(string $channel, string $shopRef): RedirectResponse
     {
         $channel = $this->normalizeChannel($channel);
@@ -259,9 +326,13 @@ class MarketplaceWarehouseSyncController extends Controller
         }
 
         if ($count === 0) {
+            $message = $channel === MarketplaceWarehouseSync::CHANNEL_TIKTOK
+                ? $this->tiktokWarehouseListFailureMessage()
+                : 'Tidak ada gudang dari API.';
+
             return redirect()
                 ->route('marketplace.warehouse-sync.matrix', ['channel' => $channel, 'shopRef' => $shopRef])
-                ->with('errorMessage', 'Tidak ada gudang dari API.');
+                ->with('errorMessage', $message);
         }
 
         return redirect()
@@ -307,6 +378,35 @@ class MarketplaceWarehouseSyncController extends Controller
     {
         return $this->tiktokOpenApi->partnerListReady()
             && ($this->tiktokOpenApi->isMock() || $this->tiktokOauth->hasShopAuthorization());
+    }
+
+    private function tiktokWarehouseListFailureMessage(): string
+    {
+        $err = $this->tiktokOpenApi->getLastOpenApiError();
+        $scopeHint = 'Aktifkan scope seller.logistics di TikTok Partner Center, lalu authorize ulang OAuth TikTok Shop '
+            .'(lihat doc/tiktok-shop-webhook.md — Troubleshooting sinkron gudang).';
+
+        if ($err === null) {
+            return 'Partner API tidak mengembalikan gudang (respons kosong). '.$scopeHint;
+        }
+
+        $parts = [];
+        if (isset($err['http_status']) && $err['http_status'] !== null) {
+            $parts[] = 'HTTP '.$err['http_status'];
+        }
+        if (filled($err['code'] ?? null)) {
+            $parts[] = 'code '.$err['code'];
+        }
+        if (filled($err['message'] ?? null)) {
+            $parts[] = (string) $err['message'];
+        }
+        if (filled($err['path'] ?? null)) {
+            $parts[] = (string) $err['path'];
+        }
+
+        $detail = $parts !== [] ? implode(' · ', $parts) : 'Partner API gagal';
+
+        return $detail.'. '.$scopeHint;
     }
 
     /**

@@ -106,6 +106,29 @@ Tokopedia storefront pada seller yang sama memakai logistics TikTok — tidak ad
 
 **Omnichannel gudang column:** `MarketplaceWebhookShopWarehouseResolver::resolveAriaWarehouseId()` memakai `(shop_ref, platform_warehouse_id dari payload, commerce_platform?)` bila tersedia.
 
+## Troubleshooting sinkron gudang
+
+Gejala umum di aria3: tombol **Sinkron gudang** kembali ke form dengan pesan generik, atau matrix tetap kosong setelah refresh — padahal dropdown **Toko (OAuth)** dari `GET /authorization/…/shops` berisi toko.
+
+### Penyebab
+
+1. **`GET /logistics/{version}/warehouses?shop_cipher=` gagal** — HTTP 4xx/5xx, atau JSON `code != 0` (scope tidak disetujui, token kadaluarsa, cipher salah).
+2. **Scope OAuth hilang** — app belum disetujui untuk **`seller.logistics`** di [Partner Center](https://partner.tiktokshop.com) → App & Service → API scopes.
+3. **Respons bentuk lain** — Aria juga mem-parsing daftar gudang langsung di `data` (array), bukan hanya `data.warehouses`.
+
+Aria menyimpan detail error Partner terakhir di `TikTokShopOpenApiService::getLastOpenApiError()` (HTTP status, API code, message, path). Flash UI memuat ringkasan itu plus petunjuk re-OAuth.
+
+### Langkah perbaikan
+
+1. Partner Center → app Aria → pastikan scope **seller.logistics** (Logistics API) **Approved** untuk seller yang dipakai.
+2. Aria → **Authorize ulang** TikTok Shop OAuth (`/tiktok-shop/authorize?return=tiktok-sync`) setelah scope baru disetujui.
+3. Ulangi **Sinkron gudang** dari `/marketplace-warehouse-sync/tiktok/create`.
+4. Jika API masih kosong tapi Anda punya `warehouse_id` dari webhook/order Partner: gunakan **Tambah gudang manual** di halaman create atau **Tambah baris manual** di matrix (isi `platform_warehouse_id`, mis. `7392489215199020821`, lalu petakan ke gudang Aria seperti CITOS).
+
+### Verifikasi cepat (log)
+
+Saat gagal, `storage/logs/laravel.log` memuat baris `TikTok Shop Open API GET` dengan `path` berisi `/logistics/…/warehouses`.
+
 ## What’s next (not in this PR)
 
 - Shadow compare to `jubelioorders` (like Shopee omnichannel) — read-only `GET` order detail behind a separate flag, default off.
