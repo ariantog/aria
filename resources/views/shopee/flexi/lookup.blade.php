@@ -59,8 +59,11 @@ $breadcrumbs = [
     @if($result !== null)
         <div class="space-y-4" data-testid="shopee-lookup-result">
             @if(! ($result['ok'] ?? false))
-                <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-                    {{ $result['error'] ?? 'Lookup gagal.' }}
+                <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" data-testid="shopee-lookup-error">
+                    <p>{{ $result['error'] ?? 'Lookup gagal.' }}</p>
+                    @if(filled($result['error_detail'] ?? null) && ($result['error_detail'] ?? '') !== ($result['error'] ?? ''))
+                        <p class="mt-2 font-mono text-xs text-red-900/90">{{ $result['error_detail'] }}</p>
+                    @endif
                 </div>
             @else
                 <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">

@@ -125,3 +125,26 @@ it('shows shop_id and order status from mocked get_order_detail', function () {
         ->assertSee('PROCESSED', false)
         ->assertSee('Store BSD', false);
 });
+
+it('surfaces shopee api error from last_error when get_order_detail fails', function () {
+    $user = User::factory()->create();
+    $user->givePermissionTo('shopee-stock-sync');
+
+    Http::fake([
+        'partner.shopeemobile.com/api/v2/order/get_order_detail*' => Http::response([
+            'error' => 'error_param',
+            'message' => 'response_optional_fields is invalid',
+            'request_id' => 'req-lookup-1',
+        ], 200),
+    ]);
+
+    $this->actingAs($user)
+        ->post(route('shopee.flexi.lookup.search'), [
+            'order_ref' => 'TESTSN99',
+            'shop_id' => 7777777,
+        ])
+        ->assertOk()
+        ->assertSee('data-testid="shopee-lookup-error"', false)
+        ->assertSee('response_optional_fields is invalid', false)
+        ->assertSee('error_param', false);
+});
