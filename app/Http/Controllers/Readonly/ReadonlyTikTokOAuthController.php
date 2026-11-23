@@ -8,6 +8,7 @@ use App\Models\Setting;
 use App\Services\TikTokShop\TikTokShopOAuthService;
 use App\Support\TikTokShopOAuthExpiry;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 
 /**
@@ -67,6 +68,50 @@ class ReadonlyTikTokOAuthController extends Controller
             'expires_at_unix' => $expiresAt?->getTimestamp(),
             'partner_app' => 'tiktok_shop',
             'oauth_setting_slug' => TikTokShopOAuthService::OAUTH_SETTING_SLUG,
+        ]);
+    }
+
+    /**
+     * Exchange a one-time TikTok authorize code (e.g. from cdn ttsbot.php redirect).
+     * Persists tokens to settings; never returns refresh_token or access_token.
+     */
+    public function exchange(Request $request, TikTokShopOAuthService $tikTokOAuth): JsonResponse
+    {
+        Gate::authorize(ReadonlyExport::getPermissions()['tiktok_oauth']);
+
+        if (! $tikTokOAuth->isConfigured()) {
+            return response()->json([
+                'ok' => false,
+                'error' => 'tiktok_not_configured',
+                'message' => 'TikTok Shop app credentials are not configured on this server.',
+            ], 503);
+        }
+
+        $code = trim((string) ($request->input('code') ?: $request->input('auth_code')));
+        if ($code === '') {
+            return response()->json([
+                'ok' => false,
+                'error' => 'invalid_request',
+                'message' => 'Missing code or auth_code in JSON body.',
+            ], 422);
+        }
+
+        $result = $tikTokOAuth->exchangeAuthCode($code);
+        if ($result === null) {
+            return response()->json([
+                'ok' => false,
+                'error' => 'tiktok_exchange_failed',
+                'message' => $tikTokOAuth->getLastOAuthError() ?? 'Unable to exchange authorization code.',
+            ], 422);
+        }
+
+        $oauth = $this->storedOAuthPayload();
+        $expiresAt = TikTokShopOAuthExpiry::accessExpiresAt($oauth);
+
+        return response()->json([
+            'ok' => true,
+            'expires_at' => $expiresAt?->toIso8601String(),
+            'expires_at_unix' => $expiresAt?->getTimestamp(),
         ]);
     }
 

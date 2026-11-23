@@ -43,6 +43,9 @@ Route::middleware(['auth.readonly-export', 'active', 'can:export-readonly', 'enf
     Route::get('readonly/tiktok/oauth', [ReadonlyTikTokOAuthController::class, 'show'])
         ->middleware('can:api.readonly.tiktok.oauth')
         ->name('api.readonly.tiktok.oauth');
+    Route::post('readonly/tiktok/oauth/exchange', [ReadonlyTikTokOAuthController::class, 'exchange'])
+        ->middleware('can:api.readonly.tiktok.oauth')
+        ->name('api.readonly.tiktok.oauth.exchange');
 });
 
 Route::middleware(['auth.readonly-export', 'active', 'can:restock-grok-apply', 'throttle:readonly-export', 'restock.grok.apply.enabled'])->group(function (): void {

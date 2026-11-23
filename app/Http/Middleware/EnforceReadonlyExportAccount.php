@@ -16,6 +16,15 @@ class EnforceReadonlyExportAccount
     /** @var list<string> */
     private const ALLOWED_METHODS = ['GET', 'HEAD', 'OPTIONS'];
 
+    /**
+     * POST paths allowed for export-readonly (Grok) — OAuth relay from external redirect only.
+     *
+     * @var list<string>
+     */
+    private const ALLOWED_POST_PATHS = [
+        'api/readonly/tiktok/oauth/exchange',
+    ];
+
     /** @var list<string> */
     private const AUTH_EXEMPT_PREFIXES = [
         'login',
@@ -41,7 +50,12 @@ class EnforceReadonlyExportAccount
             return $next($request);
         }
 
-        if (! in_array(strtoupper($request->method()), self::ALLOWED_METHODS, true)) {
+        $method = strtoupper($request->method());
+        if ($method === 'POST' && in_array(trim($request->path(), '/'), self::ALLOWED_POST_PATHS, true)) {
+            return $next($request);
+        }
+
+        if (! in_array($method, self::ALLOWED_METHODS, true)) {
             abort(403, 'Read-only export account cannot mutate data.');
         }
 
