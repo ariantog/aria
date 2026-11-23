@@ -41,7 +41,11 @@ it('increases on_order not physical qty on shopee precreate when push includes i
             'ordersn' => 'ONORDER_1',
             'status' => 'PROCESSED',
             'item_list' => [
-                ['model_sku' => 'SKU-ON-ORDER-1', 'model_quantity_purchased' => 3],
+                [
+                    'model_sku' => 'SKU-ON-ORDER-1',
+                    'model_quantity_purchased' => 3,
+                    'product_location_id' => 'IDZ',
+                ],
             ],
         ],
         'shop_id' => 9,
@@ -118,7 +122,7 @@ it('does not double on_order when precreate push is idempotent', function () {
         'on_order' => 0,
     ]);
 
-    $body = '{"data":{"ordersn":"IDEM_SN","status":"PROCESSED","item_list":[{"model_sku":"SKU-IDEM","model_quantity_purchased":2}]},"shop_id":9,"code":3,"timestamp":1}';
+    $body = '{"data":{"ordersn":"IDEM_SN","status":"PROCESSED","item_list":[{"model_sku":"SKU-IDEM","model_quantity_purchased":2,"product_location_id":"IDZ"}]},"shop_id":9,"code":3,"timestamp":1}';
     $callbackUrl = url(route('shopee.push', [], false));
     $authorization = app(ShopeePushSignatureVerifier::class)->sign($callbackUrl, $body);
     $headers = [
