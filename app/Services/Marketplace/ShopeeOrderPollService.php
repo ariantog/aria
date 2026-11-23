@@ -112,47 +112,19 @@ class ShopeeOrderPollService
                       $status = (string) ($row['order_status'] ?? $orderStatus);
                       $updateTime = isset($row['update_time']) ? (int) $row['update_time'] : $timeTo;
 
-                      $pushData = [
-                          'ordersn' => $orderSn,
-                          'order_sn' => $orderSn,
-                          'status' => $status,
-                          'update_time' => $updateTime,
-                      ];
-
-                      $detail = $this->shopeeApi->getOrderDetail(
-                          $orderSn,
+                      $ingestResult = $this->pullAndIngestOrder(
                           $shopId,
-                          'order_status,item_list,package_list,total_amount',
+                          $orderSn,
+                          (string) $status,
+                          isset($row['update_time']) ? (int) $row['update_time'] : $timeTo,
                       );
-                      $detailRow = is_array($detail) ? ($detail['response']['order_list'][0] ?? null) : null;
-                      if (is_array($detailRow)) {
-                          $status = (string) ($detailRow['order_status'] ?? $status);
-                          $pushData['status'] = $status;
-                          if (isset($detailRow['item_list']) && is_array($detailRow['item_list'])) {
-                              $pushData['item_list'] = $detailRow['item_list'];
-                          }
-                          $pushData['order_detail'] = $detailRow;
+
+                      if (($ingestResult['error'] ?? null) !== null) {
+                          $summary['errors'][] = "Shop {$shopId} order {$orderSn}: ".$ingestResult['error'];
+                          continue;
                       }
 
-                      $fullPayload = [
-                          'code' => self::POLL_PUSH_CODE,
-                          'shop_id' => $shopId,
-                          'timestamp' => $updateTime,
-                          'data' => $pushData,
-                          'source' => 'shopee_poll',
-                      ];
-
-                      $ingestResult = $this->ingest->ingest(
-                          $shopId,
-                          $orderSn,
-                          $status,
-                          self::POLL_PUSH_CODE,
-                          $pushData,
-                          $fullPayload,
-                          recordWebhookWhenUnified: true,
-                      );
-
-                      if ($ingestResult['shadow'] || $ingestResult['jubelio_placeholder'] || $ingestResult['webhook_event']) {
+                      if ($ingestResult['ingested']) {
                           $summary['ingested']++;
                       } else {
                           $summary['skipped']++;
@@ -182,6 +154,110 @@ class ShopeeOrderPollService
   public function enabled(): bool
   {
       return (bool) config('services.shopee_order_poll.enabled', false);
+  }
+
+  /**
+   * Fetch one order from Shopee Open API and run the same ingest as poll (shadow, jubelio placeholder, unified webhook).
+   *
+   * Does not require {@see enabled()} or {@see ShopeeFlexiShop} — use for FLEXI/MY when Console push never arrives.
+   *
+   * @return array{
+   *   shop_id: int,
+   *   order_sn: string,
+   *   order_status: string|null,
+   *   ingested: bool,
+   *   shadow: bool,
+   *   jubelio_placeholder: bool,
+   *   webhook_event: bool,
+   *   error: string|null,
+   * }
+   */
+  public function pullAndIngestOrder(int $shopId, string $orderSn, ?string $statusHint = null, ?int $updateTime = null): array
+  {
+      $orderSn = trim($orderSn);
+      $result = [
+          'shop_id' => $shopId,
+          'order_sn' => $orderSn,
+          'order_status' => null,
+          'ingested' => false,
+          'shadow' => false,
+          'jubelio_placeholder' => false,
+          'webhook_event' => false,
+          'error' => null,
+      ];
+
+      if ($shopId <= 0 || $orderSn === '') {
+          $result['error'] = 'shop_id dan ordersn wajib.';
+
+          return $result;
+      }
+
+      if (! $this->shopeeApi->hasShopAuthorizationFor($shopId)) {
+          $result['error'] = "Shop {$shopId}: belum diotorisasi di Shopee Admin OAuth.";
+
+          return $result;
+      }
+
+      $status = $statusHint !== null && trim($statusHint) !== '' ? trim($statusHint) : 'UNKNOWN';
+      $updateTime = $updateTime ?? time();
+
+      $detail = $this->shopeeApi->getOrderDetail(
+          $orderSn,
+          $shopId,
+          'order_status,item_list,package_list,total_amount',
+      );
+      if ($detail === null) {
+          $result['error'] = 'get_order_detail gagal — cek API error log atau ordersn/shop_id.';
+
+          return $result;
+      }
+
+      $detailRow = is_array($detail) ? ($detail['response']['order_list'][0] ?? null) : null;
+      if (! is_array($detailRow)) {
+          $result['error'] = 'Order tidak ditemukan di respons Shopee (order_list kosong).';
+
+          return $result;
+      }
+
+      $status = (string) ($detailRow['order_status'] ?? $status);
+      $updateTime = isset($detailRow['update_time']) ? (int) $detailRow['update_time'] : $updateTime;
+
+      $pushData = [
+          'ordersn' => $orderSn,
+          'order_sn' => $orderSn,
+          'status' => $status,
+          'update_time' => $updateTime,
+      ];
+      if (isset($detailRow['item_list']) && is_array($detailRow['item_list'])) {
+          $pushData['item_list'] = $detailRow['item_list'];
+      }
+      $pushData['order_detail'] = $detailRow;
+
+      $fullPayload = [
+          'code' => self::POLL_PUSH_CODE,
+          'shop_id' => $shopId,
+          'timestamp' => $updateTime,
+          'data' => $pushData,
+          'source' => 'shopee_pull',
+      ];
+
+      $ingestResult = $this->ingest->ingest(
+          $shopId,
+          $orderSn,
+          $status,
+          self::POLL_PUSH_CODE,
+          $pushData,
+          $fullPayload,
+          recordWebhookWhenUnified: true,
+      );
+
+      $result['order_status'] = $status;
+      $result['shadow'] = (bool) $ingestResult['shadow'];
+      $result['jubelio_placeholder'] = (bool) $ingestResult['jubelio_placeholder'];
+      $result['webhook_event'] = (bool) $ingestResult['webhook_event'];
+      $result['ingested'] = $result['shadow'] || $result['jubelio_placeholder'] || $result['webhook_event'];
+
+      return $result;
   }
 
   /**
