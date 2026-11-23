@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\MarketplaceChannelOrder;
 use App\Models\TikTokShopWebhookInbox;
+use App\Services\Marketplace\MarketplaceTikTokCommercePlatformEnricher;
 use App\Services\Marketplace\MarketplaceWebhookRecorder;
 use App\Services\Marketplace\TikTokShopWebhookOnOrderApplicator;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -94,12 +95,20 @@ class PersistTikTokShopWebhookInboxJob implements ShouldQueue
 
         if (Schema::hasTable('marketplace_channel_orders')
             && Schema::hasColumn('marketplace_channel_orders', 'commerce_platform')) {
-            $existing = MarketplaceChannelOrder::query()
+            $channelOrder = MarketplaceChannelOrder::query()
                 ->where('channel', MarketplaceWebhookRecorder::CHANNEL_TIKTOK)
                 ->where('order_ref', $orderId)
-                ->value('commerce_platform');
+                ->first();
 
+            $existing = $channelOrder?->commerce_platform;
             if (filled($existing)) {
+                app(MarketplaceTikTokCommercePlatformEnricher::class)->persistCommercePlatform(
+                    MarketplaceWebhookRecorder::CHANNEL_TIKTOK,
+                    $orderId,
+                    strtoupper((string) $existing),
+                    $channelOrder,
+                );
+
                 return;
             }
         }
