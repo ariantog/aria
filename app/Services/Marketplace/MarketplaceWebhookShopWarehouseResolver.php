@@ -100,7 +100,7 @@ class MarketplaceWebhookShopWarehouseResolver
                 ->orderBy('id')
                 ->get(['shop_id', 'warehouse_id'])
                 ->each(function (Shopeesync $row) use (&$map): void {
-                    $ref = (string) $row->shop_id;
+                    $ref = $this->normalizeShopRef((string) $row->shop_id);
                     if ($ref !== '' && ! array_key_exists($ref, $map)) {
                         $map[$ref] = (int) $row->warehouse_id;
                     }
@@ -114,7 +114,7 @@ class MarketplaceWebhookShopWarehouseResolver
                 ->orderBy('id')
                 ->get(['shop_ref', 'warehouse_id'])
                 ->each(function (TiktokShopSync $row) use (&$map): void {
-                    $ref = (string) $row->shop_ref;
+                    $ref = $this->normalizeShopRef((string) $row->shop_ref);
                     if ($ref !== '' && ! array_key_exists($ref, $map)) {
                         $map[$ref] = (int) $row->warehouse_id;
                     }
@@ -126,25 +126,66 @@ class MarketplaceWebhookShopWarehouseResolver
 
     public function warehouseIdForShopRef(?string $shopRef): int
     {
-        if (! filled($shopRef)) {
+        $shopRef = $this->normalizeShopRef($shopRef);
+        if ($shopRef === '') {
             return 0;
         }
 
-        return (int) ($this->shopRefToWarehouseMap()[(string) $shopRef] ?? 0);
+        return (int) ($this->shopRefToWarehouseMap()[$shopRef] ?? 0);
     }
 
     public function warehouseNameForShopRef(?string $shopRef, array $shopRefToWarehouse, array $warehouseNames): ?string
     {
-        if (! filled($shopRef)) {
+        $shopRef = $this->normalizeShopRef($shopRef);
+        if ($shopRef === '') {
             return null;
         }
 
-        $warehouseId = $shopRefToWarehouse[$shopRef] ?? null;
-        if ($warehouseId === null) {
+        $warehouseId = $shopRefToWarehouse[$shopRef] ?? $this->warehouseIdForShopRef($shopRef);
+        if ($warehouseId <= 0) {
             return null;
         }
 
-        return $warehouseNames[$warehouseId] ?? null;
+        return $warehouseNames[$warehouseId] ?? $warehouseNames[(string) $warehouseId] ?? null;
+    }
+
+    /**
+     * List cell: warehouse name + id when mapped; dash + title hint when shop_ref set but unmapped.
+     *
+     * @return array{label: string, title: ?string}
+     */
+    public function warehouseCellForShopRef(?string $shopRef, array $warehouseNames): array
+    {
+        $normalized = $this->normalizeShopRef($shopRef);
+        if ($normalized === '') {
+            return ['label' => '—', 'title' => null];
+        }
+
+        $warehouseId = $this->warehouseIdForShopRef($normalized);
+        if ($warehouseId <= 0) {
+            return ['label' => '—', 'title' => 'belum di-sync'];
+        }
+
+        $name = $warehouseNames[$warehouseId] ?? $warehouseNames[(string) $warehouseId] ?? null;
+        $label = filled($name)
+            ? $name.' ('.$warehouseId.')'
+            : (string) $warehouseId;
+
+        return ['label' => $label, 'title' => null];
+    }
+
+    public function normalizeShopRef(?string $shopRef): string
+    {
+        $shopRef = trim((string) $shopRef);
+        if ($shopRef === '') {
+            return '';
+        }
+
+        if (ctype_digit($shopRef)) {
+            return (string) (int) $shopRef;
+        }
+
+        return $shopRef;
     }
 
     /**

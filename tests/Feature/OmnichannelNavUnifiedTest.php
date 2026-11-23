@@ -1,8 +1,11 @@
 <?php
 
+use App\Models\Addrbook;
 use App\Models\MarketplaceChannelOrder;
 use App\Models\MarketplaceWebhookEvent;
 use App\Models\Omnichannel;
+use App\Models\Shopeesync;
+use App\Models\TiktokShopSync;
 use App\Models\User;
 use App\Services\Marketplace\OmnichannelSettingStore;
 use App\Services\PermissionGenerator;
@@ -55,6 +58,52 @@ it('forbids omnichannel orders without permission', function () {
     $this->actingAs($user)
         ->get(route('omnichannel.orders.index'))
         ->assertForbidden();
+});
+
+it('shows gudang from shop_ref and hides platform column on current orders', function () {
+    $admin = User::factory()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Demo']);
+
+    Shopeesync::create([
+        'warehouse_id' => $warehouse->id,
+        'shop_id' => 100,
+        'shopee_location_id' => 'LOC-A',
+        'shopee_warehouse_id' => 1,
+        'shopee_warehouse_name' => 'Pickup A',
+    ]);
+
+    TiktokShopSync::create([
+        'shop_ref' => '7495540735365777507',
+        'shop_cipher' => 'cipher-x',
+        'shop_name' => 'TTS',
+        'warehouse_id' => $warehouse->id,
+    ]);
+
+    MarketplaceChannelOrder::query()->create([
+        'channel' => 'shopee',
+        'order_ref' => 'GUDANG-SN-1',
+        'shop_ref' => '100',
+        'order_status' => 'PROCESSED',
+        'last_event_at' => now(),
+        'first_received_at' => now()->subHour(),
+    ]);
+
+    MarketplaceChannelOrder::query()->create([
+        'channel' => 'tiktok',
+        'commerce_platform' => 'TOKOPEDIA',
+        'order_ref' => 'GUDANG-TOKO-1',
+        'shop_ref' => '7495540735365777507',
+        'order_status' => 'AWAITING_SHIPMENT',
+        'last_event_at' => now(),
+        'first_received_at' => now()->subMinutes(10),
+    ]);
+
+    $this->actingAs($admin)
+        ->get(route('omnichannel.orders.index', ['view' => 'orders']))
+        ->assertOk()
+        ->assertSee('Gudang Demo ('.$warehouse->id.')', false)
+        ->assertSee('Tokopedia', false)
+        ->assertDontSee('>platform</th>', false);
 });
 
 it('renders orders list without calling shopee admin api', function () {

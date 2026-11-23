@@ -65,6 +65,7 @@ class OmnichannelOrdersController extends Controller
             'shopOptions' => $shopOptions,
             'shopRefToWarehouse' => $shopRefToWarehouse,
             'warehouseNames' => $warehouseOptions,
+            'shopResolver' => $shopResolver,
             'detailUrlTemplate' => url('/omnichannel/orders/__CHANNEL__/__ORDER__'),
             'statusPresenter' => $statusPresenter,
         ]);
