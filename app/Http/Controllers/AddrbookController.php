@@ -22,6 +22,7 @@ use App\Services\Shopee\WarehouseShopeeStockService;
 use App\Services\WarehouseJubelioStockService;
 use App\Services\WarehouseStockExportService;
 use App\Services\Warehouse\WarehouseItemAgeService;
+use App\Services\TransactionListFilterService;
 use App\Services\WarehouseStockQueryService;
 use App\Support\LikeSearch;
 use Illuminate\Http\Request;
@@ -174,7 +175,7 @@ class AddrbookController extends Controller
 
     public function transactionsType(string $type, Addrbook $addrbook)
     {
-        return $this->transactions($addrbook->id);
+        return app()->call([$this, 'transactions'], ['id' => $addrbook->id]);
     }
 
     public function itemsType(string $type, Addrbook $addrbook)
@@ -272,39 +273,38 @@ class AddrbookController extends Controller
         return redirect()->to(Addrbook::typeIndexRoute((int) $a->type))->with('success', 'Updated.');
     }
 
-    public function transactions($id)
+    public function transactions($id, Request $request, TransactionListFilterService $listFilter)
     {
         $a = Addrbook::withTrashed()->findOrFail($id);
         Gate::authorize(Addrbook::getPermissions($this->addrbookTypeSlug($a))['view']);
         $this->authorizeAddrbookLocation($a);
 
-        $q = \App\Models\Transaction::where(fn ($q) => $q
-            ->where('sender_id', $a->id)
-            ->orWhere('receiver_id', $a->id)
-        )
-            ->visibleToUser(request()->user())
-            ->with(['sender', 'receiver', 'user'])
-            ->when(request('from'), fn ($q) => $q->whereDate('date', '>=', request('from')))
-            ->when(request('to'), fn ($q) => $q->whereDate('date', '<=', request('to')))
-            // Use query() so the {type} route segment (customer/supplier/…) does not leak
-            // into request('type') and filter transactions by a non-numeric type.
-            ->when(request()->query('type'), fn ($q) => $q->where('type', request()->query('type')));
+        $q = $listFilter->applyCommonFilters(
+            \App\Models\Transaction::query()
+                ->where(fn ($q) => $q
+                    ->where('sender_id', $a->id)
+                    ->orWhere('receiver_id', $a->id)
+                )
+                ->visibleToUser($request->user())
+                ->with(['sender', 'receiver', 'user']),
+            $request,
+        );
 
-        if (request('order_date', 'date') === 'created_at') {
+        if ($request->input('order_date', 'date') === 'created_at') {
             $q->orderBy('created_at', 'desc');
         } else {
             $q->orderBy('date', 'desc')->orderBy('id', 'desc');
         }
 
-        if (request()->expectsJson() || request()->ajax()) {
-            return response()->json($q->paginate((int) request('size', 50))->withQueryString());
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json($q->paginate((int) $request->input('size', 50))->withQueryString());
         }
 
         return view('addrbook.transactions', [
             'addrbook' => $a,
             'transactions' => $q->paginate(50)->withQueryString(),
             'transactionTypes' => \App\Models\Transaction::getTypes(),
-            'filters' => request()->all(['from', 'to', 'type', 'order_date']),
+            'filters' => $request->all(['from', 'to', 'type', 'total', 'order_date']),
             'can' => [
                 'edit_transaction' => request()->user()?->can(\App\Models\Transaction::getPermissions()['edit']) ?? false,
                 'delete_transaction' => request()->user()?->can(\App\Models\Transaction::getPermissions()['delete']) ?? false,

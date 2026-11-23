@@ -11,11 +11,24 @@ class TransactionListFilterService
 {
     public function filteredTransactionsQuery(Request $request, User $user): Builder
     {
-        return Transaction::with(['sender', 'receiver'])
-            ->visibleToUser($user)
+        return $this->applyCommonFilters(
+            Transaction::with(['sender', 'receiver'])->visibleToUser($user),
+            $request,
+        );
+    }
+
+    public function applyCommonFilters(Builder $query, Request $request): Builder
+    {
+        return $query
             ->when($request->query('invoice'), fn ($q, $v) => $q->where('invoice', 'like', "%{$v}%"))
             ->when($request->query('type'), fn ($q, $v) => $q->where('type', $v))
-            ->when($request->filled('total'), fn ($q) => $q->where('total', '=', $request->input('total')))
+            ->when($request->filled('total'), function (Builder $q) use ($request) {
+                $total = (float) $request->input('total');
+                $q->where(function (Builder $inner) use ($total) {
+                    $inner->where('total', '=', $total)
+                        ->orWhere('total', '=', -$total);
+                });
+            })
             ->when($request->query('from'), fn ($q, $v) => $q->whereDate('date', '>=', $v))
             ->when($request->query('to'), fn ($q, $v) => $q->whereDate('date', '<=', $v));
     }

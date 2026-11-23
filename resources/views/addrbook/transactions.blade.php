@@ -49,6 +49,11 @@ $breadcrumbs = [
             </select>
         </div>
         <div class="flex flex-col gap-1">
+            <label class="text-xs font-medium uppercase text-gray-500">Total</label>
+            <input type="number" name="total" value="{{ $filters['total'] ?? '' }}" placeholder="Exact amount…" step="any" data-testid="addrbook-tx-filter-total"
+                   class="w-36 rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+        </div>
+        <div class="flex flex-col gap-1">
             <label class="text-xs font-medium uppercase text-gray-500">Order By</label>
             <select name="order_date" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                 <option value="date" @selected(($filters['order_date'] ?? 'date') === 'date')>Transaction Date</option>
