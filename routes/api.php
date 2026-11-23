@@ -13,6 +13,7 @@ use App\Http\Controllers\Mobile\MobileTransactionReceiptController;
 use App\Http\Controllers\Mobile\MobileUserController;
 use App\Http\Controllers\Readonly\ReadonlyItemExportController;
 use App\Http\Controllers\Readonly\ReadonlyRestockExportController;
+use App\Http\Controllers\Readonly\ReadonlyShopeeOAuthController;
 use App\Http\Controllers\Readonly\ReadonlyStockExportController;
 use Illuminate\Support\Facades\Route;
 
@@ -36,6 +37,8 @@ Route::middleware(['auth.readonly-export', 'active', 'can:export-readonly', 'enf
         ->name('api.readonly.restock.context');
     Route::get('readonly/restock/insight-period', [ReadonlyRestockExportController::class, 'insightPeriod'])
         ->name('api.readonly.restock.insight-period');
+    Route::get('readonly/shopee/oauth', [ReadonlyShopeeOAuthController::class, 'show'])
+        ->name('api.readonly.shopee.oauth');
 });
 
 Route::middleware(['auth.readonly-export', 'active', 'can:restock-grok-apply', 'throttle:readonly-export', 'restock.grok.apply.enabled'])->group(function (): void {

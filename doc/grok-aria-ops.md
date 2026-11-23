@@ -6,6 +6,8 @@ Human maintainers use Aria in a browser (Blade + Alpine.js). Grok should behave 
 
 **Preferred bulk path:** use the **read-only export API** (`doc/grok-readonly-api.md`) — `GET /api/readonly/items`, `GET /exports/items.csv`, `GET /api/readonly/stock`. Do not scrape thousands of item show pages.
 
+**Shopee Open API from the bot:** `GET /api/readonly/shopee/oauth` (bearer auth) returns a fresh `access_token` + `shop_id` for direct Shopee calls — never use browser OAuth or copy tokens from the UI. See **`doc/grok-readonly-api.md`** (Shopee section).
+
 ---
 
 ## Item catalog hierarchy (do not skip)
