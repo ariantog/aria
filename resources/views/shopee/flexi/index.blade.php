@@ -26,6 +26,17 @@ $breadcrumbs = [
                 <a href="{{ route('shopee.flexi.orders') }}" class="text-orange-700 hover:underline">FLEXI orders</a>.
                 Gudang Aria: <a href="{{ route('shopee.sync.index') }}" class="text-orange-700 hover:underline">Warehouse Map</a>.
             </p>
+            <p class="mt-2 max-w-2xl text-sm text-gray-600">
+                Gudang staging FLEXI (shared):
+                @if(($stagingWarehouse['valid'] ?? false))
+                    <span class="font-mono font-medium text-gray-900" data-testid="flexi-index-staging-name">#{{ $stagingWarehouse['warehouse_id'] }} {{ $stagingWarehouse['warehouse_name'] }}</span>
+                @elseif(($stagingWarehouse['configured'] ?? false))
+                    <span class="text-amber-800" data-testid="flexi-index-staging-invalid">#{{ $stagingWarehouse['warehouse_id'] }} — tidak valid</span>
+                @else
+                    <span class="text-amber-800" data-testid="flexi-index-staging-unset">belum diset</span>
+                @endif
+                · env <code>SHOPEE_FLEXI_STAGING_WAREHOUSE_ID</code>
+            </p>
         </div>
         <div class="flex flex-wrap gap-2">
             <a href="{{ route('shopee.flexi.orders') }}" class="inline-flex rounded-lg border border-orange-200 bg-white px-4 py-2 text-sm font-medium text-orange-800 hover:bg-orange-50">
@@ -36,6 +47,12 @@ $breadcrumbs = [
             </a>
         </div>
     </div>
+
+    @if(filled($stagingWarehouse['warning'] ?? null))
+        <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" data-testid="flexi-index-staging-warning">
+            {{ $stagingWarehouse['warning'] }}
+        </div>
+    @endif
 
     @if(! empty($authorizedShopIds))
         <p class="text-xs text-gray-600">

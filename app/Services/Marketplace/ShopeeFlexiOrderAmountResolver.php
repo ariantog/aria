@@ -349,6 +349,33 @@ class ShopeeFlexiOrderAmountResolver
         return $currency.' '.number_format($amount, 2, '.', ',');
     }
 
+    /**
+     * Strict FLEXI manual sell: escrow API must have loaded and amounts must not rely on catalog-only fallback for FX orders.
+     *
+     * @param  array<string, mixed>  $amounts  output of {@see resolve()}
+     */
+    public function amountsUsableForSellPrefill(array $amounts): bool
+    {
+        if (! ($amounts['escrow_loaded'] ?? false)) {
+            return false;
+        }
+
+        $source = (string) ($amounts['price_source'] ?? '');
+        if ($source === self::PRICE_SOURCE_ESCROW_FX) {
+            $rate = $amounts['exchange_rate'] ?? null;
+
+            return is_numeric($rate) && (float) $rate > 0;
+        }
+
+        if ($source === self::PRICE_SOURCE_SHOPEE_IDR) {
+            $lines = $amounts['lines'] ?? [];
+
+            return $lines !== [] && (float) collect($lines)->sum('amount') > 0;
+        }
+
+        return false;
+    }
+
     private function positiveFloat(mixed $value): ?float
     {
         if ($value === null || $value === '') {

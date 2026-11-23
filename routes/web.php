@@ -199,6 +199,7 @@ Route::middleware(['auth', 'verified', 'active', 'enforce.readonly'])->group(fun
     Route::get('shopee-flexi/orders', [App\Http\Controllers\ShopeeFlexiOrderLookupController::class, 'show'])->name('shopee.flexi.orders');
     Route::post('shopee-flexi/orders', [App\Http\Controllers\ShopeeFlexiOrderLookupController::class, 'store'])->name('shopee.flexi.orders.search');
     Route::post('shopee-flexi/orders/create-sell', [App\Http\Controllers\ShopeeFlexiOrderLookupController::class, 'createSell'])->name('shopee.flexi.orders.create-sell');
+    Route::post('shopee-flexi/orders/move-to-staging', [App\Http\Controllers\ShopeeFlexiOrderLookupController::class, 'prepareMoveToStaging'])->name('shopee.flexi.orders.move-to-staging');
     Route::get('shopee-flexi/lookup', fn () => redirect()->route('shopee.flexi.orders'))->name('shopee.flexi.lookup');
     Route::post('shopee-flexi/lookup', [App\Http\Controllers\ShopeeFlexiOrderLookupController::class, 'store'])->name('shopee.flexi.lookup.search');
     Route::post('shopee-flexi/lookup/create-sell', [App\Http\Controllers\ShopeeFlexiOrderLookupController::class, 'createSell'])->name('shopee.flexi.lookup.create-sell');
