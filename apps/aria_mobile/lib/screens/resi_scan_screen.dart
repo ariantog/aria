@@ -153,16 +153,28 @@ class _ResiScanScreenState extends State<ResiScanScreen> {
       if (!mounted) return;
 
       final created = result['created'];
+      final updated = result['updated'];
       final skipped = result['skipped'];
       final createdN = created is List ? created.length : 0;
+      final updatedN = updated is List ? updated.length : 0;
       final skippedN = skipped is List ? skipped.length : 0;
+      final processedN = createdN + updatedN;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(result['message']?.toString() ?? 'Submitted')),
       );
 
-      if (createdN > 0) {
+      if (skippedN == 0 && processedN > 0) {
         setState(() => _barcodes.clear());
+      } else if (skippedN > 0 && processedN > 0 && skipped is List) {
+        final skippedRaws = skipped
+            .whereType<Map>()
+            .map((s) => s['raw']?.toString())
+            .whereType<String>()
+            .toSet();
+        setState(() {
+          _barcodes.removeWhere((b) => !skippedRaws.contains(b));
+        });
       }
 
       if (skippedN > 0 && skipped is List) {
