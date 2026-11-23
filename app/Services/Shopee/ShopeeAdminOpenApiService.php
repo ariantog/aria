@@ -3,6 +3,7 @@
 namespace App\Services\Shopee;
 
 use App\Models\Setting;
+use App\Support\ShopeeAdminOAuthStore;
 use App\Support\ShopeeOAuthExpiry;
 use App\Support\ShopeeOAuthRedirect;
 use Carbon\Carbon;
@@ -28,10 +29,15 @@ class ShopeeAdminOpenApiService
 
     public function hasShopAuthorization(): bool
     {
-        $oauth = $this->getOAuthPayload();
+        return $this->hasShopAuthorizationFor(ShopeeAdminOAuthStore::primaryShopId($this->getOAuthPayload()));
+    }
 
-        return filled($oauth['shop_id'] ?? null)
-            && (filled($oauth['access_token'] ?? null) || filled($oauth['refresh_token'] ?? null));
+    public function hasShopAuthorizationFor(int $shopId): bool
+    {
+        $creds = ShopeeAdminOAuthStore::credentialsForShop($this->getOAuthPayload(), $shopId);
+
+        return $shopId > 0
+            && (filled($creds['access_token'] ?? null) || filled($creds['refresh_token'] ?? null));
     }
 
     /**
@@ -136,23 +142,26 @@ class ShopeeAdminOpenApiService
             return null;
         }
 
-        $this->persistOAuth([
+        $shopTokens = [
             'access_token' => $payload['access_token'],
             'refresh_token' => $payload['refresh_token'] ?? null,
-            'shop_id' => $shopId,
             'expires_at' => now()->addSeconds(ShopeeOAuthExpiry::expireInSecondsFromPayload($payload))->toIso8601String(),
-            'last_error' => null,
             'last_refreshed_at' => now()->toIso8601String(),
-        ]);
+        ];
+
+        $merged = ShopeeAdminOAuthStore::mergeShopAuthorization($this->getOAuthPayload(), $shopId, $shopTokens);
+        $merged['last_error'] = null;
+        $this->persistOAuth($merged);
 
         return $payload;
     }
 
-    public function refreshAccessToken(): ?string
+    public function refreshAccessToken(?int $shopId = null): ?string
     {
         $oauth = $this->getOAuthPayload();
-        $refreshToken = $oauth['refresh_token'] ?? null;
-        $shopId = (int) ($oauth['shop_id'] ?? 0);
+        $shopId = $shopId ?? ShopeeAdminOAuthStore::primaryShopId($oauth);
+        $creds = ShopeeAdminOAuthStore::credentialsForShop($oauth, $shopId);
+        $refreshToken = $creds['refresh_token'] ?? null;
 
         if (! $refreshToken || $shopId <= 0) {
             return null;
@@ -181,28 +190,32 @@ class ShopeeAdminOpenApiService
             return null;
         }
 
-        $this->persistOAuth([
+        $shopTokens = [
             'access_token' => $payload['access_token'],
             'refresh_token' => $payload['refresh_token'] ?? $refreshToken,
-            'shop_id' => $shopId,
             'expires_at' => now()->addSeconds(ShopeeOAuthExpiry::expireInSecondsFromPayload($payload))->toIso8601String(),
-            'last_error' => null,
             'last_refreshed_at' => now()->toIso8601String(),
-        ]);
+        ];
+
+        $merged = ShopeeAdminOAuthStore::mergeShopTokensAfterRefresh($oauth, $shopId, $shopTokens);
+        $merged['last_error'] = null;
+        $this->persistOAuth($merged);
 
         return $payload['access_token'];
     }
 
-    public function getAccessToken(): ?string
+    public function getAccessToken(?int $shopId = null): ?string
     {
         $oauth = $this->getOAuthPayload();
-        $token = $oauth['access_token'] ?? null;
+        $shopId = $shopId ?? ShopeeAdminOAuthStore::primaryShopId($oauth);
+        $creds = ShopeeAdminOAuthStore::credentialsForShop($oauth, $shopId);
+        $token = $creds['access_token'] ?? null;
 
-        if ($token && ! ShopeeOAuthExpiry::shouldRefreshAccessToken($oauth)) {
+        if ($token && ! ShopeeOAuthExpiry::shouldRefreshAccessToken($creds)) {
             return $token;
         }
 
-        return $this->refreshAccessToken();
+        return $this->refreshAccessToken($shopId);
     }
 
     /**
@@ -213,8 +226,9 @@ class ShopeeAdminOpenApiService
     public function checkConnection(): array
     {
         $oauth = $this->getOAuthPayload();
+        $shopIds = ShopeeAdminOAuthStore::authorizedShopIds($oauth);
 
-        if (! filled($oauth['refresh_token'] ?? null) && ! filled($oauth['access_token'] ?? null)) {
+        if ($shopIds === []) {
             return [
                 'ok' => false,
                 'message' => 'Shopee belum diotorisasi — tidak ada access_token / refresh_token.',
@@ -222,42 +236,60 @@ class ShopeeAdminOpenApiService
             ];
         }
 
-        if (! ShopeeOAuthExpiry::shouldRefreshAccessToken($oauth)) {
-            $expiresAt = ShopeeOAuthExpiry::accessExpiresAt($oauth);
+        $anyRefreshed = false;
+        $failures = [];
 
-            return [
-                'ok' => true,
-                'message' => 'Token Shopee masih berlaku'.($expiresAt ? ' hingga '.$expiresAt->timezone(config('app.timezone'))->format('d M Y H:i') : '').'.',
-                'refreshed' => false,
-            ];
+        foreach ($shopIds as $shopId) {
+            $creds = ShopeeAdminOAuthStore::credentialsForShop($this->getOAuthPayload(), $shopId);
+            if (! ShopeeOAuthExpiry::shouldRefreshAccessToken($creds)) {
+                continue;
+            }
+
+            $token = $this->refreshAccessToken($shopId);
+            if ($token) {
+                $anyRefreshed = true;
+            } else {
+                $failures[] = $shopId;
+            }
         }
 
-        $token = $this->refreshAccessToken();
-        if (! $token) {
+        if ($failures !== []) {
             $detail = $this->formatOAuthErrorForUser($this->getLastOAuthError());
 
             return [
                 'ok' => false,
-                'message' => $detail ?? 'Gagal refresh token Shopee. Periksa refresh_token / IP whitelist / partner credentials.',
-                'refreshed' => false,
+                'message' => $detail ?? 'Gagal refresh token Shopee shop(s): '.implode(', ', $failures),
+                'refreshed' => $anyRefreshed,
             ];
         }
 
+        if ($anyRefreshed) {
+            return [
+                'ok' => true,
+                'message' => 'Token akses Shopee berhasil di-refresh ('.count($shopIds).' shop).',
+                'refreshed' => true,
+            ];
+        }
+
+        $primary = ShopeeAdminOAuthStore::primaryShopId($this->getOAuthPayload());
+        $creds = ShopeeAdminOAuthStore::credentialsForShop($this->getOAuthPayload(), $primary);
+        $expiresAt = ShopeeOAuthExpiry::accessExpiresAt($creds);
+
         return [
             'ok' => true,
-            'message' => 'Token akses Shopee berhasil di-refresh.',
-            'refreshed' => true,
+            'message' => 'Token Shopee masih berlaku'.($expiresAt ? ' hingga '.$expiresAt->timezone(config('app.timezone'))->format('d M Y H:i') : '').' ('.count($shopIds).' shop).',
+            'refreshed' => false,
         ];
     }
 
     /**
      * @param  array<string, mixed>  $query
      */
-    public function shopApiGet(string $path, array $query = []): Response
+    public function shopApiGet(string $path, array $query = [], ?int $shopId = null): Response
     {
-        $token = $this->getAccessToken();
         $oauth = $this->getOAuthPayload();
-        $shopId = (int) ($oauth['shop_id'] ?? 0);
+        $shopId = $shopId ?? ShopeeAdminOAuthStore::primaryShopId($oauth);
+        $token = $this->getAccessToken($shopId);
 
         if (! $token || $shopId <= 0) {
             return new Response(new \GuzzleHttp\Psr7\Response(401, [], '{"error":"not_authorized"}'));
@@ -282,8 +314,11 @@ class ShopeeAdminOpenApiService
     /**
      * @return array<string, mixed>|null
      */
-    public function getOrderDetail(string $orderSn, string $optionalFields = 'order_status,item_list,total_amount'): ?array
-    {
+    public function getOrderDetail(
+        string $orderSn,
+        ?int $shopId = null,
+        string $optionalFields = 'order_status,item_list,total_amount',
+    ): ?array {
         $orderSn = trim($orderSn);
         if ($orderSn === '') {
             return null;
@@ -292,9 +327,24 @@ class ShopeeAdminOpenApiService
         $response = $this->shopApiGet('/api/v2/order/get_order_detail', [
             'order_sn_list' => $orderSn,
             'response_optional_fields' => $optionalFields,
-        ]);
+        ], $shopId);
 
         return $this->decodeShopResponse($response, 'get_order_detail');
+    }
+
+    /**
+     * @param  array<string, mixed>  $query
+     * @return array<string, mixed>|null
+     */
+    public function getOrderList(int $shopId, array $query): ?array
+    {
+        if ($shopId <= 0) {
+            return null;
+        }
+
+        $response = $this->shopApiGet('/api/v2/order/get_order_list', $query, $shopId);
+
+        return $this->decodeShopResponse($response, 'get_order_list');
     }
 
     /**

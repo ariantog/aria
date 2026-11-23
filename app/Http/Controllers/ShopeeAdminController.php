@@ -51,6 +51,6 @@ class ShopeeAdminController extends Controller
 
         return redirect()
             ->route(ShopeeAdminOAuthAuthorize::pullReturnRoute())
-            ->with('success', 'Toko Shopee berhasil diotorisasi (Omnichannel, Ads, dan Stock API memakai token yang sama).');
+            ->with('success', 'Toko Shopee #'.$shopId.' diotorisasi. Token disimpan per shop — Indonesia (SHOPEE_ADMIN_PRIMARY_SHOP_ID) tetap dipakai Ads/Stock bila dikonfigurasi.');
     }
 }
