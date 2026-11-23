@@ -19,6 +19,10 @@ $td = 'px-2 py-2 align-top text-xs text-gray-800';
 $channelLabels = ['shopee' => 'Shopee', 'tiktok' => 'TikTok', 'tokopedia' => 'Tokopedia'];
 $resetQuery = ['view' => $filters['view'] ?? 'events'];
 $currentOrdersUrl = route('omnichannel.orders.index', array_merge(request()->query(), ['view' => 'orders']));
+$hasActiveFilters = collect(request()->query())
+    ->only(['channel', 'view', 'date_from', 'date_to', 'order_ref', 'order_status', 'shop_ref', 'warehouse_id', 'per_page'])
+    ->filter(fn ($value) => $value !== null && $value !== '')
+    ->isNotEmpty();
 @endphp
 
 <div class="flex flex-col gap-4 p-2 sm:gap-6 sm:p-4"
@@ -94,70 +98,14 @@ $currentOrdersUrl = route('omnichannel.orders.index', array_merge(request()->que
         @endif
     </div>
 
-    <form method="get" action="{{ route('omnichannel.orders.index') }}" class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm" data-testid="omnichannel-orders-filters">
-        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div>
-                <label for="channel" class="mb-1 block text-xs font-medium text-gray-600">Marketplace</label>
-                <select name="channel" id="channel" class="w-full rounded-md border-gray-300 text-sm">
-                    <option value="all" @selected($filters['channel'] === 'all')>Semua</option>
-                    <option value="shopee" @selected($filters['channel'] === 'shopee')>Shopee</option>
-                    <option value="tiktok" @selected($filters['channel'] === 'tiktok')>TikTok Shop</option>
-                    <option value="tokopedia" @selected($filters['channel'] === 'tokopedia')>Tokopedia (TikTok Partner)</option>
-                </select>
-            </div>
-            <div>
-                <label for="view" class="mb-1 block text-xs font-medium text-gray-600">Tampilan</label>
-                <select name="view" id="view" class="w-full rounded-md border-gray-300 text-sm" data-testid="omnichannel-view-select">
-                    <option value="events" @selected(($filters['view'] ?? 'events') === 'events')>Events (history)</option>
-                    <option value="orders" @selected(($filters['view'] ?? 'events') === 'orders')>Current orders</option>
-                </select>
-            </div>
-            <div>
-                <label for="date_from" class="mb-1 block text-xs font-medium text-gray-600">Dari</label>
-                <input type="date" name="date_from" id="date_from" value="{{ $filters['date_from']->format('Y-m-d') }}" class="w-full rounded-md border-gray-300 text-sm">
-            </div>
-            <div>
-                <label for="date_to" class="mb-1 block text-xs font-medium text-gray-600">Sampai</label>
-                <input type="date" name="date_to" id="date_to" value="{{ $filters['date_to']->format('Y-m-d') }}" class="w-full rounded-md border-gray-300 text-sm">
-            </div>
-            <div>
-                <label for="order_ref" class="mb-1 block text-xs font-medium text-gray-600">Order ref</label>
-                <input type="text" name="order_ref" id="order_ref" value="{{ $filters['order_ref'] ?? '' }}" placeholder="Cari nomor order…" autocomplete="off" class="w-full rounded-md border-gray-300 text-sm font-mono text-xs">
-                <p class="mt-1 text-[10px] text-gray-500">Partial match; mengisi ini mengabaikan filter tanggal.</p>
-            </div>
-            <div>
-                <label for="order_status" class="mb-1 block text-xs font-medium text-gray-600">Status order</label>
-                <input type="text" name="order_status" id="order_status" list="order-status-options" value="{{ $filters['order_status'] ?? '' }}" placeholder="Partial match…" class="w-full rounded-md border-gray-300 text-sm">
-                <datalist id="order-status-options">
-                    @foreach($statusOptions as $status)
-                    <option value="{{ $status }}"></option>
-                    @endforeach
-                </datalist>
-            </div>
-            <div>
-                <label for="shop_ref" class="mb-1 block text-xs font-medium text-gray-600">Shop / store</label>
-                <select name="shop_ref" id="shop_ref" class="w-full rounded-md border-gray-300 text-sm">
-                    <option value="">Semua</option>
-                    @foreach($shopOptions as $shop)
-                    <option value="{{ $shop }}" @selected($filters['shop_ref'] === $shop)>{{ $shop }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div>
-                <label for="warehouse_id" class="mb-1 block text-xs font-medium text-gray-600">Gudang</label>
-                <select name="warehouse_id" id="warehouse_id" class="w-full rounded-md border-gray-300 text-sm">
-                    <option value="">Semua</option>
-                    @foreach($warehouseOptions as $wid => $wname)
-                    <option value="{{ $wid }}" @selected((int) $filters['warehouse_id'] === (int) $wid)>{{ $wname }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="flex items-end gap-2">
-                <button type="submit" class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800">Terapkan</button>
-                <a href="{{ route('omnichannel.orders.index', $resetQuery) }}" class="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Reset</a>
-            </div>
-        </div>
-    </form>
+    @include('omnichannel.partials.orders-filters', [
+        'filters' => $filters,
+        'statusOptions' => $statusOptions,
+        'warehouseOptions' => $warehouseOptions,
+        'shopOptions' => $shopOptions,
+        'resetQuery' => $resetQuery,
+        'defaultOpen' => $hasActiveFilters,
+    ])
 
     @php
     $missingTable = $isEventsView ? ! $eventsTableExists : ! $ordersTableExists;
