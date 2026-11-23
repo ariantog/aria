@@ -3,6 +3,7 @@
 namespace App\Services\Shopee;
 
 use App\Models\Setting;
+use App\Support\ShopeeOAuthExpiry;
 use App\Support\ShopeeOAuthRedirect;
 use Carbon\Carbon;
 use Illuminate\Http\Client\Response;
@@ -29,7 +30,8 @@ class ShopeeAdminOpenApiService
     {
         $oauth = $this->getOAuthPayload();
 
-        return filled($oauth['access_token'] ?? null) && filled($oauth['shop_id'] ?? null);
+        return filled($oauth['shop_id'] ?? null)
+            && (filled($oauth['access_token'] ?? null) || filled($oauth['refresh_token'] ?? null));
     }
 
     /**
@@ -38,16 +40,16 @@ class ShopeeAdminOpenApiService
     public function getConnectionStatus(): array
     {
         $oauth = $this->getOAuthPayload();
-        $expiresAt = isset($oauth['expires_at']) ? Carbon::parse($oauth['expires_at']) : null;
+        $expiresAt = ShopeeOAuthExpiry::accessExpiresAt($oauth);
 
         return [
             'configured' => $this->isConfigured(),
-            'has_token' => filled($oauth['access_token'] ?? null),
+            'has_token' => filled($oauth['access_token'] ?? null) || filled($oauth['refresh_token'] ?? null),
             'shop_id' => $oauth['shop_id'] ?? null,
             'expires_at' => $expiresAt?->toIso8601String(),
-            'is_expired' => $expiresAt !== null
-                ? $expiresAt->isPast()
-                : ! filled($oauth['access_token'] ?? null),
+            'expires_in_minutes' => $expiresAt ? (int) now()->diffInMinutes($expiresAt, false) : null,
+            'is_expired' => ShopeeOAuthExpiry::requiresReauthorization($oauth),
+            'can_refresh' => filled($oauth['refresh_token'] ?? null) && (int) ($oauth['shop_id'] ?? 0) > 0,
             'last_error' => $oauth['last_error'] ?? null,
             'redirect_url' => $this->getOAuthRedirectUrl(),
             'redirect_url_recommended' => ShopeeOAuthRedirect::defaultAdminCallbackUrl(),
@@ -138,8 +140,9 @@ class ShopeeAdminOpenApiService
             'access_token' => $payload['access_token'],
             'refresh_token' => $payload['refresh_token'] ?? null,
             'shop_id' => $shopId,
-            'expires_at' => now()->addSeconds((int) ($payload['expire_in'] ?? 14400))->toIso8601String(),
+            'expires_at' => now()->addSeconds(ShopeeOAuthExpiry::expireInSecondsFromPayload($payload))->toIso8601String(),
             'last_error' => null,
+            'last_refreshed_at' => now()->toIso8601String(),
         ]);
 
         return $payload;
@@ -182,8 +185,9 @@ class ShopeeAdminOpenApiService
             'access_token' => $payload['access_token'],
             'refresh_token' => $payload['refresh_token'] ?? $refreshToken,
             'shop_id' => $shopId,
-            'expires_at' => now()->addSeconds((int) ($payload['expire_in'] ?? 14400))->toIso8601String(),
+            'expires_at' => now()->addSeconds(ShopeeOAuthExpiry::expireInSecondsFromPayload($payload))->toIso8601String(),
             'last_error' => null,
+            'last_refreshed_at' => now()->toIso8601String(),
         ]);
 
         return $payload['access_token'];
@@ -193,13 +197,57 @@ class ShopeeAdminOpenApiService
     {
         $oauth = $this->getOAuthPayload();
         $token = $oauth['access_token'] ?? null;
-        $expiresAt = isset($oauth['expires_at']) ? Carbon::parse($oauth['expires_at']) : null;
 
-        if ($token && $expiresAt && $expiresAt->isFuture()) {
+        if ($token && ! ShopeeOAuthExpiry::shouldRefreshAccessToken($oauth)) {
             return $token;
         }
 
         return $this->refreshAccessToken();
+    }
+
+    /**
+     * Proactive refresh for cron / health checks (no API ping).
+     *
+     * @return array{ok: bool, message: string, refreshed: bool}
+     */
+    public function checkConnection(): array
+    {
+        $oauth = $this->getOAuthPayload();
+
+        if (! filled($oauth['refresh_token'] ?? null) && ! filled($oauth['access_token'] ?? null)) {
+            return [
+                'ok' => false,
+                'message' => 'Shopee belum diotorisasi — tidak ada access_token / refresh_token.',
+                'refreshed' => false,
+            ];
+        }
+
+        if (! ShopeeOAuthExpiry::shouldRefreshAccessToken($oauth)) {
+            $expiresAt = ShopeeOAuthExpiry::accessExpiresAt($oauth);
+
+            return [
+                'ok' => true,
+                'message' => 'Token Shopee masih berlaku'.($expiresAt ? ' hingga '.$expiresAt->timezone(config('app.timezone'))->format('d M Y H:i') : '').'.',
+                'refreshed' => false,
+            ];
+        }
+
+        $token = $this->refreshAccessToken();
+        if (! $token) {
+            $detail = $this->formatOAuthErrorForUser($this->getLastOAuthError());
+
+            return [
+                'ok' => false,
+                'message' => $detail ?? 'Gagal refresh token Shopee. Periksa refresh_token / IP whitelist / partner credentials.',
+                'refreshed' => false,
+            ];
+        }
+
+        return [
+            'ok' => true,
+            'message' => 'Token akses Shopee berhasil di-refresh.',
+            'refreshed' => true,
+        ];
     }
 
     /**
