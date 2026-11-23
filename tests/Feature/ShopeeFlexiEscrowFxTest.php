@@ -194,6 +194,74 @@ it('uses catalog IDR prices when MYR order has no exchange_rate', function () {
     expect((string) ($result['message'] ?? ''))->toContain('escrow');
 });
 
+it('loads IDR escrow from primary shop with MY-wallet order ref when affiliate escrow is empty', function () {
+    flexiEscrowBaseSetup();
+
+    $orderSn = '2611100ME4E93F';
+
+    Http::fake(function (\Illuminate\Http\Client\Request $request) use ($orderSn) {
+        $url = $request->url();
+        if (str_contains($url, 'get_order_detail')) {
+            return Http::response(myrOrderDetailResponse($orderSn, 29.41, 1));
+        }
+
+        if (str_contains($url, 'get_escrow_detail')) {
+            parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
+            $shopId = (int) ($query['shop_id'] ?? 0);
+            $ref = (string) ($query['order_sn'] ?? '');
+
+            if ($shopId === 9999) {
+                return Http::response([
+                    'error' => '',
+                    'response' => [],
+                ]);
+            }
+
+            if ($shopId === 100 && $ref === 'MY-'.$orderSn) {
+                return Http::response([
+                    'error' => '',
+                    'response' => [
+                        'order_income' => [
+                            'currency' => 'MYR',
+                            'aff_currency' => 'MYR',
+                            'pri_currency' => 'IDR',
+                            'escrow_amount_pri' => 58811,
+                        ],
+                    ],
+                ]);
+            }
+
+            return Http::response([
+                'error' => '',
+                'response' => [],
+            ]);
+        }
+
+        return Http::response([], 404);
+    });
+
+    /** @var ShopeeFlexiSellPrefillService $prefill */
+    $prefill = app(ShopeeFlexiSellPrefillService::class);
+    $result = $prefill->build(9999, $orderSn);
+
+    expect($result['success'] ?? false)->toBeTrue();
+    $items = $result['prefill']['items'] ?? [];
+    expect($items)->toHaveCount(1);
+    expect((float) $items[0]['subtotal'])->toBe(58811.0)
+        ->and((float) $items[0]['price'])->toBe(58811.0);
+
+    /** @var ShopeeFlexiOrderAmountResolver $resolver */
+    $resolver = app(ShopeeFlexiOrderAmountResolver::class);
+    $detail = app(ShopeeAdminOpenApiService::class)->getOrderDetail($orderSn, 9999);
+    $amounts = $resolver->resolve(9999, $orderSn, $detail['response']['order_list'][0]);
+
+    expect($amounts['price_source'])->toBe(ShopeeFlexiOrderAmountResolver::PRICE_SOURCE_ESCROW_IDR)
+        ->and($amounts['escrow_fetch']['via_primary_shop'] ?? false)->toBeTrue()
+        ->and((int) ($amounts['escrow_fetch']['shop_id'] ?? 0))->toBe(100)
+        ->and($amounts['escrow_fetch']['order_sn'] ?? '')->toBe('MY-'.$orderSn)
+        ->and($amounts['banner'] ?? '')->toContain('primary ID');
+});
+
 it('shows currency escrow snippet and price source on flexi orders lookup', function () {
     $user = User::factory()->create();
     $user->givePermissionTo(['shopee-stock-sync']);

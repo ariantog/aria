@@ -119,14 +119,14 @@ Jubelio may not enqueue **export / FLEXI Malaysia** orders. Aria can ingest them
 1. **Authorize** via **Main account** (not Direct Shop login — Shopee rejects Direct-only OAuth). Omnichannel → Settings → Connections → Shopee Admin; pilih Main + Direct (MY). Callback menyimpan `shop_id_list` di settings dan menampilkan semua Shop ID di tab Connections (tidak perlu menyalin URL redirect).
 2. **FLEXI shops** (`/shopee-flexi`): konfigurasi **`shop_id` + invoice prefix** (SPMY / SPSG / …) dan flag poll shadow. Satu **gudang staging** shared untuk semua shop FLEXI: set env **`SHOPEE_FLEXI_STAGING_WAREHOUSE_ID`** (`config/shopee_flexi.php` → `staging_warehouse_id`) ke addrbook gudang fisik. UI menampilkan nama gudang + peringatan bila belum diset / bukan tipe warehouse.
 3. **FLEXI orders** (`/shopee-flexi/orders`): alur operasi bertahap:
-   1. Cari order + **muat detail** Shopee API (`get_order_detail`).
+   1. Cari order + **muat detail** Shopee API (`get_order_detail`) — dari **shop affiliate** (MY).
    2. **Pindah ke gudang FLEXI** — POST membangun draft **MOVE** (pickup gudang dari warehouse map → staging) via `PrepareMoveTransactionDraft` → form `transactions/move/create`. Staging harus **`arrangement_enabled=true`** kecuali ID gudang sama dengan `SHOPEE_FLEXI_STAGING_WAREHOUSE_ID` (exception di `PrepareMoveTransactionDraft`).
-   3. Tunggu order **`COMPLETED`** + **`get_escrow_detail`** sukses (nominal usable per `ShopeeFlexiOrderAmountResolver::amountsUsableForSellPrefill` — MYR butuh `exchange_rate`, tidak cukup catalog fallback saja).
+   3. Tunggu order **`COMPLETED`** + **`get_escrow_detail`** usable (`amountsUsableForSellPrefill`: `exchange_rate`, **`escrow_amount_pri` (IDR tanpa kurs)**, atau nominal IDR domestic — **bukan** catalog fallback saja).
    4. **Buat Transaksi Manual** → form SELL terprefill **IDR**; bila staging dikonfigurasi, **sender = gudang staging** (bukan pickup), receiver = customer channel Jubelio map. **Tidak ada antrean Jubelio** untuk shop di `shopee_flexi_shops`.
-   - Order Malaysia membayar **MYR**; Aria transaksi pakai **IDR**.
-   - `ShopeeAdminOpenApiService::getEscrowDetail` → `response.order_income` (`exchange_rate`, `escrow_amount`, `pri_currency`, `aff_currency`, …).
-   - Jika `exchange_rate` > 0 (SIP/CB): harga baris = nominal Shopee × rate (affiliate → primary, biasanya MYR → IDR).
-   - Tanpa `exchange_rate` (toko lokal MY biasa): **jangan** memprefill MYR sebagai IDR — qty + SKU dari Shopee, harga dari **`items.price`** katalog Aria; banner di UI.
+   - Order Malaysia membayar **MYR**; Aria transaksi pakai **IDR**. **Escrow** sering dari **shop primary Indonesia** (`ShopeeAdminOAuthStore::primaryShopId`) dengan ref wallet **`MY-{ordersn}`** (bukan prefix invoice `SPMY-`).
+   - `get_escrow_detail` dicoba berurutan: affiliate shop + ordersn → affiliate + `MY-{sn}` → primary shop + variasi SN yang sama; berhenti pada `order_income` usable.
+   - Penyelesaian IDR: `exchange_rate` > 0 (SIP/CB, MYR×rate), atau **`escrow_amount_pri` / IDR escrow** tanpa kurs (FLEXI export / dana di wallet seller ID) — alokasi proporsional ke baris (atau breakdown `items` jika API mengembalikan).
+   - Hanya jika escrow/kurs benar-benar kosong: **jangan** memprefill MYR sebagai IDR — qty + SKU dari Shopee, harga dari **`items.price`** katalog Aria (tidak memenuhi gate SELL).
 4. **Warehouse Map** (`/shopee-sync`): Shopee pickup → Aria gudang (stok).
 5. **Poll opsional** (`SHOPEE_ORDER_POLL_ENABLED`, cron `shopee:poll-orders`): untuk shop FLEXI hanya **shadow + unified webhook events** — **tidak** membuat baris `jubelioorders`. Push webhook precreate Jubelio juga dilewati untuk `shop_id` FLEXI. CLI `shopee:pull-order` sama (shadow/events saja).
 6. Optional: register **Push** for the export `shop_id` in Shopee Console (same `/shopee/push` path as Indonesia).
