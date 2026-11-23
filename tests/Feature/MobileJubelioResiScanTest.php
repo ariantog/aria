@@ -176,15 +176,15 @@ it('updates existing queue row on resi scan instead of inserting duplicate', fun
         'barcodes' => ['DUP-TEST', 'NEW-TT-001'],
     ]);
 
-    $response->assertOk()
-        ->assertJsonCount(0, 'created')
+    $response->assertCreated()
+        ->assertJsonCount(1, 'created')
         ->assertJsonCount(1, 'updated')
-        ->assertJsonCount(1, 'skipped')
+        ->assertJsonCount(0, 'skipped')
         ->assertJsonPath('updated.0.invoice', 'TT-DUP-TEST')
-        ->assertJsonPath('skipped.0.invoice', 'TT-NEW-TT-001')
-        ->assertJsonPath('skipped.0.reason', 'Belum ada di antrean Jubelio — tunggu push marketplace atau webhook.');
+        ->assertJsonPath('created.0.invoice', 'TT-NEW-TT-001');
 
-    expect(Jubelioorder::where('invoice', 'TT-DUP-TEST')->count())->toBe(1);
+    expect(Jubelioorder::where('invoice', 'TT-DUP-TEST')->count())->toBe(1)
+        ->and(Jubelioorder::where('invoice', 'TT-NEW-TT-001')->count())->toBe(1);
 
     $preexisting->refresh();
     expect($preexisting->order_status)->toBe(JubelioOrderReadyToShip::STATUS)
@@ -255,6 +255,104 @@ it('formats invoice prefixes via service', function () {
     expect($service->formatInvoice('shopee', 'ABC123'))->toBe('SP-ABC123')
         ->and($service->formatInvoice('shopee', 'sp-abc123'))->toBe('SP-abc123')
         ->and($service->formatInvoice('tiktok', 'TT-999'))->toBe('TT-999');
+});
+
+it('creates tiktok queue row when awb resolves and no queue row exists', function () {
+    $user = User::factory()->create();
+    $user->givePermissionTo('jubelio-view');
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 32327,
+        'jubelio_store_name' => 'TikTok Crystal',
+        'jubelio_location_id' => -1,
+        'jubelio_location_name' => 'Pusat',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => 1,
+        'bin_id' => 0,
+    ]);
+
+    config(['services.jubelio.active' => true]);
+
+    $this->mock(JubelioService::class, function (MockInterface $mock) {
+        $mock->shouldReceive('resolveSalesOrderByTracking')
+            ->once()
+            ->andReturn([
+                'status' => 'found',
+                'salesorder_no' => 'TT-586928090015303551-32327',
+                'salesorder_id' => 'so-tt-new',
+            ]);
+    });
+
+    $response = $this->actingAs($user, 'sanctum')->postJson('/api/mobile/v1/jubelio/resi-scan', [
+        'warehouse_id' => $warehouse->id,
+        'marketplace' => 'tiktok',
+        'barcodes' => ['JP1234567890'],
+    ]);
+
+    $response->assertCreated()
+        ->assertJsonCount(1, 'created')
+        ->assertJsonPath('created.0.invoice', 'TT-586928090015303551-32327');
+
+    $order = Jubelioorder::where('invoice', 'TT-586928090015303551-32327')->first();
+    expect($order)->not->toBeNull()
+        ->and($order->jubelio_order_id)->toBe('so-tt-new')
+        ->and($order->order_status)->toBe(JubelioOrderReadyToShip::STATUS)
+        ->and($order->source)->toBe(Jubelioorder::SOURCE_SCAN_RESI)
+        ->and((int) $order->user_id)->toBe($user->id);
+});
+
+it('updates tiktok queue row when invoice omits jubelio store suffix', function () {
+    $user = User::factory()->create();
+    $user->givePermissionTo('jubelio-view');
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 32327,
+        'jubelio_store_name' => 'TikTok Crystal',
+        'jubelio_location_id' => -1,
+        'jubelio_location_name' => 'Pusat',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => 1,
+        'bin_id' => 0,
+    ]);
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'legacy-tt',
+        'source' => Jubelioorder::SOURCE_WEBHOOK,
+        'invoice' => 'TT-586928090015303551',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 0,
+        'status' => 0,
+    ]);
+
+    config(['services.jubelio.active' => true]);
+
+    $this->mock(JubelioService::class, function (MockInterface $mock) {
+        $mock->shouldReceive('resolveSalesOrderByTracking')
+            ->once()
+            ->andReturn([
+                'status' => 'found',
+                'salesorder_no' => 'TT-586928090015303551-32327',
+                'salesorder_id' => 'so-tt-1',
+            ]);
+    });
+
+    $response = $this->actingAs($user, 'sanctum')->postJson('/api/mobile/v1/jubelio/resi-scan', [
+        'warehouse_id' => $warehouse->id,
+        'marketplace' => 'tiktok',
+        'barcodes' => ['JP1234567890'],
+    ]);
+
+    $response->assertOk()
+        ->assertJsonCount(0, 'created')
+        ->assertJsonCount(1, 'updated')
+        ->assertJsonPath('updated.0.invoice', 'TT-586928090015303551');
+
+    expect(Jubelioorder::where('type', 'SELL')->count())->toBe(1);
 });
 
 it('does not insert jubelioorders when awb resolves but queue row is missing', function () {
