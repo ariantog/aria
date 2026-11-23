@@ -259,6 +259,28 @@ class JubelioResiScanService
                 continue;
             }
 
+            if ($this->marketplaceInsertsQueueRowOnScan($marketplaceKey)) {
+                $jubelioOrderId = $this->placeholderJubelioOrderId($invoice, $resolved['jubelio_order_id'] ?? null);
+
+                $order = Jubelioorder::create([
+                    'jubelio_order_id' => $jubelioOrderId,
+                    'source' => (int) config('jubelio_resi_scan.source', Jubelioorder::SOURCE_SCAN_RESI),
+                    'invoice' => $invoice,
+                    'type' => 'SELL',
+                    'order_status' => JubelioOrderReadyToShip::STATUS,
+                    'run_count' => 0,
+                    'warehouse_id' => (int) $sync->warehouse_id,
+                    'jubelio_store_id' => (int) $sync->jubelio_store_id,
+                    'jubelio_location_id' => (int) $sync->jubelio_location_id,
+                    'user_id' => (int) $user->id,
+                    'status' => 0,
+                ]);
+
+                $created[] = ['id' => (int) $order->id, 'invoice' => $invoice];
+
+                continue;
+            }
+
             $skipped[] = [
                 'raw' => $rawString,
                 'invoice' => $invoice,
@@ -269,18 +291,27 @@ class JubelioResiScanService
         return ['created' => $created, 'updated' => $updated, 'skipped' => $skipped];
     }
 
+    public function marketplaceInsertsQueueRowOnScan(string $marketplaceKey): bool
+    {
+        $config = $this->marketplacesConfig()[$marketplaceKey] ?? [];
+
+        return (bool) ($config['insert_queue_row_on_scan'] ?? false);
+    }
+
     /**
      * Match an existing queue row by canonical invoice, Jubelio order id, or Shopee push placeholder.
      */
     private function findQueueRowForResiScan(string $invoice, string|int|null $jubelioOrderId): ?Jubelioorder
     {
-        $byInvoice = Jubelioorder::query()
-            ->where('type', 'SELL')
-            ->where('invoice', $invoice)
-            ->first();
+        foreach ($this->invoiceMatchCandidates($invoice) as $candidate) {
+            $byInvoice = Jubelioorder::query()
+                ->where('type', 'SELL')
+                ->where('invoice', $candidate)
+                ->first();
 
-        if ($byInvoice !== null) {
-            return $byInvoice;
+            if ($byInvoice !== null) {
+                return $byInvoice;
+            }
         }
 
         $jubelioId = $jubelioOrderId !== null ? trim((string) $jubelioOrderId) : '';
@@ -306,6 +337,30 @@ class JubelioResiScanService
         }
 
         return null;
+    }
+
+    /**
+     * Jubelio may return `TT-…-{store_id}` while an older queue row omitted the suffix (or the reverse).
+     *
+     * @return list<string>
+     */
+    private function invoiceMatchCandidates(string $invoice): array
+    {
+        $invoice = trim($invoice);
+        if ($invoice === '') {
+            return [];
+        }
+
+        $out = [$invoice];
+
+        if (preg_match('/^(TT|TP)-(.+)-(\d+)$/i', $invoice, $matches) === 1) {
+            $withoutSuffix = strtoupper($matches[1]).'-'.$matches[2];
+            if (! in_array($withoutSuffix, $out, true)) {
+                $out[] = $withoutSuffix;
+            }
+        }
+
+        return $out;
     }
 
     public function touchExistingFromScan(

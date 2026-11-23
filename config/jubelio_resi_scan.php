@@ -24,12 +24,15 @@ return [
             'invoice_prefix' => 'TT',
             'store_name_patterns' => ['tiktok'],
             'resolve_invoice_from_tracking' => true,
+            /** No Shopee-style push placeholder — scan may queue when AWB resolves before webhook. */
+            'insert_queue_row_on_scan' => true,
         ],
         'tokopedia' => [
             'label' => 'Tokopedia',
             'invoice_prefix' => 'TP',
             'store_name_patterns' => ['tokopedia'],
             'resolve_invoice_from_tracking' => true,
+            'insert_queue_row_on_scan' => true,
         ],
         'lazada' => [
             'label' => 'Lazada',

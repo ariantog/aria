@@ -125,7 +125,11 @@ class JubelioTrackingLookup
             }
         }
 
-        return $this->pickRowByOrderDetail($rows, $needle, $storeId);
+        $maxDetailFetches = $trustListTracking
+            ? min(50, max(8, count($rows)))
+            : 8;
+
+        return $this->pickRowByOrderDetail($rows, $needle, $storeId, $maxDetailFetches);
     }
 
     /**
