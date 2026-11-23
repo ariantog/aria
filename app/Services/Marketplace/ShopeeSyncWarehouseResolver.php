@@ -25,10 +25,35 @@ class ShopeeSyncWarehouseResolver
 
         $pickup = app(ShopeeOrderPickupLocation::class)->extract($pushData, $orderRow);
         if ($pickup === null) {
-            return 0;
+            return $this->fallbackWarehouseForShop($shopId);
         }
 
         return $this->matchPickup($pickup);
+    }
+
+    /**
+     * Legacy Indonesia pushes often omit product_location_id; one shop → one gudang row still resolves.
+     */
+    private function fallbackWarehouseForShop(?int $shopId): int
+    {
+        if ($shopId === null || $shopId <= 0) {
+            return 0;
+        }
+
+        $warehouseIds = Shopeesync::query()
+            ->where('shop_id', $shopId)
+            ->where('warehouse_id', '>', 0)
+            ->distinct()
+            ->pluck('warehouse_id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($warehouseIds->count() === 1) {
+            return (int) $warehouseIds->first();
+        }
+
+        return 0;
     }
 
     /**
