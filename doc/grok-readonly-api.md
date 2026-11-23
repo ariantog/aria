@@ -143,23 +143,42 @@ Returns the current TikTok Shop seller `access_token` for the Grok bot (same sto
 
 | Field | Notes |
 |-------|--------|
-| `access_token` | Valid token; refreshed proactively within ~5 minutes of `expires_at` (`TikTokShopOAuthService::getAccessToken()`) |
+| `access_token` | Valid token; refreshed proactively within ~5 minutes of `expires_at` (`TikTokShopOAuthService::getAccessToken()` and cron `tiktok:refresh-oauth`) |
 | `expires_at` | ISO-8601; also `expires_at_unix` when known |
 | `partner_app` | Always `tiktok_shop` |
 | `oauth_setting_slug` | `tiktok_shop_oauth` |
 
 **Never returned:** `refresh_token`, `app_secret`, env secrets.
 
-**Permissions:** `export-readonly` **and** `api.readonly.tiktok.oauth` (generate via `PermissionGenerator` on `ReadonlyExport`).
+**Permissions:** `export-readonly` **and** `api.readonly.tiktok.oauth` (generate via `PermissionGenerator` on `ReadonlyExport`). User is usually **`grok`**.
 
-**Errors:** `tiktok_not_connected` (401), `tiktok_not_configured` (503), `tiktok_token_unavailable` (503). Emergency env-only fallback may return `source: env_fallback` when `TIKTOK_SHOP_ACCESS_TOKEN` is set but OAuth row is empty.
+**Errors (JSON body):**
+
+| HTTP | `error` | Meaning |
+|------|---------|---------|
+| 401 | `tiktok_not_connected` | No tokens or browser re-authorize in Aria required |
+| 503 | `tiktok_not_configured` | Missing `TIKTOK_SHOP_APP_KEY` / secret on server |
+| 503 | `tiktok_token_unavailable` | Refresh failed — retry or fix OAuth in Aria |
+
+Emergency env-only fallback may return `source: env_fallback` when `TIKTOK_SHOP_ACCESS_TOKEN` is set but OAuth row is empty.
+
+**Token refresh on Aria:** Every successful readonly `GET` runs `getAccessToken()` (refreshes when within 300s of expiry). Optional scheduled catch-up: `php artisan tiktok:refresh-oauth` (e.g. daily in System Settings → Cron Manager).
 
 Aria authorize: `GET /tiktok-shop/authorize` (Connections tab on `/omnichannel/settings`). See **`doc/omnichannel.md`**.
 
 ```bash
-curl -sS -H "Authorization: Bearer $GROK_TOKEN" \
+curl -sS -H "Authorization: Bearer $READONLY_EXPORT_BEARER_TOKEN" \
   "https://aria3.corenationactive.com/api/readonly/tiktok/oauth"
 ```
+
+#### Grok bot prompt (copy-paste)
+
+Paste into the Grok bot system / instruction field:
+
+- Never store `refresh_token` or call TikTok token refresh in the bot; Aria owns refresh in `tiktok_shop_oauth`.
+- `GET /api/readonly/tiktok/oauth` with Bearer `READONLY_EXPORT_BEARER_TOKEN`; use `access_token` as `x-tts-access-token`; cache using `expires_at_unix`, refetch when <300s left.
+- Handle `401` `tiktok_not_connected`, `503` errors; no secrets in logs/chat.
+- Shopee: same with `/api/readonly/shopee/oauth`.
 
 ### Cost history (stub)
 

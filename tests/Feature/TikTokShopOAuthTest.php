@@ -85,3 +85,37 @@ it('handles oauth callback and stores token', function (): void {
     $stored = Setting::getValue(TikTokShopOAuthService::OAUTH_SETTING_SLUG, []);
     expect($stored['access_token'] ?? null)->toBe('from-callback');
 });
+
+it('refresh oauth command exchanges refresh token when access is stale', function (): void {
+    Setting::query()->updateOrCreate(
+        ['slug' => TikTokShopOAuthService::OAUTH_SETTING_SLUG],
+        [
+            'group' => 'tiktok_shop',
+            'name' => 'TikTok Shop OAuth',
+            'value' => [
+                'access_token' => 'old-access',
+                'refresh_token' => 'refresh-abc',
+                'expires_at' => now()->subMinutes(30)->toIso8601String(),
+            ],
+        ]
+    );
+
+    Http::fake([
+        'auth.tiktok-shops.com/*' => Http::response([
+            'code' => 0,
+            'message' => 'success',
+            'data' => [
+                'access_token' => 'new-access',
+                'refresh_token' => 'refresh-xyz',
+                'access_token_expire_in' => now()->addDays(2)->getTimestamp(),
+            ],
+        ]),
+    ]);
+
+    $this->artisan('tiktok:refresh-oauth')->assertSuccessful();
+
+    $stored = Setting::getValue(TikTokShopOAuthService::OAUTH_SETTING_SLUG, []);
+
+    expect($stored['access_token'])->toBe('new-access')
+        ->and($stored['refresh_token'])->toBe('refresh-xyz');
+});
