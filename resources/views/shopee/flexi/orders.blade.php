@@ -1,30 +1,30 @@
 @extends('layouts.app')
 
-@section('title', 'Shopee Order Lookup')
+@section('title', 'FLEXI Export Orders')
 
 @section('content')
 @php
 $breadcrumbs = [
-    ['title' => 'Shopee FLEXI Shops', 'href' => route('shopee.flexi.index')],
-    ['title' => 'Order lookup', 'href' => route('shopee.flexi.lookup')],
+    ['title' => 'FLEXI Shops', 'href' => route('shopee.flexi.index')],
+    ['title' => 'Export orders', 'href' => route('shopee.flexi.orders')],
 ];
 $loadDetailChecked = (bool) old('load_detail', $loadDetail ?? false);
 @endphp
 
-<div class="flex flex-col gap-6 p-4" data-testid="shopee-flexi-order-lookup">
+<div class="flex flex-col gap-6 p-4" data-testid="shopee-flexi-orders">
     <div>
-        <h1 class="text-2xl font-bold">Shopee order lookup</h1>
+        <h1 class="text-2xl font-bold">Order export FLEXI</h1>
         <p class="mt-1 max-w-3xl text-sm text-gray-500">
-            Cari order FLEXI/export — preview invoice &amp; mapping tanpa API (cepat), atau muat
-            <code>get_order_detail</code> untuk status, baris item, gudang, dan
-            <strong class="font-medium text-gray-700">Buat Transaksi Manual</strong>.
+            Alur posting untuk toko Malaysia / export: cari order di Shopee API, lalu
+            <strong class="font-medium text-gray-700">Buat Transaksi Manual</strong> membuka form SELL
+            yang sudah terisi (gudang, customer channel, invoice, baris item). Simpan form seperti transaksi biasa.
         </p>
         <details class="mt-3 max-w-3xl rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
-            <summary class="cursor-pointer font-medium text-gray-900">FLEXI: posting vs antrean</summary>
+            <summary class="cursor-pointer font-medium text-gray-900">Catatan FLEXI</summary>
             <ul class="mt-2 list-disc space-y-1 pl-5 text-gray-600">
-                <li>Order export/MY <strong>tidak</strong> mendapat payload Jubelio — cron Jubelio tidak bisa posting SELL.</li>
-                <li><strong>Buat Transaksi Manual</strong> di bawah memposting SELL langsung dari Shopee API (bukan <code>ProcessJubelioOrder</code>).</li>
-                <li><strong>Tarik ke antrean</strong> (sekunder) hanya shadow / placeholder <code>jubelioorders</code> — tidak menggantikan posting manual.</li>
+                <li>Jubelio tidak mengirim payload order export — <strong>tidak ada antrean Jubelio</strong> untuk shop FLEXI.</li>
+                <li>Poll opsional (<code>shopee:poll-orders</code>) hanya untuk shadow / omnichannel events, bukan posting otomatis.</li>
+                <li>Mapping <code>shop_id</code> + prefix invoice dikelola di <a href="{{ route('shopee.flexi.index') }}" class="text-orange-700 underline">FLEXI Shops</a>; gudang via <a href="{{ route('shopee.sync.index') }}" class="text-orange-700 underline">Warehouse Map</a>.</li>
             </ul>
         </details>
     </div>
@@ -33,7 +33,7 @@ $loadDetailChecked = (bool) old('load_detail', $loadDetail ?? false);
         <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">{{ $flash['success'] }}</div>
     @endif
     @if(filled($flash['error'] ?? null))
-        <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" data-testid="shopee-lookup-flash-error">{{ $flash['error'] }}</div>
+        <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" data-testid="shopee-orders-flash-error">{{ $flash['error'] }}</div>
     @endif
 
     @if(! empty($authorizedShopIds))
@@ -46,7 +46,7 @@ $loadDetailChecked = (bool) old('load_detail', $loadDetail ?? false);
         </div>
     @endif
 
-    <form method="POST" action="{{ route('shopee.flexi.lookup.search') }}" class="max-w-xl space-y-4 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+    <form method="POST" action="{{ route('shopee.flexi.orders.search') }}" class="max-w-xl space-y-4 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         @csrf
         <div>
             <label for="order_ref" class="block text-sm font-medium text-gray-700">Order ref</label>
@@ -64,7 +64,7 @@ $loadDetailChecked = (bool) old('load_detail', $loadDetail ?? false);
             @else
                 <select name="shop_id" id="shop_id" required
                     class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 font-mono text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
-                    data-testid="shopee-lookup-shop-id">
+                    data-testid="shopee-orders-shop-id">
                     <option value="" disabled @selected($shopId === '')>Pilih shop…</option>
                     @foreach($shopOptions as $option)
                         <option value="{{ $option['id'] }}" @selected((string) $option['id'] === (string) $shopId)>{{ $option['label'] }}</option>
@@ -77,67 +77,24 @@ $loadDetailChecked = (bool) old('load_detail', $loadDetail ?? false);
             <input type="checkbox" name="load_detail" id="load_detail" value="1"
                 @checked($loadDetailChecked)
                 class="mt-1 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                data-testid="shopee-lookup-load-detail">
+                data-testid="shopee-orders-load-detail">
             <label for="load_detail" class="text-sm text-gray-700">
                 Muat detail dari Shopee API
-                <span class="block text-xs font-normal text-gray-500">Centang untuk status, item, gudang, dan tombol posting manual.</span>
+                <span class="block text-xs font-normal text-gray-500">Centang untuk status, item, gudang, dan tombol Buat Transaksi Manual.</span>
             </label>
         </div>
         <div class="flex flex-wrap gap-2">
-            <button type="submit" class="rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700" data-testid="shopee-lookup-submit">
-                Lookup
+            <button type="submit" class="rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700" data-testid="shopee-orders-submit">
+                Cari order
             </button>
             <a href="{{ route('shopee.flexi.index') }}" class="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">FLEXI shops</a>
         </div>
-        <p class="text-xs text-gray-500">
-            <button type="submit"
-                formaction="{{ route('shopee.flexi.lookup.ingest') }}"
-                formmethod="POST"
-                class="text-orange-800 underline hover:text-orange-900"
-                data-testid="shopee-flexi-ingest-btn"
-                onclick="return confirm('Hanya antrekan placeholder (bukan posting SELL)? Order FLEXI tetap butuh Buat Transaksi Manual setelah muat detail.')">
-                Tarik ke antrean saja
-            </button>
-            — shadow / jubelioorders; Jubelio cron tidak akan memproses FLEXI tanpa payload API.
-        </p>
     </form>
 
-    @if($ingestResult !== null)
-        <div class="space-y-3 rounded-xl border border-gray-200 bg-white p-6 shadow-sm" data-testid="shopee-ingest-result">
-            <h2 class="text-sm font-semibold text-gray-900">Hasil tarik &amp; ingest</h2>
-            @if(filled($ingestResult['error'] ?? null))
-                <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-                    {{ $ingestResult['error'] }}
-                </div>
-            @else
-                <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
-                    Ingest selesai — status <span class="font-mono font-semibold">{{ $ingestResult['order_status'] ?? '—' }}</span>,
-                    invoice <span class="font-mono">{{ $ingestResult['invoice_preview'] ?? '—' }}</span>
-                </div>
-            @endif
-            <table class="w-full text-left text-sm">
-                <tbody class="divide-y divide-gray-100">
-                    <tr><th class="w-56 bg-gray-50 px-3 py-2 text-xs font-semibold uppercase text-gray-600">Shadow</th><td class="px-3 py-2">{{ ($ingestResult['shadow'] ?? false) ? 'Ya' : 'Tidak' }}</td></tr>
-                    <tr><th class="bg-gray-50 px-3 py-2 text-xs font-semibold uppercase text-gray-600">Jubelio placeholder</th><td class="px-3 py-2" data-testid="ingest-jubelio-placeholder">{{ ($ingestResult['jubelio_placeholder'] ?? false) ? 'Ya' : 'Tidak' }}</td></tr>
-                    <tr><th class="bg-gray-50 px-3 py-2 text-xs font-semibold uppercase text-gray-600">Omnichannel event</th><td class="px-3 py-2" data-testid="ingest-webhook-event">{{ ($ingestResult['webhook_event'] ?? false) ? 'Ya' : 'Tidak' }}</td></tr>
-                    <tr><th class="bg-gray-50 px-3 py-2 text-xs font-semibold uppercase text-gray-600">Ingested (any layer)</th><td class="px-3 py-2">{{ ($ingestResult['ingested'] ?? false) ? 'Ya' : 'Tidak' }}</td></tr>
-                </tbody>
-            </table>
-            <div class="flex flex-wrap gap-3 text-sm">
-                @if(filled($ingestResult['omnichannel_url'] ?? null))
-                    <a href="{{ $ingestResult['omnichannel_url'] }}" class="text-orange-700 hover:underline">Omnichannel Shopee order</a>
-                @endif
-                @if(filled($ingestResult['jubelio_queue_url'] ?? null))
-                    <a href="{{ $ingestResult['jubelio_queue_url'] }}" class="text-orange-700 hover:underline">Antrean Jubelio</a>
-                @endif
-            </div>
-        </div>
-    @endif
-
     @if($result !== null)
-        <div class="space-y-4" data-testid="shopee-lookup-result">
+        <div class="space-y-4" data-testid="shopee-orders-result">
             @if(! ($result['ok'] ?? false))
-                <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" data-testid="shopee-lookup-error">
+                <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" data-testid="shopee-orders-error">
                     <p>{{ $result['error'] ?? 'Lookup gagal.' }}</p>
                     @if(filled($result['error_detail'] ?? null) && ($result['error_detail'] ?? '') !== ($result['error'] ?? ''))
                         <p class="mt-2 font-mono text-xs text-red-900/90">{{ $result['error_detail'] }}</p>
@@ -157,7 +114,7 @@ $loadDetailChecked = (bool) old('load_detail', $loadDetail ?? false);
             @endif
 
             @if(($result['ok'] ?? false) && ! ($result['detail_loaded'] ?? false))
-                <form method="POST" action="{{ route('shopee.flexi.lookup.search') }}" class="inline">
+                <form method="POST" action="{{ route('shopee.flexi.orders.search') }}" class="inline">
                     @csrf
                     <input type="hidden" name="order_ref" value="{{ $orderRef }}">
                     <input type="hidden" name="shop_id" value="{{ $shopId }}">
@@ -168,8 +125,13 @@ $loadDetailChecked = (bool) old('load_detail', $loadDetail ?? false);
                 </form>
             @endif
 
-            @if(($result['can_manual_sell'] ?? false))
-                <form method="POST" action="{{ route('shopee.flexi.lookup.create-sell') }}" onsubmit="return confirm('Buat transaksi SELL dari order Shopee ini?')" class="inline">
+            @if(($result['invoice_exists'] ?? false) && filled($result['existing_transaction_id'] ?? null))
+                <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" data-testid="shopee-invoice-exists">
+                    Invoice sudah diposting —
+                    <a href="{{ route('transactions.show', $result['existing_transaction_id']) }}" class="font-medium text-orange-800 underline">lihat transaksi</a>.
+                </div>
+            @elseif(($result['can_open_sell_form'] ?? false))
+                <form method="POST" action="{{ route('shopee.flexi.orders.create-sell') }}" onsubmit="return confirm('Buka form SELL dengan data order ini?')" class="inline">
                     @csrf
                     <input type="hidden" name="order_ref" value="{{ $orderRef }}">
                     <input type="hidden" name="shop_id" value="{{ $shopId }}">
@@ -198,13 +160,13 @@ $loadDetailChecked = (bool) old('load_detail', $loadDetail ?? false);
                             <td class="px-4 py-3 font-mono">{{ $result['invoice_prefix'] ?? '—' }}</td></tr>
                         <tr><th class="bg-gray-50 px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600">Invoice preview</th>
                             <td class="px-4 py-3 font-mono">{{ $result['invoice_preview'] ?? '—' }}</td></tr>
-                        <tr><th class="bg-gray-50 px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600">Duplikat transaksi</th>
-                            <td class="px-4 py-3">{{ ($result['duplicate_transaction'] ?? false) ? 'Ya' : 'Tidak' }}</td></tr>
+                        <tr><th class="bg-gray-50 px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600">Sudah di transaksi</th>
+                            <td class="px-4 py-3" data-testid="result-invoice-exists">{{ ($result['invoice_exists'] ?? false) ? 'Ya' : 'Tidak' }}</td></tr>
                         <tr><th class="bg-gray-50 px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600">FLEXI row</th>
                             <td class="px-4 py-3 text-gray-600">
                                 @if(! empty($result['flexi_mapping']))
                                     <span class="font-mono">{{ $result['flexi_mapping']['invoice_prefix'] }}</span>
-                                    @if($result['flexi_mapping']['direct_order_ingest'] ?? false) · poll ingest @endif
+                                    @if($result['flexi_mapping']['direct_order_ingest'] ?? false) · poll shadow @endif
                                     @if(filled($result['flexi_mapping']['label'] ?? '')) · {{ $result['flexi_mapping']['label'] }} @endif
                                 @else
                                     <span class="text-gray-400">Belum di /shopee-flexi — preview prefix dari config/sync legacy.</span>
@@ -250,7 +212,7 @@ $loadDetailChecked = (bool) old('load_detail', $loadDetail ?? false);
                     @endif
                 </div>
             @elseif(($result['ok'] ?? false) && ! ($result['detail_loaded'] ?? false))
-                <p class="text-sm text-gray-600">Status, pickup, gudang, dan baris item membutuhkan <strong>Muat detail</strong> atau centang pada form lookup.</p>
+                <p class="text-sm text-gray-600">Status, pickup, gudang, dan baris item membutuhkan <strong>Muat detail</strong> atau centang pada form.</p>
             @endif
 
             @if(! empty($result['sync_matches']))

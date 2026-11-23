@@ -20,7 +20,7 @@ it('resolves SPMY invoice from shopee_flexi_shops', function () {
         ->and(app(ShopeeJubelioQueuePrecreator::class)->invoiceForOrderSn('MY123', 1925605693))->toBe('SPMY-MY123');
 });
 
-it('precreates jubelio row with flexi prefix on push', function () {
+it('does not precreate jubelio row for flexi shop push', function () {
     ShopeeFlexiShop::query()->create([
         'shop_id' => 1925605693,
         'invoice_prefix' => 'SPMY',
@@ -44,6 +44,5 @@ it('precreates jubelio row with flexi prefix on push', function () {
         'CONTENT_TYPE' => 'application/json',
     ], $body)->assertOk();
 
-    expect(Jubelioorder::where('invoice', 'SPMY-FLEXI_MY_1')->count())->toBe(1)
-        ->and(Jubelioorder::where('invoice', 'SP-FLEXI_MY_1')->exists())->toBeFalse();
+    expect(Jubelioorder::where('invoice', 'SPMY-FLEXI_MY_1')->exists())->toBeFalse();
 });

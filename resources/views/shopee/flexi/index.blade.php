@@ -21,13 +21,15 @@ $breadcrumbs = [
         <div>
             <h1 class="text-2xl font-bold">Shopee FLEXI / export shops</h1>
             <p class="mt-1 max-w-2xl text-sm text-gray-500">
-                Satu baris = satu <code>shop_id</code> → prefix invoice (<code>SPMY-{ordersn}</code>, dll).
-                Gudang Aria ditentukan oleh <a href="{{ route('shopee.sync.index') }}" class="text-orange-700 hover:underline">Warehouse Map</a> + lokasi pickup di order, bukan di sini.
+                Konfigurasi <code>shop_id</code> dan prefix invoice (<code>SPMY-{ordersn}</code>, dll).
+                Posting order export dilakukan di halaman
+                <a href="{{ route('shopee.flexi.orders') }}" class="text-orange-700 hover:underline">FLEXI orders</a>.
+                Gudang Aria: <a href="{{ route('shopee.sync.index') }}" class="text-orange-700 hover:underline">Warehouse Map</a>.
             </p>
         </div>
         <div class="flex flex-wrap gap-2">
-            <a href="{{ route('shopee.flexi.lookup') }}" class="inline-flex rounded-lg border border-orange-200 bg-white px-4 py-2 text-sm font-medium text-orange-800 hover:bg-orange-50">
-                Order lookup
+            <a href="{{ route('shopee.flexi.orders') }}" class="inline-flex rounded-lg border border-orange-200 bg-white px-4 py-2 text-sm font-medium text-orange-800 hover:bg-orange-50">
+                Buka FLEXI orders
             </a>
             <a href="{{ route('shopee.flexi.create') }}" class="inline-flex rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700">
                 Add shop
@@ -49,7 +51,7 @@ $breadcrumbs = [
                     <th class="px-6 py-4">shop_id</th>
                     <th class="px-6 py-4">Prefix</th>
                     <th class="px-6 py-4">Label</th>
-                    <th class="px-6 py-4">Poll ingest</th>
+                    <th class="px-6 py-4">Poll shadow</th>
                     <th class="px-6 py-4 text-right">Actions</th>
                 </tr>
             </thead>

@@ -17,6 +17,7 @@ class ShopeeOrderStatusIngest
         private ShopeeJubelioQueuePrecreator $jubelioQueuePrecreator,
         private MarketplaceWebhookRecorder $webhookRecorder,
         private MarketplaceWebhookStatusPresenter $statusPresenter,
+        private ShopeeSyncInvoicePrefix $invoicePrefix,
     ) {}
 
     /**
@@ -65,20 +66,22 @@ class ShopeeOrderStatusIngest
             }
         }
 
-        try {
-            $result['jubelio_placeholder'] = $this->jubelioQueuePrecreator->upsertFromPush(
-                $shopId,
-                $orderSn,
-                $orderStatus,
-                $pushCode,
-                $pushData,
-                $fullPayload,
-            );
-        } catch (Throwable $e) {
-            Log::warning('Shopee order ingest jubelio placeholder failed', [
-                'ordersn' => $orderSn,
-                'message' => $e->getMessage(),
-            ]);
+        if (! $this->invoicePrefix->isFlexiExportShop($shopId)) {
+            try {
+                $result['jubelio_placeholder'] = $this->jubelioQueuePrecreator->upsertFromPush(
+                    $shopId,
+                    $orderSn,
+                    $orderStatus,
+                    $pushCode,
+                    $pushData,
+                    $fullPayload,
+                );
+            } catch (Throwable $e) {
+                Log::warning('Shopee order ingest jubelio placeholder failed', [
+                    'ordersn' => $orderSn,
+                    'message' => $e->getMessage(),
+                ]);
+            }
         }
 
         if ($recordWebhookWhenUnified) {

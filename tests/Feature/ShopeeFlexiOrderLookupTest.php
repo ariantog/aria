@@ -1,7 +1,6 @@
 <?php
 
 use App\Models\Addrbook;
-use App\Models\Jubelioorder;
 use App\Models\Setting;
 use App\Models\ShopeeFlexiShop;
 use App\Models\Shopeesync;
@@ -52,8 +51,17 @@ beforeEach(function () {
     );
 });
 
-it('denies guests from flexi order lookup', function () {
-    $this->get(route('shopee.flexi.lookup'))->assertRedirect(route('login'));
+it('denies guests from flexi orders page', function () {
+    $this->get(route('shopee.flexi.orders'))->assertRedirect(route('login'));
+});
+
+it('redirects legacy lookup url to orders page', function () {
+    $user = User::factory()->create();
+    $user->givePermissionTo('shopee-stock-sync');
+
+    $this->actingAs($user)
+        ->get(route('shopee.flexi.lookup'))
+        ->assertRedirect(route('shopee.flexi.orders'));
 });
 
 it('denies users without shopee sync permission', function () {
@@ -61,26 +69,28 @@ it('denies users without shopee sync permission', function () {
     $user = User::factory()->create();
 
     $this->actingAs($user)
-        ->get(route('shopee.flexi.lookup'))
+        ->get(route('shopee.flexi.orders'))
         ->assertForbidden();
 });
 
-it('renders lookup form for authorized users', function () {
+it('renders orders hub for authorized users', function () {
     $user = User::factory()->create();
     $user->givePermissionTo('shopee-stock-sync');
 
     $this->actingAs($user)
-        ->get(route('shopee.flexi.lookup'))
+        ->get(route('shopee.flexi.orders'))
         ->assertOk()
-        ->assertSee('data-testid="shopee-flexi-order-lookup"', false);
+        ->assertSee('data-testid="shopee-flexi-orders"', false)
+        ->assertSee('tidak ada antrean Jubelio', false)
+        ->assertDontSee('Tarik ke antrean', false);
 });
 
-it('validates shop_id and order_ref on lookup', function () {
+it('validates shop_id and order_ref on search', function () {
     $user = User::factory()->create();
     $user->givePermissionTo('shopee-stock-sync');
 
     $this->actingAs($user)
-        ->post(route('shopee.flexi.lookup.search'), [])
+        ->post(route('shopee.flexi.orders.search'), [])
         ->assertSessionHasErrors(['order_ref', 'shop_id']);
 });
 
@@ -101,7 +111,7 @@ it('skips get_order_detail when load_detail is not checked', function () {
     ]);
 
     $this->actingAs($user)
-        ->post(route('shopee.flexi.lookup.search'), [
+        ->post(route('shopee.flexi.orders.search'), [
             'order_ref' => 'SPMY-FAST-ONLY',
             'shop_id' => 7777777,
         ])
@@ -153,7 +163,7 @@ it('shows shop_id and order status from mocked get_order_detail', function () {
     ]);
 
     $response = $this->actingAs($user)
-        ->post(route('shopee.flexi.lookup.search'), [
+        ->post(route('shopee.flexi.orders.search'), [
             'order_ref' => 'SPMY-MYLOOKUP99',
             'shop_id' => 7777777,
             'load_detail' => '1',
@@ -179,49 +189,10 @@ it('lists flexi mapped shops in shop_id select', function () {
     ]);
 
     $this->actingAs($user)
-        ->get(route('shopee.flexi.lookup'))
+        ->get(route('shopee.flexi.orders'))
         ->assertOk()
         ->assertSee('1575873373 — SPMY — Malaysia', false)
-        ->assertSee('data-testid="shopee-lookup-shop-id"', false);
-});
-
-it('ingests order via lookup ingest action with same flags as pull command', function () {
-    $user = User::factory()->create();
-    $user->givePermissionTo('shopee-stock-sync');
-
-    ShopeeFlexiShop::query()->create([
-        'shop_id' => 8888,
-        'invoice_prefix' => 'SPMY',
-        'direct_order_ingest' => true,
-    ]);
-
-    Http::fake([
-        'partner.shopeemobile.com/api/v2/order/get_order_detail*' => Http::response([
-            'error' => '',
-            'response' => [
-                'order_list' => [
-                    [
-                        'order_sn' => 'UI-INGEST-1',
-                        'order_status' => 'PROCESSED',
-                        'update_time' => 1_700_000_200,
-                        'item_list' => [],
-                    ],
-                ],
-            ],
-        ]),
-    ]);
-
-    $this->actingAs($user)
-        ->post(route('shopee.flexi.lookup.ingest'), [
-            'order_ref' => 'SPMY-UI-INGEST-1',
-            'shop_id' => 8888,
-        ])
-        ->assertOk()
-        ->assertSee('data-testid="shopee-ingest-result"', false)
-        ->assertSee('Ingest selesai', false);
-
-    $order = Jubelioorder::where('invoice', 'SPMY-UI-INGEST-1')->first();
-    expect($order)->not->toBeNull();
+        ->assertSee('data-testid="shopee-orders-shop-id"', false);
 });
 
 it('surfaces shopee api error from last_error when get_order_detail fails', function () {
@@ -237,13 +208,13 @@ it('surfaces shopee api error from last_error when get_order_detail fails', func
     ]);
 
     $this->actingAs($user)
-        ->post(route('shopee.flexi.lookup.search'), [
+        ->post(route('shopee.flexi.orders.search'), [
             'order_ref' => 'TESTSN99',
             'shop_id' => 7777777,
             'load_detail' => '1',
         ])
         ->assertOk()
-        ->assertSee('data-testid="shopee-lookup-error"', false)
+        ->assertSee('data-testid="shopee-orders-error"', false)
         ->assertSee('response_optional_fields is invalid', false)
         ->assertSee('error_param', false);
 });

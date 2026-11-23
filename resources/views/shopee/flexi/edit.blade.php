@@ -57,8 +57,8 @@ $breadcrumbs = [
                 <input type="checkbox" name="direct_order_ingest" value="1" class="mt-1 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
                     @checked(old('direct_order_ingest', $row->direct_order_ingest ?? true))>
                 <span>
-                    <span class="font-medium">Poll / push ingest</span>
-                    <span class="mt-0.5 block text-xs text-gray-500">Sertakan shop ini di <code>shopee:poll-orders</code> bila cron + env aktif.</span>
+                    <span class="font-medium">Poll shadow (omnichannel)</span>
+                    <span class="mt-0.5 block text-xs text-gray-500">Sertakan shop di <code>shopee:poll-orders</code> untuk shadow/events saja — bukan antrean Jubelio.</span>
                 </span>
             </label>
 

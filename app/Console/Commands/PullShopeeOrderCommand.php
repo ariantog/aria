@@ -54,7 +54,11 @@ class PullShopeeOrderCommand extends Command
 
         $this->info("Order {$orderSn} @ shop {$shopId} — status: ".($result['order_status'] ?? '—'));
         $this->line('Shadow: '.($result['shadow'] ? 'ya' : 'tidak'));
-        $this->line('Jubelio placeholder: '.($result['jubelio_placeholder'] ? 'ya' : 'tidak'));
+        if ($flexi !== null) {
+            $this->line('Jubelio placeholder: tidak (shop FLEXI — gunakan /shopee-flexi/orders untuk form SELL)');
+        } else {
+            $this->line('Jubelio placeholder: '.($result['jubelio_placeholder'] ? 'ya' : 'tidak'));
+        }
         $this->line('Unified webhook event: '.($result['webhook_event'] ? 'ya' : 'tidak'));
 
         if ($result['webhook_event'] && \Illuminate\Support\Facades\Schema::hasTable('marketplace_webhook_events')) {

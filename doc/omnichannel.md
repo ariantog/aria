@@ -117,13 +117,13 @@ Do not duplicate Jubelio’s store/location map inside Shopee-only tables — li
 Jubelio may not enqueue **export / FLEXI Malaysia** orders. Aria can ingest them **directly from Shopee Open Platform**:
 
 1. **Authorize** via **Main account** (not Direct Shop login — Shopee rejects Direct-only OAuth). Omnichannel → Settings → Connections → Shopee Admin; pilih Main + Direct (MY). Callback menyimpan `shop_id_list` di settings dan menampilkan semua Shop ID di tab Connections (tidak perlu menyalin URL redirect).
-2. **FLEXI shops** (`/shopee-flexi`): satu baris per **`shop_id` + invoice prefix** (SPMY / SPSG / …) + poll ingest. Warehouse tidak relevan di sini.
-3. **Warehouse Map** (`/shopee-sync`): Shopee pickup → Aria gudang (stok). Placeholder `jubelioorders.warehouse_id` dari `product_location_id` vs `shopee_location_id` pada baris pickup ini.
-4. **Enable** `SHOPEE_ORDER_POLL_ENABLED=true`, `SHOPEE_PRECREATE_JUBELIO_QUEUE=true`, `MARKETPLACE_WEBHOOK_UNIFIED_STORAGE=true` as needed; turn on cron **`shopee:poll-orders`** in Cron Manager.
-5. **Satu order manual** (tidak muncul di webhook): `/shopee-flexi/lookup` — muat detail Shopee API lalu **Buat Transaksi Manual** (posting SELL langsung, tanpa Jubelio API). Antrean placeholder (`Tarik ke antrean` / `shopee:pull-order`) tidak menggantikan posting untuk FLEXI.
+2. **FLEXI shops** (`/shopee-flexi`): konfigurasi **`shop_id` + invoice prefix** (SPMY / SPSG / …) dan flag poll shadow. Warehouse tidak relevan di sini.
+3. **FLEXI orders** (`/shopee-flexi/orders`): alur operasi — muat detail Shopee API → **Buat Transaksi Manual** membuka form SELL terprefill (simpan seperti transaksi biasa). **Tidak ada antrean Jubelio** untuk shop yang terdaftar di `shopee_flexi_shops`.
+4. **Warehouse Map** (`/shopee-sync`): Shopee pickup → Aria gudang (stok).
+5. **Poll opsional** (`SHOPEE_ORDER_POLL_ENABLED`, cron `shopee:poll-orders`): untuk shop FLEXI hanya **shadow + unified webhook events** — **tidak** membuat baris `jubelioorders`. Push webhook precreate Jubelio juga dilewati untuk `shop_id` FLEXI. CLI `shopee:pull-order` sama (shadow/events saja).
 6. Optional: register **Push** for the export `shop_id` in Shopee Console (same `/shopee/push` path as Indonesia).
 
-Poll + push both run the same ingest (shadow, unified orders table, `jubelioorders` placeholder `{prefix}-{ordersn}`). **SELL posting** still requires either a future direct Shopee poster or manual transaction — Jubelio cron will not receive MY/export payloads.
+**SELL posting** untuk export = form manual di FLEXI orders; Jubelio cron tidak pernah menerima payload MY/export.
 
 ## Shopee push path
 

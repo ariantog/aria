@@ -53,6 +53,22 @@ class ShopeeSyncInvoicePrefix
         return strtoupper((string) config('shopee_flexi.domestic_prefix', 'SP'));
     }
 
+    /**
+     * FLEXI / export shop — registered in shopee_flexi_shops (not domestic SP-only sync rows).
+     */
+    public function isFlexiExportShop(?int $shopId): bool
+    {
+        if ($shopId === null || $shopId <= 0) {
+            return false;
+        }
+
+        if (! Schema::hasTable('shopee_flexi_shops')) {
+            return false;
+        }
+
+        return ShopeeFlexiShop::query()->where('shop_id', $shopId)->exists();
+    }
+
     public function isIngestShop(?int $shopId): bool
     {
         if ($shopId === null || $shopId <= 0) {

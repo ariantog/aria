@@ -2,19 +2,19 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Jubelioorder;
 use App\Models\ShopeeFlexiShop;
 use App\Models\ShopeeStock;
-use Illuminate\Support\Facades\Schema;
-use App\Actions\Marketplace\ProcessShopeeFlexiSellOrder;
 use App\Models\Transaction;
+use App\Services\Jubelio\JubelioSellInvoiceGuard;
 use App\Services\Marketplace\ShopeeFlexiOrderLookupService;
-use App\Services\Marketplace\ShopeeOrderPollService;
+use App\Services\Marketplace\ShopeeFlexiSellPrefillService;
 use App\Services\Marketplace\ShopeeSyncInvoicePrefix;
 use App\Services\Shopee\ShopeeAdminOpenApiService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Session;
 use Illuminate\View\View;
 
 class ShopeeFlexiOrderLookupController extends Controller
@@ -23,14 +23,11 @@ class ShopeeFlexiOrderLookupController extends Controller
     {
         Gate::authorize(ShopeeStock::getPermissions()['sync']);
 
-        $status = $shopeeApi->getConnectionStatus();
-
-        return $this->lookupView($shopeeApi, [
+        return $this->ordersView($shopeeApi, [
             'orderRef' => (string) $request->old('order_ref', ''),
             'shopId' => (string) $request->old('shop_id', ''),
             'loadDetail' => (bool) $request->old('load_detail', false),
             'result' => null,
-            'ingestResult' => null,
             'flash' => [
                 'success' => session('success'),
                 'error' => session('error') ?? session('errorMessage'),
@@ -51,12 +48,11 @@ class ShopeeFlexiOrderLookupController extends Controller
         $orderRef = (string) $validated['order_ref'];
         $loadDetail = $request->boolean('load_detail');
 
-        return $this->lookupView($shopeeApi, [
+        return $this->ordersView($shopeeApi, [
             'orderRef' => $orderRef,
             'shopId' => (string) $shopId,
             'loadDetail' => $loadDetail,
             'result' => $lookup->lookup($shopId, $orderRef, $loadDetail),
-            'ingestResult' => null,
             'flash' => [
                 'success' => session('success'),
                 'error' => session('error') ?? session('errorMessage'),
@@ -67,51 +63,18 @@ class ShopeeFlexiOrderLookupController extends Controller
     public function createSell(
         Request $request,
         ShopeeFlexiOrderLookupService $lookup,
-        ProcessShopeeFlexiSellOrder $processor,
+        ShopeeFlexiSellPrefillService $prefillService,
         ShopeeAdminOpenApiService $shopeeApi,
+        ShopeeSyncInvoicePrefix $invoicePrefix,
+        JubelioSellInvoiceGuard $sellInvoiceGuard,
     ): RedirectResponse|View {
         Gate::authorize(ShopeeStock::getPermissions()['sync']);
 
-        $validated = $request->validate([
-            'order_ref' => 'required|string|max:128',
-            'shop_id' => 'required|integer|min:1',
-        ]);
-
-        $shopId = (int) $validated['shop_id'];
-        $orderRef = (string) $validated['order_ref'];
-        $orderSn = $lookup->normalizeOrderSn($orderRef);
-
-        $result = $processor->execute($shopId, $orderSn, auth()->id());
-
-        if ($result['success'] && ! empty($result['transaction_id'])) {
-            $transaction = Transaction::query()->find((int) $result['transaction_id']);
-
+        if (! Transaction::userCanAccessType($request->user(), 'sell')) {
             return redirect()
-                ->route('transactions.show', $transaction ?? (int) $result['transaction_id'])
-                ->with('success', $result['message']);
+                ->route('shopee.flexi.orders')
+                ->with('error', 'Anda tidak punya izin membuat transaksi SELL.');
         }
-
-        return $this->lookupView($shopeeApi, [
-            'orderRef' => $orderRef,
-            'shopId' => (string) $shopId,
-            'loadDetail' => true,
-            'result' => $lookup->lookup($shopId, $orderRef, true),
-            'ingestResult' => null,
-            'flash' => [
-                'success' => null,
-                'error' => $result['message'],
-            ],
-        ]);
-    }
-
-    public function ingest(
-        Request $request,
-        ShopeeFlexiOrderLookupService $lookup,
-        ShopeeOrderPollService $poll,
-        ShopeeSyncInvoicePrefix $invoicePrefix,
-        ShopeeAdminOpenApiService $shopeeApi,
-    ): View {
-        Gate::authorize(ShopeeStock::getPermissions()['sync']);
 
         $validated = $request->validate([
             'order_ref' => 'required|string|max:128',
@@ -121,48 +84,49 @@ class ShopeeFlexiOrderLookupController extends Controller
         $shopId = (int) $validated['shop_id'];
         $orderRef = (string) $validated['order_ref'];
         $orderSn = $lookup->normalizeOrderSn($orderRef);
+        $invoice = $invoicePrefix->invoiceForOrderSn($shopId, $orderSn);
 
-        $ingest = $poll->pullAndIngestOrder($shopId, $orderSn);
-        $ingest['invoice_preview'] = $invoicePrefix->invoiceForOrderSn($shopId, $orderSn);
-        $ingest['omnichannel_url'] = route('omnichannel.shopee.show', ['ordersn' => $orderSn]);
-
-        if ($ingest['error'] === null) {
-            $queue = Jubelioorder::query()
-                ->where('type', 'SELL')
-                ->where('invoice', $ingest['invoice_preview'])
-                ->first();
-            if ($queue !== null) {
-                $ingest['jubelio_queue_url'] = route('jubelio.show', $queue);
-            }
+        if ($sellInvoiceGuard->sellInvoiceInTransactions($invoice)) {
+            return $this->ordersView($shopeeApi, [
+                'orderRef' => $orderRef,
+                'shopId' => (string) $shopId,
+                'loadDetail' => true,
+                'result' => $lookup->lookup($shopId, $orderRef, true),
+                'flash' => [
+                    'success' => null,
+                    'error' => 'Invoice sudah ada di Transaksi.',
+                ],
+            ]);
         }
 
-        $lookupResult = $ingest['error'] === null
-            ? $lookup->lookup($shopId, $orderRef)
-            : null;
+        $result = $prefillService->build($shopId, $orderSn);
 
-        return $this->lookupView($shopeeApi, [
-            'orderRef' => $orderRef,
-            'shopId' => (string) $shopId,
-            'loadDetail' => true,
-            'result' => $lookupResult,
-            'ingestResult' => $ingest,
-            'flash' => [
-                'success' => session('success'),
-                'error' => session('error') ?? session('errorMessage'),
-            ],
-        ]);
+        if (! ($result['success'] ?? false) || empty($result['prefill'])) {
+            return $this->ordersView($shopeeApi, [
+                'orderRef' => $orderRef,
+                'shopId' => (string) $shopId,
+                'loadDetail' => true,
+                'result' => $lookup->lookup($shopId, $orderRef, true),
+                'flash' => [
+                    'success' => null,
+                    'error' => $result['message'] ?? 'Gagal membangun prefill.',
+                ],
+            ]);
+        }
+
+        Session::put('transaction_sell_prefill', $result['prefill']);
+
+        return redirect()->route('transactions.create', ['type' => 'sell']);
     }
 
     /**
-     * @param  array{orderRef: string, shopId: string, loadDetail?: bool, result: array<string, mixed>|null, ingestResult: array<string, mixed>|null, flash?: array{success: ?string, error: ?string}}  $data
+     * @param  array{orderRef: string, shopId: string, loadDetail?: bool, result: array<string, mixed>|null, flash?: array{success: ?string, error: ?string}}  $data
      */
-    private function lookupView(ShopeeAdminOpenApiService $shopeeApi, array $data): View
+    private function ordersView(ShopeeAdminOpenApiService $shopeeApi, array $data): View
     {
-        $status = $shopeeApi->getConnectionStatus();
-
-        return view('shopee.flexi.lookup', array_merge($data, [
-            'authorizedShopIds' => $status['authorized_shop_ids'] ?? [],
-            'shopOptions' => $this->shopOptionsForLookup($status['authorized_shop_ids'] ?? [], (string) ($data['shopId'] ?? '')),
+        return view('shopee.flexi.orders', array_merge($data, [
+            'authorizedShopIds' => $shopeeApi->getConnectionStatus()['authorized_shop_ids'] ?? [],
+            'shopOptions' => $this->shopOptionsForLookup($shopeeApi->getConnectionStatus()['authorized_shop_ids'] ?? [], (string) ($data['shopId'] ?? '')),
             'loadDetail' => (bool) ($data['loadDetail'] ?? false),
             'flash' => $data['flash'] ?? ['success' => null, 'error' => null],
         ]));
