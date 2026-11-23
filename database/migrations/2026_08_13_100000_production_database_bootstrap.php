@@ -115,6 +115,7 @@ return new class extends Migration
         (require __DIR__.'/2026_09_13_120000_add_restock_fields_to_item_insight_rankings.php')->up();
         (require __DIR__.'/2026_10_31_100000_add_ongkir_to_items_table.php')->up();
         (require __DIR__.'/2026_11_15_100000_install_jubelio_proxy_tables.php')->up();
+        (require __DIR__.'/2026_11_23_120000_install_omnichannel_settings_table.php')->up();
     }
 
     public function down(): void
