@@ -6,6 +6,8 @@ use App\Models\Addrbook;
 use App\Models\Omnichannel;
 use App\Models\TikTokShop;
 use App\Models\TiktokShopSync;
+use App\Services\TikTokShop\TikTokShopOAuthService;
+use App\Services\TikTokShop\TikTokShopOpenApiService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -13,6 +15,11 @@ use Illuminate\View\View;
 
 class TiktokShopSyncController extends Controller
 {
+    public function __construct(
+        private TikTokShopOpenApiService $openApi,
+        private TikTokShopOAuthService $oauth,
+    ) {}
+
     public function index(Request $request): View
     {
         $this->authorizeSync();
@@ -44,12 +51,15 @@ class TiktokShopSyncController extends Controller
     {
         $this->authorizeSync();
 
-        return view('tiktok-shop.sync.create', [
-            'addrbookTypes' => [
-                'warehouse' => Addrbook::TYPE_WAREHOUSE,
-            ],
-            'flash' => ['success' => session('success'), 'error' => session('errorMessage')],
-        ]);
+        return view('tiktok-shop.sync.create', array_merge(
+            $this->syncFormPartnerData(),
+            [
+                'addrbookTypes' => [
+                    'warehouse' => Addrbook::TYPE_WAREHOUSE,
+                ],
+                'flash' => ['success' => session('success'), 'error' => session('errorMessage')],
+            ]
+        ));
     }
 
     public function store(Request $request): RedirectResponse
@@ -77,13 +87,18 @@ class TiktokShopSyncController extends Controller
     {
         $this->authorizeSync();
 
-        return view('tiktok-shop.sync.edit', [
-            'sync' => $sync,
-            'addrbookTypes' => [
-                'warehouse' => Addrbook::TYPE_WAREHOUSE,
-            ],
-            'flash' => ['success' => session('success'), 'error' => session('errorMessage')],
-        ]);
+        $sync->load(['warehouse']);
+
+        return view('tiktok-shop.sync.edit', array_merge(
+            $this->syncFormPartnerData($sync),
+            [
+                'sync' => $sync,
+                'addrbookTypes' => [
+                    'warehouse' => Addrbook::TYPE_WAREHOUSE,
+                ],
+                'flash' => ['success' => session('success'), 'error' => session('errorMessage')],
+            ]
+        ));
     }
 
     public function update(Request $request, TiktokShopSync $sync): RedirectResponse
@@ -123,5 +138,46 @@ class TiktokShopSyncController extends Controller
         }
 
         abort_unless(Gate::check(Omnichannel::getPermissions()['settings-edit']), 403);
+    }
+
+    /**
+     * @return array{
+     *     connectionReady: bool,
+     *     oauthAuthorized: bool,
+     *     authorizedShops: list<array{id: string, cipher: string, name: string}>,
+     *     sellerWarehousesByCipher: array<string, list<array{id: string, name: string, type: string, effect_status: string}>>,
+     *     initialSellerWarehouses: list<array{id: string, name: string, type: string, effect_status: string}>
+     * }
+     */
+    private function syncFormPartnerData(?TiktokShopSync $sync = null): array
+    {
+        $oauthAuthorized = $this->oauth->hasShopAuthorization();
+
+        $connectionReady = $this->openApi->partnerListReady()
+            && ($this->openApi->isMock() || $oauthAuthorized);
+
+        $authorizedShops = $connectionReady ? $this->openApi->listAuthorizedShops() : [];
+        $sellerWarehousesByCipher = $connectionReady
+            ? $this->openApi->listSellerWarehousesByShopCipher($authorizedShops)
+            : [];
+
+        $cipher = trim((string) old('shop_cipher', $sync?->shop_cipher ?? ''));
+        if ($cipher === '' && $sync !== null) {
+            $cipher = trim((string) $sync->shop_cipher);
+        }
+
+        $initialSellerWarehouses = [];
+        if ($cipher !== '') {
+            $initialSellerWarehouses = $sellerWarehousesByCipher[$cipher]
+                ?? ($connectionReady ? $this->openApi->listSellerWarehouses($cipher) : []);
+        }
+
+        return [
+            'connectionReady' => $connectionReady,
+            'oauthAuthorized' => $oauthAuthorized,
+            'authorizedShops' => $authorizedShops,
+            'sellerWarehousesByCipher' => $sellerWarehousesByCipher,
+            'initialSellerWarehouses' => $initialSellerWarehouses,
+        ];
     }
 }
