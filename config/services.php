@@ -75,9 +75,10 @@ return [
     'shopee_order_poll' => [
         'enabled' => filter_var(env('SHOPEE_ORDER_POLL_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
         'days' => max(1, min(15, (int) env('SHOPEE_ORDER_POLL_DAYS', 2))),
+        // RETRY_SHIP is valid for push/pre-create (awaiting_shipment) but not get_order_list order_status filter.
         'order_statuses' => array_values(array_filter(array_map(
             'trim',
-            explode(',', (string) env('SHOPEE_ORDER_POLL_STATUSES', 'READY_TO_SHIP,PROCESSED,RETRY_SHIP,SHIPPED,COMPLETED')),
+            explode(',', (string) env('SHOPEE_ORDER_POLL_STATUSES', 'READY_TO_SHIP,PROCESSED,SHIPPED,COMPLETED')),
         ))),
     ],
 

@@ -271,10 +271,10 @@ class ShopeeOrderPollService
           return array_values(array_filter(array_map('strval', $configured)));
       }
 
+      // RETRY_SHIP is valid for push/pre-create but rejected by get_order_list order_status filter.
       return [
           'READY_TO_SHIP',
           'PROCESSED',
-          'RETRY_SHIP',
           'SHIPPED',
           'COMPLETED',
       ];

@@ -141,7 +141,7 @@ Jubelio may not enqueue **export / FLEXI Malaysia** orders. Aria can ingest them
    - Penyelesaian IDR: `exchange_rate` > 0 (SIP/CB, MYR×rate), atau **`escrow_amount_pri` / IDR escrow** tanpa kurs (FLEXI export / dana di wallet seller ID) — alokasi proporsional ke baris (atau breakdown `items` jika API mengembalikan).
    - Hanya jika escrow/kurs benar-benar kosong: **jangan** memprefill MYR sebagai IDR — qty + SKU dari Shopee, harga dari **`items.price`** katalog Aria (tidak memenuhi gate SELL).
 4. **Warehouse Map** (`/shopee-sync`): Shopee pickup → Aria gudang (stok).
-5. **Poll opsional** (`SHOPEE_ORDER_POLL_ENABLED`, cron `shopee:poll-orders`): untuk shop FLEXI hanya **shadow + unified webhook events** — **tidak** membuat baris `jubelioorders`. Push webhook precreate Jubelio juga dilewati untuk `shop_id` FLEXI. CLI `shopee:pull-order` sama (shadow/events saja).
+5. **Poll opsional** (`SHOPEE_ORDER_POLL_ENABLED`, cron `shopee:poll-orders`): untuk shop FLEXI hanya **shadow + unified webhook events** — **tidak** membuat baris `jubelioorders`. Push webhook precreate Jubelio juga dilewati untuk `shop_id` FLEXI. CLI `shopee:pull-order` sama (shadow/events saja). Default poll status **tidak** menyertakan `RETRY_SHIP` (valid di push/pre-create, invalid di `get_order_list`).
 6. Optional: register **Push** for the export `shop_id` in Shopee Console (same `/shopee/push` path as Indonesia).
 
 **SELL posting** untuk export = form manual di FLEXI orders; Jubelio cron tidak pernah menerima payload MY/export.
