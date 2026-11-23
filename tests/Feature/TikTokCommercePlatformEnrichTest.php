@@ -93,6 +93,44 @@ it('backfills commerce_platform via artisan command', function () {
         ->toBe('TOKOPEDIA');
 });
 
+it('backfills commerce_platform on new webhook when channel order already has platform', function () {
+    Bus::fake([EnrichMarketplaceTikTokCommercePlatformJob::class]);
+
+    $orderRef = 'LATE-WEBHOOK-99';
+    MarketplaceChannelOrder::query()->create([
+        'channel' => MarketplaceWebhookRecorder::CHANNEL_TIKTOK,
+        'order_ref' => $orderRef,
+        'shop_ref' => '7494083630891238919',
+        'order_status' => 'AWAITING_SHIPMENT',
+        'commerce_platform' => 'TIKTOK_SHOP',
+        'last_event_at' => now()->subMinutes(20),
+        'first_received_at' => now()->subMinutes(20),
+    ]);
+
+    $job = new PersistTikTokShopWebhookInboxJob([
+        'type' => 1,
+        'tts_notification_id' => 'late-status-7631',
+        'shop_id' => '7494083630891238919',
+        'data' => [
+            'order_id' => $orderRef,
+            'order_status' => 'AWAITING_COLLECTION',
+        ],
+    ], true);
+
+    $job->handle(
+        app(\App\Services\Marketplace\MarketplaceWebhookRecorder::class),
+        app(\App\Services\Marketplace\TikTokShopWebhookOnOrderApplicator::class),
+    );
+
+    Bus::assertNotDispatched(EnrichMarketplaceTikTokCommercePlatformJob::class);
+
+    expect(MarketplaceWebhookEvent::query()
+        ->where('order_ref', $orderRef)
+        ->where('idempotency_key', 'tiktok:late-status-7631')
+        ->value('commerce_platform'))
+        ->toBe('TIKTOK_SHOP');
+});
+
 it('does not dispatch enrich job when feature flag is off', function () {
     config(['tiktok_shop.enrich_commerce_platform' => false]);
     Bus::fake([EnrichMarketplaceTikTokCommercePlatformJob::class]);
