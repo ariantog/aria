@@ -16,14 +16,14 @@ use Illuminate\Support\Facades\Schema;
 class ShopeeFlexiOrderLookupService
 {
     /** Same optional fields as {@see ShopeeOrderPollService} / poll ingest (no invalid `region` param). */
-    private const ORDER_DETAIL_OPTIONAL_FIELDS = 'order_status,item_list,package_list,total_amount';
+    private const ORDER_DETAIL_OPTIONAL_FIELDS = 'order_status,item_list,package_list,total_amount,currency,payment_info';
 
     public function __construct(
         private ShopeeAdminOpenApiService $shopeeApi,
         private ShopeeSyncInvoicePrefix $invoicePrefix,
         private ShopeeSyncWarehouseResolver $warehouseResolver,
         private ShopeeOrderPickupLocation $pickupLocation,
-        private ShopeeOrderLineSummary $lineSummary,
+        private ShopeeFlexiOrderAmountResolver $amountResolver,
         private ShopeeFlexiSellItemMatcher $sellItemMatcher,
         private JubelioSellInvoiceGuard $sellInvoiceGuard,
     ) {}
@@ -62,6 +62,10 @@ class ShopeeFlexiOrderLookupService
             'can_open_sell_form' => false,
             'manual_sell_block' => null,
             'api_snippet' => null,
+            'order_currency' => null,
+            'order_total_original' => null,
+            'amount_resolution' => null,
+            'escrow_snippet' => null,
         ];
 
         $invoicePreview = (string) $base['invoice_preview'];
@@ -155,8 +159,15 @@ class ShopeeFlexiOrderLookupService
         $pickup = $this->pickupLocation->extract($pushData, $orderRow);
         $warehouseId = $this->warehouseResolver->ariaWarehouseIdForIngest($shopId, $pushData, $orderRow);
 
-        $lineSummary = $this->lineSummary->fromOrderRow($orderRow);
-        $lineMatch = $this->sellItemMatcher->matchLines($lineSummary['lines']);
+        $amounts = $this->amountResolver->resolve($shopId, $orderSn, $orderRow);
+
+        $lineSummary = [
+            'lines' => $amounts['lines'],
+            'line_count' => $amounts['line_count'],
+            'total_amount' => $amounts['total_amount'],
+        ];
+
+        $lineMatch = $this->sellItemMatcher->matchLines($amounts['lines']);
 
         $base['ok'] = true;
         $base['detail_loaded'] = true;
@@ -169,6 +180,15 @@ class ShopeeFlexiOrderLookupService
         $base['line_match'] = [
             'error' => $lineMatch['error'],
             'item_count' => count($lineMatch['items']),
+        ];
+        $base['order_currency'] = $amounts['order_currency'];
+        $base['order_total_original'] = $amounts['order_total_original'];
+        $base['escrow_snippet'] = $amounts['escrow_snippet'];
+        $base['amount_resolution'] = [
+            'price_source' => $amounts['price_source'],
+            'exchange_rate' => $amounts['exchange_rate'],
+            'banner' => $amounts['banner'],
+            'escrow_loaded' => $amounts['escrow_loaded'],
         ];
         $base['api_snippet'] = $this->safeSnippet($orderRow);
 

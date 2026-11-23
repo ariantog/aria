@@ -14,13 +14,13 @@ use Illuminate\Support\Facades\Schema;
  */
 class ShopeeFlexiSellPrefillService
 {
-    private const ORDER_DETAIL_OPTIONAL_FIELDS = 'order_status,item_list,package_list,total_amount';
+    private const ORDER_DETAIL_OPTIONAL_FIELDS = 'order_status,item_list,package_list,total_amount,currency,payment_info';
 
     public function __construct(
         private ShopeeAdminOpenApiService $shopeeApi,
         private ShopeeSyncInvoicePrefix $invoicePrefix,
         private ShopeeSyncWarehouseResolver $warehouseResolver,
-        private ShopeeOrderLineSummary $lineSummary,
+        private ShopeeFlexiOrderAmountResolver $amountResolver,
         private ShopeeFlexiSellItemMatcher $itemMatcher,
         private JubelioSellInvoiceGuard $sellInvoiceGuard,
     ) {}
@@ -77,8 +77,8 @@ class ShopeeFlexiSellPrefillService
             return ['success' => false, 'message' => 'Customer channel tidak ditemukan — mapping jubeliosyncs untuk gudang ini butuh customer_id.'];
         }
 
-        $summary = $this->lineSummary->fromOrderRow($orderRow);
-        $matched = $this->itemMatcher->matchLines($summary['lines']);
+        $amounts = $this->amountResolver->resolve($shopId, $orderSn, $orderRow);
+        $matched = $this->itemMatcher->matchLines($amounts['lines']);
         if ($matched['error'] !== null) {
             return ['success' => false, 'message' => $matched['error']];
         }
@@ -93,8 +93,12 @@ class ShopeeFlexiSellPrefillService
             return ['success' => false, 'message' => 'Customer atau gudang tidak ditemukan.'];
         }
 
-        $adjustment = $this->resolveHeaderAdjustment($summary, $matched['items']);
+        $adjustment = $this->resolveHeaderAdjustment($amounts, $matched['items']);
         $prefillItems = $this->buildPrefillItems($matched['items']);
+
+        $note = filled($amounts['note_reference'] ?? null)
+            ? (string) $amounts['note_reference']
+            : 'Shopee FLEXI ('.$orderSn.')';
 
         return [
             'success' => true,
@@ -105,7 +109,7 @@ class ShopeeFlexiSellPrefillService
                 'receiver_id' => (string) $customer->id,
                 'receiver' => ['id' => $customer->id, 'name' => $customer->name],
                 'invoice' => $invoice,
-                'note' => 'Shopee FLEXI ('.$orderSn.')',
+                'note' => $note,
                 'adjustment' => $adjustment,
                 'items' => $prefillItems,
             ],

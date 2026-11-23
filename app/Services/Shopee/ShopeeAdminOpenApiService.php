@@ -385,6 +385,23 @@ class ShopeeAdminOpenApiService
     /**
      * @return array<string, mixed>|null
      */
+    /**
+     * @return array<string, mixed>|null  Decoded body; {@see order_income} lives under response.order_income
+     */
+    public function getEscrowDetail(string $orderSn, ?int $shopId = null): ?array
+    {
+        $orderSn = trim($orderSn);
+        if ($orderSn === '') {
+            return null;
+        }
+
+        $response = $this->shopApiGet('/api/v2/payment/get_escrow_detail', [
+            'order_sn' => $orderSn,
+        ], $shopId);
+
+        return $this->decodeShopResponse($response, 'get_escrow_detail');
+    }
+
     public function getOrderDetail(
         string $orderSn,
         ?int $shopId = null,

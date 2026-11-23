@@ -118,7 +118,11 @@ Jubelio may not enqueue **export / FLEXI Malaysia** orders. Aria can ingest them
 
 1. **Authorize** via **Main account** (not Direct Shop login — Shopee rejects Direct-only OAuth). Omnichannel → Settings → Connections → Shopee Admin; pilih Main + Direct (MY). Callback menyimpan `shop_id_list` di settings dan menampilkan semua Shop ID di tab Connections (tidak perlu menyalin URL redirect).
 2. **FLEXI shops** (`/shopee-flexi`): konfigurasi **`shop_id` + invoice prefix** (SPMY / SPSG / …) dan flag poll shadow. Warehouse tidak relevan di sini.
-3. **FLEXI orders** (`/shopee-flexi/orders`): alur operasi — muat detail Shopee API → **Buat Transaksi Manual** membuka form SELL terprefill (simpan seperti transaksi biasa). **Tidak ada antrean Jubelio** untuk shop yang terdaftar di `shopee_flexi_shops`.
+3. **FLEXI orders** (`/shopee-flexi/orders`): alur operasi — muat detail Shopee API (+ `get_escrow_detail` untuk MYR/SIP) → **Buat Transaksi Manual** membuka form SELL terprefill **dalam IDR** (simpan seperti transaksi biasa). **Tidak ada antrean Jubelio** untuk shop yang terdaftar di `shopee_flexi_shops`.
+   - Order Malaysia membayar **MYR**; Aria transaksi pakai **IDR**.
+   - `ShopeeAdminOpenApiService::getEscrowDetail` → `response.order_income` (`exchange_rate`, `escrow_amount`, `pri_currency`, `aff_currency`, …).
+   - Jika `exchange_rate` > 0 (SIP/CB): harga baris = nominal Shopee × rate (affiliate → primary, biasanya MYR → IDR).
+   - Tanpa `exchange_rate` (toko lokal MY biasa): **jangan** memprefill MYR sebagai IDR — qty + SKU dari Shopee, harga dari **`items.price`** katalog Aria; banner di UI.
 4. **Warehouse Map** (`/shopee-sync`): Shopee pickup → Aria gudang (stok).
 5. **Poll opsional** (`SHOPEE_ORDER_POLL_ENABLED`, cron `shopee:poll-orders`): untuk shop FLEXI hanya **shadow + unified webhook events** — **tidak** membuat baris `jubelioorders`. Push webhook precreate Jubelio juga dilewati untuk `shop_id` FLEXI. CLI `shopee:pull-order` sama (shadow/events saja).
 6. Optional: register **Push** for the export `shop_id` in Shopee Console (same `/shopee/push` path as Indonesia).
