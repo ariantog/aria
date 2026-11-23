@@ -45,7 +45,7 @@ class TikTokShopWebhookOnOrderApplicator
         }
 
         $shopRef = isset($payload['shop_id']) ? (string) $payload['shop_id'] : '';
-        $warehouseId = $this->shopWarehouseResolver->warehouseIdForShopRef($shopRef);
+        $warehouseId = $this->shopWarehouseResolver->resolveAriaWarehouseId($shopRef, $payload);
         if ($warehouseId <= 0) {
             return;
         }

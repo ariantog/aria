@@ -212,9 +212,19 @@ Route::middleware(['auth', 'verified', 'active', 'enforce.readonly'])->group(fun
     Route::patch('shopee-flexi/{flexi}', [App\Http\Controllers\ShopeeFlexiShopController::class, 'update'])->name('shopee.flexi.update');
     Route::delete('shopee-flexi/{flexi}', [App\Http\Controllers\ShopeeFlexiShopController::class, 'destroy'])->name('shopee.flexi.delete');
 
+    Route::get('marketplace-warehouse-sync', [App\Http\Controllers\MarketplaceWarehouseSyncController::class, 'index'])->name('marketplace.warehouse-sync.index');
+    Route::get('marketplace-warehouse-sync/{channel}/create', [App\Http\Controllers\MarketplaceWarehouseSyncController::class, 'create'])->name('marketplace.warehouse-sync.create');
+    Route::post('marketplace-warehouse-sync/{channel}', [App\Http\Controllers\MarketplaceWarehouseSyncController::class, 'store'])->name('marketplace.warehouse-sync.store');
+    Route::get('marketplace-warehouse-sync/{channel}/{shopRef}/matrix', [App\Http\Controllers\MarketplaceWarehouseSyncController::class, 'matrix'])->name('marketplace.warehouse-sync.matrix');
+    Route::patch('marketplace-warehouse-sync/{channel}/{shopRef}/matrix', [App\Http\Controllers\MarketplaceWarehouseSyncController::class, 'updateMatrix'])->name('marketplace.warehouse-sync.matrix.update');
+    Route::post('marketplace-warehouse-sync/{channel}/{shopRef}/refresh', [App\Http\Controllers\MarketplaceWarehouseSyncController::class, 'refreshMatrix'])->name('marketplace.warehouse-sync.matrix.refresh');
+
     Route::get('tiktok-shop-sync', [App\Http\Controllers\TiktokShopSyncController::class, 'index'])->name('tiktok-shop.sync.index');
     Route::get('tiktok-shop-sync/create', [App\Http\Controllers\TiktokShopSyncController::class, 'create'])->name('tiktok-shop.sync.create');
     Route::post('tiktok-shop-sync', [App\Http\Controllers\TiktokShopSyncController::class, 'store'])->name('tiktok-shop.sync.store');
+    Route::get('tiktok-shop-sync/shop/{shopRef}/matrix', [App\Http\Controllers\TiktokShopSyncController::class, 'matrix'])->name('tiktok-shop.sync.matrix');
+    Route::patch('tiktok-shop-sync/shop/{shopRef}/matrix', [App\Http\Controllers\TiktokShopSyncController::class, 'updateMatrix'])->name('tiktok-shop.sync.matrix.update');
+    Route::post('tiktok-shop-sync/shop/{shopRef}/refresh', [App\Http\Controllers\TiktokShopSyncController::class, 'refreshMatrix'])->name('tiktok-shop.sync.matrix.refresh');
     Route::get('tiktok-shop-sync/{sync}/edit', [App\Http\Controllers\TiktokShopSyncController::class, 'edit'])->name('tiktok-shop.sync.edit');
     Route::patch('tiktok-shop-sync/{sync}', [App\Http\Controllers\TiktokShopSyncController::class, 'update'])->name('tiktok-shop.sync.update');
     Route::delete('tiktok-shop-sync/{sync}', [App\Http\Controllers\TiktokShopSyncController::class, 'destroy'])->name('tiktok-shop.sync.delete');

@@ -117,9 +117,9 @@ it('renders tiktok shop sync create with partner shop picker', function () {
     $user = \App\Models\User::factory()->create();
 
     $this->actingAs($user)
-        ->get(route('tiktok-shop.sync.create'))
+        ->get(route('marketplace.warehouse-sync.create', ['channel' => 'tiktok']))
         ->assertOk()
         ->assertSee('data-testid="tiktok-shop-sync-create"', false)
         ->assertSee('Pilih toko dari Partner API', false)
-        ->assertSee('Gudang penjual TikTok', false);
+        ->assertSee('Sinkron gudang', false);
 });

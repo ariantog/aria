@@ -264,7 +264,7 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                 <tbody class="divide-y divide-gray-100">
                     @foreach($rows as $row)
                     @php
-                        $gudangName = $shopResolver->warehouseNameForShopRef($row->shop_ref ?? null, $shopRefToWarehouse, $warehouseNames);
+                        $gudangName = $shopResolver->warehouseNameForListRow($row, $shopRefToWarehouse, $warehouseNames);
                         $gudangUnmapped = filled($row->shop_ref) && $gudangName === null;
                         $payloadJson = json_encode($row->payload ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
                         $payloadPreview = \Illuminate\Support\Str::limit($payloadJson, 80, '…');
@@ -371,7 +371,7 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                 <tbody class="divide-y divide-gray-100">
                     @foreach($rows as $row)
                     @php
-                        $gudangName = $shopResolver->warehouseNameForShopRef($row->shop_ref ?? null, $shopRefToWarehouse, $warehouseNames);
+                        $gudangName = $shopResolver->warehouseNameForListRow($row, $shopRefToWarehouse, $warehouseNames);
                         $gudangUnmapped = filled($row->shop_ref) && $gudangName === null;
                         $detailUrl = route('omnichannel.orders.show', ['channel' => $row->channel, 'orderRef' => $row->order_ref]);
                         $channelLabel = $omnichannelChannelLabel($row);

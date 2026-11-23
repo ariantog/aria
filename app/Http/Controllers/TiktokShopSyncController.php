@@ -2,182 +2,92 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Addrbook;
-use App\Models\Omnichannel;
-use App\Models\TikTokShop;
+use App\Models\MarketplaceWarehouseSync;
 use App\Models\TiktokShopSync;
-use App\Services\TikTokShop\TikTokShopOAuthService;
-use App\Services\TikTokShop\TikTokShopOpenApiService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
-use Illuminate\View\View;
+use Illuminate\Support\Facades\Schema;
 
+/**
+ * Legacy TikTok routes → unified marketplace warehouse sync (channel=tiktok).
+ */
 class TiktokShopSyncController extends Controller
 {
-    public function __construct(
-        private TikTokShopOpenApiService $openApi,
-        private TikTokShopOAuthService $oauth,
-    ) {}
-
-    public function index(Request $request): View
+    public function index(Request $request): RedirectResponse
     {
-        $this->authorizeSync();
-
-        $query = TiktokShopSync::with(['warehouse']);
-
-        if ($request->query('q')) {
-            $q = '%'.str_replace(' ', '%', (string) $request->query('q')).'%';
-            $query->where(function ($builder) use ($q) {
-                $builder->where('shop_ref', 'LIKE', $q)
-                    ->orWhere('shop_name', 'LIKE', $q)
-                    ->orWhere('shop_cipher', 'LIKE', $q);
-            });
-        }
-
-        $dataList = $query->orderByDesc('created_at')->paginate(50)->withQueryString();
-
-        return view('tiktok-shop.sync.index', [
-            'dataList' => $dataList,
-            'filters' => $request->only(['q']),
-            'flash' => [
-                'success' => session('success'),
-                'error' => session('error') ?? session('errorMessage'),
-            ],
-        ]);
+        return redirect()->route('marketplace.warehouse-sync.index', array_merge(
+            $request->query(),
+            ['channel' => MarketplaceWarehouseSync::CHANNEL_TIKTOK],
+        ));
     }
 
-    public function create(): View
+    public function create(): RedirectResponse
     {
-        $this->authorizeSync();
-
-        return view('tiktok-shop.sync.create', array_merge(
-            $this->syncFormPartnerData(),
-            [
-                'addrbookTypes' => [
-                    'warehouse' => Addrbook::TYPE_WAREHOUSE,
-                ],
-                'flash' => ['success' => session('success'), 'error' => session('errorMessage')],
-            ]
-        ));
+        return redirect()->route('marketplace.warehouse-sync.create', [
+            'channel' => MarketplaceWarehouseSync::CHANNEL_TIKTOK,
+        ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
-        $this->authorizeSync();
-
-        $validated = $request->validate([
-            'shop_ref' => 'required|string|max:64',
-            'shop_cipher' => 'nullable|string|max:64',
-            'shop_name' => 'nullable|string|max:255',
-            'warehouse_id' => 'required|exists:customers,id',
+        return app()->call([MarketplaceWarehouseSyncController::class, 'store'], [
+            'request' => $request,
+            'channel' => MarketplaceWarehouseSync::CHANNEL_TIKTOK,
         ]);
-
-        TiktokShopSync::query()->create([
-            'shop_ref' => trim($validated['shop_ref']),
-            'shop_cipher' => trim((string) ($validated['shop_cipher'] ?? '')),
-            'shop_name' => trim((string) ($validated['shop_name'] ?? '')),
-            'warehouse_id' => (int) $validated['warehouse_id'],
-        ]);
-
-        return redirect()->route('tiktok-shop.sync.index')->with('success', 'Mapping TikTok Shop disimpan.');
     }
 
-    public function edit(TiktokShopSync $sync): View
+    public function edit(TiktokShopSync $sync): RedirectResponse
     {
-        $this->authorizeSync();
-
-        $sync->load(['warehouse']);
-
-        return view('tiktok-shop.sync.edit', array_merge(
-            $this->syncFormPartnerData($sync),
-            [
-                'sync' => $sync,
-                'addrbookTypes' => [
-                    'warehouse' => Addrbook::TYPE_WAREHOUSE,
-                ],
-                'flash' => ['success' => session('success'), 'error' => session('errorMessage')],
-            ]
-        ));
+        return redirect()->route('marketplace.warehouse-sync.matrix', [
+            'channel' => MarketplaceWarehouseSync::CHANNEL_TIKTOK,
+            'shopRef' => $sync->shop_ref,
+        ]);
     }
 
     public function update(Request $request, TiktokShopSync $sync): RedirectResponse
     {
-        $this->authorizeSync();
-
-        $validated = $request->validate([
-            'shop_ref' => 'required|string|max:64',
-            'shop_cipher' => 'nullable|string|max:64',
-            'shop_name' => 'nullable|string|max:255',
-            'warehouse_id' => 'required|exists:customers,id',
-        ]);
-
-        $sync->update([
-            'shop_ref' => trim($validated['shop_ref']),
-            'shop_cipher' => trim((string) ($validated['shop_cipher'] ?? '')),
-            'shop_name' => trim((string) ($validated['shop_name'] ?? '')),
-            'warehouse_id' => (int) $validated['warehouse_id'],
-        ]);
-
-        return redirect()->route('tiktok-shop.sync.index')->with('success', 'Mapping TikTok Shop diperbarui.');
+        return $this->edit($sync);
     }
 
     public function destroy(TiktokShopSync $sync): RedirectResponse
     {
-        $this->authorizeSync();
-
+        $shopRef = $sync->shop_ref;
         $sync->delete();
 
-        return redirect()->route('tiktok-shop.sync.index')->with('success', 'Mapping TikTok Shop dihapus.');
+        if (Schema::hasTable('marketplace_warehouse_syncs')) {
+            MarketplaceWarehouseSync::query()
+                ->where('channel', MarketplaceWarehouseSync::CHANNEL_TIKTOK)
+                ->where('shop_ref', $shopRef)
+                ->delete();
+        }
+
+        return redirect()
+            ->route('marketplace.warehouse-sync.index', ['channel' => MarketplaceWarehouseSync::CHANNEL_TIKTOK])
+            ->with('success', 'Mapping TikTok Shop dihapus.');
     }
 
-    private function authorizeSync(): void
+    public function matrix(Request $request, string $shopRef): RedirectResponse
     {
-        if (Gate::check(TikTokShop::getPermissions()['sync'])) {
-            return;
-        }
-
-        abort_unless(Gate::check(Omnichannel::getPermissions()['settings-edit']), 403);
+        return redirect()->route('marketplace.warehouse-sync.matrix', [
+            'channel' => MarketplaceWarehouseSync::CHANNEL_TIKTOK,
+            'shopRef' => $shopRef,
+        ]);
     }
 
-    /**
-     * @return array{
-     *     connectionReady: bool,
-     *     oauthAuthorized: bool,
-     *     authorizedShops: list<array{id: string, cipher: string, name: string}>,
-     *     sellerWarehousesByCipher: array<string, list<array{id: string, name: string, type: string, effect_status: string}>>,
-     *     initialSellerWarehouses: list<array{id: string, name: string, type: string, effect_status: string}>
-     * }
-     */
-    private function syncFormPartnerData(?TiktokShopSync $sync = null): array
+    public function updateMatrix(Request $request, string $shopRef): RedirectResponse
     {
-        $oauthAuthorized = $this->oauth->hasShopAuthorization();
+        return app()->call([MarketplaceWarehouseSyncController::class, 'updateMatrix'], [
+            'request' => $request,
+            'channel' => MarketplaceWarehouseSync::CHANNEL_TIKTOK,
+            'shopRef' => $shopRef,
+        ]);
+    }
 
-        $connectionReady = $this->openApi->partnerListReady()
-            && ($this->openApi->isMock() || $oauthAuthorized);
-
-        $authorizedShops = $connectionReady ? $this->openApi->listAuthorizedShops() : [];
-        $sellerWarehousesByCipher = $connectionReady
-            ? $this->openApi->listSellerWarehousesByShopCipher($authorizedShops)
-            : [];
-
-        $cipher = trim((string) old('shop_cipher', $sync?->shop_cipher ?? ''));
-        if ($cipher === '' && $sync !== null) {
-            $cipher = trim((string) $sync->shop_cipher);
-        }
-
-        $initialSellerWarehouses = [];
-        if ($cipher !== '') {
-            $initialSellerWarehouses = $sellerWarehousesByCipher[$cipher]
-                ?? ($connectionReady ? $this->openApi->listSellerWarehouses($cipher) : []);
-        }
-
-        return [
-            'connectionReady' => $connectionReady,
-            'oauthAuthorized' => $oauthAuthorized,
-            'authorizedShops' => $authorizedShops,
-            'sellerWarehousesByCipher' => $sellerWarehousesByCipher,
-            'initialSellerWarehouses' => $initialSellerWarehouses,
-        ];
+    public function refreshMatrix(string $shopRef): RedirectResponse
+    {
+        return app()->call([MarketplaceWarehouseSyncController::class, 'refreshMatrix'], [
+            'channel' => MarketplaceWarehouseSync::CHANNEL_TIKTOK,
+            'shopRef' => $shopRef,
+        ]);
     }
 }
