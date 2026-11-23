@@ -252,11 +252,10 @@ class TikTokShopOpenApiService
         }
 
         $version = (string) config('tiktok_shop.order_api_version', '202507');
-        $path = '/order/'.$version.'/orders/'.$orderId;
+        $path = '/order/'.$version.'/orders';
         $timestamp = time();
 
         $query = [
-            'access_token' => $accessToken,
             'app_key' => $appKey,
             'shop_cipher' => $shopCipher,
             'timestamp' => (string) $timestamp,
@@ -272,6 +271,7 @@ class TikTokShopOpenApiService
         try {
             $response = Http::timeout(15)
                 ->acceptJson()
+                ->withHeaders(['x-tts-access-token' => $accessToken])
                 ->get($url, $query);
 
             if (! $response->successful()) {
@@ -285,6 +285,17 @@ class TikTokShopOpenApiService
 
             $json = $response->json();
             if (! is_array($json)) {
+                return null;
+            }
+
+            $apiCode = $json['code'] ?? null;
+            if ($apiCode !== null && (int) $apiCode !== 0) {
+                Log::warning('TikTok Shop getOrderDetail API error', [
+                    'order_id' => $orderId,
+                    'code' => $apiCode,
+                    'message' => $json['message'] ?? null,
+                ]);
+
                 return null;
             }
 
