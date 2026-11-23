@@ -116,7 +116,7 @@ Do not duplicate Jubelio’s store/location map inside Shopee-only tables — li
 
 Jubelio may not enqueue **export / FLEXI Malaysia** orders. Aria can ingest them **directly from Shopee Open Platform**:
 
-1. **Authorize** the export shop: Omnichannel → Settings → Connections → Shopee Admin OAuth (each `shop_id` — tokens merge in `shopee_admin_oauth`; keep Indonesia on `SHOPEE_ADMIN_PRIMARY_SHOP_ID` for Ads/Stock).
+1. **Authorize** via **Main account** (not Direct Shop login — Shopee rejects Direct-only OAuth). Omnichannel → Settings → Connections → Shopee Admin; pilih Main + Direct (MY). Callback menyimpan `shop_id_list` di settings dan menampilkan semua Shop ID di tab Connections (tidak perlu menyalin URL redirect).
 2. **Map** `shopee_syncs`: set `shop_id` + **Direct order ingest** on `/shopee-stock-sync/{id}/edit` (warehouse = same gudang as export fulfilment).
 3. **Enable** `SHOPEE_ORDER_POLL_ENABLED=true`, `SHOPEE_PRECREATE_JUBELIO_QUEUE=true`, `MARKETPLACE_WEBHOOK_UNIFIED_STORAGE=true` as needed; turn on cron **`shopee:poll-orders`** in Cron Manager.
 4. Optional: register **Push** for the export `shop_id` in Shopee Console (same `/shopee/push` path as Indonesia).

@@ -8,6 +8,7 @@ use App\Models\Shopeesync;
 use App\Services\Shopee\ShopeeAdminOpenApiService;
 use App\Services\Shopee\ShopeeStockApiService;
 use App\Services\Shopee\ShopeeStockOpenApiService;
+use App\Support\ShopeeAdminOAuthCallbackHandler;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -36,7 +37,7 @@ class ShopeeSyncController extends Controller
 
         $dataList = $query->orderByDesc('created_at')->paginate(50)->withQueryString();
 
-        $status = $this->openApi->getConnectionStatus();
+        $status = app(ShopeeAdminOpenApiService::class)->getConnectionStatus();
 
         return view('shopee.sync.index', [
             'dataList' => $dataList,
@@ -57,28 +58,12 @@ class ShopeeSyncController extends Controller
         return redirect()->route('shopee-admin.authorize', ['return' => 'shopee-sync']);
     }
 
-    public function oauthCallback(Request $request, ShopeeAdminOpenApiService $admin): RedirectResponse
-    {
-        $code = $request->query('code');
-        $shopId = (int) $request->query('shop_id');
-
-        if (! $code || $shopId <= 0) {
-            return redirect()->route('shopee.sync.index')->with('error', 'OAuth callback tidak lengkap (code / shop_id).');
-        }
-
-        $result = $admin->exchangeAuthCode($code, $shopId);
-
-        if (! $result) {
-            $detail = $admin->formatOAuthErrorForUser($admin->getLastOAuthError());
-            $message = 'Gagal menukar kode OAuth Shopee (CORENATION ADMIN).';
-            if ($detail) {
-                $message .= ' '.$detail;
-            }
-
-            return redirect()->route('shopee.sync.index')->with('error', $message);
-        }
-
-        return redirect()->route('shopee.sync.index')->with('success', 'Toko Shopee berhasil diotorisasi untuk Stock API (sama dengan Omnichannel / Ads).');
+    public function oauthCallback(
+        Request $request,
+        ShopeeAdminOpenApiService $admin,
+        ShopeeAdminOAuthCallbackHandler $handler,
+    ): RedirectResponse {
+        return $handler->handle($request, $admin, 'shopee.sync.index');
     }
 
     public function create(): View

@@ -55,7 +55,10 @@ $breadcrumbs = [
                         <code>SHOPEE_ADMIN_REDIRECT_URL</code> (dipakai saat Authorize):
                         <code class="rounded bg-white px-1">{{ $connection['redirect_url'] ?? '—' }}</code>
                         @if($connection['shop_id'] ?? null)
-                            · shop_id <span class="font-mono">{{ $connection['shop_id'] }}</span>
+                            · primary shop_id <span class="font-mono">{{ $connection['shop_id'] }}</span>
+                        @endif
+                        @if(!empty($connection['authorized_shop_ids']))
+                            · semua: <span class="font-mono">{{ implode(', ', array_map('strval', $connection['authorized_shop_ids'])) }}</span>
                         @endif
                     </p>
                     <p class="mt-1 text-xs text-gray-500">

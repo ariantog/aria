@@ -45,6 +45,30 @@ $tabs = [
                 {{ ($shopeeAdminConnection['has_token'] ?? false) ? (($shopeeAdminConnection['is_expired'] ?? false) ? 'Kedaluwarsa' : 'Terhubung') : 'Belum authorize' }}
             </p>
             <p class="mt-1 text-xs text-gray-500">Partner / push config: {{ $shopeePushConfigured ? 'OK' : 'belum' }}</p>
+            @php
+                $shopeeAuthorizedIds = $shopeeAdminConnection['authorized_shop_ids'] ?? [];
+                $shopeeIdList = $shopeeAdminConnection['shop_id_list'] ?? [];
+            @endphp
+            @if($shopeeAuthorizedIds !== [])
+            <p class="mt-2 text-xs text-gray-600">
+                Shop ID terotorisasi:
+                <span class="font-mono">{{ implode(', ', array_map('strval', $shopeeAuthorizedIds)) }}</span>
+            </p>
+            @endif
+            @if(is_array($shopeeIdList) && $shopeeIdList !== [] && count($shopeeIdList) !== count($shopeeAuthorizedIds))
+            <p class="mt-1 text-xs text-gray-500">shop_id_list (authorize terakhir): <span class="font-mono">{{ implode(', ', array_map('strval', $shopeeIdList)) }}</span></p>
+            @endif
+            @if(filled($shopeeAdminConnection['main_account_id'] ?? null))
+            <p class="mt-1 text-xs text-gray-500">Main account: <span class="font-mono">{{ $shopeeAdminConnection['main_account_id'] }}</span></p>
+            @endif
+            @if(filled($shopeeAdminConnection['last_oauth_callback_at'] ?? null))
+            <p class="mt-1 text-xs text-gray-500">Callback terakhir {{ $shopeeAdminConnection['last_oauth_callback_at'] }}
+                @if(is_array($shopeeAdminConnection['last_oauth_callback_query'] ?? null))
+                · query: <code class="text-[10px]">{{ json_encode($shopeeAdminConnection['last_oauth_callback_query']) }}</code>
+                @endif
+            </p>
+            @endif
+            <p class="mt-1 text-xs text-amber-800">Direct Shop (MY): authorize lewat <strong>Main account</strong> — pilih Main + Direct; ID muncul di sini setelah redirect.</p>
             <a href="{{ route('shopee-admin.authorize', ['return' => 'omnichannel']) }}"
                class="mt-3 inline-flex rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Reconnect Shopee Admin</a>
         </div>
