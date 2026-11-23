@@ -71,7 +71,7 @@ class ShopeeOrderShadowRecorder
         $detail = null;
 
         try {
-            $detail = $this->shopeeApi->getOrderDetail($orderSn);
+            $detail = $this->shopeeApi->getOrderDetail($orderSn, $shopId);
         } catch (Throwable $e) {
             Log::warning('Shopee get_order_detail failed — shadow stub retained', [
                 'ordersn' => $orderSn,

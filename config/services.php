@@ -67,6 +67,17 @@ return [
         'partner_key' => env('SHOPEE_ADMIN_PARTNER_KEY'),
         'base_url' => env('SHOPEE_ADMIN_BASE_URL', env('SHOPEE_BASE_URL', 'https://partner.shopeemobile.com')),
         'redirect_url' => env('SHOPEE_ADMIN_REDIRECT_URL', 'https://aria3.corenationactive.com/shopee-admin/oauth/callback'),
+        /** Tokens mirrored at top-level OAuth row use this shop (Indonesia); export/MY shops live in oauth `shops` map. */
+        'primary_shop_id' => (int) env('SHOPEE_ADMIN_PRIMARY_SHOP_ID', 0),
+    ],
+
+    'shopee_order_poll' => [
+        'enabled' => filter_var(env('SHOPEE_ORDER_POLL_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+        'days' => max(1, min(15, (int) env('SHOPEE_ORDER_POLL_DAYS', 2))),
+        'order_statuses' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('SHOPEE_ORDER_POLL_STATUSES', 'READY_TO_SHIP,PROCESSED,RETRY_SHIP,SHIPPED,COMPLETED')),
+        ))),
     ],
 
     'shopee_push' => [

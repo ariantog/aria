@@ -112,7 +112,20 @@ TikTok / Tokopedia push on_order hooks are deferred — warehouse mapping for th
 
 Do not duplicate Jubelio’s store/location map inside Shopee-only tables — link shops to the **same** Aria warehouse already wired for Jubelio cron.
 
-Jubelio remains the posting path. Shopee **Order Status push (3)**:
+### Shopee FLEXI / Malaysia (no Jubelio webhook)
+
+Jubelio may not enqueue **export / FLEXI Malaysia** orders. Aria can ingest them **directly from Shopee Open Platform**:
+
+1. **Authorize** the export shop: Omnichannel → Settings → Connections → Shopee Admin OAuth (each `shop_id` — tokens merge in `shopee_admin_oauth`; keep Indonesia on `SHOPEE_ADMIN_PRIMARY_SHOP_ID` for Ads/Stock).
+2. **Map** `shopee_syncs`: set `shop_id` + **Direct order ingest** on `/shopee-stock-sync/{id}/edit` (warehouse = same gudang as export fulfilment).
+3. **Enable** `SHOPEE_ORDER_POLL_ENABLED=true`, `SHOPEE_PRECREATE_JUBELIO_QUEUE=true`, `MARKETPLACE_WEBHOOK_UNIFIED_STORAGE=true` as needed; turn on cron **`shopee:poll-orders`** in Cron Manager.
+4. Optional: register **Push** for the export `shop_id` in Shopee Console (same `/shopee/push` path as Indonesia).
+
+Poll + push both run the same ingest (shadow, unified orders table, `jubelioorders` placeholder `SP-{ordersn}`). **SELL posting** still requires either a future direct Shopee poster or manual transaction — Jubelio cron will not receive MY payloads.
+
+## Shopee push path
+
+Jubelio remains the default posting path for Indonesia Shopee. Shopee **Order Status push (3)**:
 
 1. **Sync stub** — upsert `marketplace_order_shadows` with `ordersn`, `shop_id`, push status, `compare_status=pending` (no queue worker; list may show `belum dimuat` for lines until detail is opened).
 2. **Lazy enrich** — `OmnichannelController@showShopee` (and `refreshShopee`) calls `ShopeeOrderShadowRecorder::recordFromPush` → Shopee `get_order_detail`, line summary, Jubelio compare (`SP-{ordersn}`). Cached detail reuses the row for `SHOPEE_PUSH_SHADOW_DETAIL_TTL_SECONDS` (default 300).

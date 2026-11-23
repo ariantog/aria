@@ -5,8 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ShopeePushInbox;
 use App\Services\Marketplace\MarketplaceWebhookRecorder;
 use App\Services\Marketplace\MarketplaceWebhookStatusPresenter;
-use App\Services\Marketplace\ShopeeJubelioQueuePrecreator;
-use App\Services\Marketplace\ShopeeOrderShadowRecorder;
+use App\Services\Marketplace\ShopeeOrderStatusIngest;
 use App\Services\Shopee\ShopeePushSignatureVerifier;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -22,8 +21,7 @@ class ShopeePushController extends Controller
     public function __invoke(
         Request $request,
         ShopeePushSignatureVerifier $verifier,
-        ShopeeOrderShadowRecorder $shadowRecorder,
-        ShopeeJubelioQueuePrecreator $jubelioQueuePrecreator,
+        ShopeeOrderStatusIngest $orderIngest,
         MarketplaceWebhookRecorder $webhookRecorder,
         MarketplaceWebhookStatusPresenter $statusPresenter,
     ): Response
@@ -61,24 +59,9 @@ class ShopeePushController extends Controller
         $shadowStubUpserted = false;
         $jubelioPlaceholderUpserted = false;
 
-        // Read-only shadow compare (new table only). Jubelio webhooks/cron unchanged.
-        if (config('services.shopee_push.shadow_enabled') && $pushCode === 3 && filled($ordersn)) {
-            try {
-                if (Schema::hasTable('marketplace_order_shadows')) {
-                    $shadowRecorder->upsertStubFromPush($shopId, $ordersn, $orderStatus, $pushCode, $data, $payload);
-                    $shadowStubUpserted = true;
-                }
-            } catch (Throwable $e) {
-                Log::warning('Shopee push shadow stub failed', [
-                    'ordersn' => $ordersn,
-                    'message' => $e->getMessage(),
-                ]);
-            }
-        }
-
         if ($pushCode === 3 && filled($ordersn)) {
             try {
-                $jubelioPlaceholderUpserted = $jubelioQueuePrecreator->upsertFromPush(
+                $ingest = $orderIngest->ingest(
                     $shopId,
                     $ordersn,
                     $orderStatus,
@@ -86,8 +69,10 @@ class ShopeePushController extends Controller
                     $data,
                     $payload,
                 );
+                $shadowStubUpserted = $ingest['shadow'];
+                $jubelioPlaceholderUpserted = $ingest['jubelio_placeholder'];
             } catch (Throwable $e) {
-                Log::warning('Shopee push jubelio placeholder failed', [
+                Log::warning('Shopee push order ingest failed', [
                     'ordersn' => $ordersn,
                     'message' => $e->getMessage(),
                 ]);

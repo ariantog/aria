@@ -140,10 +140,14 @@ class ShopeeSyncController extends Controller
 
         $request->validate([
             'warehouse_id' => 'required|exists:customers,id',
+            'shop_id' => 'nullable|integer|min:0',
+            'direct_order_ingest' => 'sometimes|boolean',
         ]);
 
         $sync->update([
             'warehouse_id' => (int) $request->warehouse_id,
+            'shop_id' => (int) $request->input('shop_id', $sync->shop_id),
+            'direct_order_ingest' => $request->boolean('direct_order_ingest'),
         ]);
 
         return redirect()->route('shopee.sync.index')->with('success', 'Shopee warehouse mapping updated.');
