@@ -100,6 +100,41 @@ Reads **`warehouse_item`** joined to addrbook warehouses. Does not call Jubelio/
 
 See **`doc/grok-restock-api.md`** — `GET /api/readonly/restock/context`, insight period, optional apply.
 
+### Shopee shop OAuth (access token only)
+
+`GET /api/readonly/shopee/oauth`
+
+Returns the current **CORENATION ADMIN** shop `access_token` and expiry for the Grok bot to call Shopee Open API directly (Ads automation, diagnostics). Uses the same stored row as Omnichannel / Shopee Ads / warehouse stock (`shopee_admin_oauth`).
+
+| Field | Notes |
+|-------|--------|
+| `access_token` | Valid token; refreshed proactively when within ~5 minutes of `expires_at` (same logic as `ShopeeAdminOpenApiService::getAccessToken()` and cron `shopee:refresh-oauth`) |
+| `expires_at` | ISO-8601; also `expires_at_unix` |
+| `shop_id` | Authorized shop id |
+| `partner_app` | Always `shopee_admin` |
+
+**Never returned:** `refresh_token`, partner keys, `SHOPEE_*` env secrets.
+
+**Errors (JSON body, no token in logs):**
+
+| HTTP | `error` | Meaning |
+|------|---------|---------|
+| 401 | `shopee_not_connected` | No tokens or re-authorize in browser required |
+| 503 | `shopee_not_configured` | Missing `SHOPEE_ADMIN_PARTNER_ID` / key on server |
+| 503 | `shopee_token_unavailable` | Refresh failed — retry or fix OAuth in Aria |
+
+**Security / ops:**
+
+- Same auth as other readonly routes: `Authorization: Bearer READONLY_EXPORT_BEARER_TOKEN`, user **`grok`** with **`export-readonly`** only (no extra permission).
+- A successful refresh **writes** the updated token to the shared `settings` row (expected; identical to hourly cron). It does **not** call Shopee inventory or post transactions.
+- Treat the bearer token and API `access_token` as **production secrets**; never paste in chat or commit.
+- Rate limit: `readonly-export` (60/min).
+
+```bash
+curl -sS -H "Authorization: Bearer $GROK_TOKEN" \
+  "https://aria3.corenationactive.com/api/readonly/shopee/oauth"
+```
+
 ### Cost history (stub)
 
 `GET /api/readonly/items/{id}/cost-history`
