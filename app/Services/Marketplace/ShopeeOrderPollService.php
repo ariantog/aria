@@ -2,7 +2,7 @@
 
 namespace App\Services\Marketplace;
 
-use App\Models\Shopeesync;
+use App\Models\ShopeeFlexiShop;
 use App\Services\Shopee\ShopeeAdminOpenApiService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
@@ -38,7 +38,7 @@ class ShopeeOrderPollService
           return $summary;
       }
 
-      if (! Schema::hasTable('shopee_syncs')) {
+      if (! Schema::hasTable('shopee_flexi_shops')) {
           return $summary;
       }
 
@@ -46,7 +46,7 @@ class ShopeeOrderPollService
       $timeTo = time();
       $timeFrom = $timeTo - ($days * 86_400);
 
-      $query = Shopeesync::query()
+      $query = ShopeeFlexiShop::query()
           ->where('direct_order_ingest', true)
           ->where('shop_id', '>', 0);
 
@@ -54,13 +54,13 @@ class ShopeeOrderPollService
           $query->where('shop_id', $onlyShopId);
       }
 
-      $syncRows = $query->orderBy('id')->get()->unique('shop_id')->values();
+      $syncRows = $query->orderBy('shop_id')->get();
       $summary['shops'] = $syncRows->count();
 
       $statuses = $this->pollStatuses();
 
-      foreach ($syncRows as $sync) {
-          $shopId = (int) $sync->shop_id;
+      foreach ($syncRows as $flexiRow) {
+          $shopId = (int) $flexiRow->shop_id;
           if ($shopId <= 0) {
               continue;
           }
@@ -167,11 +167,8 @@ class ShopeeOrderPollService
               } while (true);
           }
 
-          if (Schema::hasColumn('shopee_syncs', 'last_order_poll_at')) {
-              Shopeesync::query()
-                  ->where('shop_id', $shopId)
-                  ->where('direct_order_ingest', true)
-                  ->update(['last_order_poll_at' => Carbon::now()]);
+          if (Schema::hasColumn('shopee_flexi_shops', 'last_order_poll_at')) {
+              $flexiRow->forceFill(['last_order_poll_at' => Carbon::now()])->save();
           }
       }
 

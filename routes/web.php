@@ -195,6 +195,13 @@ Route::middleware(['auth', 'verified', 'active', 'enforce.readonly'])->group(fun
     Route::patch('shopee-sync/{sync}', [App\Http\Controllers\ShopeeSyncController::class, 'update'])->name('shopee.sync.update');
     Route::delete('shopee-sync/{sync}', [App\Http\Controllers\ShopeeSyncController::class, 'destroy'])->name('shopee.sync.delete');
 
+    Route::get('shopee-flexi', [App\Http\Controllers\ShopeeFlexiShopController::class, 'index'])->name('shopee.flexi.index');
+    Route::get('shopee-flexi/create', [App\Http\Controllers\ShopeeFlexiShopController::class, 'create'])->name('shopee.flexi.create');
+    Route::post('shopee-flexi', [App\Http\Controllers\ShopeeFlexiShopController::class, 'store'])->name('shopee.flexi.store');
+    Route::get('shopee-flexi/{flexi}/edit', [App\Http\Controllers\ShopeeFlexiShopController::class, 'edit'])->name('shopee.flexi.edit');
+    Route::patch('shopee-flexi/{flexi}', [App\Http\Controllers\ShopeeFlexiShopController::class, 'update'])->name('shopee.flexi.update');
+    Route::delete('shopee-flexi/{flexi}', [App\Http\Controllers\ShopeeFlexiShopController::class, 'destroy'])->name('shopee.flexi.delete');
+
     Route::get('tiktok-shop-sync', [App\Http\Controllers\TiktokShopSyncController::class, 'index'])->name('tiktok-shop.sync.index');
     Route::get('tiktok-shop-sync/create', [App\Http\Controllers\TiktokShopSyncController::class, 'create'])->name('tiktok-shop.sync.create');
     Route::post('tiktok-shop-sync', [App\Http\Controllers\TiktokShopSyncController::class, 'store'])->name('tiktok-shop.sync.store');

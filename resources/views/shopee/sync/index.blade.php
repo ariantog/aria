@@ -33,6 +33,9 @@ $breadcrumbs = [
                 Auto Link SKUs
             </a>
             @endcan
+            <a href="{{ route('shopee.flexi.index') }}" class="inline-flex rounded-lg border border-orange-200 bg-white px-3 py-1.5 text-sm font-medium text-orange-800 hover:bg-orange-50">
+                FLEXI Shops
+            </a>
             <a href="{{ route('shopee.sync.create') }}" class="inline-flex items-center gap-2 rounded-lg bg-orange-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-orange-700">
                 Create Mapping
             </a>
@@ -109,9 +112,6 @@ $breadcrumbs = [
                     <th class="px-6 py-4">Shopee warehouse</th>
                     <th class="px-6 py-4">Location ID</th>
                     <th class="px-6 py-4">Aria warehouse</th>
-                    <th class="px-6 py-4">shop_id</th>
-                    <th class="px-6 py-4">Prefix</th>
-                    <th class="px-6 py-4">Ingest</th>
                     <th class="px-6 py-4 text-right">Actions</th>
                 </tr>
             </thead>
@@ -123,9 +123,6 @@ $breadcrumbs = [
                     <td class="px-6 py-4">
                         <span class="inline-flex rounded border border-orange-500/20 px-2 py-0.5 font-medium text-orange-700">{{ $row->warehouse->name ?? 'Unknown' }}</span>
                     </td>
-                    <td class="px-6 py-4 font-mono text-xs">{{ (int) $row->shop_id > 0 ? $row->shop_id : '—' }}</td>
-                    <td class="px-6 py-4 font-mono text-xs">{{ strtoupper((string) ($row->invoice_prefix ?? 'SP')) }}</td>
-                    <td class="px-6 py-4 text-xs">{{ ($row->direct_order_ingest ?? false) ? 'Ya' : '—' }}</td>
                     <td class="px-6 py-4 text-right">
                         <a href="{{ route('shopee.sync.edit', $row->id) }}" class="text-orange-600 hover:underline">Edit</a>
                         <form method="POST" action="{{ route('shopee.sync.delete', $row->id) }}" class="ml-3 inline" onsubmit="return confirm('Delete this mapping?');">
@@ -136,7 +133,7 @@ $breadcrumbs = [
                     </td>
                 </tr>
                 @empty
-                <tr><td colspan="7" class="px-6 py-12 text-center text-gray-500">No mappings yet.</td></tr>
+                <tr><td colspan="4" class="px-6 py-12 text-center text-gray-500">No mappings yet.</td></tr>
                 @endforelse
             </tbody>
         </table>

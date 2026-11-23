@@ -2,7 +2,7 @@
 
 use App\Models\Jubelioorder;
 use App\Models\Setting;
-use App\Models\Shopeesync;
+use App\Models\ShopeeFlexiShop;
 use App\Services\Shopee\ShopeeAdminOpenApiService;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
@@ -43,17 +43,14 @@ beforeEach(function () {
 });
 
 it('polls direct ingest shop and creates jubelio placeholder', function () {
-    if (! Schema::hasTable('shopee_syncs')) {
-        $this->markTestSkipped('shopee_syncs missing');
+    if (! Schema::hasTable('shopee_flexi_shops')) {
+        $this->markTestSkipped('shopee_flexi_shops missing');
     }
 
-    Shopeesync::query()->create([
-        'warehouse_id' => 1,
+    ShopeeFlexiShop::query()->create([
         'shop_id' => 8888,
+        'invoice_prefix' => 'SPMY',
         'direct_order_ingest' => true,
-        'shopee_location_id' => '',
-        'shopee_warehouse_id' => 1,
-        'shopee_warehouse_name' => 'Flexi MY',
     ]);
 
     Http::fake([
@@ -82,7 +79,7 @@ it('polls direct ingest shop and creates jubelio placeholder', function () {
 
     $this->artisan('shopee:poll-orders')->assertSuccessful();
 
-    $order = Jubelioorder::where('invoice', 'SP-MYFLEXI001')->first();
+    $order = Jubelioorder::where('invoice', 'SPMY-MYFLEXI001')->first();
     expect($order)->not->toBeNull()
         ->and($order->jubelio_order_id)->toBe('shopee-push:MYFLEXI001');
 });

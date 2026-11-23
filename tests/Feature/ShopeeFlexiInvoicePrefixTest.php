@@ -1,23 +1,16 @@
 <?php
 
-use App\Models\Addrbook;
 use App\Models\Jubelioorder;
-use App\Models\Shopeesync;
+use App\Models\ShopeeFlexiShop;
 use App\Services\Marketplace\ShopeeJubelioQueuePrecreator;
 use App\Services\Marketplace\ShopeeSyncInvoicePrefix;
 use App\Services\Shopee\ShopeePushSignatureVerifier;
 
-it('resolves SPMY invoice from shopee_sync shop mapping', function () {
-    $warehouse = Addrbook::factory()->create(['type' => Addrbook::TYPE_WAREHOUSE]);
-
-    Shopeesync::create([
-        'warehouse_id' => $warehouse->id,
+it('resolves SPMY invoice from shopee_flexi_shops', function () {
+    ShopeeFlexiShop::query()->create([
         'shop_id' => 1925605693,
         'invoice_prefix' => 'SPMY',
         'direct_order_ingest' => true,
-        'shopee_location_id' => 'LOC1',
-        'shopee_warehouse_id' => 100028423,
-        'shopee_warehouse_name' => 'CITOS',
     ]);
 
     $prefix = app(ShopeeSyncInvoicePrefix::class);
@@ -28,16 +21,10 @@ it('resolves SPMY invoice from shopee_sync shop mapping', function () {
 });
 
 it('precreates jubelio row with flexi prefix on push', function () {
-    $warehouse = Addrbook::factory()->create(['type' => Addrbook::TYPE_WAREHOUSE]);
-
-    Shopeesync::create([
-        'warehouse_id' => $warehouse->id,
+    ShopeeFlexiShop::query()->create([
         'shop_id' => 1925605693,
         'invoice_prefix' => 'SPMY',
         'direct_order_ingest' => true,
-        'shopee_location_id' => 'LOC1',
-        'shopee_warehouse_id' => 100028423,
-        'shopee_warehouse_name' => 'CITOS',
     ]);
 
     config([

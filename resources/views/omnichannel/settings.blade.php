@@ -151,7 +151,10 @@ $tabs = [
             <div class="flex flex-wrap items-center justify-between gap-2">
                 <h2 class="text-sm font-semibold text-gray-900">Shopee warehouse map</h2>
                 @if($canShopeeSync)
-                <a href="{{ route('shopee.sync.index') }}" class="text-xs font-medium text-blue-700 hover:underline">Kelola penuh →</a>
+                <span class="flex gap-3 text-xs font-medium">
+                    <a href="{{ route('shopee.flexi.index') }}" class="text-orange-700 hover:underline">FLEXI shops (shop_id → prefix)</a>
+                    <a href="{{ route('shopee.sync.index') }}" class="text-blue-700 hover:underline">Warehouse map →</a>
+                </span>
                 @else
                 <span class="text-xs text-gray-500">Perlu permission <code>shopee-stock-sync</code></span>
                 @endif

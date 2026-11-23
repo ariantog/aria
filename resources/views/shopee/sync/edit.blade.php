@@ -44,38 +44,10 @@ $warehouseRoute = route('transactions.lookup', ['type' => 'sell', 'role' => 'sen
                     @error('warehouse_id')<p class="text-sm text-red-500">{{ $message }}</p>@enderror
                 </div>
 
-                <div class="space-y-2">
-                    <label for="shop_id" class="block text-sm font-medium text-gray-700">Shopee shop_id</label>
-                    <p class="text-xs text-gray-500">Satu baris = satu toko Shopee <em>atau</em> kombinasi toko + gudang pickup Shopee. Toko export (SPMY, SPSG, …): isi <code>shop_id</code> yang sama di <strong>setiap</strong> baris pickup (CITOS / BSD / …) yang memenuhi order itu — Aria gudang ikut baris pickup. Buka ingest pada semua baris export itu (poll sekali per shop). Authorize lewat Omnichannel → Settings.</p>
-                    <input type="number" name="shop_id" id="shop_id" min="0" value="{{ old('shop_id', $sync->shop_id) }}"
-                        class="h-10 w-full max-w-xs rounded-md border border-gray-300 px-3 text-sm font-mono focus:border-orange-500 focus:ring-1 focus:ring-orange-500">
-                    @error('shop_id')<p class="text-sm text-red-500">{{ $message }}</p>@enderror
-                </div>
-
-                <div class="space-y-2">
-                    <label for="invoice_prefix" class="block text-sm font-medium text-gray-700">Invoice prefix (antrean Jubelio)</label>
-                    <p class="text-xs text-gray-500">FLEXI: SPMY, SPSG, SPTH, SPPH, SPBR. Indonesia tetap SP. Invoice = <code>{prefix}-{ordersn}</code>.</p>
-                    <select name="invoice_prefix" id="invoice_prefix"
-                        class="h-10 w-full max-w-md rounded-md border border-gray-300 px-3 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500">
-                        @foreach($invoicePrefixOptions as $code => $label)
-                            <option value="{{ $code }}" @selected(strtoupper((string) old('invoice_prefix', $sync->invoice_prefix ?? 'SP')) === strtoupper($code))>
-                                {{ $code }} — {{ $label }}
-                            </option>
-                        @endforeach
-                    </select>
-                    @error('invoice_prefix')<p class="text-sm text-red-500">{{ $message }}</p>@enderror
-                </div>
-
-                <div>
-                <label class="flex items-start gap-2 text-sm text-gray-700">
-                    <input type="checkbox" name="direct_order_ingest" value="1" class="mt-1 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                        @checked(old('direct_order_ingest', $sync->direct_order_ingest ?? true))>
-                    <span>
-                        <span class="font-medium">Direct order ingest (tanpa Jubelio)</span>
-                        <span class="mt-0.5 block text-xs text-gray-500">Cron <code>shopee:poll-orders</code> menarik order untuk shop ini. Aktifkan <code>SHOPEE_ORDER_POLL_ENABLED</code> + <code>SHOPEE_PRECREATE_JUBELIO_QUEUE</code> untuk antrean <code>{prefix}-{ordersn}</code>.</span>
-                    </span>
-                </label>
-                </div>
+                <p class="text-xs text-gray-500">
+                    Mapping ini hanya menghubungkan <strong>gudang pickup Shopee</strong> ke gudang Aria (stok).
+                    Toko export / prefix invoice: <a href="{{ route('shopee.flexi.index') }}" class="font-medium text-orange-700 hover:underline">Shopee FLEXI Shops</a>.
+                </p>
 
                 <div class="flex justify-end gap-3">
                     <a href="{{ route('shopee.sync.index') }}" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</a>
