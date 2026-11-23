@@ -171,6 +171,32 @@ curl -sS -H "Authorization: Bearer $READONLY_EXPORT_BEARER_TOKEN" \
   "https://aria3.corenationactive.com/api/readonly/tiktok/oauth"
 ```
 
+#### Exchange authorization code (cdn ttsbot relay)
+
+`POST /api/readonly/tiktok/oauth/exchange`
+
+Used by CDN `ttsbot.php` after TikTok redirects with a one-time seller `code`. Exchanges the code with TikTok, writes **`tiktok_shop_oauth`** in `settings`, and returns expiry metadata only.
+
+| Body (JSON) | Notes |
+|-------------|--------|
+| `code` | Primary field |
+| `auth_code` | Alias when `code` is absent |
+
+**Success (200):** `ok: true`, `expires_at`, `expires_at_unix`.
+
+**Never returned:** `access_token`, `refresh_token`, TikTok secrets.
+
+**Errors:** `invalid_request` (422), `tiktok_not_configured` (503), `tiktok_exchange_failed` (422; `message` includes stored `last_error`). Same bearer and permissions as `GET …/oauth`.
+
+```bash
+curl -sS -X POST -H "Authorization: Bearer $READONLY_EXPORT_BEARER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"code":"TTP_…"}' \
+  "https://aria3.corenationactive.com/api/readonly/tiktok/oauth/exchange"
+```
+
+See **`doc/tiktok-ttsbot-relay.md`** for CDN env vars and Partner redirect URL.
+
 #### Grok bot prompt (copy-paste)
 
 Paste into the Grok bot system / instruction field:

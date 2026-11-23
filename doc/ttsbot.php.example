@@ -1,0 +1,91 @@
+<?php
+// ttsbot.php — TikTok Shop OAuth redirect (Partner Center → cdn…/ttsbot.php).
+// Relays one-time auth code to Aria; tokens live in settings tiktok_shop_oauth only.
+//
+// CDN env (hosting panel, not in git):
+//   ARIA_BASE_URL=https://aria3.corenationactive.com
+//   ARIA_READONLY_BEARER=<same as aria3 READONLY_EXPORT_BEARER_TOKEN>
+//
+// Requires aria3: POST /api/readonly/tiktok/oauth/exchange — see doc/tiktok-ttsbot-relay.md
+
+declare(strict_types=1);
+
+header('Content-Type: text/html; charset=utf-8');
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Referrer-Policy: no-referrer');
+header('X-Robots-Tag: noindex, nofollow');
+header("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'");
+
+$code = isset($_GET['code']) ? preg_replace('/[^A-Za-z0-9_\-\.]/', '', (string) $_GET['code']) : '';
+$region = isset($_GET['shop_region']) ? preg_replace('/[^A-Za-z]/', '', (string) $_GET['shop_region']) : '';
+$error = isset($_GET['error']) ? htmlspecialchars((string) $_GET['error'], ENT_QUOTES, 'UTF-8') : '';
+
+$relayMessage = null;
+$relayOk = false;
+
+if ($code !== '' && $error === '') {
+    $base = rtrim((string) (getenv('ARIA_BASE_URL') ?: 'https://aria3.corenationactive.com'), '/');
+    $bearer = (string) (getenv('ARIA_READONLY_BEARER') ?: getenv('READONLY_EXPORT_BEARER_TOKEN') ?: '');
+    if ($bearer === '') {
+        $relayMessage = 'Server misconfigured: missing ARIA_READONLY_BEARER.';
+    } else {
+        $url = $base.'/api/readonly/tiktok/oauth/exchange';
+        $payload = json_encode(['code' => $code], JSON_THROW_ON_ERROR);
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $payload,
+            CURLOPT_HTTPHEADER => [
+                'Authorization: Bearer '.$bearer,
+                'Accept: application/json',
+                'Content-Type: application/json',
+            ],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 60,
+        ]);
+        $body = curl_exec($ch);
+        $http = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if (is_string($body) && $body !== '') {
+            $json = json_decode($body, true);
+            if (is_array($json) && ($json['ok'] ?? false) === true) {
+                $relayOk = true;
+                $relayMessage = 'TikTok Shop authorized. Tokens are stored in Aria (omnichannel + Grok readonly API).';
+            } else {
+                $err = is_array($json) ? (string) ($json['message'] ?? $json['error'] ?? 'unknown') : 'invalid response';
+                $relayMessage = 'Aria could not exchange this code (HTTP '.$http.'): '.htmlspecialchars($err, ENT_QUOTES, 'UTF-8');
+            }
+        } else {
+            $relayMessage = 'Aria exchange request failed (HTTP '.$http.').';
+        }
+    }
+}
+?>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>CoreNation - TikTok Shop authorization</title>
+<style>
+ body{font-family:system-ui,sans-serif;max-width:640px;margin:40px auto;padding:0 16px;color:#222}
+ .ok{color:#0a6}
+ .warn{color:#a33}
+</style>
+</head>
+<body>
+<h2>TikTok Shop authorization</h2>
+<?php if ($error): ?>
+  <p class="warn">TikTok returned an error: <?= $error ?></p>
+<?php elseif ($code === ''): ?>
+  <p class="warn">No authorization code in this link. Approve the shop again from Partner Center.</p>
+<?php elseif ($relayOk): ?>
+  <p class="ok"><?= htmlspecialchars((string) $relayMessage, ENT_QUOTES, 'UTF-8') ?></p>
+<?php else: ?>
+  <p class="warn"><?= htmlspecialchars((string) $relayMessage, ENT_QUOTES, 'UTF-8') ?></p>
+<?php endif; ?>
+</body>
+</html>
