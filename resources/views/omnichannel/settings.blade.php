@@ -192,7 +192,11 @@ $tabs = [
                 (kolom generik <code class="text-xs">key</code>/<code class="text-xs">value</code> — tidak ada migrasi terpisah untuk FLEXI; nilai ditulis saat Simpan di halaman ini setelah migrasi tabel <code class="text-xs">omnichannel_settings</code> ada di prod).
             </p>
             @if(! $settingsTableExists)
-            <p class="mt-4 text-sm text-amber-800">Jalankan migrasi tabel <code>omnichannel_settings</code> (mis. <code>2026_11_22_100000_create_omnichannel_settings_table</code>) sekali di prod — lalu pilih gudang di sini.</p>
+            <p class="mt-4 text-sm text-amber-800">
+                Tabel <code>omnichannel_settings</code> belum ada. Jika baris migrasi <code>2026_11_22_100000_create_omnichannel_settings_table</code> sudah tercatat di prod tetapi form ini tetap kosong, jalankan sekali:
+                <code class="mt-1 block text-xs">php artisan migrate --path=database/migrations/2026_11_23_120000_install_omnichannel_settings_table.php --force</code>
+                Tidak ada migrasi terpisah untuk FLEXI — hanya tabel ini; pilih gudang lalu <strong>Simpan</strong>.
+            </p>
             @else
             <form method="post" action="{{ route('omnichannel.settings.flexi-staging.update') }}" class="mt-4 space-y-3 rounded-lg border border-gray-200 bg-white p-3">
                 @csrf
@@ -340,7 +344,11 @@ $tabs = [
             <strong>Tidak ada push stok otomatis</strong> dari halaman ini (hanya penyimpanan threshold).
         </p>
         @if(! $settingsTableExists)
-        <p class="mt-4 text-sm text-amber-800">Migrasi <code>omnichannel_settings</code> belum dijalankan.</p>
+        <p class="mt-4 text-sm text-amber-800">
+            Tabel <code>omnichannel_settings</code> belum ada. Jika <code>2026_11_22_100000_create_omnichannel_settings_table</code> sudah tercatat di prod, jalankan:
+            <code class="mt-1 block text-xs">php artisan migrate --path=database/migrations/2026_11_23_120000_install_omnichannel_settings_table.php --force</code>
+            Threshold disimpan dengan <strong>Simpan</strong> setelah tabel ada (bukan env / migrasi terpisah).
+        </p>
         @else
         <form method="post" action="{{ route('omnichannel.settings.low-stock.update') }}" class="mt-4 space-y-3">
             @csrf

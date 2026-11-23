@@ -45,6 +45,8 @@ Collapsible **Omnichannel** menu (like Transactions):
 - **Low stock (Shopee)** — persisted `omnichannel_settings.shopee_low_stock_threshold` (v1: threshold + explanation only; no outbound stock push).
 - **Connections** — read-only OAuth/status cards + reconnect links to existing authorize routes.
 
+**aria3 maintenance (`omnichannel_settings` missing but `2026_11_22` already migrated):** `php artisan migrate --path=database/migrations/2026_11_23_120000_install_omnichannel_settings_table.php --force` — guarded CREATE only; FLEXI staging / low-stock / Tokopedia values are saved from Settings **Simpan**, not separate migrations or env.
+
 Permissions: `omnichannel-view`, `omnichannel-orders`, `omnichannel-settings`, `omnichannel-settings-edit` via `App\Models\Omnichannel` + `PermissionGenerator`.
 
 **Legacy route:** `/omnichannel` (shadow compare index)
