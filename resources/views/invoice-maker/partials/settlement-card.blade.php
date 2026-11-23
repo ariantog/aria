@@ -4,6 +4,8 @@
     $showTransactionLink = (bool) ($showTransactionLink ?? true);
     $embedded = (bool) ($embedded ?? false);
     $amountsAlreadyMatch = (bool) ($settlement['amounts_match'] ?? false);
+    $hasDocumentDiscount = ((float) ($settlement['discount'] ?? 0)) > 0;
+    $showDiscountControls = $canEdit && (! $amountsAlreadyMatch || $hasDocumentDiscount);
 @endphp
 @if($settlement)
 @php
@@ -84,6 +86,9 @@
             }
             const credit = Math.round((Number(this.cashIn) + Number(this.returnTotal)) * 100) / 100;
             this.discount = Math.max(0, Math.round((this.subtotal - credit) * 100) / 100);
+        },
+        clearDiscount() {
+            this.discount = 0;
         },
         formatRp(value) {
             return formatTableAmountId(value, 2);
@@ -234,24 +239,28 @@
         @endif
     </div>
 
-    @if($canEdit)
-        @if(! $amountsAlreadyMatch)
-        <div class="mt-4 space-y-3 border-t border-gray-100 pt-4" x-show="!amountsMatch()" x-cloak>
+    @if($showDiscountControls)
+        <div class="mt-4 space-y-3 border-t border-gray-100 pt-4" x-cloak>
             <div>
                 <label for="settlement-discount-{{ $invoice->id }}" class="mb-1 block text-sm font-medium text-gray-700">Additional discount</label>
-                <div class="flex gap-2">
+                <div class="flex flex-wrap gap-2">
                     <input type="number" step="0.01" min="0"
                            id="settlement-discount-{{ $invoice->id }}"
                            data-testid="invoice-discount-input"
                            x-model.number="discount"
-                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                           class="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                     <button type="button" @click="useRemainingAsDiscount()" :disabled="!canWriteOff()"
                             data-testid="invoice-use-remaining-discount"
                             class="shrink-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50">
                         Write off remainder
                     </button>
+                    <button type="button" @click="clearDiscount()" :disabled="Number(discount) <= 0"
+                            data-testid="invoice-clear-discount"
+                            class="shrink-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50">
+                        Clear discount
+                    </button>
                 </div>
-                <p class="mt-1 text-xs text-gray-500">Use this after sell and cash-in are already entered, when the customer paid a bit less than the invoice. Saving re-checks paid status.</p>
+                <p class="mt-1 text-xs text-gray-500">Write off remainder sets discount so billed amount = cash-in when sell is higher than payment. Use Clear discount or set 0 and Save to remove a write-off. Saving re-checks paid status.</p>
                 @error('discount_amount')
                     <p class="mt-1 text-sm text-rose-600">{{ $message }}</p>
                 @enderror
@@ -266,7 +275,8 @@
                 </button>
             </form>
         </div>
-        @endif
+    @endif
+    @if($canEdit)
         @if($settlement['is_paid'] && $invoice->paid_at)
         <p @class(['text-sm text-gray-600', 'mt-4 border-t border-gray-100 pt-4' => $amountsAlreadyMatch])>
             Marked paid on {{ $invoice->paid_at->timezone(config('app.timezone'))->format('d/m/Y H:i') }}
