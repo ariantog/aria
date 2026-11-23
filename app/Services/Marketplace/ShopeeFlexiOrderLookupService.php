@@ -13,6 +13,9 @@ use Illuminate\Support\Facades\Schema;
  */
 class ShopeeFlexiOrderLookupService
 {
+    /** Same optional fields as {@see ShopeeOrderPollService} / poll ingest (no invalid `region` param). */
+    private const ORDER_DETAIL_OPTIONAL_FIELDS = 'order_status,item_list,package_list,total_amount';
+
     public function __construct(
         private ShopeeAdminOpenApiService $shopeeApi,
         private ShopeeSyncInvoicePrefix $invoicePrefix,
@@ -30,6 +33,7 @@ class ShopeeFlexiOrderLookupService
         $base = [
             'ok' => false,
             'error' => null,
+            'error_detail' => null,
             'order_sn' => $orderSn,
             'order_ref_input' => trim($orderRef),
             'shop_id' => $shopId,
@@ -71,20 +75,28 @@ class ShopeeFlexiOrderLookupService
             return $base;
         }
 
+        $accessToken = $this->shopeeApi->getAccessToken($shopId);
+        if ($accessToken === null || $accessToken === '') {
+            return $this->failApi($base, $shopId,
+                "Token akses shop {$shopId} tidak tersedia — authorize/refresh OAuth untuk shop ini (UI \"connected\" bisa dari shop primary lain).",
+            );
+        }
+
         $detail = $this->shopeeApi->getOrderDetail(
             $orderSn,
             $shopId,
-            'order_status,item_list,package_list,total_amount,region',
+            self::ORDER_DETAIL_OPTIONAL_FIELDS,
         );
 
         if ($detail === null) {
-            $base['error'] = 'API get_order_detail gagal — cek laravel.log atau token kedaluwarsa.';
-
-            return $base;
+            return $this->failApi($base, $shopId,
+                "API get_order_detail gagal untuk shop {$shopId} — periksa ordersn dan laravel.log.",
+            );
         }
 
         if (filled($detail['error'] ?? null) || filled($detail['message'] ?? null)) {
             $base['error'] = (string) ($detail['message'] ?? $detail['error'] ?? 'Shopee menolak permintaan.');
+            $base['error_detail'] = $this->shopeeApi->getLastOAuthError();
             $base['api_snippet'] = $this->safeSnippet($detail);
 
             return $base;
@@ -122,6 +134,20 @@ class ShopeeFlexiOrderLookupService
         if (filled($orderRow['region'] ?? null)) {
             $base['region_hint'] = strtoupper((string) $orderRow['region']);
         }
+
+        return $base;
+    }
+
+    /**
+     * @param  array<string, mixed>  $base
+     * @return array<string, mixed>
+     */
+    private function failApi(array $base, int $shopId, string $fallback): array
+    {
+        $raw = $this->shopeeApi->getLastOAuthError();
+        $base['error_detail'] = $raw;
+        $formatted = $this->shopeeApi->formatOAuthErrorForUser($raw);
+        $base['error'] = ($formatted !== null && $formatted !== '') ? $formatted : $fallback;
 
         return $base;
     }
