@@ -131,6 +131,23 @@ $loadDetailChecked = (bool) old('load_detail', $loadDetail ?? false);
                     <a href="{{ route('transactions.show', $result['existing_transaction_id']) }}" class="font-medium text-orange-800 underline">lihat transaksi</a>.
                 </div>
             @elseif(($result['can_open_sell_form'] ?? false))
+                @php
+                    $priceSource = $result['amount_resolution']['price_source'] ?? null;
+                    $priceSourceLabel = match ($priceSource) {
+                        'escrow_fx' => 'Harga prefill: kurs escrow Shopee (IDR)',
+                        'catalog_fallback' => 'Harga prefill: katalog Aria (tanpa kurs SIP)',
+                        'shopee_idr' => 'Harga prefill: nominal Shopee (IDR)',
+                        default => null,
+                    };
+                @endphp
+                @if(filled($result['amount_resolution']['banner'] ?? null))
+                    <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" data-testid="shopee-flexi-amount-banner">
+                        {{ $result['amount_resolution']['banner'] }}
+                    </div>
+                @endif
+                @if(filled($priceSourceLabel))
+                    <p class="text-sm text-gray-700" data-testid="shopee-flexi-price-source">{{ $priceSourceLabel }}</p>
+                @endif
                 <form method="POST" action="{{ route('shopee.flexi.orders.create-sell') }}" onsubmit="return confirm('Buka form SELL dengan data order ini?')" class="inline">
                     @csrf
                     <input type="hidden" name="order_ref" value="{{ $orderRef }}">
@@ -173,6 +190,24 @@ $loadDetailChecked = (bool) old('load_detail', $loadDetail ?? false);
                                 @endif
                             </td></tr>
                         @if($result['detail_loaded'] ?? false)
+                        <tr><th class="bg-gray-50 px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600">Mata uang Shopee</th>
+                            <td class="px-4 py-3 font-mono" data-testid="result-order-currency">{{ $result['order_currency'] ?? '—' }}</td></tr>
+                        <tr><th class="bg-gray-50 px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600">Total Shopee</th>
+                            <td class="px-4 py-3 font-mono" data-testid="result-order-total">
+                                @if(filled($result['order_total_original'] ?? null))
+                                    {{ $result['order_currency'] ?? '' }} {{ number_format((float) $result['order_total_original'], 2, '.', ',') }}
+                                @else
+                                    —
+                                @endif
+                            </td></tr>
+                        @if(! empty($result['escrow_snippet']))
+                        <tr><th class="bg-gray-50 px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600">Escrow</th>
+                            <td class="px-4 py-3 font-mono text-xs" data-testid="result-escrow-snippet">
+                                @foreach($result['escrow_snippet'] as $ek => $ev)
+                                    <span class="block">{{ $ek }}: {{ is_scalar($ev) ? $ev : json_encode($ev) }}</span>
+                                @endforeach
+                            </td></tr>
+                        @endif
                         <tr><th class="bg-gray-50 px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600">Order status</th>
                             <td class="px-4 py-3 font-mono" data-testid="result-order-status">{{ $result['order_status'] ?? '—' }}</td></tr>
                         <tr><th class="bg-gray-50 px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600">Pickup</th>
