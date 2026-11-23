@@ -25,9 +25,14 @@ $breadcrumbs = [
                 Gudang Aria ditentukan oleh <a href="{{ route('shopee.sync.index') }}" class="text-orange-700 hover:underline">Warehouse Map</a> + lokasi pickup di order, bukan di sini.
             </p>
         </div>
-        <a href="{{ route('shopee.flexi.create') }}" class="inline-flex rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700">
-            Add shop
-        </a>
+        <div class="flex flex-wrap gap-2">
+            <a href="{{ route('shopee.flexi.lookup') }}" class="inline-flex rounded-lg border border-orange-200 bg-white px-4 py-2 text-sm font-medium text-orange-800 hover:bg-orange-50">
+                Order lookup
+            </a>
+            <a href="{{ route('shopee.flexi.create') }}" class="inline-flex rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700">
+                Add shop
+            </a>
+        </div>
     </div>
 
     @if(! empty($authorizedShopIds))

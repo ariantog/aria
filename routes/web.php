@@ -196,6 +196,8 @@ Route::middleware(['auth', 'verified', 'active', 'enforce.readonly'])->group(fun
     Route::delete('shopee-sync/{sync}', [App\Http\Controllers\ShopeeSyncController::class, 'destroy'])->name('shopee.sync.delete');
 
     Route::get('shopee-flexi', [App\Http\Controllers\ShopeeFlexiShopController::class, 'index'])->name('shopee.flexi.index');
+    Route::get('shopee-flexi/lookup', [App\Http\Controllers\ShopeeFlexiOrderLookupController::class, 'show'])->name('shopee.flexi.lookup');
+    Route::post('shopee-flexi/lookup', [App\Http\Controllers\ShopeeFlexiOrderLookupController::class, 'store'])->name('shopee.flexi.lookup.search');
     Route::get('shopee-flexi/create', [App\Http\Controllers\ShopeeFlexiShopController::class, 'create'])->name('shopee.flexi.create');
     Route::post('shopee-flexi', [App\Http\Controllers\ShopeeFlexiShopController::class, 'store'])->name('shopee.flexi.store');
     Route::get('shopee-flexi/{flexi}/edit', [App\Http\Controllers\ShopeeFlexiShopController::class, 'edit'])->name('shopee.flexi.edit');

@@ -267,6 +267,8 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'jubelio cek stock' => 'jubelio/stock/cek',
     'jubelio connection' => 'jubelio/token',
     'shopee ads' => 'shopee-ads',
+    'shopee flexi' => 'shopee-flexi',
+    'shopee flexi lookup' => 'shopee-flexi/lookup',
     'restock index' => 'restock',
     'absensi index' => 'absensi',
     'absensi import' => 'absensi/import',
