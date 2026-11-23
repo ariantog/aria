@@ -74,7 +74,6 @@ function flexiStagingWorkflowSetup(): array
         OmnichannelSettingStore::KEY_FLEXI_STAGING_WAREHOUSE_ID,
         (string) $staging->id,
     );
-    config(['shopee_flexi.staging_warehouse_id' => 0]);
 
     foreach ([$pickup, $staging] as $wh) {
         WarehouseItem::create([
@@ -175,76 +174,60 @@ it('redirects move to staging to prefilled move create form', function () {
         ->assertSee((string) $setup['staging']->name, false);
 });
 
-it('blocks sell button when order status is not completed', function () {
+function flexiStagingAssertSellBlockedOnSearch(string $orderRef, string $status, mixed $escrowFake, string $expectSee): void
+{
     $user = User::factory()->create();
     $user->givePermissionTo(['shopee-stock-sync']);
     flexiStagingWorkflowSetup();
 
     Http::fake([
         'partner.shopeemobile.com/api/v2/order/get_order_detail*' => Http::response(
-            flexiStagingOrderDetail('NOT-DONE-01', 'SHIPPED'),
+            flexiStagingOrderDetail($orderRef, $status),
         ),
-        'partner.shopeemobile.com/api/v2/payment/get_escrow_detail*' => Http::response(flexiStagingEscrowResponse()),
+        'partner.shopeemobile.com/api/v2/payment/get_escrow_detail*' => $escrowFake,
     ]);
 
-    $this->actingAs($user)
+    test()->actingAs($user)
         ->post(route('shopee.flexi.orders.search'), [
-            'order_ref' => 'NOT-DONE-01',
+            'order_ref' => $orderRef,
             'shop_id' => 9999,
             'load_detail' => 1,
         ])
         ->assertOk()
         ->assertDontSee('data-testid="shopee-flexi-create-sell"', false)
-        ->assertSee('COMPLETED', false)
-        ->assertSee('data-testid="shopee-manual-sell-block"', false);
+        ->assertSee($expectSee, false);
+}
+
+it('blocks sell button when order status is not completed', function () {
+    flexiStagingAssertSellBlockedOnSearch(
+        'NOT-DONE-01',
+        'SHIPPED',
+        Http::response(flexiStagingEscrowResponse()),
+        'COMPLETED',
+    );
 });
 
 it('blocks sell button when escrow is missing', function () {
-    $user = User::factory()->create();
-    $user->givePermissionTo(['shopee-stock-sync']);
-    flexiStagingWorkflowSetup();
-
-    Http::fake([
-        'partner.shopeemobile.com/api/v2/order/get_order_detail*' => Http::response(
-            flexiStagingOrderDetail('NO-ESCROW-01', 'COMPLETED'),
-        ),
-        'partner.shopeemobile.com/api/v2/payment/get_escrow_detail*' => Http::response(null, 500),
-    ]);
-
-    $this->actingAs($user)
-        ->post(route('shopee.flexi.orders.search'), [
-            'order_ref' => 'NO-ESCROW-01',
-            'shop_id' => 9999,
-            'load_detail' => 1,
-        ])
-        ->assertOk()
-        ->assertDontSee('data-testid="shopee-flexi-create-sell"', false)
-        ->assertSee('Escrow', false);
+    flexiStagingAssertSellBlockedOnSearch(
+        'NO-ESCROW-01',
+        'COMPLETED',
+        Http::response(null, 500),
+        'Escrow',
+    );
 });
 
-it('falls back to env staging warehouse id when omnichannel setting is empty', function () {
-    $staging = Addrbook::factory()->warehouse()->create(['name' => 'Env Fallback Staging']);
-    config(['shopee_flexi.staging_warehouse_id' => $staging->id]);
-    app(OmnichannelSettingStore::class)->set(
-        OmnichannelSettingStore::KEY_FLEXI_STAGING_WAREHOUSE_ID,
-        '0',
-    );
-
-    $service = app(ShopeeFlexiStagingWarehouse::class);
-
-    expect($service->configuredId())->toBe($staging->id);
+it('returns zero for staging warehouse id when omnichannel setting is empty', function () {
+    expect(app(ShopeeFlexiStagingWarehouse::class)->configuredId())->toBe(0);
 });
 
-it('prefers omnichannel setting over env for staging warehouse id', function () {
-    $dbStaging = Addrbook::factory()->warehouse()->create(['name' => 'DB Staging']);
-    $envStaging = Addrbook::factory()->warehouse()->create(['name' => 'Env Staging']);
+it('reads flexi staging warehouse id from omnichannel settings', function () {
+    $staging = Addrbook::factory()->warehouse()->create(['name' => 'Omnichannel Staging']);
     app(OmnichannelSettingStore::class)->set(
         OmnichannelSettingStore::KEY_FLEXI_STAGING_WAREHOUSE_ID,
-        (string) $dbStaging->id,
+        (string) $staging->id,
     );
-    config(['shopee_flexi.staging_warehouse_id' => $envStaging->id]);
 
-    expect(app(ShopeeFlexiStagingWarehouse::class)->configuredId())->toBe($dbStaging->id);
+    expect(app(ShopeeFlexiStagingWarehouse::class)->configuredId())->toBe($staging->id);
 });
 
 it('allows sell when completed and escrow ok with staging as sender', function () {

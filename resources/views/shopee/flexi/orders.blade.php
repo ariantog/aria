@@ -164,7 +164,7 @@ $loadDetailChecked = (bool) old('load_detail', $loadDetail ?? false);
                     @endif
                 @endif
 
-                @if(($result['can_open_sell_form'] ?? false))
+                @if(($result['can_manual_sell'] ?? false))
                 @php
                     $priceSource = $result['amount_resolution']['price_source'] ?? null;
                     $priceSourceLabel = match ($priceSource) {

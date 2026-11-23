@@ -13,9 +13,4 @@ return [
     ],
 
     'domestic_prefix' => 'SP',
-
-    /**
-     * Legacy env fallback when omnichannel_settings.flexi_staging_warehouse_id is empty (ShopeeFlexiStagingWarehouse).
-     */
-    'staging_warehouse_id' => (int) env('SHOPEE_FLEXI_STAGING_WAREHOUSE_ID', 0),
 ];

@@ -189,10 +189,10 @@ $tabs = [
             <h2 class="text-sm font-semibold text-gray-900">Shopee FLEXI — gudang staging (shared)</h2>
             <p class="mt-2 text-sm text-gray-600">
                 Satu gudang fisik untuk alur MOVE → SELL semua shop FLEXI Malaysia/export. Disimpan di <code class="text-xs">omnichannel_settings</code>
-                (bukan env). Env <code class="text-xs">SHOPEE_FLEXI_STAGING_WAREHOUSE_ID</code> hanya override darurat bila DB kosong.
+                (kolom generik <code class="text-xs">key</code>/<code class="text-xs">value</code> — tidak ada migrasi terpisah untuk FLEXI; nilai ditulis saat Simpan di halaman ini setelah migrasi tabel <code class="text-xs">omnichannel_settings</code> ada di prod).
             </p>
             @if(! $settingsTableExists)
-            <p class="mt-4 text-sm text-amber-800">Migrasi <code>omnichannel_settings</code> belum dijalankan.</p>
+            <p class="mt-4 text-sm text-amber-800">Jalankan migrasi tabel <code>omnichannel_settings</code> (mis. <code>2026_11_22_100000_create_omnichannel_settings_table</code>) sekali di prod — lalu pilih gudang di sini.</p>
             @else
             <form method="post" action="{{ route('omnichannel.settings.flexi-staging.update') }}" class="mt-4 space-y-3 rounded-lg border border-gray-200 bg-white p-3">
                 @csrf
