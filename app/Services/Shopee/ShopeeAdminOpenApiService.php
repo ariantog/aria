@@ -383,6 +383,33 @@ class ShopeeAdminOpenApiService
     }
 
     /**
+     * @param  array<string, mixed>  $body
+     */
+    public function shopApiPost(string $path, array $body = [], ?int $shopId = null): Response
+    {
+        $oauth = $this->getOAuthPayload();
+        $shopId = $shopId ?? ShopeeAdminOAuthStore::primaryShopId($oauth);
+        $token = $this->getAccessToken($shopId);
+
+        if (! $token || $shopId <= 0) {
+            return new Response(new \GuzzleHttp\Psr7\Response(401, [], '{"error":"not_authorized"}'));
+        }
+
+        $timestamp = time();
+        $sign = $this->signShop($path, $timestamp, $token, $shopId);
+
+        $url = rtrim(config('services.shopee_admin.base_url'), '/').$path.'?'.http_build_query([
+            'partner_id' => (int) config('services.shopee_admin.partner_id'),
+            'timestamp' => $timestamp,
+            'access_token' => $token,
+            'shop_id' => $shopId,
+            'sign' => $sign,
+        ]);
+
+        return Http::timeout(60)->asJson()->post($url, $body);
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
     /**

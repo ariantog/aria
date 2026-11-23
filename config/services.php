@@ -69,6 +69,7 @@ return [
         'redirect_url' => env('SHOPEE_ADMIN_REDIRECT_URL', 'https://aria3.corenationactive.com/shopee-admin/oauth/callback'),
         /** Tokens mirrored at top-level OAuth row use this shop (Indonesia); export/MY shops live in oauth `shops` map. */
         'primary_shop_id' => (int) env('SHOPEE_ADMIN_PRIMARY_SHOP_ID', 0),
+        'shipping_document_type' => env('SHOPEE_SHIPPING_DOCUMENT_TYPE', 'NORMAL_AIR_WAYBILL'),
     ],
 
     'shopee_order_poll' => [
