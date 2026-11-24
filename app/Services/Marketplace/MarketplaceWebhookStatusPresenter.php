@@ -30,6 +30,10 @@ class MarketplaceWebhookStatusPresenter
                 return $this->resolveShopeeTrackingIngestStatus($payload);
             }
 
+            if ($code === 30) {
+                return $this->resolveShopeeFulfillmentIngestStatus($payload);
+            }
+
             $data = is_array($payload['data'] ?? null) ? $payload['data'] : [];
             if (isset($data['status']) && $data['status'] !== '') {
                 return (string) $data['status'];
@@ -59,6 +63,7 @@ class MarketplaceWebhookStatusPresenter
             return match ($type) {
                 '3' => 'Order status',
                 '4' => 'Tracking',
+                '30' => 'Package fulfillment',
                 '0' => 'Verify',
                 default => $type !== '' ? 'Push '.$type : '—',
             };
@@ -148,6 +153,28 @@ class MarketplaceWebhookStatusPresenter
     /**
      * @param  array<string, mixed>  $payload
      */
+    /**
+     * Shopee push code 30 — package_fulfillment_status_push (logistics_status on data).
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    protected function resolveShopeeFulfillmentIngestStatus(array $payload): ?string
+    {
+        $data = is_array($payload['data'] ?? null) ? $payload['data'] : [];
+
+        foreach (['logistics_status', 'fulfillment_status', 'package_fulfillment_status', 'status'] as $key) {
+            if (isset($data[$key]) && $data[$key] !== '') {
+                $value = strtoupper(trim((string) $data[$key]));
+
+                return str_starts_with($value, 'FULFILLMENT:')
+                    ? $value
+                    : 'FULFILLMENT:'.$value;
+            }
+        }
+
+        return null;
+    }
+
     protected function resolveShopeeTrackingIngestStatus(array $payload): ?string
     {
         $data = is_array($payload['data'] ?? null) ? $payload['data'] : [];

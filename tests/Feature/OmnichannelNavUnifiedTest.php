@@ -293,7 +293,40 @@ it('loads tiktok line summary from mock get order detail on orders expand', func
         ->get(route('omnichannel.orders.show', ['channel' => 'tiktok', 'orderRef' => 'ONORDER-DETAIL-1']))
         ->assertOk()
         ->assertSee('data-testid="omnichannel-tiktok-line-table"', false)
-        ->assertSee('SKU-TTS-ON-1', false);
+        ->assertSee('SKU-TTS-ON-1', false)
+        ->assertSee('data-testid="omnichannel-webhook-log"', false);
+});
+
+it('renders tiktok channel order detail page with webhook log', function () {
+    config(['tiktok_shop.driver' => 'mock', 'tiktok_shop.enrich_commerce_platform' => false]);
+
+    MarketplaceChannelOrder::query()->create([
+        'channel' => 'tiktok',
+        'order_ref' => 'TIKTOK-PAGE-1',
+        'shop_ref' => 'shop-1',
+        'order_status' => 'UNPAID',
+        'last_event_at' => now(),
+        'first_received_at' => now(),
+    ]);
+
+    MarketplaceWebhookEvent::query()->create([
+        'channel' => 'tiktok',
+        'idempotency_key' => 'tiktok:tiktok-page-1',
+        'event_type' => '1',
+        'order_ref' => 'TIKTOK-PAGE-1',
+        'order_status' => 'UNPAID',
+        'signature_ok' => true,
+        'payload' => ['type' => 1],
+        'received_at' => now(),
+    ]);
+
+    $admin = User::factory()->create();
+
+    $this->actingAs($admin)
+        ->get(route('omnichannel.tiktok.show', 'TIKTOK-PAGE-1'))
+        ->assertOk()
+        ->assertSee('data-testid="omnichannel-webhook-log"', false)
+        ->assertSee('Order status', false);
 });
 
 it('reports tiktok api_error when live credentials are missing', function () {

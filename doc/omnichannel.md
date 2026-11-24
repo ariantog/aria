@@ -198,6 +198,7 @@ Raw platform strings are stored on `marketplace_webhook_events.order_status` / `
 |---------|------------|---------------|------------------------|
 | Shopee | **3** `order_status_push` | `data.status` (e.g. `UNPAID`, `READY_TO_SHIP`, `SHIPPED`) | Same string |
 | Shopee | **4** `order_trackingno_push` | `data.tracking_no` (optional `package_number`) — **no** `data.status` | `tracking:{tracking_no}` (e.g. `tracking:SPX123456789`) |
+| Shopee | **30** `package_fulfillment_status_push` | `data.logistics_status` (e.g. `LOGISTICS_READY`) | `FULFILLMENT:{status}` |
 | TikTok Shop | **1** order status | `data.order_status` (e.g. `UNPAID`, `AWAITING_SHIPMENT`) | Same string |
 
 **Shopee code 4:** Events list shows **Tracking** as the event label and **TRACKING · {no}** in the status column (bucket `tracking_update`). Unified ingest still writes the event row, but **`marketplace_channel_orders.order_status` is not overwritten** by tracking-only pushes — the last real order-status push (code 3 or TikTok type 1) stays on the order summary.
@@ -211,6 +212,7 @@ Bucket examples: Shopee `READY_TO_SHIP` → `awaiting_shipment`; TikTok `AWAITIN
 | **0** | URL **Verify** / connectivity sample | Yes, when `SHOPEE_PUSH_STORE_INBOX=true` and code listed in `SHOPEE_PUSH_STORE_INBOX_CODES` (default `0,3,4`) | **No** — not an order event |
 | **3** | **Order status push** / **Push Test Data → order_status_push** | Optional (same env) | **Yes** when `SHOPEE_PUSH_SHADOW_ENABLED=true` and `data.ordersn` present |
 | **4** | **Order tracking number push** | Optional (same env) | **No** — tracking only; see table above |
+| **30** | **Package fulfillment** (`logistics_status`) | Optional (default in `SHOPEE_PUSH_STORE_INBOX_CODES` includes `30`) | **No** — observability only; unified storage when `MARKETPLACE_WEBHOOK_UNIFIED_STORAGE=true` |
 
 Console **Verify** succeeding with inbox rows but an empty omnichannel table is normal until a **code 3** push arrives (or you simulate one below).
 

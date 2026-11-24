@@ -79,9 +79,12 @@ class ShopeePushController extends Controller
             }
         }
 
-        if ($this->shouldPersistInbox($pushCode)) {
+        $persistInbox = $this->shouldPersistInbox($pushCode);
+        $recordUnified = $this->shouldRecordUnifiedWebhook($pushCode);
+
+        if ($persistInbox || $recordUnified) {
             try {
-                if (Schema::hasTable('shopee_push_inbox')) {
+                if ($persistInbox && Schema::hasTable('shopee_push_inbox')) {
                     ShopeePushInbox::query()->create([
                         'shop_id' => $shopId,
                         'push_code' => $pushCode,
@@ -91,7 +94,9 @@ class ShopeePushController extends Controller
                         'callback_url' => $callbackUrl,
                         'payload' => $payload,
                     ]);
+                }
 
+                if ($recordUnified) {
                     $webhookRecorder->recordShopee(
                         $payload,
                         true,
@@ -102,10 +107,12 @@ class ShopeePushController extends Controller
                     );
                 }
             } catch (Throwable $e) {
-                Log::error('Shopee push inbox insert failed', [
+                Log::error('Shopee push persistence failed', [
                     'message' => $e->getMessage(),
                     'push_code' => $pushCode,
                     'ordersn' => $ordersn,
+                    'inbox' => $persistInbox,
+                    'unified' => $recordUnified,
                 ]);
             }
         }
@@ -130,9 +137,22 @@ class ShopeePushController extends Controller
             return false;
         }
 
-        $allowed = config('services.shopee_push.store_inbox_codes', [3, 4]);
+        $allowed = config('services.shopee_push.store_inbox_codes');
+
+        if ($allowed === ['*']) {
+            return true;
+        }
 
         return in_array($pushCode, $allowed, true);
+    }
+
+    private function shouldRecordUnifiedWebhook(?int $pushCode): bool
+    {
+        if ($pushCode === null) {
+            return false;
+        }
+
+        return (bool) config('marketplace.webhook.unified_storage', false);
     }
 
     /**

@@ -92,8 +92,15 @@ return [
         'callback_url' => env('SHOPEE_PUSH_CALLBACK_URL'),
         /** Persist selected pushes to shopee_push_inbox (off in production after URL verify). */
         'store_inbox' => filter_var(env('SHOPEE_PUSH_STORE_INBOX', false), FILTER_VALIDATE_BOOLEAN),
-        /** Push codes to store when store_inbox=true: 0=URL verify sample, 3=order status, 4=tracking. */
-        'store_inbox_codes' => array_map('intval', array_filter(explode(',', env('SHOPEE_PUSH_STORE_INBOX_CODES', '0,3,4')))),
+        /** Push codes to store when store_inbox=true: 0=verify, 3=order status, 4=tracking, 30=package fulfillment; * = all codes. */
+        'store_inbox_codes' => (static function (): array {
+            $raw = trim((string) env('SHOPEE_PUSH_STORE_INBOX_CODES', '0,3,4,30'));
+            if ($raw === '*') {
+                return ['*'];
+            }
+
+            return array_map('intval', array_filter(explode(',', $raw), static fn (string $part): bool => $part !== ''));
+        })(),
         /** Minimal shadow row on push; full get_order_detail loads on omnichannel detail (no Aria post). */
         'shadow_enabled' => filter_var(env('SHOPEE_PUSH_SHADOW_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
         /** Reuse cached shadow detail on repeat detail visits when younger than this (seconds). 0 = until manual refresh. */

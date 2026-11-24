@@ -151,31 +151,9 @@ $apiDetail = $detail['api_detail'] ?? null;
     </div>
     @endif
 
-    @if($events !== [])
-    <div class="rounded-lg border border-gray-200 bg-white p-3">
-        <p class="text-[10px] font-semibold uppercase text-gray-500">Webhook events (latest)</p>
-        <table class="mt-2 w-full text-left">
-            <thead>
-                <tr class="border-b border-gray-100 text-[10px] uppercase text-gray-500">
-                    <th class="py-1 pr-2">received</th>
-                    <th class="py-1 pr-2">event</th>
-                    <th class="py-1 pr-2">status</th>
-                    <th class="py-1 text-center">sign</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach($events as $ev)
-                <tr class="border-b border-gray-50">
-                    <td class="py-1 pr-2 font-mono text-[10px]">{{ isset($ev['received_at']) ? \Illuminate\Support\Str::limit($ev['received_at'], 19, '') : '—' }}</td>
-                    <td class="py-1 pr-2">{{ $ev['event_type'] ?? '—' }}</td>
-                    <td class="py-1 pr-2">{{ $ev['order_status'] ?? '—' }}</td>
-                    <td class="py-1 text-center">{{ ($ev['signature_ok'] ?? false) ? '✓' : '✗' }}</td>
-                </tr>
-                @endforeach
-            </tbody>
-        </table>
-    </div>
-    @else
-    <p class="text-gray-500">Belum ada webhook event tersimpan untuk order ini.</p>
-    @endif
+    @include('omnichannel.partials.webhook-log', [
+        'events' => $events,
+        'channel' => $detail['channel'] ?? 'shopee',
+        'statusPresenter' => $statusPresenter ?? null,
+    ])
 </div>
