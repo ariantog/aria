@@ -506,20 +506,35 @@ it('surfaces shopee batch create failure details instead of generic message', fu
                 ],
             ],
         ]),
-        'partner.shopeemobile.com/api/v2/logistics/create_shipping_document*' => Http::response([
-            'error' => 'common.batch_api_all_failed',
-            'message' => 'Failed, please check result_list for more details.',
-            'request_id' => 'req-batch-fail-99',
-            'response' => [
-                'result_list' => [
-                    [
-                        'order_sn' => $orderSn,
-                        'fail_error' => 'logistics.tracking_number_invalid',
-                        'fail_message' => 'The tracking number is invalid.',
+        'partner.shopeemobile.com/api/v2/logistics/create_shipping_document*' => Http::sequence()
+            ->push([
+                'error' => 'common.batch_api_all_failed',
+                'message' => 'Failed, please check result_list for more details.',
+                'request_id' => 'req-batch-fail-99',
+                'response' => [
+                    'result_list' => [
+                        [
+                            'order_sn' => $orderSn,
+                            'fail_error' => 'logistics.tracking_number_invalid',
+                            'fail_message' => 'The tracking number is invalid.',
+                        ],
                     ],
                 ],
-            ],
-        ]),
+            ])
+            ->push([
+                'error' => 'common.batch_api_all_failed',
+                'message' => 'Failed, please check result_list for more details.',
+                'request_id' => 'req-batch-fail-99',
+                'response' => [
+                    'result_list' => [
+                        [
+                            'order_sn' => $orderSn,
+                            'fail_error' => 'logistics.tracking_number_invalid',
+                            'fail_message' => 'The tracking number is invalid.',
+                        ],
+                    ],
+                ],
+            ]),
     ]);
 
     $response = $this->actingAs($user)->post(route('omnichannel.orders.shipping-documents'), [
