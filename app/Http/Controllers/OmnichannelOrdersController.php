@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\MarketplaceChannelOrder;
 use App\Models\Omnichannel;
+use App\Services\Marketplace\MarketplaceChannelOrderWarehousePersist;
 use App\Services\Marketplace\MarketplaceWebhookInboxQuery;
 use App\Services\Marketplace\MarketplaceWebhookStatusPresenter;
 use App\Services\Marketplace\MarketplaceWebhookShopWarehouseResolver;
@@ -24,6 +25,7 @@ class OmnichannelOrdersController extends Controller
         MarketplaceWebhookInboxQuery $inboxQuery,
         MarketplaceWebhookShopWarehouseResolver $shopResolver,
         MarketplaceWebhookStatusPresenter $statusPresenter,
+        MarketplaceChannelOrderWarehousePersist $warehousePersist,
     ): View {
         abort_unless(Omnichannel::userCanOrders($request->user()), 403);
 
@@ -38,6 +40,7 @@ class OmnichannelOrdersController extends Controller
             $rows = $inboxQuery->ordersQuery($filters)
                 ->paginate($filters['per_page'])
                 ->withQueryString();
+            $warehousePersist->hydrateListPage($rows->getCollection());
             $statusOptions = $inboxQuery->distinctOrderStatuses($filters, 'orders');
         } elseif ($filters['view'] === 'events' && $eventsTableExists) {
             $rows = $inboxQuery->eventsQuery($filters)

@@ -162,6 +162,18 @@ class MarketplaceTikTokCommercePlatformEnricher
 
         if ($channelOrder !== null && ! filled($channelOrder->platform_warehouse_id)) {
             $channelOrder->platform_warehouse_id = $platformWarehouseId;
+            if (Schema::hasColumn('marketplace_channel_orders', 'aria_warehouse_id')
+                && (int) ($channelOrder->aria_warehouse_id ?? 0) <= 0) {
+                $warehouseId = app(MarketplaceWebhookShopWarehouseResolver::class)->resolveAriaWarehouseId(
+                    $channelOrder->shop_ref,
+                    ['data' => ['warehouse_id' => $platformWarehouseId]],
+                    filled($channelOrder->commerce_platform) ? (string) $channelOrder->commerce_platform : null,
+                    MarketplaceWebhookRecorder::CHANNEL_TIKTOK,
+                );
+                if ($warehouseId > 0) {
+                    $channelOrder->aria_warehouse_id = $warehouseId;
+                }
+            }
             $channelOrder->save();
         }
     }
