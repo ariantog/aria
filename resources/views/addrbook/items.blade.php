@@ -230,11 +230,13 @@ $sortLink = function (string $column) use ($filters, $sortColumn, $sortDirection
                         <a href="{{ $sortLink('qty') }}" class="inline-flex items-center justify-end gap-0.5 hover:text-gray-900">Stock @if($sortColumn === 'qty')<span class="text-blue-600">{{ $sortDirection === 'asc' ? '↑' : '↓' }}</span>@endif</a>
                     </th>
                     @if($hasAriaOnOrder)
-                        <th class="px-3 py-2.5 text-right font-medium text-orange-700" data-copy-col="aria_on_order" title="Aria marketplace on-order (not physical stock)">On order</th>
+                        <th class="px-3 py-2.5 text-right font-medium text-orange-700" data-copy-col="aria_on_order" title="Aria marketplace on-order (not physical stock)">
+                            <a href="{{ $sortLink('onorder') }}" class="inline-flex items-center justify-end gap-0.5 hover:text-gray-900">Aria on order @if($sortColumn === 'onorder')<span class="text-blue-600">{{ $sortDirection === 'asc' ? '↑' : '↓' }}</span>@endif</a>
+                        </th>
                     @endif
                     @if($hasJubelio)
                         <th class="px-3 py-2.5 text-right font-medium" data-copy-col="jb_on_hand" title="Jubelio on hand">On hand</th>
-                        <th class="px-3 py-2.5 text-right font-medium" data-copy-col="jb_on_order" title="Jubelio on order">On order</th>
+                        <th class="px-3 py-2.5 text-right font-medium" data-copy-col="jb_on_order" title="Jubelio on order">Jubelio on order</th>
                         <th class="px-3 py-2.5 text-right font-medium" data-copy-col="jb_reserved" title="Jubelio reserved">Rsv</th>
                         <th class="px-3 py-2.5 text-right font-medium" data-copy-col="jb_available" title="Jubelio available (reference)">Avail</th>
                     @endif

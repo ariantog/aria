@@ -6,6 +6,7 @@ use App\Models\Addrbook;
 use App\Services\ItemListFilter;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class WarehouseStockQueryService
 {
@@ -29,19 +30,27 @@ class WarehouseStockQueryService
         );
 
         $sort = $request->input('sort', 'codeasc');
-        match ($sort) {
-            'qtyasc' => $query->orderByPivot('quantity', 'asc'),
-            'qtydesc' => $query->orderByPivot('quantity', 'desc'),
-            'codedesc' => $query->orderBy('items.code', 'desc'),
-            'codeasc' => $query->orderBy('items.code', 'asc'),
-            'namedesc' => $query->orderBy('items.name', 'desc'),
-            'nameasc' => $query->orderBy('items.name', 'asc'),
-            'pricedesc' => $query->orderBy('items.price', 'desc'),
-            'priceasc' => $query->orderBy('items.price', 'asc'),
-            'iddesc' => $query->orderBy('items.id', 'desc'),
-            'idasc' => $query->orderBy('items.id', 'asc'),
-            default => $query->orderBy('items.code', 'asc'),
-        };
+        $hasAriaOnOrder = Schema::hasColumn('warehouse_item', 'on_order');
+
+        if ($hasAriaOnOrder && $sort === 'onorderasc') {
+            $query->orderByPivot('on_order', 'asc');
+        } elseif ($hasAriaOnOrder && $sort === 'onorderdesc') {
+            $query->orderByPivot('on_order', 'desc');
+        } else {
+            match ($sort) {
+                'qtyasc' => $query->orderByPivot('quantity', 'asc'),
+                'qtydesc' => $query->orderByPivot('quantity', 'desc'),
+                'codedesc' => $query->orderBy('items.code', 'desc'),
+                'codeasc' => $query->orderBy('items.code', 'asc'),
+                'namedesc' => $query->orderBy('items.name', 'desc'),
+                'nameasc' => $query->orderBy('items.name', 'asc'),
+                'pricedesc' => $query->orderBy('items.price', 'desc'),
+                'priceasc' => $query->orderBy('items.price', 'asc'),
+                'iddesc' => $query->orderBy('items.id', 'desc'),
+                'idasc' => $query->orderBy('items.id', 'asc'),
+                default => $query->orderBy('items.code', 'asc'),
+            };
+        }
 
         return $query;
     }

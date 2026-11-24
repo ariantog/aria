@@ -32,6 +32,7 @@ use App\Support\ItemPricing;
 use App\Support\LikeSearch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Schema;
 
 class ItemsController extends Controller
 {
@@ -126,14 +127,24 @@ class ItemsController extends Controller
             ]);
         }
 
-        $items = $q->with(['group', 'tags'])
-            ->withSum(['warehouseItems as active_qty' => fn ($query) => $query->forAvailableStock()], 'quantity')
+        $itemsQuery = $q->with(['group', 'tags'])
+            ->withSum(['warehouseItems as active_qty' => fn ($query) => $query->forAvailableStock()], 'quantity');
+
+        if (Schema::hasColumn('warehouse_item', 'on_order')) {
+            $itemsQuery->withSum(
+                ['warehouseItems as active_on_order' => fn ($query) => $query->forAvailableStock()],
+                'on_order'
+            );
+        }
+
+        $items = $itemsQuery
             ->orderBy('id', 'desc')
             ->paginate(50)
             ->withQueryString();
 
         return view('items.index', [
             'items' => $items,
+            'hasAriaOnOrder' => Schema::hasColumn('warehouse_item', 'on_order'),
             'filters' => $request->only(array_merge($this->itemListFilter->filterKeys(), ['search', 'brand', 'type'])),
             'brands' => $this->brandOptions(),
             'types' => $this->typeOptions(),

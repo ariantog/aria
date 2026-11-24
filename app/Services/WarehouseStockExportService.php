@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Item;
 use App\Models\Jubeliosync;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -32,6 +33,8 @@ class WarehouseStockExportService
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Warehouse Stock');
 
+        $hasAriaOnOrder = Schema::hasColumn('warehouse_item', 'on_order');
+
         $headers = [
             'Item ID',
             'Code',
@@ -40,6 +43,10 @@ class WarehouseStockExportService
             'Price',
             'Stock',
         ];
+
+        if ($hasAriaOnOrder) {
+            $headers[] = 'Aria On order';
+        }
 
         if ($jubelioSync) {
             $headers[] = 'Jubelio On Hand';
@@ -63,6 +70,10 @@ class WarehouseStockExportService
                 $item->effectivePrice(),
                 (float) ($item->pivot->quantity ?? 0),
             ];
+
+            if ($hasAriaOnOrder) {
+                $row[] = (float) ($item->pivot->on_order ?? 0);
+            }
 
             if ($jubelioSync) {
                 $jubelio = $jubelioStocks[$item->id] ?? null;

@@ -4,6 +4,7 @@ use App\Models\Addrbook;
 use App\Models\Item;
 use App\Models\User;
 use App\Models\WarehouseItem;
+use Illuminate\Support\Facades\Schema;
 
 beforeEach(function () {
     $this->user = User::factory()->create();
@@ -59,6 +60,62 @@ it('warehouse item belongsTo resolves addrbook by warehouse_id', function () {
     ]);
 
     expect($wi->warehouse?->name)->toBe('WH Link Test');
+});
+
+it('items index sums aria on order across physical warehouses when column exists', function () {
+    if (! Schema::hasColumn('warehouse_item', 'on_order')) {
+        $this->markTestSkipped('warehouse_item.on_order not migrated');
+    }
+
+    $whA = Addrbook::factory()->warehouse()->create();
+    $whB = Addrbook::factory()->warehouse()->create();
+    $item = Item::factory()->create(['name' => 'On Order Sum SKU', 'code' => 'OO-SUM-SKU']);
+
+    WarehouseItem::create([
+        'warehouse_id' => $whA->id,
+        'item_id' => $item->id,
+        'warehouse_type' => (string) Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 4,
+        'on_order' => 2,
+    ]);
+    WarehouseItem::create([
+        'warehouse_id' => $whB->id,
+        'item_id' => $item->id,
+        'warehouse_type' => (string) Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 3,
+        'on_order' => 5,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('items.index'))
+        ->assertOk()
+        ->assertSee('On Order Sum SKU', false)
+        ->assertSee('data-testid="item-list-on-order-'.$item->id.'"', false)
+        ->assertSee('>7<', false);
+});
+
+it('item show warehouse grid lists aria on order per warehouse', function () {
+    if (! Schema::hasColumn('warehouse_item', 'on_order')) {
+        $this->markTestSkipped('warehouse_item.on_order not migrated');
+    }
+
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'OO Grid WH']);
+    $item = Item::factory()->create(['name' => 'Grid On Order SKU']);
+
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $item->id,
+        'warehouse_type' => (string) Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 8,
+        'on_order' => 4,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('items.show', $item))
+        ->assertOk()
+        ->assertSee('Aria on order', false)
+        ->assertSee('data-testid="warehouse-grid-aria-on-order-'.$warehouse->id.'"', false)
+        ->assertSee('>4<', false);
 });
 
 it('items index active qty excludes stock in deleted warehouses', function () {

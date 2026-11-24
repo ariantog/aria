@@ -10,6 +10,7 @@ use App\Services\PermissionGenerator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Mockery\MockInterface;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 
 beforeEach(function () {
     app(PermissionGenerator::class)->generateForModule('Addrbook');
@@ -228,6 +229,7 @@ it('exports warehouse stock to excel', function () {
         'item_id' => $item->id,
         'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
         'quantity' => 4,
+        'on_order' => 7,
     ]);
 
     $response = $this->actingAs($user)->get(route('addrbook.type.items.export', [
@@ -238,6 +240,16 @@ it('exports warehouse stock to excel', function () {
     $response->assertOk();
     expect($response->headers->get('content-type'))
         ->toContain('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+    if (Schema::hasColumn('warehouse_item', 'on_order')) {
+        $tmp = tempnam(sys_get_temp_dir(), 'wh-export-');
+        file_put_contents($tmp, $response->streamedContent());
+        $sheet = IOFactory::load($tmp)->getActiveSheet();
+        unlink($tmp);
+
+        expect($sheet->getCell('G1')->getValue())->toBe('Aria On order')
+            ->and((float) $sheet->getCell('G2')->getValue())->toBe(7.0);
+    }
 });
 
 it('exposes warehouse items for virtual warehouses', function () {
@@ -307,7 +319,7 @@ it('shows jubelio on-hand stock for synced warehouses', function () {
 
     $response->assertOk()
         ->assertSee('On hand', false)
-        ->assertSee('On order', false)
+        ->assertSee('Jubelio on order', false)
         ->assertSee('Avail', false)
         ->assertSee('Gudang Pusat', false)
         ->assertSee('data-testid="warehouse-items-marketplace-loading"', false)
@@ -614,4 +626,68 @@ it('shows optional item and group alias column toggles on warehouse stock page',
         ->assertSee('data-copy-col="group_alias"', false)
         ->assertSee('ITEM ALIAS SKU', false)
         ->assertSee('GROUP ALIAS SKU', false);
+});
+
+it('shows aria on order on warehouse items page when column exists', function () {
+    if (! Schema::hasColumn('warehouse_item', 'on_order')) {
+        $this->markTestSkipped('warehouse_item.on_order not migrated');
+    }
+
+    User::factory()->create();
+    $user = User::factory()->create();
+    $user->givePermissionTo('addrbook-warehouse-items');
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $item = Item::factory()->create(['code' => 'ARIA-ON-ORDER-SKU']);
+
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $item->id,
+        'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 10,
+        'on_order' => 6,
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('addrbook.type.items', ['warehouse', $warehouse->id]))
+        ->assertOk()
+        ->assertSee('Aria on order', false)
+        ->assertSee('data-copy-col="aria_on_order"', false)
+        ->assertSee('data-copy-value="6"', false);
+});
+
+it('sorts warehouse stock by aria on order descending', function () {
+    if (! Schema::hasColumn('warehouse_item', 'on_order')) {
+        $this->markTestSkipped('warehouse_item.on_order not migrated');
+    }
+
+    User::factory()->create();
+    $user = User::factory()->create();
+    $user->givePermissionTo('addrbook-warehouse-items');
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+    $low = Item::factory()->create(['code' => 'WH-OO-LOW']);
+    $high = Item::factory()->create(['code' => 'WH-OO-HIGH']);
+
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $low->id,
+        'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 5,
+        'on_order' => 1,
+    ]);
+    WarehouseItem::create([
+        'warehouse_id' => $warehouse->id,
+        'item_id' => $high->id,
+        'warehouse_type' => Addrbook::TYPE_WAREHOUSE,
+        'quantity' => 5,
+        'on_order' => 9,
+    ]);
+
+    $html = $this->actingAs($user)
+        ->get(route('addrbook.type.items', ['warehouse', $warehouse->id, 'sort' => 'onorderdesc']))
+        ->assertOk()
+        ->getContent();
+
+    expect(strpos($html, 'WH-OO-HIGH'))->toBeLessThan(strpos($html, 'WH-OO-LOW'));
 });
