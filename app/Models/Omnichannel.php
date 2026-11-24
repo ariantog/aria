@@ -15,6 +15,7 @@ class Omnichannel
         return [
             'view' => 'omnichannel-view',
             'orders' => 'omnichannel-orders',
+            'awb-reprint' => 'omnichannel-orders-awb-reprint',
             'settings' => 'omnichannel-settings',
             'settings-edit' => 'omnichannel-settings-edit',
         ];
@@ -48,6 +49,19 @@ class Omnichannel
         return $user->can($perms['orders'])
             || $user->can($perms['view'])
             || $user->can(TikTokShop::getPermissions()['view']);
+    }
+
+    public static function userCanReprintAwb(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->is_superadmin) {
+            return true;
+        }
+
+        return $user->can(self::getPermissions()['awb-reprint']);
     }
 
     public static function userCanSettings(?User $user): bool

@@ -20,15 +20,36 @@ $apiDetail = $detail['api_detail'] ?? null;
     </p>
     @endif
 
-    @php $awbPrint = $detail['awb_print'] ?? null; @endphp
+    @php
+        $awbPrint = $detail['awb_print'] ?? null;
+        $awbPrintHistory = $detail['awb_print_history'] ?? [];
+    @endphp
     @if(!empty($awbPrint['user_id']))
     <p class="text-gray-600" data-testid="omnichannel-order-awb-print-detail">
-        AWB dicetak oleh
+        AWB terakhir dicetak oleh
         <strong>{{ $awbPrint['username'] ?? 'user #'.$awbPrint['user_id'] }}</strong>
         @if(!empty($awbPrint['printed_at']))
         <span class="text-gray-500">· {{ \Illuminate\Support\Carbon::parse($awbPrint['printed_at'])->format('Y-m-d H:i:s') }}</span>
         @endif
     </p>
+    @endif
+    @if(count($awbPrintHistory) > 0)
+    <div class="text-gray-600" data-testid="omnichannel-order-awb-print-history">
+        <p class="text-[10px] font-semibold uppercase text-gray-500">Riwayat cetak AWB</p>
+        <ul class="mt-1 list-inside list-disc text-[11px] text-gray-700">
+            @foreach($awbPrintHistory as $hist)
+            <li>
+                {{ $hist['username'] ?? 'user #'.($hist['user_id'] ?? 0) }}
+                @if(!empty($hist['printed_at']))
+                · {{ \Illuminate\Support\Carbon::parse($hist['printed_at'])->format('Y-m-d H:i:s') }}
+                @endif
+                @if(!empty($hist['is_reprint']))
+                <span class="text-amber-700">(cetak ulang)</span>
+                @endif
+            </li>
+            @endforeach
+        </ul>
+    </div>
     @endif
 
     @php $warehouse = $detail['warehouse'] ?? []; @endphp
