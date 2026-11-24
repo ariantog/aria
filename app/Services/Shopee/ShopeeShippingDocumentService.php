@@ -132,9 +132,14 @@ class ShopeeShippingDocumentService
         foreach ($orderList as $row) {
             $key = $this->resultKey($row['order_sn'], $row['package_number'] ?? null);
             $status = strtoupper(trim((string) ($statuses[$key] ?? 'PROCESSING')));
-            if ($status !== 'READY') {
-                $needsCreate[] = $row;
+            if ($status === 'READY') {
+                continue;
             }
+            // Task already queued by Seller Center or a prior create — poll only (do not re-create).
+            if ($status === 'PROCESSING') {
+                continue;
+            }
+            $needsCreate[] = $row;
         }
 
         if ($needsCreate !== []) {
@@ -177,6 +182,17 @@ class ShopeeShippingDocumentService
                 includeTracking: false,
             );
             $decoded = $this->mergeCreateShippingDocumentResults($decoded, $retryDecoded);
+        }
+
+        $stillInvalid = $this->orderListRowsWithCreateError($decoded, $orderList, self::ERROR_TRACKING_NUMBER_INVALID);
+        if ($stillInvalid !== []) {
+            Log::info('Shopee create_shipping_document tracking_number_invalid after omit — polling existing AWB task', [
+                'shop_id' => $shopId,
+                'order_sns' => array_values(array_unique(array_map(
+                    fn (array $row) => trim((string) ($row['order_sn'] ?? '')),
+                    $stillInvalid,
+                ))),
+            ]);
         }
 
         $this->assertCreatePerOrderFailures($decoded, 'create_shipping_document');
@@ -603,7 +619,8 @@ class ShopeeShippingDocumentService
         $expected = [];
         foreach ($orderList as $row) {
             $key = $this->resultKey($row['order_sn'], $row['package_number'] ?? null);
-            $expected[$key] = 'PROCESSING';
+            // Default when Shopee returns no row (e.g. should_print_first) — not an in-flight task.
+            $expected[$key] = 'UNKNOWN';
         }
 
         $results = $decoded['response']['result_list'] ?? [];
@@ -743,6 +760,10 @@ class ShopeeShippingDocumentService
         $messageLower = strtolower(trim((string) ($row['fail_message'] ?? '')));
 
         if (str_contains($failErrorLower, 'duplicat') || str_contains($messageLower, 'duplicat')) {
+            return true;
+        }
+
+        if ($failErrorLower === self::ERROR_TRACKING_NUMBER_INVALID) {
             return true;
         }
 
