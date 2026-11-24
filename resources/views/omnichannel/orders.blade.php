@@ -60,6 +60,9 @@ $eventsTableColspan = $showShopColumn ? 11 : 10;
          expandedId: null,
          detailHtml: {},
          loadingKey: null,
+         warehouseById: @js($initialWarehouseLabels ?? []),
+         pendingWarehouseIds: @js($pendingWarehouseIds ?? []),
+         warehouseLabelsUrl: @js($warehouseLabelsUrl ?? ''),
          pageRows: @js($pageOrderRows),
          canReprintAwb: @js($canReprintAwb ?? false),
          selected: {},
@@ -168,8 +171,50 @@ $eventsTableColspan = $showShopColumn ? 11 : 10;
          },
          isRowExpanded(id) {
              return this.expandedId === id;
+         },
+         warehousePending(orderId) {
+             return this.pendingWarehouseIds.includes(orderId) && !this.warehouseById[orderId];
+         },
+         warehouseAriaName(orderId) {
+             const row = this.warehouseById[orderId];
+             return row && row.aria_name ? row.aria_name : null;
+         },
+         warehouseUnmapped(orderId) {
+             const row = this.warehouseById[orderId];
+             return row ? !!row.unmapped : false;
+         },
+         warehousePlatformWh(orderId) {
+             const row = this.warehouseById[orderId];
+             return row && row.platform_wh ? row.platform_wh : null;
+         },
+         async hydrateWarehouseLabels() {
+             if (@js($isEventsView) || this.pendingWarehouseIds.length === 0 || !this.warehouseLabelsUrl) {
+                 return;
+             }
+             try {
+                 const res = await fetch(this.warehouseLabelsUrl, {
+                     method: 'POST',
+                     headers: {
+                         'Content-Type': 'application/json',
+                         'Accept': 'application/json',
+                         'X-Requested-With': 'XMLHttpRequest',
+                         'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]')?.getAttribute('content') ?? '',
+                     },
+                     body: JSON.stringify({ ids: this.pendingWarehouseIds }),
+                 });
+                 if (!res.ok) {
+                     return;
+                 }
+                 const data = await res.json();
+                 if (data.labels && typeof data.labels === 'object') {
+                     this.warehouseById = { ...this.warehouseById, ...data.labels };
+                 }
+             } finally {
+                 this.pendingWarehouseIds = [];
+             }
          }
-     }">
+     }"
+     @if(! $isEventsView) x-init="hydrateWarehouseLabels()" @endif>
     <div>
         <h1 class="text-2xl font-bold text-gray-900">{{ $pageTitle }}</h1>
         <p class="mt-1 max-w-3xl text-sm text-gray-600">
@@ -196,6 +241,7 @@ $eventsTableColspan = $showShopColumn ? 11 : 10;
         'statusOptions' => $statusOptions,
         'warehouseOptions' => $warehouseOptions,
         'shopOptions' => $shopOptions,
+        'showShopFilter' => $showShopFilter ?? false,
         'resetQuery' => $resetQuery,
         'defaultOpen' => $hasActiveFilters,
     ])
@@ -513,11 +559,26 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                             data-testid="omnichannel-order-gudang-{{ $row->id }}">
                             @if($gudangName)
                             <span class="font-medium">{{ $gudangName }}</span>
-                            @elseif($gudangUnmapped)
-                            <span title="Not mapped to an Aria warehouse">—</span>
-                            <span class="block text-[10px] text-gray-400">Not mapped</span>
                             @else
-                            —
+                            <span x-show="warehousePending(@js($row->id))"
+                                  x-cloak
+                                  class="inline-flex items-center gap-1 text-gray-400"
+                                  data-testid="omnichannel-order-gudang-loading-{{ $row->id }}">
+                                <svg class="h-3.5 w-3.5 animate-spin text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span class="text-[10px]">Loading…</span>
+                            </span>
+                            <span x-show="!warehousePending(@js($row->id)) && warehouseAriaName(@js($row->id))"
+                                  x-cloak
+                                  class="font-medium"
+                                  x-text="warehouseAriaName(@js($row->id))"></span>
+                            <span x-show="!warehousePending(@js($row->id)) && warehouseUnmapped(@js($row->id))" x-cloak>
+                                <span title="Not mapped to an Aria warehouse">—</span>
+                                <span class="block text-[10px] text-gray-400">Not mapped</span>
+                            </span>
+                            <span x-show="!warehousePending(@js($row->id)) && !warehouseAriaName(@js($row->id)) && !warehouseUnmapped(@js($row->id))" x-cloak class="text-gray-500">—</span>
                             @endif
                         </td>
                         <td class="{{ $td }} text-gray-600"
@@ -525,7 +586,20 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                             @if($platformWhLabel)
                             <span class="text-xs">{{ $platformWhLabel }}</span>
                             @else
-                            —
+                            <span x-show="warehousePending(@js($row->id))"
+                                  x-cloak
+                                  class="inline-flex items-center gap-1 text-gray-400"
+                                  data-testid="omnichannel-order-platform-wh-loading-{{ $row->id }}">
+                                <svg class="h-3.5 w-3.5 animate-spin text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                            </span>
+                            <span x-show="!warehousePending(@js($row->id)) && warehousePlatformWh(@js($row->id))"
+                                  x-cloak
+                                  class="text-xs"
+                                  x-text="warehousePlatformWh(@js($row->id))"></span>
+                            <span x-show="!warehousePending(@js($row->id)) && !warehousePlatformWh(@js($row->id))" x-cloak class="text-gray-500">—</span>
                             @endif
                         </td>
                         <td class="{{ $td }} whitespace-nowrap text-gray-600">{{ $row->last_event_at?->format('Y-m-d H:i:s') ?? '—' }}</td>

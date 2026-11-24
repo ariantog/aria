@@ -46,7 +46,6 @@ class OmnichannelOrdersController extends Controller
             $rows = $inboxQuery->ordersQuery($filters)
                 ->paginate($filters['per_page'])
                 ->withQueryString();
-            $warehousePersist->hydrateListPage($rows->getCollection());
             if (Schema::hasColumn('marketplace_channel_orders', 'awb_printed_by')) {
                 $rows->load('awbPrintedBy:id,username');
             }
@@ -64,10 +63,36 @@ class OmnichannelOrdersController extends Controller
         }
 
         $warehouseOptions = $shopResolver->warehouseOptions();
-        $shopOptions = $shopResolver->distinctShopRefsForChannel($channelForShops);
+        $shopOptions = $shopResolver->distinctMappedShopRefsForChannel($channelForShops);
+        if ($shopOptions->isEmpty()) {
+            $shopOptions = $shopResolver->distinctShopRefsForChannel($channelForShops);
+        }
         $shopRefToWarehouse = $shopResolver->shopRefToWarehouseMap();
         $showShopFilter = $shopOptions->count() > 1;
         $showShopColumn = $showShopFilter && blank($filters['shop_ref']);
+
+        $pendingWarehouseIds = [];
+        $initialWarehouseLabels = [];
+        if ($filters['view'] === 'orders' && $rows !== null) {
+            foreach ($rows as $row) {
+                $ariaName = $shopResolver->warehouseNameForListRow($row, $shopRefToWarehouse, $warehouseOptions);
+                if ($ariaName !== null) {
+                    $initialWarehouseLabels[$row->id] = [
+                        'aria_name' => $ariaName,
+                        'platform_wh' => $shopResolver->platformWarehouseLabelForListRow($row),
+                        'unmapped' => false,
+                    ];
+                } elseif ($warehousePersist->orderNeedsWarehouseHydration($row)) {
+                    $pendingWarehouseIds[] = (int) $row->id;
+                } elseif (filled($row->shop_ref)) {
+                    $initialWarehouseLabels[$row->id] = [
+                        'aria_name' => null,
+                        'platform_wh' => $shopResolver->platformWarehouseLabelForListRow($row),
+                        'unmapped' => true,
+                    ];
+                }
+            }
+        }
 
         return view('omnichannel.orders', [
             'filters' => $filters,
@@ -87,7 +112,47 @@ class OmnichannelOrdersController extends Controller
             'opsBucketStats' => $opsBucketStats,
             'opsBucketService' => $opsBucket,
             'canReprintAwb' => Omnichannel::userCanReprintAwb($request->user()),
+            'warehouseLabelsUrl' => route('omnichannel.orders.warehouse-labels'),
+            'pendingWarehouseIds' => $pendingWarehouseIds,
+            'initialWarehouseLabels' => $initialWarehouseLabels,
         ]);
+    }
+
+    public function warehouseLabels(
+        Request $request,
+        MarketplaceChannelOrderWarehousePersist $warehousePersist,
+        MarketplaceWebhookShopWarehouseResolver $shopResolver,
+    ): JsonResponse {
+        abort_unless(Omnichannel::userCanOrders($request->user()), 403);
+
+        $validated = $request->validate([
+            'ids' => ['required', 'array', 'max:50'],
+            'ids.*' => ['integer', 'min:1'],
+        ]);
+
+        $ids = array_values(array_unique(array_map('intval', $validated['ids'])));
+        if ($ids === []) {
+            return response()->json(['labels' => []]);
+        }
+
+        $orders = MarketplaceChannelOrder::query()->whereIn('id', $ids)->get();
+        $warehousePersist->hydrateListPage($orders);
+
+        $shopRefToWarehouse = $shopResolver->shopRefToWarehouseMap();
+        $warehouseNames = $shopResolver->warehouseOptions();
+
+        $labels = [];
+        foreach ($orders as $order) {
+            $ariaName = $shopResolver->warehouseNameForListRow($order, $shopRefToWarehouse, $warehouseNames);
+            $unmapped = filled($order->shop_ref) && $ariaName === null;
+            $labels[(string) $order->id] = [
+                'aria_name' => $ariaName,
+                'platform_wh' => $shopResolver->platformWarehouseLabelForListRow($order),
+                'unmapped' => $unmapped,
+            ];
+        }
+
+        return response()->json(['labels' => $labels]);
     }
 
     public function show(

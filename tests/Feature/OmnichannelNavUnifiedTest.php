@@ -74,6 +74,14 @@ it('shows mapped gudang in gudang column with platform wh on current orders', fu
         'shopee_warehouse_name' => 'Pickup A',
     ]);
 
+    Shopeesync::create([
+        'warehouse_id' => $warehouse->id,
+        'shop_id' => 200,
+        'shopee_location_id' => 'LOC-B',
+        'shopee_warehouse_id' => 2,
+        'shopee_warehouse_name' => 'Pickup B',
+    ]);
+
     MarketplaceChannelOrder::query()->create([
         'channel' => 'shopee',
         'order_ref' => 'GUDANG-SN-1',
@@ -189,28 +197,11 @@ it('shows shop ref in shop column not aria warehouse on current orders', functio
         'warehouse_id' => $warehouse->id,
     ]);
 
-    MarketplaceWebhookEvent::query()->create([
-        'channel' => 'tiktok',
-        'idempotency_key' => 'tiktok:extra-shop:1:EXTRA:1',
-        'event_type' => '1',
+    TiktokShopSync::create([
         'shop_ref' => '7495540735365777508',
-        'order_ref' => 'EXTRA-ORDER',
-        'order_status' => 'AWAITING_SHIPMENT',
-        'signature_ok' => true,
-        'payload' => [],
-        'received_at' => now(),
-    ]);
-
-    MarketplaceWebhookEvent::query()->create([
-        'channel' => 'tiktok',
-        'idempotency_key' => 'tiktok:7495540735365777507:1:SHOP-COL-1:1',
-        'event_type' => '1',
-        'shop_ref' => '7495540735365777507',
-        'order_ref' => 'SHOP-COL-1',
-        'order_status' => 'AWAITING_SHIPMENT',
-        'signature_ok' => true,
-        'payload' => [],
-        'received_at' => now(),
+        'shop_cipher' => 'cipher-2',
+        'shop_name' => 'TTS Two',
+        'warehouse_id' => $warehouse->id,
     ]);
 
     $order = MarketplaceChannelOrder::query()->create([
@@ -237,6 +228,15 @@ it('shows shop ref in shop column not aria warehouse on current orders', functio
 
 it('hides shop column and shop filter on current orders when only one shop ref exists', function () {
     $admin = User::factory()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create();
+
+    Shopeesync::create([
+        'warehouse_id' => $warehouse->id,
+        'shop_id' => 100,
+        'shopee_location_id' => 'LOC',
+        'shopee_warehouse_id' => 1,
+        'shopee_warehouse_name' => 'WH',
+    ]);
 
     MarketplaceChannelOrder::query()->create([
         'channel' => 'shopee',
