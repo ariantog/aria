@@ -17,7 +17,7 @@ class ShopeeShippingDocumentService
 {
     public const MAX_ORDERS_PER_BATCH = 50;
 
-    public const POLL_MAX_SECONDS = 30;
+    public const POLL_MAX_SECONDS = 90;
 
     private const BATCH_ALL_FAILED_ERROR = 'common.batch_api_all_failed';
 
@@ -144,6 +144,7 @@ class ShopeeShippingDocumentService
 
         if ($needsCreate !== []) {
             $this->arrangeShipmentsBeforeCreate($shopId, $needsCreate);
+            $needsCreate = $this->refreshVerifiedTrackingOnOrderList($shopId, $needsCreate);
             $this->createShippingDocumentWithArrangeRetry($shopId, $needsCreate);
         }
 
@@ -163,6 +164,7 @@ class ShopeeShippingDocumentService
             }
 
             $this->arrangeShipmentsBeforeCreate($shopId, $orderList, force: true);
+            $orderList = $this->refreshVerifiedTrackingOnOrderList($shopId, $orderList);
             $this->createShippingDocument($shopId, $orderList);
         }
     }
@@ -172,7 +174,7 @@ class ShopeeShippingDocumentService
      */
     private function createShippingDocument(int $shopId, array $orderList): void
     {
-        $decoded = $this->postCreateShippingDocument($shopId, $orderList, includeTracking: false);
+        $decoded = $this->postCreateShippingDocument($shopId, $orderList, includeTracking: true);
 
         $retryRows = $this->orderListRowsWithCreateError($decoded, $orderList, self::ERROR_TRACKING_NUMBER_INVALID);
         if ($retryRows !== []) {
@@ -182,6 +184,15 @@ class ShopeeShippingDocumentService
                 includeTracking: false,
             );
             $decoded = $this->mergeCreateShippingDocumentResults($decoded, $retryDecoded);
+        }
+
+        $stillInvalid = $this->orderListRowsWithCreateError($decoded, $orderList, self::ERROR_TRACKING_NUMBER_INVALID);
+        if ($stillInvalid !== []) {
+            $withFreshTracking = $this->applyFreshTrackingFromApi($shopId, $stillInvalid);
+            if ($this->orderListHasVerifiedTracking($withFreshTracking)) {
+                $retryDecoded = $this->postCreateShippingDocument($shopId, $withFreshTracking, includeTracking: true);
+                $decoded = $this->mergeCreateShippingDocumentResults($decoded, $retryDecoded);
+            }
         }
 
         $stillInvalid = $this->orderListRowsWithCreateError($decoded, $orderList, self::ERROR_TRACKING_NUMBER_INVALID);
@@ -214,7 +225,7 @@ class ShopeeShippingDocumentService
                 if (filled($row['package_number'] ?? null)) {
                     $item['package_number'] = (string) $row['package_number'];
                 }
-                if ($includeTracking && filled($row['tracking_number'] ?? null)) {
+                if ($includeTracking && filled($row['tracking_number'] ?? null) && ($row['tracking_verified'] ?? false)) {
                     $item['tracking_number'] = (string) $row['tracking_number'];
                 }
 
@@ -234,7 +245,7 @@ class ShopeeShippingDocumentService
     private function stripTrackingFromOrderList(array $orderList): array
     {
         return array_map(function (array $row) {
-            unset($row['tracking_number']);
+            unset($row['tracking_number'], $row['tracking_verified']);
 
             return $row;
         }, $orderList);
@@ -392,7 +403,7 @@ class ShopeeShippingDocumentService
      */
     private function pollUntilReady(int $shopId, array $orderList): void
     {
-        $deadline = microtime(true) + self::POLL_MAX_SECONDS;
+        $deadline = microtime(true) + $this->documentPollMaxSeconds();
         $docType = $this->shippingDocumentType();
         $shouldPrintFirstRetries = 0;
 
@@ -453,8 +464,9 @@ class ShopeeShippingDocumentService
         } while (microtime(true) < $deadline);
 
         throw new \RuntimeException(
-            'Timeout menunggu AWB Shopee ('.self::POLL_MAX_SECONDS.' detik).'
-            .$this->formatTrackingResiHint($orderList),
+            'Timeout menunggu AWB Shopee ('.$this->documentPollMaxSeconds().' detik).'
+            .$this->formatTrackingResiHint($orderList)
+            .$this->formatTrackingTimeoutRetryHint($orderList),
         );
     }
 
@@ -464,6 +476,7 @@ class ShopeeShippingDocumentService
     private function recoverMissingShippingDocumentTask(int $shopId, array $orderList): void
     {
         $this->arrangeShipmentsBeforeCreate($shopId, $orderList, force: true);
+        $orderList = $this->refreshVerifiedTrackingOnOrderList($shopId, $orderList);
         $this->createShippingDocument($shopId, $orderList);
     }
 
@@ -797,6 +810,114 @@ class ShopeeShippingDocumentService
     }
 
     /**
+     * Poll get_tracking_number after arrange — Shopee may delay 3PL resi up to ~5 minutes.
+     */
+    public function waitForTrackingNumber(int $shopId, string $orderSn, ?string $packageNumber = null): string
+    {
+        $orderSn = trim($orderSn);
+        if ($shopId <= 0 || $orderSn === '') {
+            return '';
+        }
+
+        $packageNumber = trim((string) $packageNumber);
+        if ($packageNumber === '') {
+            $packageNumber = null;
+        }
+
+        $deadline = microtime(true) + $this->trackingWaitMaxSeconds();
+
+        do {
+            $tracking = $this->fetchTrackingNumber($shopId, $orderSn, $packageNumber);
+            if ($tracking !== '') {
+                return $tracking;
+            }
+
+            if (microtime(true) >= $deadline) {
+                break;
+            }
+
+            Sleep::sleep(2);
+        } while (microtime(true) < $deadline);
+
+        return '';
+    }
+
+    private function trackingWaitMaxSeconds(): int
+    {
+        $configured = (int) config('services.shopee_admin.awb_tracking_wait_seconds', 120);
+
+        return max(1, min(300, $configured));
+    }
+
+    private function documentPollMaxSeconds(): int
+    {
+        $configured = (int) config('services.shopee_admin.awb_document_poll_seconds', 0);
+        if ($configured > 0) {
+            return max(1, min(300, $configured));
+        }
+
+        return self::POLL_MAX_SECONDS;
+    }
+
+    /**
+     * @param  list<array{order_sn: string, package_number?: string, tracking_number?: string}>  $orderList
+     * @return list<array{order_sn: string, package_number?: string, tracking_number?: string, tracking_verified?: bool}>
+     */
+    private function refreshVerifiedTrackingOnOrderList(int $shopId, array $orderList): array
+    {
+        return array_map(function (array $row) use ($shopId) {
+            unset($row['tracking_number'], $row['tracking_verified']);
+            $pkg = filled($row['package_number'] ?? null) ? trim((string) $row['package_number']) : null;
+            if ($pkg === '') {
+                $pkg = null;
+            }
+            $tracking = $this->waitForTrackingNumber($shopId, (string) $row['order_sn'], $pkg);
+            if ($tracking !== '') {
+                $row['tracking_number'] = $tracking;
+                $row['tracking_verified'] = true;
+            }
+
+            return $row;
+        }, $orderList);
+    }
+
+    /**
+     * @param  list<array{order_sn: string, package_number?: string, tracking_number?: string}>  $orderList
+     * @return list<array{order_sn: string, package_number?: string, tracking_number?: string, tracking_verified?: bool}>
+     */
+    private function applyFreshTrackingFromApi(int $shopId, array $orderList): array
+    {
+        return array_map(function (array $row) use ($shopId) {
+            unset($row['tracking_number'], $row['tracking_verified']);
+            $pkg = filled($row['package_number'] ?? null) ? trim((string) $row['package_number']) : null;
+            if ($pkg === '') {
+                $pkg = null;
+            }
+            $tracking = $this->waitForTrackingNumber($shopId, (string) $row['order_sn'], $pkg);
+            if ($tracking !== '') {
+                $row['tracking_number'] = $tracking;
+                $row['tracking_verified'] = true;
+            }
+
+            return $row;
+        }, $orderList);
+    }
+
+    /**
+     * @param  list<array{order_sn: string, package_number?: string, tracking_number?: string, tracking_verified?: bool}>  $orderList
+     */
+    private function orderListHasVerifiedTracking(array $orderList): bool
+    {
+        foreach ($orderList as $row) {
+            if (($row['tracking_verified'] ?? false) && filled($row['tracking_number'] ?? null)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * @param  list<array{order_sn: string, package_number?: string, tracking_number?: string}>  $orderList
      */
     private function arrangeShipmentsBeforeCreate(int $shopId, array $orderList, bool $force = false): void
@@ -1117,6 +1238,20 @@ class ShopeeShippingDocumentService
         }
 
         return ' — '.implode('; ', $lines);
+    }
+
+    /**
+     * @param  list<array{order_sn: string, package_number?: string, tracking_number?: string}>  $orderList
+     */
+    private function formatTrackingTimeoutRetryHint(array $orderList): string
+    {
+        foreach ($orderList as $row) {
+            if (trim((string) ($row['tracking_number'] ?? '')) !== '') {
+                return ' Dokumen mungkin masih diproses Shopee — tunggu 1–2 menit lalu cetak AWB lagi (resi sudah ada).';
+            }
+        }
+
+        return '';
     }
 
     private function formatLogisticsErrorForUser(string $error, string $message): string

@@ -70,6 +70,10 @@ return [
         /** Tokens mirrored at top-level OAuth row use this shop (Indonesia); export/MY shops live in oauth `shops` map. */
         'primary_shop_id' => (int) env('SHOPEE_ADMIN_PRIMARY_SHOP_ID', 0),
         'shipping_document_type' => env('SHOPEE_SHIPPING_DOCUMENT_TYPE', 'NORMAL_AIR_WAYBILL'),
+        /** Bounded poll for get_tracking_number after ship_order (Shopee allows up to ~5 min). */
+        'awb_tracking_wait_seconds' => max(1, min(300, (int) env('SHOPEE_AWB_TRACKING_WAIT_SECONDS', 120))),
+        /** Poll get_shipping_document_result until READY before download. */
+        'awb_document_poll_seconds' => max(1, min(300, (int) env('SHOPEE_AWB_DOCUMENT_POLL_SECONDS', 90))),
     ],
 
     'shopee_order_poll' => [
