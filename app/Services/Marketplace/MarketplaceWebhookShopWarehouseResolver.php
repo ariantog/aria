@@ -247,6 +247,21 @@ class MarketplaceWebhookShopWarehouseResolver
             }
         }
 
+        if ($channel === MarketplaceWebhookRecorder::CHANNEL_SHOPEE
+            && $row instanceof MarketplaceChannelOrder) {
+            $locationId = trim((string) ($row->platform_location_id ?? ''));
+            if ($locationId !== '') {
+                $shopId = $this->shopRefToPositiveInt($row->shop_ref ?? null);
+                $warehouseId = $this->warehouseSyncResolver->ariaWarehouseForShopeePickup($shopId, [
+                    'shopee_location_id' => strtoupper($locationId),
+                    'shopee_warehouse_id' => (int) ($row->platform_warehouse_id ?? 0),
+                ]);
+                if ($warehouseId > 0) {
+                    return $this->ariaWarehouseNameById($warehouseId, $warehouseNames);
+                }
+            }
+        }
+
         $payload = $this->payloadForListRow($row);
 
         $commercePlatform = isset($row->commerce_platform) ? (string) $row->commerce_platform : null;
