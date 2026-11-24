@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\MarketplaceChannelOrder;
 use App\Models\Omnichannel;
+use App\Services\Marketplace\MarketplaceChannelOrderAwbPromoter;
 use App\Services\Marketplace\MarketplaceChannelOrderWarehousePersist;
 use App\Services\Marketplace\MarketplaceWebhookInboxQuery;
 use App\Services\Marketplace\MarketplaceWebhookStatusPresenter;
@@ -170,6 +171,7 @@ class OmnichannelOrdersController extends Controller
     public function downloadShippingDocuments(
         Request $request,
         ShopeeShippingDocumentService $awbService,
+        MarketplaceChannelOrderAwbPromoter $awbStatusPromoter,
     ): StreamedResponse|RedirectResponse {
         abort_unless(Omnichannel::userCanOrders($request->user()), 403);
 
@@ -182,6 +184,7 @@ class OmnichannelOrdersController extends Controller
 
         $skippedNonShopee = 0;
         $byShop = [];
+        $shopeeOrderRefs = [];
         foreach ($validated['rows'] as $row) {
             $channel = strtolower(trim((string) $row['channel']));
             if ($channel !== 'shopee') {
@@ -203,6 +206,7 @@ class OmnichannelOrdersController extends Controller
             }
 
             $byShop[$shopId][] = $orderRef;
+            $shopeeOrderRefs[] = $orderRef;
         }
 
         if ($byShop === []) {
@@ -227,6 +231,8 @@ class OmnichannelOrdersController extends Controller
         } catch (\Throwable $e) {
             return redirect()->back()->with('error', $e->getMessage());
         }
+
+        $awbStatusPromoter->promoteShopeeOrdersAfterAwb($shopeeOrderRefs);
 
         if ($skippedNonShopee > 0) {
             session()->flash(

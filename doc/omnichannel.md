@@ -205,6 +205,27 @@ Raw platform strings are stored on `marketplace_webhook_events.order_status` / `
 
 Bucket examples: Shopee `READY_TO_SHIP` → `awaiting_shipment`; TikTok `AWAITING_SHIPMENT` → `awaiting_shipment`; Tokopedia rows (`commerce_platform=TOKOPEDIA`) use the TikTok vocabulary map.
 
+### Channel order summary (`marketplace_channel_orders.order_status`)
+
+Ops list **Current orders** shows one summary row per `(channel, order_ref)`. Webhook **events** keep every delivery; the summary applies the rules below so fulfillment/tracking pushes and out-of-order replays do not regress the ops status.
+
+| Source | Updates `order_status`? | Notes |
+|--------|-------------------------|--------|
+| Shopee push **3** `data.status` | Yes | Lifecycle rank; newer/advanced status wins (e.g. `READY_TO_SHIP` not clobbered by later `UNPAID` replay). |
+| TikTok type **1** `data.order_status` | Yes | Same rank rules (e.g. `AWAITING_SHIPMENT` over `UNPAID`). |
+| Shopee push **4** tracking | **No** | Stored on `marketplace_webhook_events` only (`tracking:{no}`). |
+| Shopee push **30** fulfillment | **No** | Stored on events as `FULFILLMENT:{logistics_status}`; does not replace order status. |
+| Push **0** verify / non-order | No `order_ref` | No channel order row. |
+| **Cancelled** (`CANCELLED`, `IN_CANCEL`, TikTok `CANCEL`, …) | Yes, terminal | Cancellation **wins** over non-cancelled statuses and **sticks** (later non-cancelled pushes ignored). |
+
+**Ignored for ops queue (bucket `unpaid` / `cancelled` — no AWB, no pre-create Jubelio):** pure unpaid non-COD orders; any cancelled bucket. Pre-create and AWB still require Shopee Admin OAuth separately.
+
+**COD / cash-on-delivery:** When webhook `data` indicates COD (`payment_method` / `cod` / `is_cod`, etc.), summary storage treats unpaid as processable: Shopee `UNPAID` → stored **`PROCESSED`**; TikTok `UNPAID` / `ON_HOLD` → **`AWAITING_SHIPMENT`**. Ops bucket becomes **Awaiting shipment** even before paid settlement.
+
+**After Cetak AWB (Shopee):** Successful `POST /omnichannel/orders/shipping-documents` promotes each printed Shopee row to **`READY_TO_SHIP`** when current status is not shipped, completed, or cancelled (e.g. `PROCESSED` after AWB). No transactions or stock changes.
+
+Code: `MarketplaceWebhookStatusPresenter` (ranks, COD, skip tracking/fulfillment), `MarketplaceWebhookRecorder::upsertChannelOrder`, `MarketplaceChannelOrderAwbPromoter`, `OmnichannelOrdersController@downloadShippingDocuments`.
+
 ## Push code 0 vs code 3
 
 | Code | Shopee Console action | `shopee_push_inbox` | `marketplace_order_shadows` |
