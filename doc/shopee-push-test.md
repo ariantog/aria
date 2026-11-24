@@ -105,10 +105,11 @@ By default pushes are **not** written to DB or info-logged (only signature failu
 
 ```env
 SHOPEE_PUSH_STORE_INBOX=true
-SHOPEE_PUSH_STORE_INBOX_CODES=0,3,4
 ```
 
-Codes: `0` URL verify sample, `3` order status, `4` tracking number. **Code 0 does not create omnichannel shadows** — only code **3** (and the simulate artisan command) upsert `marketplace_order_shadows`.
+Every accepted push code is stored (no per-code allowlist). Trim old rows with `php artisan marketplace:prune-webhook-events` (same retention as `MARKETPLACE_WEBHOOK_EVENTS_RETENTION_DAYS`).
+
+**Code 0 does not create omnichannel shadows** — only code **3** (and the simulate artisan command) upsert `marketplace_order_shadows`.
 
 ## Simulate order status push (aria3 / maintainer)
 

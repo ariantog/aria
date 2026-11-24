@@ -112,7 +112,6 @@ it('stores code 0 verify push in inbox when configured', function () {
         'services.shopee_push.verify_signature' => true,
         'services.shopee_push.callback_url' => '',
         'services.shopee_push.store_inbox' => true,
-        'services.shopee_push.store_inbox_codes' => [0, 3],
         'services.shopee_push.shadow_enabled' => true,
     ]);
 

@@ -123,7 +123,6 @@ it('accepts shopee tracking push into inbox with tracking ingest status', functi
         'services.shopee_push.verify_signature' => true,
         'services.shopee_push.callback_url' => '',
         'services.shopee_push.store_inbox' => true,
-        'services.shopee_push.store_inbox_codes' => [4],
         'services.shopee_push.shadow_enabled' => false,
         'marketplace.webhook.unified_storage' => true,
     ]);
