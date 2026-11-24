@@ -120,3 +120,15 @@ it('validates ops bucket via presenter service', function () {
     expect($service->statusesForBucket('shopee', 'unprocessed'))->toBe(['PROCESSED']);
     expect($service->statusesForBucket('tiktok', 'ready_to_ship'))->toBe(['AWAITING_COLLECTION']);
 });
+
+it('reverse-maps platform status to ops bucket for list chips', function () {
+    $service = app(MarketplaceChannelOrderOpsBucket::class);
+    expect($service->opsBucketForOrderStatus('shopee', null, 'PROCESSED'))
+        ->toBe(MarketplaceChannelOrderOpsBucket::BUCKET_UNPROCESSED);
+    expect($service->opsBucketForOrderStatus('shopee', null, 'READY_TO_SHIP'))
+        ->toBe(MarketplaceChannelOrderOpsBucket::BUCKET_READY_TO_SHIP);
+    expect($service->opsBucketForOrderStatus('tiktok', null, 'AWAITING_SHIPMENT'))
+        ->toBe(MarketplaceChannelOrderOpsBucket::BUCKET_UNPROCESSED);
+    expect($service->opsBucketForOrderStatus('tiktok', 'TOKOPEDIA', 'AWAITING_COLLECTION'))
+        ->toBe(MarketplaceChannelOrderOpsBucket::BUCKET_READY_TO_SHIP);
+});

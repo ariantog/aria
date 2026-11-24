@@ -166,6 +166,49 @@ class MarketplaceChannelOrderOpsBucket
     }
 
     /**
+     * Reverse-map a stored platform order_status to the ops queue bucket (Current orders UI).
+     */
+    public function opsBucketForOrderStatus(
+        string $channel,
+        ?string $commercePlatform,
+        ?string $orderStatus,
+    ): ?string {
+        if ($orderStatus === null || trim($orderStatus) === '') {
+            return null;
+        }
+
+        $upper = strtoupper(trim($orderStatus));
+        if (str_starts_with($upper, MarketplaceWebhookStatusPresenter::TRACKING_PREFIX)
+            || str_starts_with($upper, MarketplaceWebhookStatusPresenter::FULFILLMENT_PREFIX)) {
+            return null;
+        }
+
+        $statusKey = match (strtolower($channel)) {
+            MarketplaceWebhookRecorder::CHANNEL_SHOPEE => 'shopee',
+            MarketplaceWebhookRecorder::CHANNEL_TIKTOK => strtoupper((string) $commercePlatform) === 'TOKOPEDIA'
+                ? 'tokopedia'
+                : 'tiktok',
+            default => null,
+        };
+
+        if ($statusKey === null) {
+            return null;
+        }
+
+        foreach (self::ALLOWED as $bucket) {
+            if ($bucket === self::BUCKET_ALL) {
+                continue;
+            }
+            $statuses = array_map('strtoupper', $this->statusesForBucket($statusKey, $bucket));
+            if (in_array($upper, $statuses, true)) {
+                return $bucket;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * @return list<string>
      */
     public function statusesForBucket(string $scope, string $bucket): array
