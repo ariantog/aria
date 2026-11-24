@@ -16,6 +16,7 @@ class TikTokShop
             'view' => 'tiktok-shop-view',
             'reply' => 'tiktok-shop-reply',
             'sync' => 'tiktok-shop-sync',
+            'item_link' => 'tiktok-shop-item-link',
         ];
     }
 }

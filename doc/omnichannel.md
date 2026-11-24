@@ -49,6 +49,8 @@ When Jubelio cron posts that sell (`submit_type = 2`), `TransactionService` dedu
 
 **Marketplace gudang matrix (`/marketplace-warehouse-sync`):** Tab **Shopee** \| **TikTok / Tokopedia** — satu baris per gudang platform di `marketplace_warehouse_syncs`. Install migration **backfill** dari `shopee_syncs` (legacy table tetap). Resolver: `MarketplaceWarehouseSyncResolver` + omnichannel **gudang** column; fallback `shopee_syncs` / `tiktok_shop_syncs`. Jubelio `jubeliosyncs` tidak berubah. Lihat `doc/tiktok-shop-webhook.md`.
 
+**TikTok / Tokopedia SKU link (items):** `items.tiktok_shop_product_id` + `items.tiktok_shop_sku_id`; per-item tab **TikTok Shop** beside Jubelio/Shopee (`items.tiktok-shop`, search, link routes). Permission `tiktok-shop-item-link` or `tiktok-shop-view`; OAuth scope `seller.product.basic` for `POST /product/…/products/search`. Details: `doc/tiktok-shop-webhook.md` → Item SKU link.
+
 | Aria env | Purpose |
 |----------|---------|
 | `TIKTOK_SHOP_APP_KEY` / `TIKTOK_SHOP_APP_SECRET` | Partner app (signing + token exchange) |

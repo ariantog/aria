@@ -23,6 +23,7 @@ use App\Models\ShopeeAds;
 use App\Models\ShopeeStock;
 use App\Models\StandaloneInvoice;
 use App\Models\Tag;
+use App\Models\TikTokShop;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\UserActivityAudit;
@@ -155,6 +156,7 @@ class PermissionGrouper
             [ItemStockNotification::class, 'Stock Notifications'],
             [ShopeeStock::class, 'Shopee Stock'],
             [ShopeeAds::class, 'Shopee Ads'],
+            [TikTokShop::class, 'TikTok Shop'],
             [DataRetentionRun::class, 'Archive'],
             [ReadonlyExport::class, 'Read-only Export'],
             [UserActivityAudit::class, 'User Activity'],

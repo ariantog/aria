@@ -256,6 +256,49 @@ class TikTokShopOpenApiService
     }
 
     /**
+     * Search activated products by seller SKU codes (Partner Product API).
+     *
+     * @param  list<string>  $sellerSkus  Max 10 per request (caller may chunk).
+     * @return list<array<string, mixed>>
+     */
+    public function searchProductsBySellerSkus(string $shopCipher, array $sellerSkus, int $pageSize = 50): array
+    {
+        $shopCipher = trim($shopCipher);
+        $sellerSkus = array_values(array_filter(array_map(
+            fn ($sku) => trim((string) $sku),
+            $sellerSkus,
+        )));
+
+        if ($shopCipher === '' || $sellerSkus === []) {
+            return [];
+        }
+
+        if ($this->isMock()) {
+            return $this->mockSearchProducts($sellerSkus);
+        }
+
+        $version = (string) config('tiktok_shop.product_api_version', config('tiktok_shop.api_version', '202309'));
+        $path = '/product/'.$version.'/products/search';
+        $body = [
+            'status' => 'ACTIVATE',
+            'seller_skus' => array_slice($sellerSkus, 0, 10),
+        ];
+
+        $json = $this->liveSignedPost($path, [
+            'shop_cipher' => $shopCipher,
+            'page_size' => (string) max(1, min(100, $pageSize)),
+        ], $body);
+
+        if ($json === null) {
+            return [];
+        }
+
+        $products = $json['data']['products'] ?? $json['data']['product_list'] ?? [];
+
+        return is_array($products) ? array_values(array_filter($products, 'is_array')) : [];
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
     public function extractCommercePlatform(?array $response): ?string
@@ -640,6 +683,39 @@ class TikTokShopOpenApiService
         }
 
         return $normalized;
+    }
+
+    /**
+     * @param  list<string>  $sellerSkus
+     * @return list<array<string, mixed>>
+     */
+    protected function mockSearchProducts(array $sellerSkus): array
+    {
+        $products = [];
+
+        foreach ($sellerSkus as $index => $sellerSku) {
+            $sellerSku = trim((string) $sellerSku);
+            if ($sellerSku === '') {
+                continue;
+            }
+
+            $suffix = strtoupper(preg_replace('/[^A-Z0-9]+/', '-', $sellerSku) ?? (string) $index);
+            $productId = '7490000000000001'.str_pad((string) ($index + 1), 3, '0', STR_PAD_LEFT);
+            $skuId = '7491000000000001'.str_pad((string) ($index + 1), 3, '0', STR_PAD_LEFT);
+
+            $products[] = [
+                'id' => $productId,
+                'title' => 'Mock TikTok product '.$suffix,
+                'skus' => [
+                    [
+                        'id' => $skuId,
+                        'seller_sku' => strtoupper($sellerSku),
+                    ],
+                ],
+            ];
+        }
+
+        return $products;
     }
 
     /**

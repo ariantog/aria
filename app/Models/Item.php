@@ -60,6 +60,8 @@ class Item extends Model
         'jubelio_item_id',
         'shopee_item_id',
         'shopee_model_id',
+        'tiktok_shop_product_id',
+        'tiktok_shop_sku_id',
         'restock_urgent_threshold',
         'track_inventory',
         'allow_decimal_quantity',
@@ -83,6 +85,8 @@ class Item extends Model
             'jubelio_item_id' => 'integer',
             'shopee_item_id' => 'integer',
             'shopee_model_id' => 'integer',
+            'tiktok_shop_product_id' => 'string',
+            'tiktok_shop_sku_id' => 'string',
         ];
     }
 

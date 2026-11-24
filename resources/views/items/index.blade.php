@@ -16,6 +16,7 @@ $idr = fn ($v) => format_table_currency($v);
 $filtersStorageKey = $isAsset ? 'aria-assetlancar-index-filters-open' : 'aria-items-index-filters-open';
 $columnsStorageKey = $isAsset ? 'aria-assetlancar-index-columns' : 'aria-items-index-columns';
 $hasAriaOnOrder = $hasAriaOnOrder ?? false;
+$listColspan = ($hasAriaOnOrder ? 14 : 13) + (($showTikTokShopColumn ?? false) ? 1 : 0);
 @endphp
 
 <div class="flex flex-col gap-3 p-3 sm:p-4" x-data="itemsIndexPage(@js($filtersStorageKey), @js($columnsStorageKey), @js($isAsset), @js($can['view_cost'] ?? false))">
@@ -112,6 +113,9 @@ $hasAriaOnOrder = $hasAriaOnOrder ?? false;
                     @endif
                     <th class="px-3 py-2.5 text-left font-medium">Jubelio</th>
                     <th class="px-3 py-2.5 text-left font-medium">Shopee</th>
+                    @if($showTikTokShopColumn ?? false)
+                    <th class="px-3 py-2.5 text-left font-medium">TikTok</th>
+                    @endif
                     <th class="w-12 px-3 py-2.5 text-center font-medium"></th>
                 </tr>
             </thead>
@@ -192,6 +196,17 @@ $hasAriaOnOrder = $hasAriaOnOrder ?? false;
                                 <span class="text-[10px] text-gray-400">no sync</span>
                             @endif
                         </td>
+                        @if($showTikTokShopColumn ?? false)
+                        <td class="whitespace-nowrap px-3 py-2.5" data-testid="item-list-tiktok-shop-{{ $item->id }}">
+                            @if(filled($item->tiktok_shop_product_id))
+                                <span class="inline-flex max-w-[10rem] truncate rounded-full border border-violet-200 bg-violet-100 px-2 py-0.5 font-mono text-[10px] text-violet-900" title="{{ $item->tiktok_shop_product_id }}/{{ $item->tiktok_shop_sku_id }}">
+                                    linked
+                                </span>
+                            @else
+                                <span class="text-[10px] text-gray-400">no sync</span>
+                            @endif
+                        </td>
+                        @endif
                         <td class="px-3 py-2.5 text-center">
                             <a href="{{ $baseUrl }}/{{ $item->id }}/edit" class="inline-flex h-8 w-8 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-blue-600">
                                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
@@ -199,7 +214,7 @@ $hasAriaOnOrder = $hasAriaOnOrder ?? false;
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="{{ $hasAriaOnOrder ? 14 : 13 }}" class="px-4 py-12 text-center text-sm italic text-gray-500">No {{ $isAsset ? 'assets' : 'items' }} found matching your filters.</td></tr>
+                    <tr><td colspan="{{ $listColspan }}" class="px-4 py-12 text-center text-sm italic text-gray-500">No {{ $isAsset ? 'assets' : 'items' }} found matching your filters.</td></tr>
                 @endforelse
             </tbody>
         </table>
