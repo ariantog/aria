@@ -28,11 +28,14 @@ class ShopeeOrderPickupLocation
     private function fromPushData(array $pushData): ?array
     {
         $itemList = $pushData['item_list'] ?? null;
-        if (! is_array($itemList)) {
-            return null;
+        if (is_array($itemList)) {
+            $fromItems = $this->fromItemList($itemList);
+            if ($fromItems !== null) {
+                return $fromItems;
+            }
         }
 
-        return $this->fromItemList($itemList);
+        return $this->fromOrderRow($pushData);
     }
 
     /**

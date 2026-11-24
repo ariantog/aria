@@ -16,6 +16,7 @@ class MarketplaceChannelOrderWarehousePersist
 {
     public function __construct(
         private MarketplaceWebhookShopWarehouseResolver $shopWarehouseResolver,
+        private MarketplaceWarehouseSyncResolver $warehouseSyncResolver,
     ) {}
 
     public function hasPersistedWarehouseSnapshot(MarketplaceChannelOrder $order): bool
@@ -63,7 +64,7 @@ class MarketplaceChannelOrderWarehousePersist
             return;
         }
 
-        $needing = $orders->filter(fn (MarketplaceChannelOrder $order) => ! $this->hasPersistedWarehouseSnapshot($order));
+        $needing = $orders->filter(fn (MarketplaceChannelOrder $order) => $this->orderNeedsWarehouseHydration($order));
         if ($needing->isEmpty()) {
             return;
         }
@@ -89,12 +90,53 @@ class MarketplaceChannelOrderWarehousePersist
                 }
             }
 
-            if ($payload === null) {
-                continue;
+            if ($payload !== null) {
+                $this->applyResolvedFields($order, $payload, save: true);
             }
 
-            $this->applyResolvedFields($order, $payload, save: true);
+            $this->backfillAriaWarehouseFromPersistedPlatform($order);
         }
+    }
+
+    public function backfillAriaWarehouseFromPersistedPlatform(MarketplaceChannelOrder $order): void
+    {
+        if (! $this->hasAriaWarehouseColumn() || (int) ($order->aria_warehouse_id ?? 0) > 0) {
+            return;
+        }
+
+        if (strtolower((string) $order->channel) !== MarketplaceWebhookRecorder::CHANNEL_SHOPEE) {
+            return;
+        }
+
+        $locationId = trim((string) ($order->platform_location_id ?? ''));
+        if ($locationId === '') {
+            return;
+        }
+
+        $shopId = $this->shopRefToPositiveInt($order->shop_ref);
+        $warehouseId = $this->warehouseSyncResolver->ariaWarehouseForShopeePickup($shopId, [
+            'shopee_location_id' => strtoupper($locationId),
+            'shopee_warehouse_id' => (int) ($order->platform_warehouse_id ?? 0),
+        ]);
+
+        if ($warehouseId <= 0) {
+            return;
+        }
+
+        $order->aria_warehouse_id = $warehouseId;
+        $order->save();
+    }
+
+    private function shopRefToPositiveInt(?string $shopRef): ?int
+    {
+        $shopRef = trim((string) $shopRef);
+        if ($shopRef === '' || ! ctype_digit($shopRef)) {
+            return null;
+        }
+
+        $id = (int) $shopRef;
+
+        return $id > 0 ? $id : null;
     }
 
     /**
