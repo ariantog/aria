@@ -255,7 +255,8 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                         <th class="{{ $th }} w-16">event</th>
                         <th class="{{ $th }}">order_ref</th>
                         <th class="{{ $th }} w-28">order_status</th>
-                        <th class="{{ $th }} w-36">gudang</th>
+                        <th class="{{ $th }} w-32">Shop</th>
+                        <th class="{{ $th }} w-36">Aria warehouse</th>
                         <th class="{{ $th }} w-32">Platform WH</th>
                         <th class="{{ $th }} w-20 text-center">sign OK</th>
                         <th class="{{ $th }} w-24 text-right">payload</th>
@@ -288,6 +289,10 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                             <span class="ml-1 inline-flex rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-gray-500">{{ $bucketLabel }}</span>
                             @endif
                         </td>
+                        <td class="{{ $td }} font-mono text-[11px] text-gray-600 break-all"
+                            data-testid="omnichannel-event-shop-ref-{{ $row->id }}">
+                            {{ filled($row->shop_ref) ? $row->shop_ref : '—' }}
+                        </td>
                         <td class="{{ $td }} text-gray-800"
                             data-testid="omnichannel-event-gudang-{{ $row->id }}">
                             @if($gudangName)
@@ -297,9 +302,6 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                             <span class="block text-[10px] text-gray-400">Not mapped</span>
                             @else
                             —
-                            @endif
-                            @if(filled($row->shop_ref))
-                            <span class="mt-0.5 block font-mono text-[10px] text-gray-500 break-all" data-testid="omnichannel-event-shop-ref-{{ $row->id }}">{{ $row->shop_ref }}</span>
                             @endif
                         </td>
                         <td class="{{ $td }} text-gray-600"
@@ -328,7 +330,7 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                         </td>
                     </tr>
                     <tr x-show="isRowExpanded(@js($row->id))" x-cloak class="bg-gray-50">
-                        <td colspan="10" class="px-3 py-3">
+                        <td colspan="11" class="px-3 py-3">
                             @if(filled($row->order_ref))
                             @php
                                 $eventToOrdersUrl = route('omnichannel.orders.index', array_merge(request()->query(), [
@@ -373,7 +375,8 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                         <th class="{{ $th }} w-24">channel</th>
                         <th class="{{ $th }}">order_ref</th>
                         <th class="{{ $th }} w-28">status</th>
-                        <th class="{{ $th }} w-36">gudang</th>
+                        <th class="{{ $th }} w-32">Shop</th>
+                        <th class="{{ $th }} w-36">Aria warehouse</th>
                         <th class="{{ $th }} w-32">Platform WH</th>
                         <th class="{{ $th }} w-36">last_event</th>
                         <th class="{{ $th }} w-36">first_received</th>
@@ -423,6 +426,10 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                             <span class="ml-1 inline-flex rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-gray-500">{{ $orderBucketLabel }}</span>
                             @endif
                         </td>
+                        <td class="{{ $td }} font-mono text-[11px] text-gray-600 break-all"
+                            data-testid="omnichannel-order-shop-ref-{{ $row->id }}">
+                            {{ filled($row->shop_ref) ? $row->shop_ref : '—' }}
+                        </td>
                         <td class="{{ $td }} text-gray-800"
                             data-testid="omnichannel-order-gudang-{{ $row->id }}">
                             @if($gudangName)
@@ -432,9 +439,6 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                             <span class="block text-[10px] text-gray-400">Not mapped</span>
                             @else
                             —
-                            @endif
-                            @if(filled($row->shop_ref))
-                            <span class="mt-0.5 block font-mono text-[10px] text-gray-500 break-all" data-testid="omnichannel-order-shop-ref-{{ $row->id }}">{{ $row->shop_ref }}</span>
                             @endif
                         </td>
                         <td class="{{ $td }} text-gray-600"
@@ -449,7 +453,7 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                         <td class="{{ $td }} whitespace-nowrap text-gray-600">{{ $row->first_received_at?->format('Y-m-d H:i:s') ?? '—' }}</td>
                     </tr>
                     <tr x-show="isExpanded(@js($row->channel), @js($row->order_ref))" x-cloak class="bg-gray-50">
-                        <td colspan="9" class="p-0">
+                        <td colspan="10" class="p-0">
                             <template x-if="isLoading(@js($row->channel), @js($row->order_ref))">
                                 <p class="p-4 text-xs text-gray-500">Memuat detail…</p>
                             </template>

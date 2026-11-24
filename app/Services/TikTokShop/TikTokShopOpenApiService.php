@@ -295,6 +295,10 @@ class TikTokShopOpenApiService
             'commerce_platform' => $platform,
         ];
 
+        if (str_starts_with(strtoupper($orderId), 'WH-ENRICH-')) {
+            $order['warehouse_id'] = '7392489215199020821';
+        }
+
         if (str_starts_with(strtoupper($orderId), 'ONORDER-')) {
             $order['order_status'] = 'AWAITING_SHIPMENT';
             $order['payment_method_name'] = 'COD';

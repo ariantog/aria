@@ -153,3 +153,23 @@ it('does not dispatch enrich job when feature flag is off', function () {
 
     Bus::assertNotDispatched(EnrichMarketplaceTikTokCommercePlatformJob::class);
 });
+
+it('persists platform_warehouse_id from mock get order detail via enrich job', function () {
+    $shopRef = '7495540735365777507';
+    $platformWhId = '7392489215199020821';
+
+    MarketplaceChannelOrder::query()->create([
+        'channel' => MarketplaceWebhookRecorder::CHANNEL_TIKTOK,
+        'order_ref' => 'WH-ENRICH-1',
+        'shop_ref' => $shopRef,
+        'order_status' => 'UNPAID',
+        'last_event_at' => now(),
+        'first_received_at' => now(),
+    ]);
+
+    (new EnrichMarketplaceTikTokCommercePlatformJob('WH-ENRICH-1'))
+        ->handle(app(MarketplaceTikTokCommercePlatformEnricher::class));
+
+    expect(MarketplaceChannelOrder::query()->where('order_ref', 'WH-ENRICH-1')->value('platform_warehouse_id'))
+        ->toBe($platformWhId);
+});

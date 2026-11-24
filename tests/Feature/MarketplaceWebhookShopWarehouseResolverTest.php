@@ -92,3 +92,57 @@ it('resolves tiktok list row warehouse from last webhook payload via matrix', fu
     expect($resolver->warehouseNameForListRow($order, $map, $names))->toBe('TTS Matrix WH')
         ->and($resolver->platformWarehouseLabelForListRow($order))->toBe('Platform Name');
 });
+
+it('resolves tiktok list row warehouse from persisted platform_warehouse_id without webhook warehouse in payload', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Persisted WH']);
+    $shopRef = '7495540735365777507';
+    $platformWhId = '7392489215199020821';
+
+    MarketplaceWarehouseSync::query()->create([
+        'channel' => MarketplaceWarehouseSync::CHANNEL_TIKTOK,
+        'shop_ref' => $shopRef,
+        'platform_warehouse_id' => $platformWhId,
+        'platform_location_id' => '',
+        'platform_warehouse_name' => 'Platform Cell',
+        'warehouse_id' => $warehouse->id,
+    ]);
+
+    $event = MarketplaceWebhookEvent::query()->create([
+        'channel' => 'tiktok',
+        'idempotency_key' => 'tiktok:'.$shopRef.':9:NO-WH-PAYLOAD:1',
+        'event_type' => '1',
+        'shop_ref' => $shopRef,
+        'order_ref' => 'NO-WH-PAYLOAD',
+        'order_status' => 'AWAITING_SHIPMENT',
+        'signature_ok' => true,
+        'payload' => ['type' => 1, 'data' => ['order_id' => 'NO-WH-PAYLOAD']],
+        'received_at' => now(),
+    ]);
+
+    $order = MarketplaceChannelOrder::query()->create([
+        'channel' => 'tiktok',
+        'order_ref' => 'NO-WH-PAYLOAD',
+        'shop_ref' => $shopRef,
+        'platform_warehouse_id' => $platformWhId,
+        'order_status' => 'AWAITING_SHIPMENT',
+        'last_event_at' => now(),
+        'first_received_at' => now(),
+        'last_webhook_event_id' => $event->id,
+    ]);
+
+    $order->load('lastWebhookEvent');
+
+    $resolver = app(MarketplaceWebhookShopWarehouseResolver::class);
+    $map = $resolver->shopRefToWarehouseMap();
+    $names = [];
+
+    expect($resolver->warehouseNameForListRow($order, $map, $names))->toBe('Persisted WH')
+        ->and($resolver->platformWarehouseLabelForListRow($order))->toBe('Platform Cell');
+});
+
+it('loads aria warehouse name by id when not present in warehouse options pluck', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Loaded By Id']);
+    $resolver = app(MarketplaceWebhookShopWarehouseResolver::class);
+
+    expect($resolver->ariaWarehouseNameById($warehouse->id, []))->toBe('Loaded By Id');
+});
