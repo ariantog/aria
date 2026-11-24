@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\MarketplaceChannelOrder;
 use App\Models\MarketplaceWebhookEvent;
 use App\Models\ShopeePushInbox;
 use App\Models\User;
@@ -60,6 +61,14 @@ it('persists distinct inbox and webhook rows for code 3 status changes and code 
         'FULFILLMENT:LOGISTICS_NOT_START',
         'FULFILLMENT:LOGISTICS_READY',
     ]);
+
+    $order = MarketplaceChannelOrder::query()
+        ->where('channel', 'shopee')
+        ->where('order_ref', $ordersn)
+        ->first();
+
+    expect($order)->not->toBeNull()
+        ->and($order->order_status)->toBe('READY_TO_SHIP');
 });
 
 it('records code 30 on unified storage when shopee inbox storage is off', function () {

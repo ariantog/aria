@@ -78,6 +78,15 @@ it('downloads shopee awb pdf for selected orders', function () {
 
     $orderSn = 'AWB-TEST-001';
 
+    MarketplaceChannelOrder::query()->create([
+        'channel' => 'shopee',
+        'order_ref' => $orderSn,
+        'shop_ref' => '100',
+        'order_status' => 'PROCESSED',
+        'last_event_at' => now(),
+        'first_received_at' => now(),
+    ]);
+
     Http::fake([
         'partner.shopeemobile.com/api/v2/order/get_order_detail*' => Http::response(
             awbOrderDetailResponse($orderSn),
@@ -123,6 +132,9 @@ it('downloads shopee awb pdf for selected orders', function () {
     $response->assertOk();
     $response->assertHeader('content-type', 'application/pdf');
     expect($response->streamedContent())->toContain('%PDF');
+
+    expect(MarketplaceChannelOrder::query()->where('order_ref', $orderSn)->value('order_status'))
+        ->toBe('READY_TO_SHIP');
 });
 
 it('shows awb toolbar on current orders view', function () {

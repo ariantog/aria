@@ -237,8 +237,19 @@ class MarketplaceWebhookRecorder
         }
 
         $order->shop_ref = $event->shop_ref;
-        if (! $this->statusPresenter->skipsChannelOrderStatusUpsert($event->order_status)) {
-            $order->order_status = $event->order_status;
+        $payload = is_array($event->payload) ? $event->payload : [];
+        $summaryStatus = $this->statusPresenter->resolveSummaryStatusForChannelOrder(
+            (string) $event->channel,
+            $event->order_status,
+            $payload,
+        );
+        if ($summaryStatus !== null
+            && $this->statusPresenter->shouldReplaceChannelOrderStatus(
+                (string) $event->channel,
+                $order->order_status,
+                $summaryStatus,
+            )) {
+            $order->order_status = $summaryStatus;
         }
         $order->last_event_at = $receivedAt;
         $order->last_webhook_event_id = $event->id;
