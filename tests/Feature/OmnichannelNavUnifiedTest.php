@@ -99,6 +99,9 @@ it('shows mapped gudang in gudang column with platform wh on current orders', fu
         ->assertSee('Gudang Demo', false)
         ->assertSee('Tokopedia', false)
         ->assertSee('Not mapped', false)
+        ->assertSee('unmapped-shop', false)
+        ->assertSee('>Shop</th>', false)
+        ->assertSee('>Aria warehouse</th>', false)
         ->assertSee('>Platform WH</th>', false);
 });
 
@@ -149,6 +152,39 @@ it('resolves tiktok gudang on orders list from last webhook payload and matrix',
         ->assertSee('Matrix CITOS', false)
         ->assertSee('TTS Hub CITOS', false)
         ->assertSee('data-testid="omnichannel-order-gudang-'.$order->id.'"', false);
+});
+
+it('shows shop ref in shop column not aria warehouse on current orders', function () {
+    $admin = User::factory()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Only In Aria Col']);
+
+    TiktokShopSync::create([
+        'shop_ref' => '7495540735365777507',
+        'shop_cipher' => 'cipher',
+        'shop_name' => 'TTS',
+        'warehouse_id' => $warehouse->id,
+    ]);
+
+    $order = MarketplaceChannelOrder::query()->create([
+        'channel' => 'tiktok',
+        'order_ref' => 'SHOP-COL-1',
+        'shop_ref' => '7495540735365777507',
+        'order_status' => 'AWAITING_SHIPMENT',
+        'last_event_at' => now(),
+        'first_received_at' => now(),
+    ]);
+
+    $this->actingAs($admin)
+        ->get(route('omnichannel.orders.index', ['view' => 'orders', 'order_ref' => 'SHOP-COL-1']))
+        ->assertOk()
+        ->assertSee('Only In Aria Col', false)
+        ->assertSee('data-testid="omnichannel-order-shop-ref-'.$order->id.'"', false)
+        ->assertSeeInOrder([
+            'data-testid="omnichannel-order-shop-ref-'.$order->id.'"',
+            '7495540735365777507',
+            'data-testid="omnichannel-order-gudang-'.$order->id.'"',
+            'Only In Aria Col',
+        ], false);
 });
 
 it('renders orders list without calling shopee admin api', function () {

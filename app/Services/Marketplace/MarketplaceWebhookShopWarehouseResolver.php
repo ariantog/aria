@@ -211,7 +211,7 @@ class MarketplaceWebhookShopWarehouseResolver
             return null;
         }
 
-        return $warehouseNames[$warehouseId] ?? $warehouseNames[(string) $warehouseId] ?? null;
+        return $this->ariaWarehouseNameById($warehouseId, $warehouseNames);
     }
 
     /**
@@ -234,7 +234,7 @@ class MarketplaceWebhookShopWarehouseResolver
                 isset($row->commerce_platform) ? (string) $row->commerce_platform : null,
             );
             if ($warehouseId > 0) {
-                return $warehouseNames[$warehouseId] ?? $warehouseNames[(string) $warehouseId] ?? null;
+                return $this->ariaWarehouseNameById($warehouseId, $warehouseNames);
             }
 
             return null;
@@ -247,7 +247,7 @@ class MarketplaceWebhookShopWarehouseResolver
                 isset($row->commerce_platform) ? (string) $row->commerce_platform : null,
             );
             if ($warehouseId > 0) {
-                return $warehouseNames[$warehouseId] ?? $warehouseNames[(string) $warehouseId] ?? null;
+                return $this->ariaWarehouseNameById($warehouseId, $warehouseNames);
             }
         }
 
@@ -284,9 +284,7 @@ class MarketplaceWebhookShopWarehouseResolver
      */
     public function payloadForListRow(object $row): ?array
     {
-        if (is_array($row->payload ?? null)) {
-            return $row->payload;
-        }
+        $payload = is_array($row->payload ?? null) ? $row->payload : null;
 
         $event = null;
         if ($row instanceof MarketplaceChannelOrder && $row->relationLoaded('lastWebhookEvent')) {
@@ -295,11 +293,61 @@ class MarketplaceWebhookShopWarehouseResolver
             $event = $row->lastWebhookEvent;
         }
 
-        if ($event !== null && is_array($event->payload ?? null)) {
-            return $event->payload;
+        if ($payload === null && $event !== null && is_array($event->payload ?? null)) {
+            $payload = $event->payload;
         }
 
-        return null;
+        $synthetic = $this->syntheticPayloadFromPersistedPlatformWarehouse($row);
+        if ($synthetic !== null) {
+            if ($payload === null || $this->extractPlatformWarehouseIdFromPayload($payload) === null) {
+                return $payload === null
+                    ? $synthetic
+                    : array_replace_recursive($payload, $synthetic);
+            }
+        }
+
+        return $payload;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    protected function syntheticPayloadFromPersistedPlatformWarehouse(object $row): ?array
+    {
+        $platformWarehouseId = null;
+        if ($row instanceof MarketplaceChannelOrder) {
+            $platformWarehouseId = $row->platform_warehouse_id ?? null;
+        } elseif (isset($row->platform_warehouse_id)) {
+            $platformWarehouseId = $row->platform_warehouse_id;
+        }
+
+        if (! filled($platformWarehouseId)
+            || ! Schema::hasTable('marketplace_channel_orders')
+            || ! Schema::hasColumn('marketplace_channel_orders', 'platform_warehouse_id')) {
+            return null;
+        }
+
+        return [
+            'data' => [
+                'warehouse_id' => (string) $platformWarehouseId,
+            ],
+        ];
+    }
+
+    public function ariaWarehouseNameById(int $warehouseId, array $warehouseNames): ?string
+    {
+        if ($warehouseId <= 0) {
+            return null;
+        }
+
+        $name = $warehouseNames[$warehouseId] ?? $warehouseNames[(string) $warehouseId] ?? null;
+        if ($name !== null && $name !== '') {
+            return (string) $name;
+        }
+
+        $loaded = Addrbook::query()->where('id', $warehouseId)->value('name');
+
+        return filled($loaded) ? (string) $loaded : null;
     }
 
     protected function lookupPlatformWarehouseName(
