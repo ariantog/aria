@@ -6,6 +6,7 @@ use App\Models\MarketplaceChannelOrder;
 use App\Models\Omnichannel;
 use App\Services\Marketplace\MarketplaceChannelOrderAwbPromoter;
 use App\Services\Marketplace\MarketplaceChannelOrderWarehousePersist;
+use App\Services\Marketplace\MarketplaceChannelOrderOpsBucket;
 use App\Services\Marketplace\MarketplaceWebhookInboxQuery;
 use App\Services\Marketplace\MarketplaceWebhookStatusPresenter;
 use App\Services\Marketplace\MarketplaceWebhookShopWarehouseResolver;
@@ -27,6 +28,7 @@ class OmnichannelOrdersController extends Controller
         MarketplaceWebhookShopWarehouseResolver $shopResolver,
         MarketplaceWebhookStatusPresenter $statusPresenter,
         MarketplaceChannelOrderWarehousePersist $warehousePersist,
+        MarketplaceChannelOrderOpsBucket $opsBucket,
     ): View {
         abort_unless(Omnichannel::userCanOrders($request->user()), 403);
 
@@ -36,8 +38,10 @@ class OmnichannelOrdersController extends Controller
         $ordersTableExists = Schema::hasTable('marketplace_channel_orders');
         $rows = null;
         $statusOptions = [];
+        $opsBucketStats = [];
 
         if ($filters['view'] === 'orders' && $ordersTableExists) {
+            $opsBucketStats = $opsBucket->countBuckets($inboxQuery->ordersQueryForStats($filters));
             $rows = $inboxQuery->ordersQuery($filters)
                 ->paginate($filters['per_page'])
                 ->withQueryString();
@@ -72,6 +76,8 @@ class OmnichannelOrdersController extends Controller
             'shopResolver' => $shopResolver,
             'detailUrlTemplate' => url('/omnichannel/orders/__CHANNEL__/__ORDER__'),
             'statusPresenter' => $statusPresenter,
+            'opsBucketStats' => $opsBucketStats,
+            'opsBucketService' => $opsBucket,
         ]);
     }
 

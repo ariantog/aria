@@ -41,9 +41,12 @@ if (! $isEventsView && isset($rows) && $rows !== null) {
     }
 }
 $hasActiveFilters = collect(request()->query())
-    ->only(['channel', 'view', 'date_from', 'date_to', 'order_ref', 'order_status', 'shop_ref', 'warehouse_id', 'per_page'])
+    ->only(['channel', 'view', 'date_from', 'date_to', 'order_ref', 'order_status', 'shop_ref', 'warehouse_id', 'per_page', 'ops_bucket'])
     ->filter(fn ($value) => $value !== null && $value !== '')
     ->isNotEmpty();
+$activeOpsBucket = $filters['ops_bucket'] ?? null;
+$opsBucketStats = $opsBucketStats ?? [];
+$opsBucketService = $opsBucketService ?? null;
 @endphp
 
 <div class="flex flex-col gap-4 p-2 sm:gap-6 sm:p-4"
@@ -183,6 +186,43 @@ $hasActiveFilters = collect(request()->query())
         'resetQuery' => $resetQuery,
         'defaultOpen' => $hasActiveFilters,
     ])
+
+    @if(! $isEventsView && $opsBucketService !== null && ($ordersTableExists ?? true))
+    @php
+        $opsCardPresets = [
+            ['bucket' => \App\Services\Marketplace\MarketplaceChannelOrderOpsBucket::BUCKET_ALL, 'border' => 'border-gray-400', 'bg' => 'bg-gray-50 text-gray-700', 'ring' => 'ring-2 ring-gray-500'],
+            ['bucket' => \App\Services\Marketplace\MarketplaceChannelOrderOpsBucket::BUCKET_UNPROCESSED, 'border' => 'border-blue-500', 'bg' => 'bg-blue-50 text-blue-700', 'ring' => 'ring-2 ring-blue-500'],
+            ['bucket' => \App\Services\Marketplace\MarketplaceChannelOrderOpsBucket::BUCKET_READY_TO_SHIP, 'border' => 'border-indigo-500', 'bg' => 'bg-indigo-50 text-indigo-700', 'ring' => 'ring-2 ring-indigo-500'],
+            ['bucket' => \App\Services\Marketplace\MarketplaceChannelOrderOpsBucket::BUCKET_IN_TRANSIT, 'border' => 'border-violet-500', 'bg' => 'bg-violet-50 text-violet-800', 'ring' => 'ring-2 ring-violet-500'],
+            ['bucket' => \App\Services\Marketplace\MarketplaceChannelOrderOpsBucket::BUCKET_COMPLETED, 'border' => 'border-green-500', 'bg' => 'bg-green-50 text-green-700', 'ring' => 'ring-2 ring-green-500'],
+            ['bucket' => \App\Services\Marketplace\MarketplaceChannelOrderOpsBucket::BUCKET_CANCELLED, 'border' => 'border-red-500', 'bg' => 'bg-red-50 text-red-700', 'ring' => 'ring-2 ring-red-500'],
+        ];
+        $opsCardQueryBase = array_filter(
+            array_merge(request()->query(), ['view' => 'orders']),
+            fn ($v) => $v !== null && $v !== '',
+        );
+        unset($opsCardQueryBase['ops_bucket']);
+    @endphp
+    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6 md:gap-4" data-testid="omnichannel-ops-bucket-cards">
+        @foreach($opsCardPresets as $card)
+        @php
+            $bucket = $card['bucket'];
+            $isActive = $activeOpsBucket === $bucket
+                || ($bucket === \App\Services\Marketplace\MarketplaceChannelOrderOpsBucket::BUCKET_UNPROCESSED
+                    && ! request()->query->has('ops_bucket'));
+            $cardHref = route('omnichannel.orders.index', array_merge($opsCardQueryBase, ['ops_bucket' => $bucket]));
+        @endphp
+        <a href="{{ $cardHref }}"
+           data-testid="omnichannel-ops-bucket-{{ $bucket }}"
+           class="flex items-center justify-between rounded-lg border-l-4 {{ $card['border'] }} {{ $card['bg'] }} p-3 shadow-sm transition-all hover:opacity-90 md:p-4 {{ $isActive ? $card['ring'] : '' }}">
+            <div>
+                <p class="text-[10px] font-semibold tracking-wider uppercase opacity-70 md:text-xs">{{ $opsBucketService->cardTitle($bucket) }}</p>
+                <p class="text-xl font-bold md:text-2xl">{{ format_amount($opsBucketStats[$bucket] ?? 0, 0) }}</p>
+            </div>
+        </a>
+        @endforeach
+    </div>
+    @endif
 
     @if(session('error'))
     <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" data-testid="omnichannel-awb-flash-error">{{ session('error') }}</div>
