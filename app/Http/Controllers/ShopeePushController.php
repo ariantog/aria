@@ -2,16 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\ShopeePushInbox;
-use App\Services\Marketplace\MarketplaceWebhookRecorder;
-use App\Services\Marketplace\MarketplaceWebhookStatusPresenter;
-use App\Services\Marketplace\ShopeeOrderStatusIngest;
+use App\Jobs\PersistShopeePushInboxJob;
 use App\Services\Shopee\ShopeePushSignatureVerifier;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Schema;
-use Throwable;
 
 /**
  * Shopee Open Platform Push Mechanism callback (verify + optional inbox; does not post transactions).
@@ -21,9 +16,6 @@ class ShopeePushController extends Controller
     public function __invoke(
         Request $request,
         ShopeePushSignatureVerifier $verifier,
-        ShopeeOrderStatusIngest $orderIngest,
-        MarketplaceWebhookRecorder $webhookRecorder,
-        MarketplaceWebhookStatusPresenter $statusPresenter,
     ): Response
     {
         $rawBody = $request->getContent();
@@ -47,99 +39,17 @@ class ShopeePushController extends Controller
         $payload = json_decode($rawBody, true) ?? [];
 
         $data = is_array($payload['data'] ?? null) ? $payload['data'] : [];
-        $shopId = isset($payload['shop_id']) ? (int) $payload['shop_id'] : null;
         $pushCode = isset($payload['code']) ? (int) $payload['code'] : null;
         $ordersn = $this->resolveOrderSn($data);
-        $orderStatus = $statusPresenter->resolveIngestStatus(
-            MarketplaceWebhookRecorder::CHANNEL_SHOPEE,
-            $pushCode,
-            $payload,
-        );
-
-        $shadowStubUpserted = false;
-        $jubelioPlaceholderUpserted = false;
-
-        if ($pushCode === 3 && filled($ordersn)) {
-            try {
-                $ingest = $orderIngest->ingest(
-                    $shopId,
-                    $ordersn,
-                    $orderStatus,
-                    $pushCode,
-                    $data,
-                    $payload,
-                );
-                $shadowStubUpserted = $ingest['shadow'];
-                $jubelioPlaceholderUpserted = $ingest['jubelio_placeholder'];
-            } catch (Throwable $e) {
-                Log::warning('Shopee push order ingest failed', [
-                    'ordersn' => $ordersn,
-                    'message' => $e->getMessage(),
-                ]);
-            }
-        }
-
-        $persistInbox = $this->shouldPersistInbox($pushCode);
-        $recordUnified = $this->shouldRecordUnifiedWebhook($pushCode);
-
-        if ($persistInbox || $recordUnified) {
-            try {
-                if ($persistInbox && Schema::hasTable('shopee_push_inbox')) {
-                    ShopeePushInbox::query()->create([
-                        'shop_id' => $shopId,
-                        'push_code' => $pushCode,
-                        'ordersn' => $ordersn,
-                        'order_status' => $orderStatus,
-                        'signature_ok' => true,
-                        'callback_url' => $callbackUrl,
-                        'payload' => $payload,
-                    ]);
-                }
-
-                if ($recordUnified) {
-                    $webhookRecorder->recordShopee(
-                        $payload,
-                        true,
-                        $shopId,
-                        $pushCode,
-                        $ordersn,
-                        $orderStatus,
-                    );
-                }
-            } catch (Throwable $e) {
-                Log::error('Shopee push persistence failed', [
-                    'message' => $e->getMessage(),
-                    'push_code' => $pushCode,
-                    'ordersn' => $ordersn,
-                    'inbox' => $persistInbox,
-                    'unified' => $recordUnified,
-                ]);
-            }
-        }
 
         Log::info('Shopee push accepted', [
             'code' => $pushCode,
             'ordersn' => $ordersn,
-            'shadow_stub_upserted' => $shadowStubUpserted,
-            'jubelio_placeholder_upserted' => $jubelioPlaceholderUpserted,
         ]);
 
+        PersistShopeePushInboxJob::dispatchAfterResponse($payload, true, $callbackUrl);
+
         return response('', Response::HTTP_OK);
-    }
-
-    private function shouldPersistInbox(?int $pushCode): bool
-    {
-        return (bool) config('services.shopee_push.store_inbox')
-            && $pushCode !== null;
-    }
-
-    private function shouldRecordUnifiedWebhook(?int $pushCode): bool
-    {
-        if ($pushCode === null) {
-            return false;
-        }
-
-        return (bool) config('marketplace.webhook.unified_storage', false);
     }
 
     /**

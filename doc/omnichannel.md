@@ -80,7 +80,7 @@ When **`SHOPEE_PRECREATE_JUBELIO_QUEUE=true`** (default **false**), push code **
 
 Console test pushes and verify-only statuses are skipped. Jubelio **webhook** promotes a placeholder row (updates `jubelio_order_id` + shipped status) instead of inserting a duplicate. Poll/get-orders and `JubelioSellInvoiceGuard` treat the invoice as already queued. **Still no SELL transaction on push alone.**
 
-When the push payload includes `item_list` and `shopee_syncs` resolves a warehouse, pre-create also increments **`warehouse_item.on_order`** (additive migration) — **not** physical `quantity`. SELL posting via `InventoryService::deduct` releases matching on_order as stock deducts.
+When the push payload includes `item_list` and warehouse mapping resolves (via **`ShopeeSyncWarehouseResolver`** / `product_location_id` or sole-shop fallback), Shopee push code **3** increments **`warehouse_item.on_order`** — **not** physical `quantity`. This path is independent of **`SHOPEE_PRECREATE_JUBELIO_QUEUE`**; idempotency uses `marketplace_on_order_reservations` (same pattern as TikTok). SELL posting via `InventoryService::deduct` releases matching on_order as stock deducts.
 
 #### Dedupe with mobile AWB / resi scan
 
@@ -107,11 +107,12 @@ Response includes `created`, `updated`, and `skipped` arrays.
 | Layer | Behaviour |
 |-------|------------|
 | Schema | `warehouse_item.on_order` decimal, default `0` — migrate `2026_11_22_150000_add_on_order_to_warehouse_item.php` |
-| Reserve | Shopee pre-create (new placeholder only) + optional `item_list` on push |
+| Reserve (Shopee) | `SHOPEE_PUSH_ON_ORDER_ENABLED` (default **false** until Jubelio SELL releases `on_order` / OMN-66 ships) on push code **3** in **awaiting shipment** bucket + `item_list`; queued via `PersistShopeePushInboxJob` after HTTP ack |
+| Reserve (TikTok) | `TIKTOK_SHOP_ON_ORDER_ENABLED` on awaiting-shipment webhooks (`TikTokShopWebhookOnOrderApplicator`) |
 | Release | Physical deduct path in `InventoryService` (Jubelio SELL post) |
 | UI | Gudang **Items** list shows **On order** column (Aria, not Jubelio API) |
 
-TikTok / Tokopedia push on_order hooks are deferred — warehouse mapping for those channels still flows through **Jubelio** `jubeliosyncs` until a dedicated map exists.
+**Shopee push HTTP path:** `POST /shopee/push` verifies signature, returns **200** immediately, then `PersistShopeePushInboxJob` (queue worker required) runs shadow stub, optional inbox/unified storage, warehouse snapshot on channel orders, status ingest, and on_order. Disable on_order only: `SHOPEE_PUSH_ON_ORDER_ENABLED=false`.
 
 ### Warehouse mapping audit (v1)
 

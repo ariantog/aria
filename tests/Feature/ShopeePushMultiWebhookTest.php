@@ -1,5 +1,6 @@
 <?php
 
+use App\Jobs\PersistShopeePushInboxJob;
 use App\Models\MarketplaceChannelOrder;
 use App\Models\MarketplaceWebhookEvent;
 use App\Models\ShopeePushInbox;
@@ -30,6 +31,23 @@ function postSignedShopeePush(string $body): \Illuminate\Testing\TestResponse
     ], $body);
 }
 
+/**
+ * Run one queued persist job (avoids stacked dispatchAfterResponse callbacks in multi-call tests).
+ */
+function runPersistShopeePushJobFromJson(string $body): void
+{
+    /** @var array<string, mixed> $payload */
+    $payload = json_decode($body, true, 512, JSON_THROW_ON_ERROR);
+    $callbackUrl = url(route('shopee.push', [], false));
+
+    (new PersistShopeePushInboxJob($payload, true, $callbackUrl))->handle(
+        app(\App\Services\Marketplace\ShopeeOrderStatusIngest::class),
+        app(MarketplaceWebhookRecorder::class),
+        app(MarketplaceWebhookStatusPresenter::class),
+        app(\App\Services\Marketplace\ShopeePushWebhookOnOrderApplicator::class),
+    );
+}
+
 it('persists distinct inbox and webhook rows for code 3 status changes and code 30 fulfillment', function () {
     $shopId = 727720655;
     $ordersn = '2611245BWFK367';
@@ -43,7 +61,7 @@ it('persists distinct inbox and webhook rows for code 3 status changes and code 
     ];
 
     foreach ($pushes as $body) {
-        postSignedShopeePush($body)->assertOk();
+        runPersistShopeePushJobFromJson($body);
     }
 
     expect(ShopeePushInbox::query()->where('ordersn', $ordersn)->count())->toBe(4)
@@ -75,7 +93,7 @@ it('records code 30 on unified storage when shopee inbox storage is off', functi
     config(['services.shopee_push.store_inbox' => false]);
 
     $body = '{"data":{"ordersn":"FUL-ONLY","logistics_status":"LOGISTICS_READY"},"shop_id":9,"code":30,"timestamp":1660123127}';
-    postSignedShopeePush($body)->assertOk();
+    runPersistShopeePushJobFromJson($body);
 
     expect(ShopeePushInbox::count())->toBe(0)
         ->and(MarketplaceWebhookEvent::query()->where('order_ref', 'FUL-ONLY')->count())->toBe(1);
@@ -93,7 +111,7 @@ it('dedupes identical shopee pushes by payload hash suffix', function () {
     $body = '{"data":{"ordersn":"DEDUPE1","status":"SHIPPED","update_time":1},"shop_id":1,"code":3,"timestamp":99}';
 
     postSignedShopeePush($body)->assertOk();
-    postSignedShopeePush($body)->assertOk();
+    runPersistShopeePushJobFromJson($body);
 
     expect(MarketplaceWebhookEvent::query()->where('order_ref', 'DEDUPE1')->count())->toBe(1);
 });

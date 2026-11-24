@@ -9,13 +9,14 @@ use App\Services\InventoryService;
 use App\Services\Marketplace\ShopeeJubelioQueuePrecreator;
 use App\Services\Shopee\ShopeePushSignatureVerifier;
 
-it('increases on_order not physical qty on shopee precreate when push includes item_list', function () {
+it('increases on_order not physical qty on shopee push when item_list present without jubelio precreate', function () {
     config([
         'services.shopee_push.partner_key' => 'test-partner-key',
         'services.shopee_push.verify_signature' => true,
         'services.shopee_push.shadow_enabled' => false,
         'services.shopee_push.store_inbox' => false,
-        'services.shopee_push.precreate_jubelio_queue' => true,
+        'services.shopee_push.precreate_jubelio_queue' => false,
+        'marketplace.shopee_on_order.enabled' => true,
     ]);
 
     $warehouse = Addrbook::factory()->warehouse()->create();
@@ -57,7 +58,7 @@ it('increases on_order not physical qty on shopee precreate when push includes i
         'CONTENT_TYPE' => 'application/json',
     ], $body)->assertOk();
 
-    expect(Jubelioorder::where('invoice', 'SP-ONORDER_1')->exists())->toBeTrue();
+    expect(Jubelioorder::count())->toBe(0);
 
     $row = WarehouseItem::query()
         ->where('warehouse_id', $warehouse->id)
@@ -91,13 +92,14 @@ it('releases on_order when inventory deducts physical stock', function () {
         ->and((float) $row->on_order)->toBe(2.0);
 });
 
-it('does not double on_order when precreate push is idempotent', function () {
+it('does not double on_order when shopee push on_order is idempotent', function () {
     config([
         'services.shopee_push.partner_key' => 'test-partner-key',
         'services.shopee_push.verify_signature' => true,
         'services.shopee_push.shadow_enabled' => false,
         'services.shopee_push.store_inbox' => false,
-        'services.shopee_push.precreate_jubelio_queue' => true,
+        'services.shopee_push.precreate_jubelio_queue' => false,
+        'marketplace.shopee_on_order.enabled' => true,
     ]);
 
     $warehouse = Addrbook::factory()->warehouse()->create();
