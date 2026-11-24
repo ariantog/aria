@@ -154,6 +154,31 @@ Match at link time uses Partner **`seller_sku`** against `items.code` / `items.l
 
 **Warehouse items page:** When a gudang has TikTok mapping, shows a banner count of page items missing `tiktok_shop_product_id` (mirror Shopee unlinked banner).
 
+**Migration (items columns):**
+
+```bash
+php artisan migrate --path=database/migrations/2026_11_24_120000_add_tiktok_shop_item_link_columns_to_items.php
+```
+
+**Maintainer checklist — link save fails with `Unknown column 'tiktok_shop_product_id'` (or `_sku_id`):**
+
+1. Confirm schema vs `migrations` table — a row for `2026_11_24_120000_add_tiktok_shop_item_link_columns_to_items` can exist even when the ALTER never ran (wrong database, failed partial run, etc.).
+2. Verify columns: `SHOW COLUMNS FROM items LIKE 'tiktok_shop%';` — expect `tiktok_shop_product_id` and `tiktok_shop_sku_id` (both nullable `varchar(64)`).
+3. If columns are missing, run the **install** migration (guarded, idempotent if columns already exist after a manual fix):
+
+```bash
+php artisan migrate --path=database/migrations/2026_11_24_200000_install_tiktok_shop_item_link_columns_on_items.php
+```
+
+4. Or add columns manually on production MySQL **only when missing** (omit `AFTER` if `shopee_model_id` is absent):
+
+```sql
+ALTER TABLE items ADD COLUMN tiktok_shop_product_id VARCHAR(64) NULL;
+ALTER TABLE items ADD COLUMN tiktok_shop_sku_id VARCHAR(64) NULL;
+```
+
+5. Re-try **Save** on the item TikTok Shop tab.
+
 ## What’s next (not in this PR)
 
 - Shadow compare to `jubelioorders` (like Shopee omnichannel) — read-only `GET` order detail behind a separate flag, default off.
