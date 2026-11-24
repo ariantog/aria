@@ -514,7 +514,10 @@ class TikTokShopOpenApiService
                 ]);
 
             $response = match (strtoupper($method)) {
-                'POST' => $client->withBody((string) $bodyJson, 'application/json')->post($url, $query),
+                'POST' => $client
+                    ->withBody((string) $bodyJson, 'application/json')
+                    ->withQueryParameters($query)
+                    ->post($url),
                 default => $client->get($url, $query),
             };
 
