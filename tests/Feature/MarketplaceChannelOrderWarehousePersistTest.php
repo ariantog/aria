@@ -94,6 +94,72 @@ it('hydrates shopee order list row from shadow snapshot and persists warehouse f
         ->and((int) $order->aria_warehouse_id)->toBe($warehouse->id);
 });
 
+it('prefetches stale shopee shadow detail before warehouse hydrate', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Online - WTC']);
+    $shopRef = '76610113';
+    $orderRef = '2611244JK1AF1E';
+
+    MarketplaceWarehouseSync::query()->create([
+        'channel' => MarketplaceWarehouseSync::CHANNEL_SHOPEE,
+        'shop_ref' => $shopRef,
+        'platform_warehouse_id' => '0',
+        'platform_location_id' => 'ID00UUL4Z',
+        'platform_warehouse_name' => 'Online - WTC',
+        'warehouse_id' => $warehouse->id,
+    ]);
+
+    MarketplaceOrderShadow::query()->create([
+        'channel' => MarketplaceOrderShadow::CHANNEL_SHOPEE,
+        'shop_id' => (int) $shopRef,
+        'external_order_sn' => $orderRef,
+        'channel_status' => 'PROCESSED',
+        'compare_status' => MarketplaceOrderShadow::COMPARE_PENDING,
+        'line_compare_status' => MarketplaceOrderShadow::LINE_COMPARE_SKIPPED,
+    ]);
+
+    $order = MarketplaceChannelOrder::query()->create([
+        'channel' => 'shopee',
+        'order_ref' => $orderRef,
+        'shop_ref' => $shopRef,
+        'order_status' => 'PROCESSED',
+        'last_event_at' => now(),
+        'first_received_at' => now(),
+    ]);
+
+    $this->mock(\App\Services\Marketplace\ShopeeOrderShadowRecorder::class, function ($mock) use ($shopRef, $orderRef): void {
+        $mock->shouldReceive('recordFromPush')
+            ->once()
+            ->with((int) $shopRef, $orderRef, 'PROCESSED', 3)
+            ->andReturnUsing(function () use ($shopRef, $orderRef) {
+                return MarketplaceOrderShadow::query()->updateOrCreate(
+                    [
+                        'channel' => MarketplaceOrderShadow::CHANNEL_SHOPEE,
+                        'external_order_sn' => $orderRef,
+                    ],
+                    [
+                        'shop_id' => (int) $shopRef,
+                        'channel_status' => 'PROCESSED',
+                        'channel_payload' => [
+                            'response' => [
+                                'order_list' => [[
+                                    'item_list' => [
+                                        ['product_location_id' => ['ID00UUL4Z']],
+                                    ],
+                                ]],
+                            ],
+                        ],
+                    ],
+                );
+            });
+    });
+
+    app(MarketplaceChannelOrderWarehousePersist::class)->hydrateListPage(collect([$order]));
+
+    $order->refresh();
+    expect($order->platform_location_id)->toBe('ID00UUL4Z')
+        ->and((int) $order->aria_warehouse_id)->toBe($warehouse->id);
+});
+
 it('hydrates shopee aria warehouse when only platform location is already stored', function () {
     $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Online - WTC']);
     $shopRef = '76610113';

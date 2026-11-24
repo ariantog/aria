@@ -69,6 +69,8 @@ class MarketplaceChannelOrderWarehousePersist
             return;
         }
 
+        $this->prefetchStaleShopeeShadowDetails($needing);
+
         $shadowPayloads = $this->loadShadowPushPayloads($needing);
         $webhookPayloads = $this->loadWebhookPayloadsWithWarehouseHint($needing);
 
@@ -196,6 +198,48 @@ class MarketplaceChannelOrderWarehousePersist
         }
 
         return $dirty;
+    }
+
+    /**
+     * Same enrichment as /omnichannel/shopee/{ordersn} so list hydrate has warehouse keys without a manual shadow visit.
+     *
+     * @param  Collection<int, MarketplaceChannelOrder>  $orders
+     */
+    private function prefetchStaleShopeeShadowDetails(Collection $orders): void
+    {
+        if (! Schema::hasTable('marketplace_order_shadows')) {
+            return;
+        }
+
+        $recorder = app(ShopeeOrderShadowRecorder::class);
+        $shopeeOrders = $orders->filter(
+            fn (MarketplaceChannelOrder $order) => strtolower((string) $order->channel) === MarketplaceWebhookRecorder::CHANNEL_SHOPEE,
+        );
+
+        foreach ($shopeeOrders as $order) {
+            $orderRef = trim((string) $order->order_ref);
+            if ($orderRef === '') {
+                continue;
+            }
+
+            $shopId = $this->shopRefToPositiveInt($order->shop_ref);
+
+            $shadow = MarketplaceOrderShadow::query()
+                ->where('channel', MarketplaceOrderShadow::CHANNEL_SHOPEE)
+                ->where('external_order_sn', $orderRef)
+                ->first();
+
+            if ($shadow !== null && $shadow->detailFresh()) {
+                continue;
+            }
+
+            $recorder->recordFromPush(
+                $shopId ?? $shadow?->shop_id,
+                $orderRef,
+                $shadow?->channel_status ?? $order->order_status,
+                (int) ($shadow?->last_push_code ?? 3),
+            );
+        }
     }
 
     /**
