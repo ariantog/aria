@@ -37,6 +37,7 @@ if (! $isEventsView && isset($rows) && $rows !== null) {
             'channel' => (string) $orderRow->channel,
             'order_ref' => (string) $orderRow->order_ref,
             'shop_ref' => (string) ($orderRow->shop_ref ?? ''),
+            'awb_printed' => filled($orderRow->awb_printed_at ?? null),
         ];
     }
 }
@@ -57,7 +58,11 @@ $opsBucketService = $opsBucketService ?? null;
          detailHtml: {},
          loadingKey: null,
          pageRows: @js($pageOrderRows),
+         canReprintAwb: @js($canReprintAwb ?? false),
          selected: {},
+         rowAwbSelectable(row) {
+             return this.canReprintAwb || !row.awb_printed;
+         },
          rowKey(channel, orderRef) {
              return channel + ':' + orderRef;
          },
@@ -78,17 +83,22 @@ $opsBucketService = $opsBucketService ?? null;
          selectedCount() {
              return Object.keys(this.selected).length;
          },
+         selectablePageRows() {
+             return this.pageRows.filter((row) => this.rowAwbSelectable(row));
+         },
          allPageSelected() {
-             if (this.pageRows.length === 0) {
+             const selectable = this.selectablePageRows();
+             if (selectable.length === 0) {
                  return false;
              }
-             return this.pageRows.every((row) => this.isRowSelected(row));
+             return selectable.every((row) => this.isRowSelected(row));
          },
          toggleSelectAllPage() {
+             const selectable = this.selectablePageRows();
              if (this.allPageSelected()) {
-                 this.pageRows.forEach((row) => delete this.selected[this.selectionKey(row)]);
+                 selectable.forEach((row) => delete this.selected[this.selectionKey(row)]);
              } else {
-                 this.pageRows.forEach((row) => { this.selected[this.selectionKey(row)] = row; });
+                 selectable.forEach((row) => { this.selected[this.selectionKey(row)] = row; });
              }
          },
          submitAwbPrint(e) {
@@ -435,15 +445,21 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                             'channel' => (string) $row->channel,
                             'order_ref' => (string) $row->order_ref,
                             'shop_ref' => (string) ($row->shop_ref ?? ''),
+                            'awb_printed' => filled($row->awb_printed_at ?? null),
                         ];
+                        $awbAlreadyPrinted = filled($row->awb_printed_at ?? null);
                     @endphp
                     <tr class="hover:bg-gray-50/80">
                         <td class="{{ $td }} text-center">
                             <input type="checkbox"
-                                   class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                   class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
                                    data-testid="omnichannel-awb-row-{{ $row->id }}"
                                    :checked="isRowSelected(@js($awbRow))"
                                    @change="toggleRowSelection(@js($awbRow))"
+                                   x-bind:disabled="!canReprintAwb && @js($awbAlreadyPrinted)"
+                                   @if($awbAlreadyPrinted && !($canReprintAwb ?? false))
+                                   title="AWB sudah dicetak — hubungi admin untuk cetak ulang"
+                                   @endif
                                    aria-label="Pilih order {{ $row->order_ref }}">
                         </td>
                         <td class="{{ $td }}">

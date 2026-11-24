@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\MarketplaceChannelOrder;
 use App\Models\Omnichannel;
+use App\Services\Marketplace\MarketplaceChannelOrderAwbPrintGuard;
 use App\Services\Marketplace\MarketplaceChannelOrderAwbPromoter;
 use App\Services\Marketplace\MarketplaceChannelOrderWarehousePersist;
 use App\Services\Marketplace\MarketplaceChannelOrderOpsBucket;
@@ -81,6 +82,7 @@ class OmnichannelOrdersController extends Controller
             'statusPresenter' => $statusPresenter,
             'opsBucketStats' => $opsBucketStats,
             'opsBucketService' => $opsBucket,
+            'canReprintAwb' => Omnichannel::userCanReprintAwb($request->user()),
         ]);
     }
 
@@ -181,6 +183,7 @@ class OmnichannelOrdersController extends Controller
         Request $request,
         ShopeeShippingDocumentService $awbService,
         MarketplaceChannelOrderAwbPromoter $awbStatusPromoter,
+        MarketplaceChannelOrderAwbPrintGuard $awbPrintGuard,
     ): StreamedResponse|RedirectResponse {
         abort_unless(Omnichannel::userCanOrders($request->user()), 403);
 
@@ -226,6 +229,40 @@ class OmnichannelOrdersController extends Controller
             return redirect()->back()->with('error', $message);
         }
 
+        $shopeeOrderRefs = array_values(array_unique($shopeeOrderRefs));
+        $partition = $awbPrintGuard->partitionOrdersForAwbPrint($shopeeOrderRefs, $request->user());
+        $blockedAlreadyPrinted = $partition['blocked'];
+        $allowedOrderRefs = $partition['allowed'];
+
+        if ($allowedOrderRefs === []) {
+            $sns = implode(', ', $blockedAlreadyPrinted);
+
+            return redirect()->back()->with(
+                'error',
+                'AWB sudah pernah dicetak untuk order Shopee: '.$sns.'. Minta izin cetak ulang ke admin.',
+            );
+        }
+
+        if ($blockedAlreadyPrinted !== []) {
+            $skippedList = implode(', ', $blockedAlreadyPrinted);
+            session()->flash(
+                'warning',
+                count($blockedAlreadyPrinted).' order dilewati karena AWB sudah pernah dicetak: '.$skippedList,
+            );
+        }
+
+        $allowedSet = array_fill_keys($allowedOrderRefs, true);
+        foreach ($byShop as $shopId => $orderSns) {
+            $byShop[$shopId] = array_values(array_filter(
+                $orderSns,
+                static fn ($sn) => isset($allowedSet[$sn]),
+            ));
+            if ($byShop[$shopId] === []) {
+                unset($byShop[$shopId]);
+            }
+        }
+        $shopeeOrderRefs = $allowedOrderRefs;
+
         $files = [];
         try {
             foreach ($byShop as $shopId => $orderSns) {
@@ -243,7 +280,7 @@ class OmnichannelOrdersController extends Controller
 
         $printerUserId = (int) $request->user()->id;
         $awbStatusPromoter->promoteShopeeOrdersAfterAwb($shopeeOrderRefs);
-        $awbStatusPromoter->recordShopeeAwbPrint($shopeeOrderRefs, $printerUserId);
+        $awbPrintGuard->recordSuccessfulPrints($shopeeOrderRefs, $request->user());
         $awbStatusPromoter->ensureJubelioQueueAfterAwb($byShop, $printerUserId);
 
         if ($skippedNonShopee > 0) {

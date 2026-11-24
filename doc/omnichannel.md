@@ -32,13 +32,14 @@ When Jubelio cron posts that sell (`submit_type = 2`), `TransactionService` dedu
 
 ### Bulk AWB print (Shopee, v1)
 
-**Current orders** only (`view=orders`): checkbox selection + **Cetak AWB (Shopee)** → `POST /omnichannel/orders/shipping-documents` (`omnichannel.orders.shipping-documents`). Permission: `omnichannel-orders` / `Omnichannel::userCanOrders`.
+**Current orders** only (`view=orders`): checkbox selection + **Cetak AWB (Shopee)** → `POST /omnichannel/orders/shipping-documents` (`omnichannel.orders.shipping-documents`). Permission: `omnichannel-orders` / `Omnichannel::userCanOrders`. **One print per Shopee order** unless the user has **`omnichannel-orders-awb-reprint`** (`Omnichannel::userCanReprintAwb` — superadmin bypass). Already-printed rows are not selectable on the list without reprint permission.
 
 - **v1 channel support:** Shopee rows only (TikTok/Tokopedia skipped with flash message). Uses **Shopee Admin Open API** logistics: `create_shipping_document` → poll `get_shipping_document_result` (≤30s) → `download_shipping_document`. Batches ≤50 orders; grouped per `shop_id` from `shop_ref` + OAuth/`shopee_syncs`. Multi-package orders resolve `package_number` via `get_order_detail` (`package_list`); empty `package_number` is never sent.
 - **Response:** single-shop / single batch → one PDF download; multiple shops or >50 orders → ZIP of PDFs.
 - **Config:** `SHOPEE_SHIPPING_DOCUMENT_TYPE` (default `NORMAL_AIR_WAYBILL`) on `config('services.shopee_admin.shipping_document_type')`.
 - **Code:** `App\Services\Shopee\ShopeeShippingDocumentService`, `OmnichannelOrdersController@downloadShippingDocuments`.
-- **AWB printer audit:** On successful print, `marketplace_channel_orders.awb_printed_by` / `awb_printed_at` record the user; new/touched `jubelioorders` rows get `user_id` when still unscanned (same idea as resi scan).
+- **AWB printer audit:** On successful print, append a row to **`marketplace_channel_order_awb_prints`** (full history, `is_reprint` when not the first print for that order) and update **`marketplace_channel_orders.awb_printed_by` / `awb_printed_at`** (last printer). New/touched `jubelioorders` rows get `user_id` when still unscanned (same idea as resi scan).
+- **Production:** after deploy, run `php artisan tinker --execute="app(\App\Services\PermissionGenerator::class)->generateForModule('Omnichannel');"` (or `generateAll`) and assign **`omnichannel-orders-awb-reprint`** on aria3 to roles that may cetak ulang AWB.
 
 **TikTok shop access token (live driver):** Same pattern as Shopee — Aria stores seller OAuth in `settings` slug **`tiktok_shop_oauth`** (`TikTokShopOAuthService`), refreshes via TikTok `token/refresh`, and serves read-only tokens to Grok at **`GET /api/readonly/tiktok/oauth`** (`doc/grok-readonly-api.md`). Authorize in UI: **`GET /tiktok-shop/authorize`** (Omnichannel → Settings → Connections). Callback: **`/tiktok-shop/oauth/callback`** (`TIKTOK_SHOP_REDIRECT_URL` must match Partner Center). **`shop_cipher`** disimpan per toko di `marketplace_warehouse_syncs` (`channel=tiktok`) dan legacy `tiktok_shop_syncs`, dengan env fallback `TIKTOK_SHOP_SHOP_CIPHER`. `TIKTOK_SHOP_ACCESS_TOKEN` is emergency-only fallback. Grok needs `export-readonly` + `api.readonly.tiktok.oauth`.
 
@@ -65,7 +66,7 @@ When Jubelio cron posts that sell (`submit_type = 2`), `TransactionService` dedu
 
 **aria3 maintenance (`omnichannel_settings` missing but `2026_11_22` already migrated):** `php artisan migrate --path=database/migrations/2026_11_23_120000_install_omnichannel_settings_table.php --force` — guarded CREATE only; FLEXI staging / low-stock / Tokopedia values are saved from Settings **Simpan**, not separate migrations or env.
 
-Permissions: `omnichannel-view`, `omnichannel-orders`, `omnichannel-settings`, `omnichannel-settings-edit` via `App\Models\Omnichannel` + `PermissionGenerator`.
+Permissions: `omnichannel-view`, `omnichannel-orders`, `omnichannel-orders-awb-reprint`, `omnichannel-settings`, `omnichannel-settings-edit` via `App\Models\Omnichannel` + `PermissionGenerator`.
 
 **Legacy route:** `/omnichannel` (shadow compare index)
 

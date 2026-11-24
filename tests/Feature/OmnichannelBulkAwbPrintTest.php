@@ -2,6 +2,7 @@
 
 use App\Models\Jubelioorder;
 use App\Models\MarketplaceChannelOrder;
+use App\Models\MarketplaceChannelOrderAwbPrint;
 use App\Models\Omnichannel;
 use App\Models\Setting;
 use App\Models\User;
@@ -54,7 +55,7 @@ function awbOrderDetailResponse(string $orderSn): array
 }
 
 it('skips non-shopee rows when printing awb', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->create(['id' => 48]);
     Permission::findOrCreate(Omnichannel::getPermissions()['orders'], 'web');
     $user->givePermissionTo(Omnichannel::getPermissions()['orders']);
 
@@ -73,7 +74,7 @@ it('skips non-shopee rows when printing awb', function () {
 });
 
 it('downloads shopee awb pdf for selected orders', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->create(['id' => 42]);
     Permission::findOrCreate(Omnichannel::getPermissions()['orders'], 'web');
     $user->givePermissionTo(Omnichannel::getPermissions()['orders']);
 
@@ -173,8 +174,8 @@ it('shows awb toolbar on current orders view', function () {
 });
 
 it('does not overwrite jubelio scanner user when awb print touches queue row', function () {
-    $printer = User::factory()->create();
-    $scanner = User::factory()->create();
+    $printer = User::factory()->create(['id' => 43]);
+    $scanner = User::factory()->create(['id' => 44]);
     Permission::findOrCreate(Omnichannel::getPermissions()['orders'], 'web');
     $printer->givePermissionTo(Omnichannel::getPermissions()['orders']);
 
@@ -239,6 +240,188 @@ it('does not overwrite jubelio scanner user when awb print touches queue row', f
 
     $channelOrder = MarketplaceChannelOrder::query()->where('order_ref', $orderSn)->first();
     expect((int) $channelOrder->awb_printed_by)->toBe((int) $printer->id);
+});
+
+function fakeShopeeAwbHttpForOrder(string $orderSn): void
+{
+    Http::fake([
+        'partner.shopeemobile.com/api/v2/order/get_order_detail*' => Http::response(
+            awbOrderDetailResponse($orderSn),
+        ),
+        'partner.shopeemobile.com/api/v2/logistics/create_shipping_document*' => Http::response([
+            'error' => '',
+            'response' => [
+                'result_list' => [
+                    ['order_sn' => $orderSn, 'fail_error' => ''],
+                ],
+            ],
+        ]),
+        'partner.shopeemobile.com/api/v2/logistics/get_shipping_document_result*' => Http::response([
+            'error' => '',
+            'response' => [
+                'result_list' => [
+                    ['order_sn' => $orderSn, 'status' => 'READY'],
+                ],
+            ],
+        ]),
+        'partner.shopeemobile.com/api/v2/logistics/download_shipping_document*' => Http::response(
+            '%PDF-1.4 fake-awb-binary',
+            200,
+            ['Content-Type' => 'application/pdf'],
+        ),
+    ]);
+}
+
+it('blocks second awb print without reprint permission', function () {
+    $user = User::factory()->create(['id' => 45]);
+    Permission::findOrCreate(Omnichannel::getPermissions()['orders'], 'web');
+    $user->givePermissionTo(Omnichannel::getPermissions()['orders']);
+
+    $orderSn = 'AWB-ONCE-ONLY';
+
+    MarketplaceChannelOrder::query()->create([
+        'channel' => 'shopee',
+        'order_ref' => $orderSn,
+        'shop_ref' => '100',
+        'order_status' => 'PROCESSED',
+        'last_event_at' => now(),
+        'first_received_at' => now(),
+        'awb_printed_by' => $user->id,
+        'awb_printed_at' => now()->subHour(),
+    ]);
+
+    MarketplaceChannelOrderAwbPrint::query()->create([
+        'channel' => 'shopee',
+        'order_ref' => $orderSn,
+        'user_id' => $user->id,
+        'printed_at' => now()->subHour(),
+        'is_reprint' => false,
+    ]);
+
+    Http::fake();
+
+    $response = $this->actingAs($user)->post(route('omnichannel.orders.shipping-documents'), [
+        'rows' => [
+            ['channel' => 'shopee', 'order_ref' => $orderSn, 'shop_ref' => '100'],
+        ],
+    ]);
+
+    $response->assertRedirect();
+    $response->assertSessionHas('error');
+    expect(session('error'))->toContain('AWB sudah pernah dicetak');
+    Http::assertNothingSent();
+    expect(MarketplaceChannelOrderAwbPrint::query()->where('order_ref', $orderSn)->count())->toBe(1);
+});
+
+it('allows awb reprint with reprint permission and records audit rows', function () {
+    $user = User::factory()->create(['id' => 46]);
+    Permission::findOrCreate(Omnichannel::getPermissions()['orders'], 'web');
+    Permission::findOrCreate(Omnichannel::getPermissions()['awb-reprint'], 'web');
+    $user->givePermissionTo([
+        Omnichannel::getPermissions()['orders'],
+        Omnichannel::getPermissions()['awb-reprint'],
+    ]);
+
+    $orderSn = 'AWB-REPRINT-OK';
+
+    MarketplaceChannelOrder::query()->create([
+        'channel' => 'shopee',
+        'order_ref' => $orderSn,
+        'shop_ref' => '100',
+        'order_status' => 'PROCESSED',
+        'last_event_at' => now(),
+        'first_received_at' => now(),
+        'awb_printed_by' => $user->id,
+        'awb_printed_at' => now()->subDay(),
+    ]);
+
+    MarketplaceChannelOrderAwbPrint::query()->create([
+        'channel' => 'shopee',
+        'order_ref' => $orderSn,
+        'user_id' => $user->id,
+        'printed_at' => now()->subDay(),
+        'is_reprint' => false,
+    ]);
+
+    fakeShopeeAwbHttpForOrder($orderSn);
+
+    $this->actingAs($user)->post(route('omnichannel.orders.shipping-documents'), [
+        'rows' => [
+            ['channel' => 'shopee', 'order_ref' => $orderSn, 'shop_ref' => '100'],
+        ],
+    ])->assertOk();
+
+    $prints = MarketplaceChannelOrderAwbPrint::query()
+        ->where('order_ref', $orderSn)
+        ->orderBy('id')
+        ->get();
+
+    expect($prints)->toHaveCount(2)
+        ->and((bool) $prints[1]->is_reprint)->toBeTrue();
+});
+
+it('allows superadmin to reprint awb without explicit permission', function () {
+    $admin = User::factory()->create(['id' => 1, 'username' => 'superadmin']);
+
+    $orderSn = 'AWB-SUPER-REPRINT';
+
+    MarketplaceChannelOrder::query()->create([
+        'channel' => 'shopee',
+        'order_ref' => $orderSn,
+        'shop_ref' => '100',
+        'order_status' => 'PROCESSED',
+        'last_event_at' => now(),
+        'first_received_at' => now(),
+        'awb_printed_by' => 2,
+        'awb_printed_at' => now()->subHours(2),
+    ]);
+
+    fakeShopeeAwbHttpForOrder($orderSn);
+
+    $this->actingAs($admin)->post(route('omnichannel.orders.shipping-documents'), [
+        'rows' => [
+            ['channel' => 'shopee', 'order_ref' => $orderSn, 'shop_ref' => '100'],
+        ],
+    ])->assertOk();
+
+    expect(MarketplaceChannelOrderAwbPrint::query()->where('order_ref', $orderSn)->count())->toBe(1);
+});
+
+it('registers omnichannel awb reprint permission via generator', function () {
+    app(PermissionGenerator::class)->generateForModule('Omnichannel');
+
+    expect(Permission::query()->where('name', Omnichannel::getPermissions()['awb-reprint'])->exists())
+        ->toBeTrue();
+});
+
+it('appends awb audit row on first successful print', function () {
+    $user = User::factory()->create(['id' => 47]);
+    Permission::findOrCreate(Omnichannel::getPermissions()['orders'], 'web');
+    $user->givePermissionTo(Omnichannel::getPermissions()['orders']);
+
+    $orderSn = 'AWB-AUDIT-FIRST';
+
+    MarketplaceChannelOrder::query()->create([
+        'channel' => 'shopee',
+        'order_ref' => $orderSn,
+        'shop_ref' => '100',
+        'order_status' => 'PROCESSED',
+        'last_event_at' => now(),
+        'first_received_at' => now(),
+    ]);
+
+    fakeShopeeAwbHttpForOrder($orderSn);
+
+    $this->actingAs($user)->post(route('omnichannel.orders.shipping-documents'), [
+        'rows' => [
+            ['channel' => 'shopee', 'order_ref' => $orderSn, 'shop_ref' => '100'],
+        ],
+    ])->assertOk();
+
+    $audit = MarketplaceChannelOrderAwbPrint::query()->where('order_ref', $orderSn)->first();
+    expect($audit)->not->toBeNull()
+        ->and((int) $audit->user_id)->toBe((int) $user->id)
+        ->and((bool) $audit->is_reprint)->toBeFalse();
 });
 
 it('forbids awb download without omnichannel orders permission', function () {

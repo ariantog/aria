@@ -4,6 +4,7 @@ namespace App\Services\Marketplace;
 
 use App\Models\Jubelioorder;
 use App\Models\MarketplaceChannelOrder;
+use App\Models\MarketplaceChannelOrderAwbPrint;
 use App\Models\User;
 use App\Models\MarketplaceOrderShadow;
 use App\Models\MarketplaceWebhookEvent;
@@ -145,6 +146,7 @@ class OmnichannelOrderDetailReader
             ] : null,
             'links' => $this->resolveLinks($channel, $orderRef, $jubelioOrder),
             'awb_print' => $this->resolveAwbPrintForDetail($channelOrder),
+            'awb_print_history' => $this->resolveAwbPrintHistoryForDetail($channel, $orderRef),
         ];
 
         if ($channel === MarketplaceWebhookRecorder::CHANNEL_TIKTOK) {
@@ -420,5 +422,36 @@ class OmnichannelOrderDetailReader
             'username' => $username !== null ? (string) $username : null,
             'printed_at' => $channelOrder->awb_printed_at?->toIso8601String(),
         ];
+    }
+
+    /**
+     * @return list<array{user_id: int, username: ?string, printed_at: string, is_reprint: bool}>
+     */
+    protected function resolveAwbPrintHistoryForDetail(string $channel, string $orderRef): array
+    {
+        if (! Schema::hasTable('marketplace_channel_order_awb_prints')) {
+            return [];
+        }
+
+        $rows = MarketplaceChannelOrderAwbPrint::query()
+            ->with('user:id,username')
+            ->where('channel', $channel)
+            ->where('order_ref', $orderRef)
+            ->orderByDesc('printed_at')
+            ->orderByDesc('id')
+            ->limit(5)
+            ->get();
+
+        $history = [];
+        foreach ($rows as $row) {
+            $history[] = [
+                'user_id' => (int) $row->user_id,
+                'username' => $row->user?->username,
+                'printed_at' => $row->printed_at?->toIso8601String() ?? '',
+                'is_reprint' => (bool) $row->is_reprint,
+            ];
+        }
+
+        return $history;
     }
 }
