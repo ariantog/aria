@@ -29,6 +29,7 @@ class ShopeeShippingDocumentService
 
     public function __construct(
         private ShopeeAdminOpenApiService $shopeeApi,
+        private ShopeeAwbPdfPortraitNormalizer $awbPdfPortraitNormalizer,
     ) {}
 
     public function shippingDocumentType(): string
@@ -328,7 +329,7 @@ class ShopeeShippingDocumentService
             }
         }
 
-        return $body;
+        return $this->awbPdfPortraitNormalizer->normalize($body);
     }
 
     /**
@@ -841,9 +842,6 @@ class ShopeeShippingDocumentService
         throw new \RuntimeException("Shopee {$context}: {$detail}");
     }
 
-    /**
-     * @param  mixed  $data
-     */
     private function rawResponseIndicatesShouldPrintFirst(mixed $data): bool
     {
         if (! is_array($data)) {
