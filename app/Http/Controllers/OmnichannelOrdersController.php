@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\MarketplaceChannelOrder;
 use App\Models\Omnichannel;
+use App\Services\Marketplace\MarketplaceChannelOrderAwbDocumentState;
 use App\Services\Marketplace\MarketplaceChannelOrderAwbPrintGuard;
 use App\Services\Marketplace\MarketplaceChannelOrderAwbPromoter;
 use App\Services\Marketplace\MarketplaceChannelOrderWarehousePersist;
@@ -242,14 +243,149 @@ class OmnichannelOrdersController extends Controller
         };
     }
 
+    public function requestShippingDocuments(
+        Request $request,
+        ShopeeShippingDocumentService $awbService,
+        MarketplaceChannelOrderAwbPrintGuard $awbPrintGuard,
+        MarketplaceChannelOrderAwbDocumentState $awbDocumentState,
+    ): RedirectResponse {
+        abort_unless(Omnichannel::userCanOrders($request->user()), 403);
+
+        $parsed = $this->parseShopeeAwbSelection($request, $awbService);
+        if ($parsed instanceof RedirectResponse) {
+            return $parsed;
+        }
+
+        ['by_shop' => $byShop, 'order_refs' => $shopeeOrderRefs, 'skipped_non_shopee' => $skippedNonShopee] = $parsed;
+
+        $partition = $awbPrintGuard->partitionOrdersForAwbPrint($shopeeOrderRefs, $request->user());
+        $filtered = $this->filterByShopOrderRefs($byShop, $partition['allowed']);
+        if ($filtered['order_refs'] === []) {
+            return redirect()->back()->with(
+                'error',
+                'Tidak ada order yang bisa diminta AWB-nya (mungkin sudah dicetak).',
+            );
+        }
+
+        $byShop = $filtered['by_shop'];
+        $shopeeOrderRefs = $filtered['order_refs'];
+        $awbDocumentState->markDocumentRequested($shopeeOrderRefs);
+
+        try {
+            foreach ($byShop as $shopId => $orderSns) {
+                $awbService->prepareShippingDocumentsForShop((int) $shopId, array_values(array_unique($orderSns)));
+            }
+        } catch (\Throwable $e) {
+            return redirect()->back()->with('error', $e->getMessage());
+        }
+
+        $awbDocumentState->markDocumentReady($shopeeOrderRefs);
+
+        $message = count($shopeeOrderRefs).' order Shopee: AWB siap diunduh.';
+        if ($partition['blocked'] !== []) {
+            session()->flash('warning', count($partition['blocked']).' order dilewati (sudah dicetak).');
+        }
+        if ($skippedNonShopee > 0) {
+            session()->flash('warning', "{$skippedNonShopee} baris non-Shopee dilewati.");
+        }
+
+        return redirect()->back()->with('success', $message);
+    }
+
     public function downloadShippingDocuments(
         Request $request,
         ShopeeShippingDocumentService $awbService,
         MarketplaceChannelOrderAwbPromoter $awbStatusPromoter,
         MarketplaceChannelOrderAwbPrintGuard $awbPrintGuard,
+        MarketplaceChannelOrderAwbDocumentState $awbDocumentState,
     ): StreamedResponse|RedirectResponse {
         abort_unless(Omnichannel::userCanOrders($request->user()), 403);
 
+        $parsed = $this->parseShopeeAwbSelection($request, $awbService);
+        if ($parsed instanceof RedirectResponse) {
+            return $parsed;
+        }
+
+        ['by_shop' => $byShop, 'order_refs' => $shopeeOrderRefs, 'skipped_non_shopee' => $skippedNonShopee] = $parsed;
+
+        $partition = $awbPrintGuard->partitionOrdersForAwbPrint($shopeeOrderRefs, $request->user());
+        $blockedAlreadyPrinted = $partition['blocked'];
+        $allowedOrderRefs = $partition['allowed'];
+
+        if ($allowedOrderRefs === []) {
+            $sns = implode(', ', $blockedAlreadyPrinted);
+
+            return redirect()->back()->with(
+                'error',
+                'AWB sudah pernah dicetak untuk order Shopee: '.$sns.'. Minta izin cetak ulang ke admin.',
+            );
+        }
+
+        if ($blockedAlreadyPrinted !== []) {
+            $skippedList = implode(', ', $blockedAlreadyPrinted);
+            session()->flash(
+                'warning',
+                count($blockedAlreadyPrinted).' order dilewati karena AWB sudah pernah dicetak: '.$skippedList,
+            );
+        }
+
+        $readyPartition = $awbDocumentState->partitionOrdersForAwbDownload($allowedOrderRefs);
+        if ($readyPartition['allowed'] === []) {
+            $notReady = implode(', ', $readyPartition['blocked']);
+
+            return redirect()->back()->with(
+                'error',
+                'AWB belum siap — minta AWB dulu untuk: '.$notReady,
+            );
+        }
+
+        if ($readyPartition['blocked'] !== []) {
+            session()->flash(
+                'warning',
+                count($readyPartition['blocked']).' order dilewati karena belum siap AWB: '
+                .implode(', ', $readyPartition['blocked']),
+            );
+        }
+
+        $filtered = $this->filterByShopOrderRefs($byShop, $readyPartition['allowed']);
+        $byShop = $filtered['by_shop'];
+        $shopeeOrderRefs = $filtered['order_refs'];
+
+        $files = [];
+        try {
+            foreach ($byShop as $shopId => $orderSns) {
+                $orderSns = array_values(array_unique($orderSns));
+                $pdfs = $awbService->downloadPdfBatchesForShop((int) $shopId, $orderSns, assumeDocumentsPrepared: true);
+                $batchIndex = 0;
+                foreach ($pdfs as $pdfBinary) {
+                    $suffix = count($pdfs) > 1 ? '-batch-'.(++$batchIndex) : '';
+                    $files['shopee-shop-'.$shopId.$suffix.'.pdf'] = $pdfBinary;
+                }
+            }
+        } catch (\Throwable $e) {
+            return redirect()->back()->with('error', $e->getMessage());
+        }
+
+        $printerUserId = (int) $request->user()->id;
+        $awbStatusPromoter->promoteShopeeOrdersAfterAwb($shopeeOrderRefs);
+        $awbPrintGuard->recordSuccessfulPrints($shopeeOrderRefs, $request->user());
+        $awbStatusPromoter->ensureJubelioQueueAfterAwb($byShop, $printerUserId);
+
+        if ($skippedNonShopee > 0) {
+            session()->flash(
+                'warning',
+                "{$skippedNonShopee} baris non-Shopee (TikTok/Tokopedia) tidak dicetak — v1 Shopee saja.",
+            );
+        }
+
+        return $this->streamAwbFiles($files);
+    }
+
+    /**
+     * @return array{by_shop: array<int, list<string>>, order_refs: list<string>, skipped_non_shopee: int}|RedirectResponse
+     */
+    private function parseShopeeAwbSelection(Request $request, ShopeeShippingDocumentService $awbService): array|RedirectResponse
+    {
         $validated = $request->validate([
             'rows' => ['required', 'array', 'min:1'],
             'rows.*.channel' => ['required', 'string', 'max:32'],
@@ -292,28 +428,20 @@ class OmnichannelOrdersController extends Controller
             return redirect()->back()->with('error', $message);
         }
 
-        $shopeeOrderRefs = array_values(array_unique($shopeeOrderRefs));
-        $partition = $awbPrintGuard->partitionOrdersForAwbPrint($shopeeOrderRefs, $request->user());
-        $blockedAlreadyPrinted = $partition['blocked'];
-        $allowedOrderRefs = $partition['allowed'];
+        return [
+            'by_shop' => $byShop,
+            'order_refs' => array_values(array_unique($shopeeOrderRefs)),
+            'skipped_non_shopee' => $skippedNonShopee,
+        ];
+    }
 
-        if ($allowedOrderRefs === []) {
-            $sns = implode(', ', $blockedAlreadyPrinted);
-
-            return redirect()->back()->with(
-                'error',
-                'AWB sudah pernah dicetak untuk order Shopee: '.$sns.'. Minta izin cetak ulang ke admin.',
-            );
-        }
-
-        if ($blockedAlreadyPrinted !== []) {
-            $skippedList = implode(', ', $blockedAlreadyPrinted);
-            session()->flash(
-                'warning',
-                count($blockedAlreadyPrinted).' order dilewati karena AWB sudah pernah dicetak: '.$skippedList,
-            );
-        }
-
+    /**
+     * @param  array<int, list<string>>  $byShop
+     * @param  list<string>  $allowedOrderRefs
+     * @return array{by_shop: array<int, list<string>>, order_refs: list<string>}
+     */
+    private function filterByShopOrderRefs(array $byShop, array $allowedOrderRefs): array
+    {
         $allowedSet = array_fill_keys($allowedOrderRefs, true);
         foreach ($byShop as $shopId => $orderSns) {
             $byShop[$shopId] = array_values(array_filter(
@@ -324,35 +452,25 @@ class OmnichannelOrdersController extends Controller
                 unset($byShop[$shopId]);
             }
         }
-        $shopeeOrderRefs = $allowedOrderRefs;
 
-        $files = [];
-        try {
-            foreach ($byShop as $shopId => $orderSns) {
-                $orderSns = array_values(array_unique($orderSns));
-                $pdfs = $awbService->downloadPdfBatchesForShop((int) $shopId, $orderSns);
-                $batchIndex = 0;
-                foreach ($pdfs as $pdfBinary) {
-                    $suffix = count($pdfs) > 1 ? '-batch-'.(++$batchIndex) : '';
-                    $files['shopee-shop-'.$shopId.$suffix.'.pdf'] = $pdfBinary;
-                }
+        $remainingRefs = [];
+        foreach ($byShop as $orderSns) {
+            foreach ($orderSns as $sn) {
+                $remainingRefs[] = $sn;
             }
-        } catch (\Throwable $e) {
-            return redirect()->back()->with('error', $e->getMessage());
         }
 
-        $printerUserId = (int) $request->user()->id;
-        $awbStatusPromoter->promoteShopeeOrdersAfterAwb($shopeeOrderRefs);
-        $awbPrintGuard->recordSuccessfulPrints($shopeeOrderRefs, $request->user());
-        $awbStatusPromoter->ensureJubelioQueueAfterAwb($byShop, $printerUserId);
+        return [
+            'by_shop' => $byShop,
+            'order_refs' => array_values(array_unique($remainingRefs)),
+        ];
+    }
 
-        if ($skippedNonShopee > 0) {
-            session()->flash(
-                'warning',
-                "{$skippedNonShopee} baris non-Shopee (TikTok/Tokopedia) tidak dicetak — v1 Shopee saja.",
-            );
-        }
-
+    /**
+     * @param  array<string, string>  $files
+     */
+    private function streamAwbFiles(array $files): StreamedResponse
+    {
         if (count($files) === 1) {
             $filename = array_key_first($files);
             $binary = $files[$filename];

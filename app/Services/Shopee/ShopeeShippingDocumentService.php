@@ -4,11 +4,13 @@ namespace App\Services\Shopee;
 
 use App\Models\Shopeesync;
 use App\Services\Marketplace\ShopeeFlexiOrderDetailFields;
+use App\Services\Shopee\Support\ShopeeAwbPortraitPdf;
 use App\Support\ShopeeAdminOAuthStore;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Sleep;
+use setasign\Fpdi\PdfParser\StreamReader;
 
 /**
  * Bulk AWB / shipping label download via Shopee Open API logistics module.
@@ -32,13 +34,12 @@ class ShopeeShippingDocumentService
     public function __construct(
         private ShopeeAdminOpenApiService $shopeeApi,
         private ShopeeAwbPdfPortraitNormalizer $awbPdfPortraitNormalizer,
+        private ShopeeShippingDocumentTypeResolver $documentTypeResolver,
     ) {}
 
     public function shippingDocumentType(): string
     {
-        $type = trim((string) config('services.shopee_admin.shipping_document_type', 'NORMAL_AIR_WAYBILL'));
-
-        return $type !== '' ? $type : 'NORMAL_AIR_WAYBILL';
+        return $this->documentTypeResolver->defaultType();
     }
 
     public function resolveShopId(?string $shopRef): ?int
@@ -73,40 +74,66 @@ class ShopeeShippingDocumentService
      * @param  list<string>  $orderSns
      * @return list<string> One PDF binary string per API batch (≤50 orders each)
      */
-    public function downloadPdfBatchesForShop(int $shopId, array $orderSns): array
+    /**
+     * Arrange + create AWB tasks at Shopee and poll until READY (no PDF download).
+     *
+     * @param  list<string>  $orderSns
+     */
+    public function prepareShippingDocumentsForShop(int $shopId, array $orderSns): void
     {
-        if ($shopId <= 0) {
-            throw new \InvalidArgumentException('shop_id tidak valid.');
-        }
-
-        if (! $this->shopeeApi->hasShopAuthorizationFor($shopId)) {
-            throw new \RuntimeException("Shop {$shopId} belum diotorisasi (Shopee Admin OAuth).");
-        }
-
-        $orderSns = array_values(array_unique(array_filter(array_map(
-            fn ($sn) => trim((string) $sn),
-            $orderSns,
-        ), fn ($sn) => $sn !== '')));
-
+        $orderSns = $this->normalizeOrderSnList($orderSns);
         if ($orderSns === []) {
             throw new \InvalidArgumentException('Tidak ada order Shopee yang dipilih.');
         }
 
+        $this->assertShopAuthorized($shopId);
+
+        foreach (array_chunk($orderSns, self::MAX_ORDERS_PER_BATCH) as $chunk) {
+            $orderList = $this->buildOrderListForOrderSns($shopId, $chunk);
+            foreach (array_chunk($orderList, self::MAX_ORDERS_PER_BATCH) as $apiChunk) {
+                if ($apiChunk === []) {
+                    continue;
+                }
+                $apiChunk = $this->enrichOrderListWithDocumentTypes($shopId, $apiChunk);
+                $this->ensureShippingDocumentsReady($shopId, $apiChunk);
+            }
+        }
+    }
+
+    /**
+     * @param  list<string>  $orderSns
+     * @return list<string> One PDF binary string per API batch (≤50 orders each)
+     */
+    public function downloadPdfBatchesForShop(int $shopId, array $orderSns, bool $assumeDocumentsPrepared = false): array
+    {
+        $orderSns = $this->normalizeOrderSnList($orderSns);
+        if ($orderSns === []) {
+            throw new \InvalidArgumentException('Tidak ada order Shopee yang dipilih.');
+        }
+
+        $this->assertShopAuthorized($shopId);
+
         $pdfs = [];
         foreach (array_chunk($orderSns, self::MAX_ORDERS_PER_BATCH) as $chunk) {
-            $orderList = [];
-            foreach ($chunk as $orderSn) {
-                foreach ($this->resolveOrderPackageEntries($shopId, $orderSn) as $entry) {
-                    $orderList[] = $entry;
-                }
-            }
+            $orderList = $this->buildOrderListForOrderSns($shopId, $chunk);
 
             if ($orderList === []) {
                 continue;
             }
 
             foreach (array_chunk($orderList, self::MAX_ORDERS_PER_BATCH) as $apiChunk) {
-                $this->ensureShippingDocumentsReady($shopId, $apiChunk);
+                if ($apiChunk === []) {
+                    continue;
+                }
+                $apiChunk = $this->enrichOrderListWithDocumentTypes($shopId, $apiChunk);
+                if ($assumeDocumentsPrepared) {
+                    $statuses = $this->fetchShippingDocumentStatuses($shopId, $apiChunk);
+                    if (! $this->allReady($statuses)) {
+                        $this->ensureShippingDocumentsReady($shopId, $apiChunk);
+                    }
+                } else {
+                    $this->ensureShippingDocumentsReady($shopId, $apiChunk);
+                }
                 $pdfs[] = $this->downloadShippingDocument($shopId, $apiChunk);
             }
         }
@@ -123,6 +150,7 @@ class ShopeeShippingDocumentService
      */
     private function ensureShippingDocumentsReady(int $shopId, array $orderList): void
     {
+        $orderList = $this->ensureOrderListHasDocumentTypes($shopId, $orderList);
         $statuses = $this->fetchShippingDocumentStatuses($shopId, $orderList);
         if ($this->allReady($statuses)) {
             return;
@@ -218,10 +246,9 @@ class ShopeeShippingDocumentService
      */
     private function postCreateShippingDocument(int $shopId, array $orderList, bool $includeTracking): array
     {
-        $docType = $this->shippingDocumentType();
         $payload = [
-            'order_list' => array_map(function (array $row) use ($docType, $includeTracking) {
-                $item = ['order_sn' => $row['order_sn'], 'shipping_document_type' => $docType];
+            'order_list' => array_map(function (array $row) use ($includeTracking) {
+                $item = ['order_sn' => $row['order_sn'], 'shipping_document_type' => $this->documentTypeForRow($row)];
                 if (filled($row['package_number'] ?? null)) {
                     $item['package_number'] = (string) $row['package_number'];
                 }
@@ -376,10 +403,9 @@ class ShopeeShippingDocumentService
      */
     private function fetchShippingDocumentStatuses(int $shopId, array $orderList): array
     {
-        $docType = $this->shippingDocumentType();
         $payload = [
-            'order_list' => array_map(function (array $row) use ($docType) {
-                $item = ['order_sn' => $row['order_sn'], 'shipping_document_type' => $docType];
+            'order_list' => array_map(function (array $row) {
+                $item = ['order_sn' => $row['order_sn'], 'shipping_document_type' => $this->documentTypeForRow($row)];
                 if (filled($row['package_number'] ?? null)) {
                     $item['package_number'] = (string) $row['package_number'];
                 }
@@ -404,13 +430,12 @@ class ShopeeShippingDocumentService
     private function pollUntilReady(int $shopId, array $orderList): void
     {
         $deadline = microtime(true) + $this->documentPollMaxSeconds();
-        $docType = $this->shippingDocumentType();
         $shouldPrintFirstRetries = 0;
 
         do {
             $payload = [
-                'order_list' => array_map(function (array $row) use ($docType) {
-                    $item = ['order_sn' => $row['order_sn'], 'shipping_document_type' => $docType];
+                'order_list' => array_map(function (array $row) {
+                    $item = ['order_sn' => $row['order_sn'], 'shipping_document_type' => $this->documentTypeForRow($row)];
                     if (filled($row['package_number'] ?? null)) {
                         $item['package_number'] = (string) $row['package_number'];
                     }
@@ -485,8 +510,36 @@ class ShopeeShippingDocumentService
      */
     private function downloadShippingDocument(int $shopId, array $orderList): string
     {
+        $orderList = $this->ensureOrderListHasDocumentTypes($shopId, $orderList);
+        $byType = [];
+        foreach ($orderList as $row) {
+            $type = $this->documentTypeForRow($row);
+            $byType[$type][] = $row;
+        }
+
+        $binaries = [];
+        foreach ($byType as $docType => $rowsForType) {
+            $binaries[] = $this->downloadShippingDocumentForType($shopId, $rowsForType, $docType);
+        }
+
+        $body = $binaries[0];
+        if (count($binaries) > 1) {
+            $body = $this->concatenatePdfBinaries($binaries);
+        }
+
+        $minimalTransform = count($byType) === 1
+            && $this->documentTypeResolver->isThermalType((string) array_key_first($byType));
+
+        return $this->awbPdfPortraitNormalizer->normalize($body, $minimalTransform);
+    }
+
+    /**
+     * @param  list<array{order_sn: string, package_number?: string, shipping_document_type?: string}>  $orderList
+     */
+    private function downloadShippingDocumentForType(int $shopId, array $orderList, string $docType): string
+    {
         $payload = [
-            'shipping_document_type' => $this->shippingDocumentType(),
+            'shipping_document_type' => $docType,
             'order_list' => array_map(function (array $row) {
                 $item = ['order_sn' => $row['order_sn']];
                 if (filled($row['package_number'] ?? null)) {
@@ -515,7 +568,7 @@ class ShopeeShippingDocumentService
             }
         }
 
-        return $this->awbPdfPortraitNormalizer->normalize($body);
+        return $body;
     }
 
     /**
@@ -1281,5 +1334,184 @@ class ShopeeShippingDocumentService
         $value = \App\Models\Setting::getValue(ShopeeAdminOpenApiService::OAUTH_SETTING_SLUG, []);
 
         return is_array($value) ? $value : [];
+    }
+
+    /**
+     * @param  list<string>  $orderSns
+     * @return list<string>
+     */
+    private function normalizeOrderSnList(array $orderSns): array
+    {
+        return array_values(array_unique(array_filter(array_map(
+            fn ($sn) => trim((string) $sn),
+            $orderSns,
+        ), fn ($sn) => $sn !== '')));
+    }
+
+    private function assertShopAuthorized(int $shopId): void
+    {
+        if ($shopId <= 0) {
+            throw new \InvalidArgumentException('shop_id tidak valid.');
+        }
+
+        if (! $this->shopeeApi->hasShopAuthorizationFor($shopId)) {
+            throw new \RuntimeException("Shop {$shopId} belum diotorisasi (Shopee Admin OAuth).");
+        }
+    }
+
+    /**
+     * @param  list<string>  $orderSns
+     * @return list<array{order_sn: string, package_number?: string, tracking_number?: string}>
+     */
+    private function buildOrderListForOrderSns(int $shopId, array $orderSns): array
+    {
+        $orderList = [];
+        foreach ($orderSns as $orderSn) {
+            foreach ($this->resolveOrderPackageEntries($shopId, $orderSn) as $entry) {
+                $orderList[] = $entry;
+            }
+        }
+
+        return $orderList;
+    }
+
+    /**
+     * @param  array{order_sn: string, package_number?: string, shipping_document_type?: string, tracking_number?: string}  $row
+     */
+    private function documentTypeForRow(array $row): string
+    {
+        $type = trim((string) ($row['shipping_document_type'] ?? ''));
+
+        return $type !== '' ? $type : $this->documentTypeResolver->defaultType();
+    }
+
+    /**
+     * @param  list<array{order_sn: string, package_number?: string, shipping_document_type?: string, tracking_number?: string}>  $orderList
+     * @return list<array{order_sn: string, package_number?: string, shipping_document_type?: string, tracking_number?: string}>
+     */
+    private function ensureOrderListHasDocumentTypes(int $shopId, array $orderList): array
+    {
+        foreach ($orderList as $row) {
+            if (trim((string) ($row['shipping_document_type'] ?? '')) === '') {
+                return $this->enrichOrderListWithDocumentTypes($shopId, $orderList);
+            }
+        }
+
+        return $orderList;
+    }
+
+    /**
+     * @param  list<array{order_sn: string, package_number?: string, tracking_number?: string, shipping_document_type?: string}>  $orderList
+     * @return list<array{order_sn: string, package_number?: string, tracking_number?: string, shipping_document_type?: string}>
+     */
+    private function enrichOrderListWithDocumentTypes(int $shopId, array $orderList): array
+    {
+        $typesByKey = $this->fetchResolvedDocumentTypes($shopId, $orderList);
+
+        return array_map(function (array $row) use ($typesByKey) {
+            $key = $this->resultKey($row['order_sn'], $row['package_number'] ?? null);
+            $row['shipping_document_type'] = $typesByKey[$key] ?? $this->documentTypeResolver->defaultType();
+
+            return $row;
+        }, $orderList);
+    }
+
+    /**
+     * @param  list<array{order_sn: string, package_number?: string}>  $orderList
+     * @return array<string, string>
+     */
+    private function fetchResolvedDocumentTypes(int $shopId, array $orderList): array
+    {
+        if ($orderList === []) {
+            return [];
+        }
+
+        $payload = [
+            'order_list' => array_map(function (array $row) {
+                $item = ['order_sn' => $row['order_sn']];
+                if (filled($row['package_number'] ?? null)) {
+                    $item['package_number'] = (string) $row['package_number'];
+                }
+
+                return $item;
+            }, $orderList),
+        ];
+
+        try {
+            $response = $this->shopeeApi->shopApiPost(
+                '/api/v2/logistics/get_shipping_document_parameter',
+                $payload,
+                $shopId,
+            );
+            $decoded = $this->decodeLogisticsBatchResponse($response, 'get_shipping_document_parameter');
+        } catch (\Throwable $e) {
+            Log::warning('Shopee get_shipping_document_parameter failed — using config default', [
+                'shop_id' => $shopId,
+                'message' => $e->getMessage(),
+            ]);
+
+            return [];
+        }
+
+        $map = [];
+        $results = $decoded['response']['result_list'] ?? [];
+        if (! is_array($results)) {
+            return [];
+        }
+
+        foreach ($results as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $sn = trim((string) ($row['order_sn'] ?? ''));
+            if ($sn === '') {
+                continue;
+            }
+            $pkg = trim((string) ($row['package_number'] ?? ''));
+            $key = $this->resultKey($sn, $pkg !== '' ? $pkg : null);
+            $map[$key] = $this->documentTypeResolver->pickFromParameterRow($row);
+        }
+
+        return $map;
+    }
+
+    /**
+     * @param  list<string>  $binaries
+     */
+    private function concatenatePdfBinaries(array $binaries): string
+    {
+        if ($binaries === []) {
+            return '';
+        }
+
+        if (count($binaries) === 1) {
+            return $binaries[0];
+        }
+
+        try {
+            $out = new ShopeeAwbPortraitPdf;
+            $out->SetAutoPageBreak(false);
+
+            foreach ($binaries as $binary) {
+                if (! str_starts_with($binary, '%PDF')) {
+                    continue;
+                }
+                $pageCount = $out->setSourceFile(StreamReader::createByString($binary));
+                for ($pageNo = 1; $pageNo <= $pageCount; $pageNo++) {
+                    $tpl = $out->importPage($pageNo);
+                    $size = $out->getTemplateSize($tpl);
+                    $out->AddPage($size['orientation'] ?? 'P', [$size['width'], $size['height']]);
+                    $out->useImportedPage($tpl, 0, 0, (float) $size['width'], (float) $size['height']);
+                }
+            }
+
+            return $out->Output('S');
+        } catch (\Throwable $e) {
+            Log::warning('Shopee AWB PDF merge failed — returning first batch only', [
+                'message' => $e->getMessage(),
+            ]);
+
+            return $binaries[0];
+        }
     }
 }

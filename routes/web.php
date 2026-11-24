@@ -135,6 +135,8 @@ Route::middleware(['auth', 'verified', 'active', 'enforce.readonly'])->group(fun
     Route::get('omnichannel/orders/{channel}/{orderRef}', [App\Http\Controllers\OmnichannelOrdersController::class, 'show'])
         ->where(['channel' => 'shopee|tiktok', 'orderRef' => '.+'])
         ->name('omnichannel.orders.show');
+    Route::post('omnichannel/orders/shipping-documents/request', [App\Http\Controllers\OmnichannelOrdersController::class, 'requestShippingDocuments'])
+        ->name('omnichannel.orders.shipping-documents.request');
     Route::post('omnichannel/orders/shipping-documents', [App\Http\Controllers\OmnichannelOrdersController::class, 'downloadShippingDocuments'])
         ->name('omnichannel.orders.shipping-documents');
     Route::post('omnichannel/orders/warehouse-labels', [App\Http\Controllers\OmnichannelOrdersController::class, 'warehouseLabels'])
