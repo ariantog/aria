@@ -19,6 +19,9 @@ class ShopeeJubelioQueuePrecreator
 {
     public const PLACEHOLDER_PREFIX = 'shopee-push:';
 
+    /** New ingress when {@see self::onOrderPrecreateEnabled()} — pairs Jubelio SELL with on_order release. */
+    public const PLACEHOLDER_ON_ORDER_PREFIX = 'shopee-push-on-order:';
+
     public function __construct(
         private MarketplaceWebhookStatusPresenter $statusPresenter,
         private JubelioSellInvoiceGuard $sellInvoiceGuard,
@@ -172,15 +175,59 @@ class ShopeeJubelioQueuePrecreator
         return $this->shopeeInvoicePrefix->invoiceForOrderSn($shopId, $orderSn);
     }
 
+    public static function onOrderPrecreateEnabled(): bool
+    {
+        return (bool) config('marketplace.shopee_on_order.enabled', false);
+    }
+
     public function placeholderJubelioOrderId(string $orderSn): string
     {
-        return self::PLACEHOLDER_PREFIX.trim($orderSn);
+        $prefix = self::onOrderPrecreateEnabled()
+            ? self::PLACEHOLDER_ON_ORDER_PREFIX
+            : self::PLACEHOLDER_PREFIX;
+
+        return $prefix.trim($orderSn);
+    }
+
+    /**
+     * @return list<string> Jubelio id candidates when resolving SP-{ordersn} queue rows.
+     */
+    public static function placeholderLookupIdsForOrderSn(string $orderSn): array
+    {
+        $orderSn = trim($orderSn);
+        if ($orderSn === '') {
+            return [];
+        }
+
+        $ids = [];
+        if (self::onOrderPrecreateEnabled()) {
+            $ids[] = self::PLACEHOLDER_ON_ORDER_PREFIX.$orderSn;
+        }
+        $ids[] = self::PLACEHOLDER_PREFIX.$orderSn;
+
+        return array_values(array_unique($ids));
     }
 
     public static function isPlaceholderJubelioOrderId(mixed $jubelioOrderId): bool
     {
+        return self::isLegacyPlaceholderJubelioOrderId($jubelioOrderId)
+            || self::isOnOrderPlaceholderJubelioOrderId($jubelioOrderId);
+    }
+
+    public static function isLegacyPlaceholderJubelioOrderId(mixed $jubelioOrderId): bool
+    {
+        if (! is_string($jubelioOrderId)) {
+            return false;
+        }
+
+        return str_starts_with($jubelioOrderId, self::PLACEHOLDER_PREFIX)
+            && ! str_starts_with($jubelioOrderId, self::PLACEHOLDER_ON_ORDER_PREFIX);
+    }
+
+    public static function isOnOrderPlaceholderJubelioOrderId(mixed $jubelioOrderId): bool
+    {
         return is_string($jubelioOrderId)
-            && str_starts_with($jubelioOrderId, self::PLACEHOLDER_PREFIX);
+            && str_starts_with($jubelioOrderId, self::PLACEHOLDER_ON_ORDER_PREFIX);
     }
 
     public function shouldTriggerForStatus(?string $shopeeStatus): bool

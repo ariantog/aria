@@ -28,7 +28,7 @@ Collapsible **Omnichannel** menu (like Transactions):
 
 After a successful **Cetak AWB (Shopee)** (`POST /omnichannel/orders/shipping-documents`), Aria upserts a **`jubelioorders` SELL** row per printed order (`SP-{ordersn}`, `source = 4` shopee push placeholder) when the row does not already exist — same invoice key as resi scan / optional push pre-create. **No SELL transaction** is posted.
 
-When Jubelio cron posts that sell (`submit_type = 2`), `TransactionService` deducts physical stock and **releases matching `warehouse_item.on_order`** for **Shopee invoices only** (`SP-…` / flexi prefixes, or queue `source = shopee push`). Safe to enable `SHOPEE_PUSH_ON_ORDER_ENABLED=true` once this ships on production.
+When Jubelio cron posts that sell (`submit_type = 2`), `TransactionService` deducts physical stock and **releases matching `warehouse_item.on_order`** only when the queue row used **`shopee-push-on-order:{ordersn}`** (new ingress while `SHOPEE_PUSH_ON_ORDER_ENABLED=true`) or when **`marketplace_on_order_reservations`** exist for the order ref after the webhook replaced the placeholder. **Legacy `shopee-push:{ordersn}` rows do not release** on_order on sell. Safe to enable `SHOPEE_PUSH_ON_ORDER_ENABLED=true` once this ships on production.
 
 ### Bulk AWB print (Shopee, v1)
 
@@ -79,7 +79,7 @@ When **`SHOPEE_PRECREATE_JUBELIO_QUEUE=true`** (default **false**), push code **
 | Field | Value |
 |-------|--------|
 | `invoice` | `SP-{ordersn}` (same as Jubelio / resi scan) |
-| `jubelio_order_id` | `shopee-push:{ordersn}` until Jubelio webhook |
+| `jubelio_order_id` | `shopee-push-on-order:{ordersn}` when `SHOPEE_PUSH_ON_ORDER_ENABLED=true`, else `shopee-push:{ordersn}` until Jubelio webhook |
 | `source` | `4` (Shopee push) |
 | `order_status` | `READY TO SHIP` (cron hold — not eligible to post until webhook sets SHIPPED/COMPLETED) |
 | `warehouse_id` / store/loc | Best effort from `shopee_syncs` + `jubeliosyncs`; may stay 0 until webhook |
