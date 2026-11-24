@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Jubelioorder;
 use App\Models\MarketplaceOrderShadow;
 use App\Models\Omnichannel;
+use App\Services\Marketplace\MarketplaceWebhookShopWarehouseResolver;
 use App\Services\Marketplace\OmnichannelReceivedTimes;
 use App\Services\Marketplace\ShopeeOrderShadowRecorder;
 use App\Services\Shopee\ShopeeAdminOpenApiService;
@@ -143,6 +144,7 @@ class OmnichannelController extends Controller
         MarketplaceOrderShadow $shadow,
         string $ordersn,
         OmnichannelReceivedTimes $receivedTimes,
+        ?MarketplaceWebhookShopWarehouseResolver $shopResolver = null,
     ): array {
         $jubelioOrder = null;
         if ($shadow->jubelio_order_id) {
@@ -162,11 +164,33 @@ class OmnichannelController extends Controller
             }
         }
 
+        $warehouse = [];
+        $shopResolver ??= app(MarketplaceWebhookShopWarehouseResolver::class);
+        if (is_array($shadow->channel_payload)) {
+            $orderRow = $shadow->channel_payload['response']['order_list'][0] ?? null;
+            $pushPayload = is_array($orderRow)
+                ? ['item_list' => $orderRow['item_list'] ?? [], 'package_list' => $orderRow['package_list'] ?? []]
+                : null;
+            $row = (object) [
+                'channel' => MarketplaceOrderShadow::CHANNEL_SHOPEE,
+                'shop_ref' => $shadow->shop_id !== null && (int) $shadow->shop_id > 0
+                    ? (string) $shadow->shop_id
+                    : null,
+                'payload' => $pushPayload,
+            ];
+            $warehouse = $shopResolver->warehouseDisplayForRow(
+                $row,
+                $shopResolver->shopRefToWarehouseMap(),
+                $shopResolver->warehouseOptions(),
+            );
+        }
+
         return [
             'shadow' => $shadow,
             'jubelioOrder' => $jubelioOrder,
             'payloadSnippet' => $payloadSnippet,
             'ingress' => $receivedTimes->forSingle($shadow, $jubelioOrder),
+            'warehouse' => $warehouse,
             'canJubelio' => Gate::check(\App\Models\Jubelio::getPermissions()['view']),
         ];
     }

@@ -22,6 +22,7 @@ class OmnichannelOrderDetailReader
         protected TikTokShopOpenApiService $tikTokOpenApi,
         protected TikTokOrderLineSummary $tikTokLineSummary,
         protected ShopeeSyncInvoicePrefix $shopeeInvoicePrefix,
+        protected MarketplaceWebhookShopWarehouseResolver $shopWarehouseResolver,
     ) {}
 
     /**
@@ -122,10 +123,13 @@ class OmnichannelOrderDetailReader
 
         $jubelioOrder = $this->resolveJubelioOrder($channel, $orderRef, $shadowModel);
 
+        $warehouse = $this->resolveWarehouseForDetail($channel, $channelOrder, $webhookEvents, $shadowModel);
+
         $payload = [
             'channel' => $channel,
             'order_ref' => $orderRef,
             'commerce_platform' => $commercePlatform,
+            'warehouse' => $warehouse,
             'webhook_events' => $webhookEvents,
             'shadow' => $shadow,
             'ingress' => $ingress,
@@ -150,6 +154,70 @@ class OmnichannelOrderDetailReader
         }
 
         return $payload;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $webhookEvents
+     * @return array{aria_name: ?string, platform_label: ?string, unmapped: bool}
+     */
+    protected function resolveWarehouseForDetail(
+        string $channel,
+        ?MarketplaceChannelOrder $channelOrder,
+        array $webhookEvents,
+        ?MarketplaceOrderShadow $shadow,
+    ): array {
+        $shopRef = $channelOrder?->shop_ref;
+        $commercePlatform = $channelOrder?->commerce_platform;
+        $payload = null;
+
+        if ($channelOrder !== null) {
+            $channelOrder->loadMissing('lastWebhookEvent');
+            $payload = $this->shopWarehouseResolver->payloadForListRow($channelOrder);
+        }
+
+        if ($payload === null && $shadow !== null && is_array($shadow->channel_payload)) {
+            $orderRow = $shadow->channel_payload['response']['order_list'][0] ?? null;
+            if (is_array($orderRow)) {
+                $payload = ['item_list' => $orderRow['item_list'] ?? []];
+                if (isset($orderRow['package_list'])) {
+                    $payload['package_list'] = $orderRow['package_list'];
+                }
+            }
+            if ($shopRef === null && $shadow->shop_id !== null && (int) $shadow->shop_id > 0) {
+                $shopRef = (string) $shadow->shop_id;
+            }
+        }
+
+        if ($shopRef === null) {
+            foreach ($webhookEvents as $event) {
+                if (filled($event['shop_ref'] ?? null)) {
+                    $shopRef = (string) $event['shop_ref'];
+                    break;
+                }
+            }
+        }
+
+        $row = (object) [
+            'channel' => $channel,
+            'shop_ref' => $shopRef,
+            'commerce_platform' => $commercePlatform,
+            'payload' => $payload,
+            'platform_warehouse_id' => $channelOrder?->platform_warehouse_id,
+        ];
+
+        if ($channelOrder !== null) {
+            return $this->shopWarehouseResolver->warehouseDisplayForRow(
+                $channelOrder,
+                $this->shopWarehouseResolver->shopRefToWarehouseMap(),
+                $this->shopWarehouseResolver->warehouseOptions(),
+            );
+        }
+
+        return $this->shopWarehouseResolver->warehouseDisplayForRow(
+            $row,
+            $this->shopWarehouseResolver->shopRefToWarehouseMap(),
+            $this->shopWarehouseResolver->warehouseOptions(),
+        );
     }
 
     /**

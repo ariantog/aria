@@ -146,3 +146,52 @@ it('loads aria warehouse name by id when not present in warehouse options pluck'
 
     expect($resolver->ariaWarehouseNameById($warehouse->id, []))->toBe('Loaded By Id');
 });
+
+it('resolves shopee list row warehouse from product_location_id via matrix', function () {
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang - Online Sambisari']);
+    $shopRef = '76610113';
+
+    MarketplaceWarehouseSync::query()->create([
+        'channel' => MarketplaceWarehouseSync::CHANNEL_SHOPEE,
+        'shop_ref' => $shopRef,
+        'platform_warehouse_id' => '0',
+        'platform_location_id' => 'IDZ',
+        'platform_warehouse_name' => 'Toko pusat',
+        'warehouse_id' => $warehouse->id,
+    ]);
+
+    $event = MarketplaceWebhookEvent::query()->create([
+        'channel' => 'shopee',
+        'idempotency_key' => 'shopee:'.$shopRef.':3:SHOPEE-IDZ-1:1',
+        'event_type' => '3',
+        'shop_ref' => $shopRef,
+        'order_ref' => 'SHOPEE-IDZ-1',
+        'order_status' => 'PROCESSED',
+        'signature_ok' => true,
+        'payload' => [
+            'item_list' => [
+                ['product_location_id' => ['IDZ']],
+            ],
+        ],
+        'received_at' => now(),
+    ]);
+
+    $order = MarketplaceChannelOrder::query()->create([
+        'channel' => 'shopee',
+        'order_ref' => 'SHOPEE-IDZ-1',
+        'shop_ref' => $shopRef,
+        'order_status' => 'PROCESSED',
+        'last_event_at' => now(),
+        'first_received_at' => now(),
+        'last_webhook_event_id' => $event->id,
+    ]);
+
+    $order->load('lastWebhookEvent');
+
+    $resolver = app(MarketplaceWebhookShopWarehouseResolver::class);
+    $map = $resolver->shopRefToWarehouseMap();
+    $names = $resolver->warehouseOptions();
+
+    expect($resolver->warehouseNameForListRow($order, $map, $names))->toBe('Gudang - Online Sambisari')
+        ->and($resolver->platformWarehouseLabelForListRow($order))->toBe('Toko pusat');
+});
