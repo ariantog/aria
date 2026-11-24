@@ -30,6 +30,8 @@ class MarketplaceChannelOrder extends Model
         'paid_at',
         'last_webhook_event_id',
         'updated_at',
+        'awb_printed_by',
+        'awb_printed_at',
     ];
 
     protected function casts(): array
@@ -40,7 +42,14 @@ class MarketplaceChannelOrder extends Model
             'paid_at' => 'datetime',
             'updated_at' => 'datetime',
             'aria_warehouse_id' => 'integer',
+            'awb_printed_by' => 'integer',
+            'awb_printed_at' => 'datetime',
         ];
+    }
+
+    public function awbPrintedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'awb_printed_by');
     }
 
     public function lastWebhookEvent(): BelongsTo

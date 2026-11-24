@@ -137,10 +137,16 @@ it('downloads shopee awb pdf for selected orders', function () {
     expect(MarketplaceChannelOrder::query()->where('order_ref', $orderSn)->value('order_status'))
         ->toBe('READY_TO_SHIP');
 
+    $channelOrder = MarketplaceChannelOrder::query()->where('order_ref', $orderSn)->first();
+    expect($channelOrder)->not->toBeNull()
+        ->and((int) $channelOrder->awb_printed_by)->toBe((int) $user->id)
+        ->and($channelOrder->awb_printed_at)->not->toBeNull();
+
     $queue = Jubelioorder::query()->where('invoice', 'SP-'.$orderSn)->first();
     expect($queue)->not->toBeNull()
         ->and($queue->type)->toBe('SELL')
-        ->and($queue->source)->toBe(Jubelioorder::SOURCE_SHOPEE_PUSH);
+        ->and($queue->source)->toBe(Jubelioorder::SOURCE_SHOPEE_PUSH)
+        ->and((int) $queue->user_id)->toBe((int) $user->id);
 });
 
 it('shows awb toolbar on current orders view', function () {
@@ -153,6 +159,8 @@ it('shows awb toolbar on current orders view', function () {
         'order_status' => 'PROCESSED',
         'last_event_at' => now(),
         'first_received_at' => now()->subHour(),
+        'awb_printed_by' => $admin->id,
+        'awb_printed_at' => now(),
     ]);
 
     $this->actingAs($admin)
@@ -160,7 +168,77 @@ it('shows awb toolbar on current orders view', function () {
         ->assertOk()
         ->assertSee('data-testid="omnichannel-awb-toolbar"', false)
         ->assertSee('TikTok/Tokopedia belum didukung', false)
-        ->assertSee('data-testid="omnichannel-awb-row-', false);
+        ->assertSee('data-testid="omnichannel-awb-row-', false)
+        ->assertSee($admin->username, false);
+});
+
+it('does not overwrite jubelio scanner user when awb print touches queue row', function () {
+    $printer = User::factory()->create();
+    $scanner = User::factory()->create();
+    Permission::findOrCreate(Omnichannel::getPermissions()['orders'], 'web');
+    $printer->givePermissionTo(Omnichannel::getPermissions()['orders']);
+
+    $orderSn = 'AWB-SCANNER-LOCK';
+
+    MarketplaceChannelOrder::query()->create([
+        'channel' => 'shopee',
+        'order_ref' => $orderSn,
+        'shop_ref' => '100',
+        'order_status' => 'PROCESSED',
+        'last_event_at' => now(),
+        'first_received_at' => now(),
+    ]);
+
+    Jubelioorder::query()->create([
+        'jubelio_order_id' => 'shopee-push:'.$orderSn,
+        'source' => Jubelioorder::SOURCE_SHOPEE_PUSH,
+        'invoice' => 'SP-'.$orderSn,
+        'type' => 'SELL',
+        'order_status' => 'READY_TO_SHIP',
+        'run_count' => 0,
+        'user_id' => $scanner->id,
+        'status' => 0,
+    ]);
+
+    Http::fake([
+        'partner.shopeemobile.com/api/v2/order/get_order_detail*' => Http::response(
+            awbOrderDetailResponse($orderSn),
+        ),
+        'partner.shopeemobile.com/api/v2/logistics/create_shipping_document*' => Http::response([
+            'error' => '',
+            'response' => [
+                'result_list' => [
+                    ['order_sn' => $orderSn, 'fail_error' => ''],
+                ],
+            ],
+        ]),
+        'partner.shopeemobile.com/api/v2/logistics/get_shipping_document_result*' => Http::response([
+            'error' => '',
+            'response' => [
+                'result_list' => [
+                    ['order_sn' => $orderSn, 'status' => 'READY'],
+                ],
+            ],
+        ]),
+        'partner.shopeemobile.com/api/v2/logistics/download_shipping_document*' => Http::response(
+            '%PDF-1.4 fake',
+            200,
+            ['Content-Type' => 'application/pdf'],
+        ),
+    ]);
+
+    $this->actingAs($printer)->post(route('omnichannel.orders.shipping-documents'), [
+        'rows' => [
+            ['channel' => 'shopee', 'order_ref' => $orderSn, 'shop_ref' => '100'],
+        ],
+    ])->assertOk();
+
+    $queue = Jubelioorder::query()->where('invoice', 'SP-'.$orderSn)->first();
+    expect($queue)->not->toBeNull()
+        ->and((int) $queue->user_id)->toBe((int) $scanner->id);
+
+    $channelOrder = MarketplaceChannelOrder::query()->where('order_ref', $orderSn)->first();
+    expect((int) $channelOrder->awb_printed_by)->toBe((int) $printer->id);
 });
 
 it('forbids awb download without omnichannel orders permission', function () {

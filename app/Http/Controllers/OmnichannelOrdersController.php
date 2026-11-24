@@ -46,6 +46,9 @@ class OmnichannelOrdersController extends Controller
                 ->paginate($filters['per_page'])
                 ->withQueryString();
             $warehousePersist->hydrateListPage($rows->getCollection());
+            if (Schema::hasColumn('marketplace_channel_orders', 'awb_printed_by')) {
+                $rows->load('awbPrintedBy:id,username');
+            }
             $statusOptions = $inboxQuery->distinctOrderStatuses($filters, 'orders');
         } elseif ($filters['view'] === 'events' && $eventsTableExists) {
             $rows = $inboxQuery->eventsQuery($filters)
@@ -238,8 +241,10 @@ class OmnichannelOrdersController extends Controller
             return redirect()->back()->with('error', $e->getMessage());
         }
 
+        $printerUserId = (int) $request->user()->id;
         $awbStatusPromoter->promoteShopeeOrdersAfterAwb($shopeeOrderRefs);
-        $awbStatusPromoter->ensureJubelioQueueAfterAwb($byShop);
+        $awbStatusPromoter->recordShopeeAwbPrint($shopeeOrderRefs, $printerUserId);
+        $awbStatusPromoter->ensureJubelioQueueAfterAwb($byShop, $printerUserId);
 
         if ($skippedNonShopee > 0) {
             session()->flash(

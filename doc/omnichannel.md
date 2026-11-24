@@ -38,6 +38,7 @@ When Jubelio cron posts that sell (`submit_type = 2`), `TransactionService` dedu
 - **Response:** single-shop / single batch → one PDF download; multiple shops or >50 orders → ZIP of PDFs.
 - **Config:** `SHOPEE_SHIPPING_DOCUMENT_TYPE` (default `NORMAL_AIR_WAYBILL`) on `config('services.shopee_admin.shipping_document_type')`.
 - **Code:** `App\Services\Shopee\ShopeeShippingDocumentService`, `OmnichannelOrdersController@downloadShippingDocuments`.
+- **AWB printer audit:** On successful print, `marketplace_channel_orders.awb_printed_by` / `awb_printed_at` record the user; new/touched `jubelioorders` rows get `user_id` when still unscanned (same idea as resi scan).
 
 **TikTok shop access token (live driver):** Same pattern as Shopee — Aria stores seller OAuth in `settings` slug **`tiktok_shop_oauth`** (`TikTokShopOAuthService`), refreshes via TikTok `token/refresh`, and serves read-only tokens to Grok at **`GET /api/readonly/tiktok/oauth`** (`doc/grok-readonly-api.md`). Authorize in UI: **`GET /tiktok-shop/authorize`** (Omnichannel → Settings → Connections). Callback: **`/tiktok-shop/oauth/callback`** (`TIKTOK_SHOP_REDIRECT_URL` must match Partner Center). **`shop_cipher`** disimpan per toko di `marketplace_warehouse_syncs` (`channel=tiktok`) dan legacy `tiktok_shop_syncs`, dengan env fallback `TIKTOK_SHOP_SHOP_CIPHER`. `TIKTOK_SHOP_ACCESS_TOKEN` is emergency-only fallback. Grok needs `export-readonly` + `api.readonly.tiktok.oauth`.
 

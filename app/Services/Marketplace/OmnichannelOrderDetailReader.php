@@ -4,6 +4,7 @@ namespace App\Services\Marketplace;
 
 use App\Models\Jubelioorder;
 use App\Models\MarketplaceChannelOrder;
+use App\Models\User;
 use App\Models\MarketplaceOrderShadow;
 use App\Models\MarketplaceWebhookEvent;
 use App\Models\TiktokShopSync;
@@ -143,6 +144,7 @@ class OmnichannelOrderDetailReader
                     : null,
             ] : null,
             'links' => $this->resolveLinks($channel, $orderRef, $jubelioOrder),
+            'awb_print' => $this->resolveAwbPrintForDetail($channelOrder),
         ];
 
         if ($channel === MarketplaceWebhookRecorder::CHANNEL_TIKTOK) {
@@ -388,5 +390,35 @@ class OmnichannelOrderDetailReader
         });
 
         return $query->orderByDesc('id')->first();
+    }
+
+    /**
+     * @return array{user_id: int, username: ?string, printed_at: ?string}|null
+     */
+    protected function resolveAwbPrintForDetail(?MarketplaceChannelOrder $channelOrder): ?array
+    {
+        if ($channelOrder === null
+            || ! Schema::hasTable('marketplace_channel_orders')
+            || ! Schema::hasColumn('marketplace_channel_orders', 'awb_printed_by')) {
+            return null;
+        }
+
+        $userId = (int) ($channelOrder->awb_printed_by ?? 0);
+        if ($userId <= 0) {
+            return null;
+        }
+
+        $username = null;
+        if ($channelOrder->relationLoaded('awbPrintedBy')) {
+            $username = $channelOrder->awbPrintedBy?->username;
+        } else {
+            $username = User::query()->whereKey($userId)->value('username');
+        }
+
+        return [
+            'user_id' => $userId,
+            'username' => $username !== null ? (string) $username : null,
+            'printed_at' => $channelOrder->awb_printed_at?->toIso8601String(),
+        ];
     }
 }
