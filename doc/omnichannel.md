@@ -209,7 +209,7 @@ Bucket examples: Shopee `READY_TO_SHIP` → `awaiting_shipment`; TikTok `AWAITIN
 
 | Code | Shopee Console action | `shopee_push_inbox` | `marketplace_order_shadows` |
 |------|----------------------|---------------------|-----------------------------|
-| **0** | URL **Verify** / connectivity sample | Yes, when `SHOPEE_PUSH_STORE_INBOX=true` (every push code) | **No** — not an order event |
+| **0** | URL **Verify** / connectivity sample | Yes by default (`SHOPEE_PUSH_STORE_INBOX` true; set false to disable) | **No** — not an order event |
 | **3** | **Order status push** / **Push Test Data → order_status_push** | Optional (same env) | **Yes** when `SHOPEE_PUSH_SHADOW_ENABLED=true` and `data.ordersn` present |
 | **4** | **Order tracking number push** | Optional (same env) | **No** — tracking only; see table above |
 | **30** | **Package fulfillment** (`logistics_status`) | Same inbox flag | **No** — observability only; unified storage when `MARKETPLACE_WEBHOOK_UNIFIED_STORAGE=true` |
@@ -235,7 +235,7 @@ The command upserts the same sync stub as the webhook, prints the canonical JSON
 After a Shopee order push:
 
 ```sql
-SELECT COUNT(*) FROM shopee_push_inbox;   -- only if SHOPEE_PUSH_STORE_INBOX=true
+SELECT COUNT(*) FROM shopee_push_inbox;   -- default on unless SHOPEE_PUSH_STORE_INBOX=false
 SELECT COUNT(*) FROM marketplace_order_shadows;
 ```
 

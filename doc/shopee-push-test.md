@@ -101,11 +101,7 @@ php artisan migrate --path=database/migrations/2026_11_19_140000_create_shopee_p
 
 ## Logging / inbox (production)
 
-By default pushes are **not** written to DB or info-logged (only signature failures warn). Optional:
-
-```env
-SHOPEE_PUSH_STORE_INBOX=true
-```
+Inbox persistence is **on by default** (`SHOPEE_PUSH_STORE_INBOX` defaults to true). Set `SHOPEE_PUSH_STORE_INBOX=false` to skip `shopee_push_inbox` writes.
 
 Every accepted push code is stored (no per-code allowlist). Trim old rows with `php artisan marketplace:prune-webhook-events` (same retention as `MARKETPLACE_WEBHOOK_EVENTS_RETENTION_DAYS`).
 

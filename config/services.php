@@ -91,7 +91,7 @@ return [
         /** Must match Console callback URL exactly if proxies alter $request->url(). */
         'callback_url' => env('SHOPEE_PUSH_CALLBACK_URL'),
         /** Persist every accepted push (any code) to shopee_push_inbox when true. */
-        'store_inbox' => filter_var(env('SHOPEE_PUSH_STORE_INBOX', false), FILTER_VALIDATE_BOOLEAN),
+        'store_inbox' => filter_var(env('SHOPEE_PUSH_STORE_INBOX', true), FILTER_VALIDATE_BOOLEAN),
         /** Minimal shadow row on push; full get_order_detail loads on omnichannel detail (no Aria post). */
         'shadow_enabled' => filter_var(env('SHOPEE_PUSH_SHADOW_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
         /** Reuse cached shadow detail on repeat detail visits when younger than this (seconds). 0 = until manual refresh. */
