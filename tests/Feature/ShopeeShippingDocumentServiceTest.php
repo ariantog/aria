@@ -81,6 +81,79 @@ it('treats probe should_print_first as pending and completes create download flo
         ->and($pdfs[0])->toContain('%PDF');
 });
 
+it('retries arrange and create when poll returns should_print_first on ready to ship order', function () {
+    $orderSn = '2611245VU2MSJP';
+
+    Http::fake([
+        'partner.shopeemobile.com/api/v2/order/get_order_detail*' => Http::response([
+            'error' => '',
+            'response' => [
+                'order_list' => [
+                    [
+                        'order_sn' => $orderSn,
+                        'order_status' => 'READY_TO_SHIP',
+                        'tracking_number' => 'SPX-2611245',
+                        'package_list' => [],
+                    ],
+                ],
+            ],
+        ]),
+        'partner.shopeemobile.com/api/v2/logistics/get_shipping_parameter*' => Http::response([
+            'error' => '',
+            'response' => [
+                'info_needed' => [
+                    'dropoff' => [],
+                ],
+            ],
+        ]),
+        'partner.shopeemobile.com/api/v2/logistics/ship_order*' => Http::response([
+            'error' => '',
+            'response' => [],
+        ]),
+        'partner.shopeemobile.com/api/v2/logistics/get_shipping_document_result*' => Http::sequence()
+            ->push([
+                'error' => 'logistics.shipping_document_should_print_first',
+                'message' => 'The package should print first.',
+            ])
+            ->push([
+                'error' => 'logistics.shipping_document_should_print_first',
+                'message' => 'The package should print first.',
+                'request_id' => 'poll-retry-should-print',
+            ])
+            ->push([
+                'error' => '',
+                'response' => [
+                    'result_list' => [
+                        ['order_sn' => $orderSn, 'status' => 'READY'],
+                    ],
+                ],
+            ]),
+        'partner.shopeemobile.com/api/v2/logistics/create_shipping_document*' => Http::response([
+            'error' => '',
+            'response' => [
+                'result_list' => [
+                    ['order_sn' => $orderSn, 'fail_error' => ''],
+                ],
+            ],
+        ]),
+        'partner.shopeemobile.com/api/v2/logistics/download_shipping_document*' => Http::response(
+            '%PDF-1.4 poll-retry-flow',
+            200,
+            ['Content-Type' => 'application/pdf'],
+        ),
+    ]);
+
+    $service = app(ShopeeShippingDocumentService::class);
+    $pdfs = $service->downloadPdfBatchesForShop(100, [$orderSn]);
+
+    expect($pdfs)->toHaveCount(1)
+        ->and($pdfs[0])->toContain('%PDF');
+
+    Http::assertSent(function ($request) {
+        return str_contains($request->url(), '/api/v2/logistics/ship_order');
+    });
+});
+
 it('throws actionable message when create still fails after arrange hint', function () {
     $orderSn = 'SVC-SHIP-ERR';
 
