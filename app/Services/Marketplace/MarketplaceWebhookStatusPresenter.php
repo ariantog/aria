@@ -254,6 +254,16 @@ class MarketplaceWebhookStatusPresenter
 
     public function shouldPromoteShopeeStatusAfterAwb(?string $currentStatus): bool
     {
+        return $this->shouldPromoteFulfillmentStatusAfterAwb(self::CHANNEL_SHOPEE, $currentStatus);
+    }
+
+    public function shouldPromoteTikTokStatusAfterAwb(?string $currentStatus): bool
+    {
+        return $this->shouldPromoteFulfillmentStatusAfterAwb(self::CHANNEL_TIKTOK, $currentStatus);
+    }
+
+    private function shouldPromoteFulfillmentStatusAfterAwb(string $channel, ?string $currentStatus): bool
+    {
         if ($currentStatus === null || trim($currentStatus) === '') {
             return true;
         }
@@ -262,13 +272,13 @@ class MarketplaceWebhookStatusPresenter
             return false;
         }
 
-        $rank = $this->summaryStatusRank(self::CHANNEL_SHOPEE, $currentStatus);
+        $rank = $this->summaryStatusRank($channel, $currentStatus);
 
         if ($rank === null) {
             return true;
         }
 
-        if ($this->isTerminalCancelledStatus(self::CHANNEL_SHOPEE, strtoupper(trim($currentStatus)))) {
+        if ($this->isTerminalCancelledStatus($channel, strtoupper(trim($currentStatus)))) {
             return false;
         }
 

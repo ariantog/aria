@@ -77,7 +77,7 @@ function awbOrderDetailResponse(string $orderSn, string $orderStatus = 'PROCESSE
     ];
 }
 
-it('skips non-shopee rows when printing awb', function () {
+it('skips unsupported marketplace rows when printing awb', function () {
     $user = User::factory()->create(['id' => 48]);
     Permission::findOrCreate(Omnichannel::getPermissions()['orders'], 'web');
     $user->givePermissionTo(Omnichannel::getPermissions()['orders']);
@@ -86,14 +86,60 @@ it('skips non-shopee rows when printing awb', function () {
 
     $response = $this->actingAs($user)->post(route('omnichannel.orders.shipping-documents'), [
         'rows' => [
-            ['channel' => 'tiktok', 'order_ref' => '5790111', 'shop_ref' => 'cipher-1'],
-            ['channel' => 'tiktok', 'order_ref' => '5790222', 'shop_ref' => 'cipher-2'],
+            ['channel' => 'lazada', 'order_ref' => 'LZ-001', 'shop_ref' => '1'],
+            ['channel' => 'blibli', 'order_ref' => 'BL-002', 'shop_ref' => '2'],
         ],
     ]);
 
     $response->assertRedirect();
     $response->assertSessionHas('error');
     Http::assertNothingSent();
+});
+
+it('requests then downloads tiktok awb pdf in mock driver', function () {
+    config(['tiktok_shop.driver' => 'mock', 'tiktok_shop.shop_cipher' => 'MOCK_TTS_SHOP_CIPHER']);
+
+    $user = User::factory()->create(['id' => 49]);
+    Permission::findOrCreate(Omnichannel::getPermissions()['orders'], 'web');
+    $user->givePermissionTo(Omnichannel::getPermissions()['orders']);
+
+    $orderId = 'AWB-TT-001';
+
+    MarketplaceChannelOrder::query()->create([
+        'channel' => 'tiktok',
+        'order_ref' => $orderId,
+        'shop_ref' => 'MOCK_TTS_SHOP_CIPHER',
+        'order_status' => 'AWAITING_SHIPMENT',
+        'last_event_at' => now(),
+        'first_received_at' => now(),
+    ]);
+
+    Http::fake([
+        'https://mock.tiktok.local/*' => Http::response('%PDF-1.4 mock-tiktok-label', 200, ['Content-Type' => 'application/pdf']),
+    ]);
+
+    $this->actingAs($user)->post(route('omnichannel.orders.shipping-documents.request'), [
+        'rows' => [
+            ['channel' => 'tiktok', 'order_ref' => $orderId, 'shop_ref' => 'MOCK_TTS_SHOP_CIPHER'],
+        ],
+    ])->assertRedirect()->assertSessionHas('success');
+
+    $channelOrder = MarketplaceChannelOrder::query()->where('order_ref', $orderId)->first();
+    expect($channelOrder->awb_document_ready_at)->not->toBeNull();
+
+    $response = $this->actingAs($user)->post(route('omnichannel.orders.shipping-documents'), [
+        'rows' => [
+            ['channel' => 'tiktok', 'order_ref' => $orderId, 'shop_ref' => 'MOCK_TTS_SHOP_CIPHER'],
+        ],
+    ]);
+
+    $response->assertOk()->assertHeader('content-type', 'application/pdf');
+    expect($response->streamedContent())->toContain('%PDF');
+
+    $channelOrder->refresh();
+    expect($channelOrder->order_status)->toBe('AWAITING_COLLECTION')
+        ->and((int) $channelOrder->awb_printed_by)->toBe((int) $user->id)
+        ->and($channelOrder->awb_printed_at)->not->toBeNull();
 });
 
 it('requests then downloads shopee awb pdf for selected orders', function () {

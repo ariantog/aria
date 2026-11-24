@@ -13,7 +13,9 @@ use App\Services\Marketplace\MarketplaceWebhookInboxQuery;
 use App\Services\Marketplace\MarketplaceWebhookStatusPresenter;
 use App\Services\Marketplace\MarketplaceWebhookShopWarehouseResolver;
 use App\Services\Marketplace\OmnichannelOrderDetailReader;
+use App\Services\Marketplace\MarketplaceWebhookRecorder;
 use App\Services\Shopee\ShopeeShippingDocumentService;
+use App\Services\TikTokShop\TikTokShopShippingDocumentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -245,99 +247,240 @@ class OmnichannelOrdersController extends Controller
 
     public function requestShippingDocuments(
         Request $request,
-        ShopeeShippingDocumentService $awbService,
+        ShopeeShippingDocumentService $shopeeAwb,
+        TikTokShopShippingDocumentService $tiktokAwb,
         MarketplaceChannelOrderAwbPrintGuard $awbPrintGuard,
         MarketplaceChannelOrderAwbDocumentState $awbDocumentState,
     ): RedirectResponse {
         abort_unless(Omnichannel::userCanOrders($request->user()), 403);
 
-        $parsed = $this->parseShopeeAwbSelection($request, $awbService);
+        $parsed = $this->parseBulkAwbSelection($request, $shopeeAwb, $tiktokAwb);
         if ($parsed instanceof RedirectResponse) {
             return $parsed;
         }
 
-        ['by_shop' => $byShop, 'order_refs' => $shopeeOrderRefs, 'skipped_non_shopee' => $skippedNonShopee] = $parsed;
+        $shopee = $parsed['shopee'];
+        $tiktok = $parsed['tiktok'];
+        $skippedUnsupported = (int) ($parsed['skipped_unsupported'] ?? 0);
 
-        $partition = $awbPrintGuard->partitionOrdersForAwbPrint($shopeeOrderRefs, $request->user());
-        $filtered = $this->filterByShopOrderRefs($byShop, $partition['allowed']);
-        if ($filtered['order_refs'] === []) {
+        $shopeeChannel = MarketplaceWebhookRecorder::CHANNEL_SHOPEE;
+        $tiktokChannel = MarketplaceWebhookRecorder::CHANNEL_TIKTOK;
+
+        $shopeePartition = $awbPrintGuard->partitionOrdersForAwbPrint($shopeeChannel, $shopee['order_refs'], $request->user());
+        $shopeeFiltered = $this->filterByShopOrderRefs($shopee['by_shop'], $shopeePartition['allowed']);
+
+        $tiktokPartition = $awbPrintGuard->partitionOrdersForAwbPrint($tiktokChannel, $tiktok['order_refs'], $request->user());
+        $tiktokFiltered = $this->filterByCipherOrderRefs($tiktok['by_cipher'], $tiktokPartition['allowed']);
+
+        if ($shopeeFiltered['order_refs'] === [] && $tiktokFiltered['order_refs'] === []) {
             return redirect()->back()->with(
                 'error',
-                'Tidak ada order yang bisa diminta AWB-nya (mungkin sudah dicetak).',
+                'Tidak ada order yang bisa diminta AWB-nya (mungkin sudah dicetak atau channel tidak didukung).',
             );
         }
 
-        $byShop = $filtered['by_shop'];
-        $shopeeOrderRefs = $filtered['order_refs'];
-        $awbDocumentState->markDocumentRequested($shopeeOrderRefs);
+        if ($shopeeFiltered['order_refs'] !== []) {
+            $awbDocumentState->markDocumentRequested($shopeeChannel, $shopeeFiltered['order_refs']);
+        }
+        if ($tiktokFiltered['order_refs'] !== []) {
+            $awbDocumentState->markDocumentRequested($tiktokChannel, $tiktokFiltered['order_refs']);
+        }
 
         try {
-            foreach ($byShop as $shopId => $orderSns) {
-                $awbService->prepareShippingDocumentsForShop((int) $shopId, array_values(array_unique($orderSns)));
+            foreach ($shopeeFiltered['by_shop'] as $shopId => $orderSns) {
+                $shopeeAwb->prepareShippingDocumentsForShop((int) $shopId, array_values(array_unique($orderSns)));
+            }
+            foreach ($tiktokFiltered['by_cipher'] as $shopCipher => $orderIds) {
+                $tiktokAwb->prepareShippingDocumentsForShop((string) $shopCipher, array_values(array_unique($orderIds)));
             }
         } catch (\Throwable $e) {
             return redirect()->back()->with('error', $e->getMessage());
         }
 
-        $awbDocumentState->markDocumentReady($shopeeOrderRefs);
-
-        $message = count($shopeeOrderRefs).' order Shopee: AWB siap diunduh.';
-        if ($partition['blocked'] !== []) {
-            session()->flash('warning', count($partition['blocked']).' order dilewati (sudah dicetak).');
+        if ($shopeeFiltered['order_refs'] !== []) {
+            $awbDocumentState->markDocumentReady($shopeeChannel, $shopeeFiltered['order_refs']);
         }
-        if ($skippedNonShopee > 0) {
-            session()->flash('warning', "{$skippedNonShopee} baris non-Shopee dilewati.");
+        if ($tiktokFiltered['order_refs'] !== []) {
+            $awbDocumentState->markDocumentReady($tiktokChannel, $tiktokFiltered['order_refs']);
         }
 
-        return redirect()->back()->with('success', $message);
+        $parts = [];
+        if ($shopeeFiltered['order_refs'] !== []) {
+            $parts[] = count($shopeeFiltered['order_refs']).' order Shopee';
+        }
+        if ($tiktokFiltered['order_refs'] !== []) {
+            $parts[] = count($tiktokFiltered['order_refs']).' order TikTok/Tokopedia';
+        }
+
+        if ($shopeePartition['blocked'] !== []) {
+            session()->flash('warning', count($shopeePartition['blocked']).' order Shopee dilewati (sudah dicetak).');
+        }
+        if ($tiktokPartition['blocked'] !== []) {
+            session()->flash('warning', count($tiktokPartition['blocked']).' order TikTok/Tokopedia dilewati (sudah dicetak).');
+        }
+        if ($skippedUnsupported > 0) {
+            session()->flash('warning', "{$skippedUnsupported} baris channel lain dilewati.");
+        }
+
+        return redirect()->back()->with('success', implode(', ', $parts).': AWB siap diunduh.');
     }
 
     public function downloadShippingDocuments(
         Request $request,
-        ShopeeShippingDocumentService $awbService,
+        ShopeeShippingDocumentService $shopeeAwb,
+        TikTokShopShippingDocumentService $tiktokAwb,
         MarketplaceChannelOrderAwbPromoter $awbStatusPromoter,
         MarketplaceChannelOrderAwbPrintGuard $awbPrintGuard,
         MarketplaceChannelOrderAwbDocumentState $awbDocumentState,
     ): StreamedResponse|RedirectResponse {
         abort_unless(Omnichannel::userCanOrders($request->user()), 403);
 
-        $parsed = $this->parseShopeeAwbSelection($request, $awbService);
+        $parsed = $this->parseBulkAwbSelection($request, $shopeeAwb, $tiktokAwb);
         if ($parsed instanceof RedirectResponse) {
             return $parsed;
         }
 
-        ['by_shop' => $byShop, 'order_refs' => $shopeeOrderRefs, 'skipped_non_shopee' => $skippedNonShopee] = $parsed;
+        $shopee = $parsed['shopee'];
+        $tiktok = $parsed['tiktok'];
+        $skippedUnsupported = (int) ($parsed['skipped_unsupported'] ?? 0);
 
-        $partition = $awbPrintGuard->partitionOrdersForAwbPrint($shopeeOrderRefs, $request->user());
-        $blockedAlreadyPrinted = $partition['blocked'];
-        $allowedOrderRefs = $partition['allowed'];
+        $shopeeChannel = MarketplaceWebhookRecorder::CHANNEL_SHOPEE;
+        $tiktokChannel = MarketplaceWebhookRecorder::CHANNEL_TIKTOK;
 
-        if ($allowedOrderRefs === []) {
-            $sns = implode(', ', $blockedAlreadyPrinted);
-
-            return redirect()->back()->with(
-                'error',
-                'AWB sudah pernah dicetak untuk order Shopee: '.$sns.'. Minta izin cetak ulang ke admin.',
-            );
+        $allowedShopee = $this->filterAwbDownloadChannel(
+            $shopeeChannel,
+            $shopee,
+            $awbPrintGuard,
+            $awbDocumentState,
+            $request,
+        );
+        if ($allowedShopee instanceof RedirectResponse) {
+            return $allowedShopee;
         }
 
-        if ($blockedAlreadyPrinted !== []) {
-            $skippedList = implode(', ', $blockedAlreadyPrinted);
+        $allowedTiktok = $this->filterAwbDownloadChannel(
+            $tiktokChannel,
+            $tiktok,
+            $awbPrintGuard,
+            $awbDocumentState,
+            $request,
+        );
+        if ($allowedTiktok instanceof RedirectResponse) {
+            return $allowedTiktok;
+        }
+
+        if ($allowedShopee['order_refs'] === [] && $allowedTiktok['order_refs'] === []) {
+            $shopeePrintPartition = $awbPrintGuard->partitionOrdersForAwbPrint(
+                $shopeeChannel,
+                $shopee['order_refs'],
+                $request->user(),
+            );
+            if ($shopee['order_refs'] !== [] && $shopeePrintPartition['allowed'] === [] && $shopeePrintPartition['blocked'] !== []) {
+                return redirect()->back()->with(
+                    'error',
+                    'AWB sudah pernah dicetak untuk order Shopee: '.implode(', ', $shopeePrintPartition['blocked'])
+                    .'. Minta izin cetak ulang ke admin.',
+                );
+            }
+
+            $tiktokPrintPartition = $awbPrintGuard->partitionOrdersForAwbPrint(
+                $tiktokChannel,
+                $tiktok['order_refs'],
+                $request->user(),
+            );
+            if ($tiktok['order_refs'] !== [] && $tiktokPrintPartition['allowed'] === [] && $tiktokPrintPartition['blocked'] !== []) {
+                return redirect()->back()->with(
+                    'error',
+                    'AWB sudah pernah dicetak untuk order TikTok/Tokopedia: '.implode(', ', $tiktokPrintPartition['blocked'])
+                    .'. Minta izin cetak ulang ke admin.',
+                );
+            }
+
+            return redirect()->back()->with('error', 'Tidak ada order yang valid untuk diunduh AWB-nya.');
+        }
+
+        $files = [];
+        try {
+            foreach ($allowedShopee['by_shop'] as $shopId => $orderSns) {
+                $orderSns = array_values(array_unique($orderSns));
+                $pdfs = $shopeeAwb->downloadPdfBatchesForShop((int) $shopId, $orderSns, assumeDocumentsPrepared: true);
+                $batchIndex = 0;
+                foreach ($pdfs as $pdfBinary) {
+                    $suffix = count($pdfs) > 1 ? '-batch-'.(++$batchIndex) : '';
+                    $files['shopee-shop-'.$shopId.$suffix.'.pdf'] = $pdfBinary;
+                }
+            }
+
+            foreach ($allowedTiktok['by_cipher'] as $shopCipher => $orderIds) {
+                $orderIds = array_values(array_unique($orderIds));
+                $pdfs = $tiktokAwb->downloadPdfBatchesForShop((string) $shopCipher, $orderIds, assumeDocumentsPrepared: true);
+                $safeCipher = preg_replace('/[^a-zA-Z0-9_-]+/', '_', (string) $shopCipher) ?: 'shop';
+                $batchIndex = 0;
+                foreach ($pdfs as $pdfBinary) {
+                    $orderId = $orderIds[$batchIndex] ?? ($batchIndex + 1);
+                    $suffix = count($pdfs) > 1 ? '-'.$orderId : '';
+                    $files['tiktok-'.$safeCipher.$suffix.'.pdf'] = $pdfBinary;
+                    $batchIndex++;
+                }
+            }
+        } catch (\Throwable $e) {
+            return redirect()->back()->with('error', $e->getMessage());
+        }
+
+        $printerUserId = (int) $request->user()->id;
+        if ($allowedShopee['order_refs'] !== []) {
+            $awbStatusPromoter->promoteShopeeOrdersAfterAwb($allowedShopee['order_refs']);
+            $awbPrintGuard->recordSuccessfulPrints($shopeeChannel, $allowedShopee['order_refs'], $request->user());
+        }
+        if ($allowedTiktok['order_refs'] !== []) {
+            $awbStatusPromoter->promoteTikTokOrdersAfterAwb($allowedTiktok['order_refs']);
+            $awbPrintGuard->recordSuccessfulPrints($tiktokChannel, $allowedTiktok['order_refs'], $request->user());
+        }
+
+        $awbStatusPromoter->ensureJubelioQueueAfterAwb(
+            $allowedShopee['by_shop'],
+            $allowedTiktok['by_cipher'],
+            $printerUserId,
+        );
+
+        if ($skippedUnsupported > 0) {
+            session()->flash('warning', "{$skippedUnsupported} baris channel lain dilewati.");
+        }
+
+        return $this->streamAwbFiles($files);
+    }
+
+    /**
+     * @param  array{by_shop?: array<int, list<string>>, by_cipher?: array<string, list<string>>, order_refs: list<string>}  $channelSelection
+     * @return array{by_shop: array<int, list<string>>, by_cipher: array<string, list<string>>, order_refs: list<string>}|RedirectResponse
+     */
+    private function filterAwbDownloadChannel(
+        string $channel,
+        array $channelSelection,
+        MarketplaceChannelOrderAwbPrintGuard $awbPrintGuard,
+        MarketplaceChannelOrderAwbDocumentState $awbDocumentState,
+        Request $request,
+    ): array|RedirectResponse {
+        $orderRefs = $channelSelection['order_refs'] ?? [];
+        if ($orderRefs === []) {
+            return [
+                'by_shop' => [],
+                'by_cipher' => [],
+                'order_refs' => [],
+            ];
+        }
+
+        $partition = $awbPrintGuard->partitionOrdersForAwbPrint($channel, $orderRefs, $request->user());
+
+        if ($partition['blocked'] !== []) {
+            $label = $channel === MarketplaceWebhookRecorder::CHANNEL_SHOPEE ? 'Shopee' : 'TikTok/Tokopedia';
             session()->flash(
                 'warning',
-                count($blockedAlreadyPrinted).' order dilewati karena AWB sudah pernah dicetak: '.$skippedList,
+                count($partition['blocked'])." order {$label} dilewati karena AWB sudah pernah dicetak: ".implode(', ', $partition['blocked']),
             );
         }
 
-        $readyPartition = $awbDocumentState->partitionOrdersForAwbDownload($allowedOrderRefs);
-        if ($readyPartition['allowed'] === []) {
-            $notReady = implode(', ', $readyPartition['blocked']);
-
-            return redirect()->back()->with(
-                'error',
-                'AWB belum siap — minta AWB dulu untuk: '.$notReady,
-            );
-        }
+        $readyPartition = $awbDocumentState->partitionOrdersForAwbDownload($channel, $partition['allowed']);
 
         if ($readyPartition['blocked'] !== []) {
             session()->flash(
@@ -347,45 +490,39 @@ class OmnichannelOrdersController extends Controller
             );
         }
 
-        $filtered = $this->filterByShopOrderRefs($byShop, $readyPartition['allowed']);
-        $byShop = $filtered['by_shop'];
-        $shopeeOrderRefs = $filtered['order_refs'];
+        $byShop = [];
+        $byCipher = [];
+        if ($channel === MarketplaceWebhookRecorder::CHANNEL_SHOPEE) {
+            $filtered = $this->filterByShopOrderRefs($channelSelection['by_shop'] ?? [], $readyPartition['allowed']);
 
-        $files = [];
-        try {
-            foreach ($byShop as $shopId => $orderSns) {
-                $orderSns = array_values(array_unique($orderSns));
-                $pdfs = $awbService->downloadPdfBatchesForShop((int) $shopId, $orderSns, assumeDocumentsPrepared: true);
-                $batchIndex = 0;
-                foreach ($pdfs as $pdfBinary) {
-                    $suffix = count($pdfs) > 1 ? '-batch-'.(++$batchIndex) : '';
-                    $files['shopee-shop-'.$shopId.$suffix.'.pdf'] = $pdfBinary;
-                }
-            }
-        } catch (\Throwable $e) {
-            return redirect()->back()->with('error', $e->getMessage());
+            return [
+                'by_shop' => $filtered['by_shop'],
+                'by_cipher' => [],
+                'order_refs' => $filtered['order_refs'],
+            ];
         }
 
-        $printerUserId = (int) $request->user()->id;
-        $awbStatusPromoter->promoteShopeeOrdersAfterAwb($shopeeOrderRefs);
-        $awbPrintGuard->recordSuccessfulPrints($shopeeOrderRefs, $request->user());
-        $awbStatusPromoter->ensureJubelioQueueAfterAwb($byShop, $printerUserId);
+        $filtered = $this->filterByCipherOrderRefs($channelSelection['by_cipher'] ?? [], $readyPartition['allowed']);
 
-        if ($skippedNonShopee > 0) {
-            session()->flash(
-                'warning',
-                "{$skippedNonShopee} baris non-Shopee (TikTok/Tokopedia) tidak dicetak — v1 Shopee saja.",
-            );
-        }
-
-        return $this->streamAwbFiles($files);
+        return [
+            'by_shop' => [],
+            'by_cipher' => $filtered['by_cipher'],
+            'order_refs' => $filtered['order_refs'],
+        ];
     }
 
     /**
-     * @return array{by_shop: array<int, list<string>>, order_refs: list<string>, skipped_non_shopee: int}|RedirectResponse
+     * @return array{
+     *     shopee: array{by_shop: array<int, list<string>>, order_refs: list<string>},
+     *     tiktok: array{by_cipher: array<string, list<string>>, order_refs: list<string>},
+     *     skipped_unsupported: int,
+     * }|RedirectResponse
      */
-    private function parseShopeeAwbSelection(Request $request, ShopeeShippingDocumentService $awbService): array|RedirectResponse
-    {
+    private function parseBulkAwbSelection(
+        Request $request,
+        ShopeeShippingDocumentService $shopeeAwb,
+        TikTokShopShippingDocumentService $tiktokAwb,
+    ): array|RedirectResponse {
         $validated = $request->validate([
             'rows' => ['required', 'array', 'min:1'],
             'rows.*.channel' => ['required', 'string', 'max:32'],
@@ -393,45 +530,99 @@ class OmnichannelOrdersController extends Controller
             'rows.*.shop_ref' => ['nullable', 'string', 'max:64'],
         ]);
 
-        $skippedNonShopee = 0;
+        $skippedUnsupported = 0;
         $byShop = [];
+        $byCipher = [];
         $shopeeOrderRefs = [];
+        $tiktokOrderRefs = [];
+
         foreach ($validated['rows'] as $row) {
             $channel = strtolower(trim((string) $row['channel']));
-            if ($channel !== 'shopee') {
-                $skippedNonShopee++;
-
-                continue;
-            }
-
             $orderRef = trim((string) $row['order_ref']);
             if ($orderRef === '') {
                 continue;
             }
 
-            $shopId = $awbService->resolveShopId($row['shop_ref'] ?? null);
-            if ($shopId === null) {
-                return redirect()
-                    ->back()
-                    ->with('error', "Shop tidak dikenali atau belum OAuth: shop_ref «{$row['shop_ref']}» (order {$orderRef}).");
+            if ($channel === MarketplaceWebhookRecorder::CHANNEL_SHOPEE) {
+                $shopId = $shopeeAwb->resolveShopId($row['shop_ref'] ?? null);
+                if ($shopId === null) {
+                    return redirect()
+                        ->back()
+                        ->with('error', "Shop Shopee tidak dikenali atau belum OAuth: shop_ref «{$row['shop_ref']}» (order {$orderRef}).");
+                }
+
+                $byShop[$shopId][] = $orderRef;
+                $shopeeOrderRefs[] = $orderRef;
+
+                continue;
             }
 
-            $byShop[$shopId][] = $orderRef;
-            $shopeeOrderRefs[] = $orderRef;
+            if ($channel === MarketplaceWebhookRecorder::CHANNEL_TIKTOK) {
+                $shopCipher = $tiktokAwb->resolveShopCipher($row['shop_ref'] ?? null);
+                if ($shopCipher === null) {
+                    return redirect()
+                        ->back()
+                        ->with('error', "Shop TikTok tidak dikenali: shop_ref «{$row['shop_ref']}» (order {$orderRef}). Mapping shop_cipher di TikTok sync / env.");
+                }
+
+                $byCipher[$shopCipher][] = $orderRef;
+                $tiktokOrderRefs[] = $orderRef;
+
+                continue;
+            }
+
+            $skippedUnsupported++;
         }
 
-        if ($byShop === []) {
-            $message = $skippedNonShopee > 0
-                ? 'Cetak AWB v1 hanya mendukung Shopee — TikTok/Tokopedia dilewati.'
-                : 'Tidak ada baris Shopee yang valid dipilih.';
+        if ($byShop === [] && $byCipher === []) {
+            $message = $skippedUnsupported > 0
+                ? 'Cetak AWB mendukung Shopee dan TikTok/Tokopedia — baris lain dilewati.'
+                : 'Tidak ada baris Shopee atau TikTok yang valid dipilih.';
 
             return redirect()->back()->with('error', $message);
         }
 
         return [
-            'by_shop' => $byShop,
-            'order_refs' => array_values(array_unique($shopeeOrderRefs)),
-            'skipped_non_shopee' => $skippedNonShopee,
+            'shopee' => [
+                'by_shop' => $byShop,
+                'order_refs' => array_values(array_unique($shopeeOrderRefs)),
+            ],
+            'tiktok' => [
+                'by_cipher' => $byCipher,
+                'order_refs' => array_values(array_unique($tiktokOrderRefs)),
+            ],
+            'skipped_unsupported' => $skippedUnsupported,
+        ];
+    }
+
+    /**
+     * @param  array<string, list<string>>  $byCipher
+     * @param  list<string>  $allowedOrderRefs
+     * @return array{by_cipher: array<string, list<string>>, order_refs: list<string>}
+     */
+    private function filterByCipherOrderRefs(array $byCipher, array $allowedOrderRefs): array
+    {
+        $allowedSet = array_fill_keys($allowedOrderRefs, true);
+        foreach ($byCipher as $cipher => $orderIds) {
+            $byCipher[$cipher] = array_values(array_filter(
+                $orderIds,
+                static fn ($id) => isset($allowedSet[$id]),
+            ));
+            if ($byCipher[$cipher] === []) {
+                unset($byCipher[$cipher]);
+            }
+        }
+
+        $remainingRefs = [];
+        foreach ($byCipher as $orderIds) {
+            foreach ($orderIds as $id) {
+                $remainingRefs[] = $id;
+            }
+        }
+
+        return [
+            'by_cipher' => $byCipher,
+            'order_refs' => array_values(array_unique($remainingRefs)),
         ];
     }
 
@@ -506,7 +697,7 @@ class OmnichannelOrdersController extends Controller
                 readfile($tmp);
                 @unlink($tmp);
             },
-            'shopee-awb-'.now()->format('Y-m-d-His').'.zip',
+            'omnichannel-awb-'.now()->format('Y-m-d-His').'.zip',
             ['Content-Type' => 'application/zip'],
         );
     }

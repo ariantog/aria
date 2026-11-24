@@ -295,6 +295,12 @@ class TikTokShopOpenApiService
             'commerce_platform' => $platform,
         ];
 
+        if (str_starts_with(strtoupper($orderId), 'AWB-') || str_starts_with(strtoupper($orderId), 'TOKO-AWB-')) {
+            $order['packages'] = [
+                ['id' => 'PKG-'.$orderId],
+            ];
+        }
+
         if (str_starts_with(strtoupper($orderId), 'WH-ENRICH-')) {
             $order['warehouse_id'] = '7392489215199020821';
         }
@@ -321,10 +327,102 @@ class TikTokShopOpenApiService
     }
 
     /**
+     * Ship a package (TikTok Shipping SEA / arrange before label).
+     *
+     * POST /fulfillment/{version}/packages/{package_id}/ship
+     */
+    public function shipPackage(string $shopCipher, string $packageId): array
+    {
+        $shopCipher = trim($shopCipher);
+        $packageId = trim($packageId);
+        if ($shopCipher === '' || $packageId === '') {
+            throw new \InvalidArgumentException('shop_cipher / package_id wajib.');
+        }
+
+        if ($this->isMock()) {
+            return ['code' => 0, 'message' => 'Success', 'data' => []];
+        }
+
+        $version = (string) config('tiktok_shop.fulfillment_api_version', '202309');
+        $path = '/fulfillment/'.$version.'/packages/'.$packageId.'/ship';
+        $handover = strtoupper(trim((string) config('tiktok_shop.ship_handover_method', 'PICKUP')));
+        $body = [];
+        if (in_array($handover, ['PICKUP', 'DROP_OFF'], true)) {
+            $body['handover_method'] = $handover;
+        }
+
+        $json = $this->liveSignedPost($path, ['shop_cipher' => $shopCipher], $body);
+        if ($json === null) {
+            $err = $this->lastOpenApiError;
+            $message = is_array($err) ? (string) ($err['message'] ?? 'Ship Package gagal') : 'Ship Package gagal';
+
+            throw new \RuntimeException('TikTok Ship Package: '.$message);
+        }
+
+        return $json;
+    }
+
+    /**
+     * Get Package Shipping Document — returns doc_url (valid ~24h).
+     *
+     * GET /fulfillment/{version}/packages/{package_id}/shipping_documents
+     *
+     * @return array<string, mixed>|null
+     */
+    public function getPackageShippingDocument(string $shopCipher, string $packageId): ?array
+    {
+        $shopCipher = trim($shopCipher);
+        $packageId = trim($packageId);
+        if ($shopCipher === '' || $packageId === '') {
+            return null;
+        }
+
+        if ($this->isMock()) {
+            return [
+                'code' => 0,
+                'data' => [
+                    'doc_url' => 'https://mock.tiktok.local/labels/'.$packageId.'.pdf',
+                    'tracking_number' => 'MOCK-'.$packageId,
+                ],
+            ];
+        }
+
+        $version = (string) config('tiktok_shop.fulfillment_api_version', '202309');
+        $path = '/fulfillment/'.$version.'/packages/'.$packageId.'/shipping_documents';
+
+        return $this->liveSignedGet($path, [
+            'shop_cipher' => $shopCipher,
+            'document_type' => (string) config('tiktok_shop.shipping_document_type', 'SHIPPING_LABEL'),
+            'document_size' => (string) config('tiktok_shop.shipping_document_size', 'A6'),
+            'document_format' => (string) config('tiktok_shop.shipping_document_format', 'PDF'),
+        ]);
+    }
+
+    /**
      * @param  array<string, string>  $extraQuery
      * @return array<string, mixed>|null
      */
     protected function liveSignedGet(string $path, array $extraQuery = []): ?array
+    {
+        return $this->liveSignedRequest('GET', $path, $extraQuery);
+    }
+
+    /**
+     * @param  array<string, mixed>  $body
+     * @param  array<string, string>  $extraQuery
+     * @return array<string, mixed>|null
+     */
+    protected function liveSignedPost(string $path, array $extraQuery, array $body): ?array
+    {
+        return $this->liveSignedRequest('POST', $path, $extraQuery, $body);
+    }
+
+    /**
+     * @param  array<string, string>  $extraQuery
+     * @param  array<string, mixed>|null  $body
+     * @return array<string, mixed>|null
+     */
+    protected function liveSignedRequest(string $method, string $path, array $extraQuery = [], ?array $body = null): ?array
     {
         $this->lastOpenApiError = null;
 
@@ -333,7 +431,7 @@ class TikTokShopOpenApiService
         $accessToken = (string) ($this->oauthService->getAccessToken() ?? '');
 
         if ($appKey === '' || $appSecret === '' || $accessToken === '') {
-            Log::info('TikTok Shop Open API GET skipped — missing credentials', ['path' => $path]);
+            Log::info('TikTok Shop Open API request skipped — missing credentials', ['path' => $path, 'method' => $method]);
             $this->lastOpenApiError = [
                 'http_status' => null,
                 'code' => 'missing_credentials',
@@ -350,24 +448,40 @@ class TikTokShopOpenApiService
             'timestamp' => (string) $timestamp,
         ], $extraQuery);
 
-        $sign = $this->signOpenApiRequest($path, $query, $appSecret);
+        $bodyJson = null;
+        if ($body !== null && $method !== 'GET') {
+            $bodyJson = json_encode($body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            if ($bodyJson === false) {
+                throw new \RuntimeException('TikTok Open API body JSON encode gagal.');
+            }
+        }
+
+        $sign = $this->signOpenApiRequest($path, $query, $appSecret, $bodyJson);
         $query['sign'] = $sign;
 
         $base = rtrim((string) config('tiktok_shop.api_base_url'), '/');
         $url = $base.$path;
 
         try {
-            $response = Http::timeout(15)
+            $client = Http::timeout(20)
                 ->acceptJson()
-                ->withHeaders(['x-tts-access-token' => $accessToken])
-                ->get($url, $query);
+                ->withHeaders([
+                    'x-tts-access-token' => $accessToken,
+                    'content-type' => 'application/json',
+                ]);
+
+            $response = match (strtoupper($method)) {
+                'POST' => $client->withBody((string) $bodyJson, 'application/json')->post($url, $query),
+                default => $client->get($url, $query),
+            };
 
             if (! $response->successful()) {
                 $json = $response->json();
                 $this->recordOpenApiGetFailure($path, $response->status(), $json);
 
-                Log::warning('TikTok Shop Open API GET HTTP error', [
+                Log::warning('TikTok Shop Open API HTTP error', [
                     'path' => $path,
+                    'method' => $method,
                     'status' => $response->status(),
                     'code' => is_array($json) ? ($json['code'] ?? null) : null,
                     'message' => is_array($json) ? ($json['message'] ?? null) : null,
@@ -392,8 +506,9 @@ class TikTokShopOpenApiService
             if ($apiCode !== null && (int) $apiCode !== 0) {
                 $this->recordOpenApiGetFailure($path, $response->status(), $json);
 
-                Log::warning('TikTok Shop Open API GET API error', [
+                Log::warning('TikTok Shop Open API API error', [
                     'path' => $path,
+                    'method' => $method,
                     'code' => $apiCode,
                     'message' => $json['message'] ?? null,
                 ]);
@@ -410,8 +525,9 @@ class TikTokShopOpenApiService
                 'path' => $path,
             ];
 
-            Log::warning('TikTok Shop Open API GET failed', [
+            Log::warning('TikTok Shop Open API request failed', [
                 'path' => $path,
+                'method' => $method,
                 'message' => $e->getMessage(),
             ]);
 
@@ -587,11 +703,11 @@ class TikTokShopOpenApiService
     }
 
     /**
-     * TikTok Shop Open API request sign (common partner pattern).
+     * TikTok Shop Open API request sign (Partner Center v202309+).
      *
      * @param  array<string, string>  $query
      */
-    protected function signOpenApiRequest(string $path, array $query, string $appSecret): string
+    protected function signOpenApiRequest(string $path, array $query, string $appSecret, ?string $bodyJson = null): string
     {
         unset($query['sign'], $query['access_token']);
         ksort($query);
@@ -599,6 +715,10 @@ class TikTokShopOpenApiService
         $input = $path;
         foreach ($query as $key => $value) {
             $input .= $key.$value;
+        }
+
+        if ($bodyJson !== null && $bodyJson !== '') {
+            $input .= $bodyJson;
         }
 
         $wrapped = $appSecret.$input.$appSecret;

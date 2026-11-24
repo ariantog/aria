@@ -43,6 +43,24 @@ return [
     /** Order API path version for getOrderDetail (Partner Center → Order API). */
     'order_api_version' => env('TIKTOK_SHOP_ORDER_API_VERSION', '202507'),
 
+    /** Fulfillment API path version (Ship Package, Get Package Shipping Document). */
+    'fulfillment_api_version' => env('TIKTOK_SHOP_FULFILLMENT_API_VERSION', '202309'),
+
+    /**
+     * Omnichannel bulk AWB — Get Package Shipping Document query params (Indonesia / SEA default A6 PDF).
+     *
+     * @see https://partner.tiktokshop.com/docv2/page/get-package-shipping-document-202309
+     */
+    'shipping_document_type' => env('TIKTOK_SHOP_SHIPPING_DOCUMENT_TYPE', 'SHIPPING_LABEL'),
+    'shipping_document_size' => env('TIKTOK_SHOP_SHIPPING_DOCUMENT_SIZE', 'A6'),
+    'shipping_document_format' => env('TIKTOK_SHOP_SHIPPING_DOCUMENT_FORMAT', 'PDF'),
+
+    /** TikTok Shipping (SEA): handover_method for Ship Package when label not ready (PICKUP or DROP_OFF). */
+    'ship_handover_method' => env('TIKTOK_SHOP_SHIP_HANDOVER_METHOD', 'PICKUP'),
+
+    /** Poll Get Package Shipping Document after Ship Package (seconds). */
+    'awb_document_poll_seconds' => (int) env('TIKTOK_SHOP_AWB_DOCUMENT_POLL_SECONDS', 60),
+
     /**
      * After TikTok Shop webhook ingest, queue read-only Get Order Detail to set commerce_platform
      * (e.g. TOKOPEDIA) on marketplace_channel_orders + marketplace_webhook_events.
