@@ -21,6 +21,10 @@ class ShopeeShippingDocumentService
 
     private const BATCH_ALL_FAILED_ERROR = 'common.batch_api_all_failed';
 
+    private const ERROR_SHOULD_PRINT_FIRST = 'logistics.shipping_document_should_print_first';
+
+    private const ORDER_STATUSES_NEED_ARRANGE = ['PROCESSED'];
+
     public function __construct(
         private ShopeeAdminOpenApiService $shopeeApi,
     ) {}
@@ -62,7 +66,7 @@ class ShopeeShippingDocumentService
 
     /**
      * @param  list<string>  $orderSns
-     * @return list<string>  One PDF binary string per API batch (≤50 orders each)
+     * @return list<string> One PDF binary string per API batch (≤50 orders each)
      */
     public function downloadPdfBatchesForShop(int $shopId, array $orderSns): array
     {
@@ -129,10 +133,28 @@ class ShopeeShippingDocumentService
         }
 
         if ($needsCreate !== []) {
-            $this->createShippingDocument($shopId, $needsCreate);
+            $this->arrangeShipmentsBeforeCreate($shopId, $needsCreate);
+            $this->createShippingDocumentWithArrangeRetry($shopId, $needsCreate);
         }
 
         $this->pollUntilReady($shopId, $orderList);
+    }
+
+    /**
+     * @param  list<array{order_sn: string, package_number?: string, tracking_number?: string}>  $orderList
+     */
+    private function createShippingDocumentWithArrangeRetry(int $shopId, array $orderList): void
+    {
+        try {
+            $this->createShippingDocument($shopId, $orderList);
+        } catch (\RuntimeException $e) {
+            if (! $this->exceptionSuggestsArrangeShipmentFirst($e)) {
+                throw $e;
+            }
+
+            $this->arrangeShipmentsBeforeCreate($shopId, $orderList, force: true);
+            $this->createShippingDocument($shopId, $orderList);
+        }
     }
 
     /**
@@ -180,7 +202,11 @@ class ShopeeShippingDocumentService
         ];
 
         $response = $this->shopeeApi->shopApiPost('/api/v2/logistics/get_shipping_document_result', $payload, $shopId);
-        $decoded = $this->decodeLogisticsBatchResponse($response, 'get_shipping_document_result');
+        $decoded = $this->decodeLogisticsBatchResponse(
+            $response,
+            'get_shipping_document_result',
+            allowMissingDocumentTask: true,
+        );
 
         return $this->resultStatuses($decoded, $orderList);
     }
@@ -523,13 +549,200 @@ class ShopeeShippingDocumentService
     }
 
     /**
+     * @param  list<array{order_sn: string, package_number?: string, tracking_number?: string}>  $orderList
+     */
+    private function arrangeShipmentsBeforeCreate(int $shopId, array $orderList, bool $force = false): void
+    {
+        $seen = [];
+        foreach ($orderList as $row) {
+            $orderSn = trim((string) ($row['order_sn'] ?? ''));
+            if ($orderSn === '' || isset($seen[$orderSn])) {
+                continue;
+            }
+            $seen[$orderSn] = true;
+
+            $packageNumber = filled($row['package_number'] ?? null)
+                ? trim((string) $row['package_number'])
+                : null;
+            if ($packageNumber === '') {
+                $packageNumber = null;
+            }
+
+            if (! $force && ! $this->orderSnNeedsArrangeShipment($shopId, $orderSn)) {
+                continue;
+            }
+
+            $this->arrangeShipmentForOrder($shopId, $orderSn, $packageNumber);
+        }
+    }
+
+    private function orderSnNeedsArrangeShipment(int $shopId, string $orderSn): bool
+    {
+        $detail = $this->shopeeApi->getOrderDetail(
+            $orderSn,
+            $shopId,
+            ShopeeFlexiOrderDetailFields::OPTIONAL,
+        );
+        $orderRow = $this->firstOrderRow($detail);
+        if ($orderRow === null) {
+            return true;
+        }
+
+        $status = strtoupper(trim((string) ($orderRow['order_status'] ?? '')));
+
+        return in_array($status, self::ORDER_STATUSES_NEED_ARRANGE, true);
+    }
+
+    private function arrangeShipmentForOrder(int $shopId, string $orderSn, ?string $packageNumber): void
+    {
+        $query = ['order_sn' => $orderSn];
+        if ($packageNumber !== null) {
+            $query['package_number'] = $packageNumber;
+        }
+
+        $parameterResponse = $this->shopeeApi->shopApiGet('/api/v2/logistics/get_shipping_parameter', $query, $shopId);
+        $parameters = $this->shopeeApi->decodeShopResponse($parameterResponse, 'get_shipping_parameter');
+        if ($parameters === null) {
+            Log::warning('Shopee arrange shipment skipped — get_shipping_parameter failed', [
+                'shop_id' => $shopId,
+                'order_sn' => $orderSn,
+            ]);
+
+            return;
+        }
+
+        $shipBody = $this->buildShipOrderBody($orderSn, $packageNumber, $parameters);
+        if ($shipBody === null) {
+            Log::info('Shopee arrange shipment skipped — no ship_order payload', [
+                'shop_id' => $shopId,
+                'order_sn' => $orderSn,
+            ]);
+
+            return;
+        }
+
+        $shipResponse = $this->shopeeApi->shopApiPost('/api/v2/logistics/ship_order', $shipBody, $shopId);
+        try {
+            $this->decodeLogisticsBatchResponse($shipResponse, 'ship_order');
+        } catch (\RuntimeException $e) {
+            if ($this->exceptionIsIgnorableShipOrderFailure($e)) {
+                Log::info('Shopee ship_order benign failure', [
+                    'shop_id' => $shopId,
+                    'order_sn' => $orderSn,
+                    'message' => $e->getMessage(),
+                ]);
+
+                return;
+            }
+
+            throw $e;
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $parameters
+     * @return array<string, mixed>|null
+     */
+    private function buildShipOrderBody(string $orderSn, ?string $packageNumber, array $parameters): ?array
+    {
+        $response = $parameters['response'] ?? [];
+        if (! is_array($response)) {
+            return null;
+        }
+
+        $infoNeeded = $response['info_needed'] ?? [];
+        if (! is_array($infoNeeded)) {
+            return null;
+        }
+
+        $body = ['order_sn' => $orderSn];
+        if ($packageNumber !== null && $packageNumber !== '') {
+            $body['package_number'] = $packageNumber;
+        }
+
+        $pickupFields = $infoNeeded['pickup'] ?? null;
+        if (is_array($pickupFields) && $pickupFields !== []) {
+            $pickup = $response['pickup'] ?? [];
+            if (! is_array($pickup)) {
+                return null;
+            }
+            $addressList = $pickup['address_list'] ?? [];
+            if (! is_array($addressList) || $addressList === []) {
+                return null;
+            }
+            $address = $addressList[0];
+            if (! is_array($address)) {
+                return null;
+            }
+            $addressId = $address['address_id'] ?? null;
+            $pickupTimeId = null;
+            $timeSlots = $address['time_slot_list'] ?? [];
+            if (is_array($timeSlots) && $timeSlots !== [] && is_array($timeSlots[0])) {
+                $pickupTimeId = $timeSlots[0]['pickup_time_id'] ?? null;
+            }
+            if ($addressId === null || $pickupTimeId === null) {
+                return null;
+            }
+
+            $body['pickup'] = [
+                'address_id' => (int) $addressId,
+                'pickup_time_id' => (string) $pickupTimeId,
+            ];
+
+            return $body;
+        }
+
+        if (array_key_exists('dropoff', $infoNeeded)) {
+            $dropoff = new \stdClass;
+            $dropoffFields = $infoNeeded['dropoff'];
+            if (is_array($dropoffFields) && in_array('branch_id', $dropoffFields, true)) {
+                $branches = $response['dropoff']['branch_list'] ?? [];
+                if (is_array($branches) && $branches !== [] && is_array($branches[0])) {
+                    $branchId = $branches[0]['branch_id'] ?? null;
+                    if ($branchId !== null) {
+                        $dropoff = ['branch_id' => (int) $branchId];
+                    }
+                }
+            }
+
+            $body['dropoff'] = $dropoff;
+
+            return $body;
+        }
+
+        return null;
+    }
+
+    private function exceptionSuggestsArrangeShipmentFirst(\RuntimeException $exception): bool
+    {
+        $haystack = strtolower($exception->getMessage());
+
+        return str_contains($haystack, 'ship the order first')
+            || str_contains($haystack, 'ship_order')
+            || str_contains($haystack, 'package_should_ship')
+            || str_contains($haystack, 'logistics.package_not_ready');
+    }
+
+    private function exceptionIsIgnorableShipOrderFailure(\RuntimeException $exception): bool
+    {
+        $haystack = strtolower($exception->getMessage());
+
+        return str_contains($haystack, 'already')
+            || str_contains($haystack, 'shipped')
+            || str_contains($haystack, 'ready_to_ship');
+    }
+
+    /**
      * Batch logistics responses may set top-level error to common.batch_api_all_failed while still
      * returning per-order result_list — decodeShopResponse treats that as a hard failure.
      *
      * @return array<string, mixed>
      */
-    private function decodeLogisticsBatchResponse(Response $response, string $context): array
-    {
+    private function decodeLogisticsBatchResponse(
+        Response $response,
+        string $context,
+        bool $allowMissingDocumentTask = false,
+    ): array {
         if (! $response->successful()) {
             $body = $response->body();
             Log::warning('Shopee logistics API HTTP error', [
@@ -553,12 +766,22 @@ class ShopeeShippingDocumentService
         $error = trim((string) ($data['error'] ?? ''));
         $hasResultList = is_array($data['response']['result_list'] ?? null);
 
+        if ($allowMissingDocumentTask && $error === self::ERROR_SHOULD_PRINT_FIRST) {
+            return [
+                'error' => '',
+                'response' => ['result_list' => is_array($data['response']['result_list'] ?? null)
+                    ? $data['response']['result_list']
+                    : []],
+                'request_id' => $data['request_id'] ?? null,
+            ];
+        }
+
         if ($error === '' || ($error === self::BATCH_ALL_FAILED_ERROR && $hasResultList)) {
             return $data;
         }
 
         $message = trim((string) ($data['message'] ?? ''));
-        $detail = $message !== '' ? "{$error} — {$message}" : $error;
+        $detail = $this->formatLogisticsErrorForUser($error, $message);
         $requestId = trim((string) ($data['request_id'] ?? ''));
         if ($requestId !== '') {
             $detail .= " (request_id: {$requestId})";
@@ -572,6 +795,25 @@ class ShopeeShippingDocumentService
         ]);
 
         throw new \RuntimeException("Shopee {$context}: {$detail}");
+    }
+
+    private function formatLogisticsErrorForUser(string $error, string $message): string
+    {
+        $errorLower = strtolower($error);
+        $messageLower = strtolower($message);
+
+        if ($error === self::ERROR_SHOULD_PRINT_FIRST
+            || str_contains($messageLower, 'create shipping document first')
+            || str_contains($messageLower, 'should print first')) {
+            return self::ERROR_SHOULD_PRINT_FIRST.' — Belum ada task AWB di Shopee; Aria akan memanggil create_shipping_document. Jika ini muncul lagi, pastikan order sudah READY_TO_SHIP dan punya resi.';
+        }
+
+        if (str_contains($errorLower, 'package_should_ship')
+            || str_contains($messageLower, 'ship the order first')) {
+            return $error.' — Order belum di-arrange (ship_order). Aria mencoba arrange otomatis; jika gagal, atur pengiriman di Shopee Seller Center lalu cetak AWB lagi.';
+        }
+
+        return $message !== '' ? "{$error} — {$message}" : $error;
     }
 
     /**
