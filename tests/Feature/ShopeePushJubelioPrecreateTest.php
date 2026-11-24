@@ -61,6 +61,30 @@ it('upserts jubelio placeholder on paid status push and is idempotent', function
     expect(Transaction::count())->toBe(0);
 });
 
+it('uses on-order placeholder prefix when shopee on_order flag is on', function () {
+    config([
+        'services.shopee_push.partner_key' => 'test-partner-key',
+        'services.shopee_push.verify_signature' => true,
+        'services.shopee_push.shadow_enabled' => false,
+        'services.shopee_push.store_inbox' => false,
+        'services.shopee_push.precreate_jubelio_queue' => true,
+        'marketplace.shopee_on_order.enabled' => true,
+    ]);
+
+    $body = '{"data":{"ordersn":"ONORD_SN_1","status":"PROCESSED","update_time":1660123127},"shop_id":9,"code":3,"timestamp":1660123127}';
+    $callbackUrl = url(route('shopee.push', [], false));
+    $authorization = app(ShopeePushSignatureVerifier::class)->sign($callbackUrl, $body);
+
+    $this->call('POST', route('shopee.push'), [], [], [], [
+        'HTTP_AUTHORIZATION' => $authorization,
+        'CONTENT_TYPE' => 'application/json',
+    ], $body)->assertOk();
+
+    $order = Jubelioorder::where('invoice', 'SP-ONORD_SN_1')->first();
+    expect($order)->not->toBeNull()
+        ->and($order->jubelio_order_id)->toBe('shopee-push-on-order:ONORD_SN_1');
+});
+
 it('skips unpaid and console test push for precreate', function () {
     config([
         'services.shopee_push.partner_key' => 'test-partner-key',
@@ -103,6 +127,16 @@ it('sell invoice guard sees shopee pre-row as taken', function () {
 
     expect($guard->sellInvoiceTaken('SP-GUARD-1'))->toBeTrue()
         ->and($guard->filterInvoicesAlreadyTaken(['SP-GUARD-1', 'SP-NEW']))->toContain('SP-GUARD-1');
+});
+
+it('precreator placeholder id follows shopee on_order flag', function () {
+    $service = app(ShopeeJubelioQueuePrecreator::class);
+
+    config(['marketplace.shopee_on_order.enabled' => false]);
+    expect($service->placeholderJubelioOrderId('SN1'))->toBe('shopee-push:SN1');
+
+    config(['marketplace.shopee_on_order.enabled' => true]);
+    expect($service->placeholderJubelioOrderId('SN1'))->toBe('shopee-push-on-order:SN1');
 });
 
 it('precreator service respects explicit trigger status list', function () {

@@ -367,12 +367,16 @@ class JubelioResiScanService
 
         $orderSn = $this->shopeeOrderSnFromPrefixedInvoice($invoice);
         if ($orderSn !== null) {
-            $placeholderId = ShopeeJubelioQueuePrecreator::PLACEHOLDER_PREFIX.$orderSn;
+            foreach (ShopeeJubelioQueuePrecreator::placeholderLookupIdsForOrderSn($orderSn) as $placeholderId) {
+                $byPlaceholder = Jubelioorder::query()
+                    ->where('type', 'SELL')
+                    ->where('jubelio_order_id', $placeholderId)
+                    ->first();
 
-            return Jubelioorder::query()
-                ->where('type', 'SELL')
-                ->where('jubelio_order_id', $placeholderId)
-                ->first();
+                if ($byPlaceholder !== null) {
+                    return $byPlaceholder;
+                }
+            }
         }
 
         return null;
