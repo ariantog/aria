@@ -6,7 +6,7 @@ use App\Models\MarketplaceChannelOrder;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Two-step Shopee AWB: request (task READY at Shopee) vs download (PDF + awb_printed_at).
+ * Two-step marketplace AWB: request (ready at platform) vs download (PDF + awb_printed_at).
  */
 class MarketplaceChannelOrderAwbDocumentState
 {
@@ -19,16 +19,21 @@ class MarketplaceChannelOrderAwbDocumentState
     /**
      * @param  list<string>  $orderRefs
      */
-    public function markDocumentRequested(array $orderRefs): void
+    public function markDocumentRequested(string $channel, array $orderRefs): void
     {
         if (! $this->requestColumnEnabled()) {
+            return;
+        }
+
+        $channel = strtolower(trim($channel));
+        if ($channel === '') {
             return;
         }
 
         $now = now();
         foreach ($this->normalizeOrderRefs($orderRefs) as $orderRef) {
             MarketplaceChannelOrder::query()
-                ->where('channel', MarketplaceWebhookRecorder::CHANNEL_SHOPEE)
+                ->where('channel', $channel)
                 ->where('order_ref', $orderRef)
                 ->update(['awb_document_requested_at' => $now]);
         }
@@ -37,16 +42,21 @@ class MarketplaceChannelOrderAwbDocumentState
     /**
      * @param  list<string>  $orderRefs
      */
-    public function markDocumentReady(array $orderRefs): void
+    public function markDocumentReady(string $channel, array $orderRefs): void
     {
         if (! $this->columnsEnabled()) {
+            return;
+        }
+
+        $channel = strtolower(trim($channel));
+        if ($channel === '') {
             return;
         }
 
         $now = now();
         foreach ($this->normalizeOrderRefs($orderRefs) as $orderRef) {
             MarketplaceChannelOrder::query()
-                ->where('channel', MarketplaceWebhookRecorder::CHANNEL_SHOPEE)
+                ->where('channel', $channel)
                 ->where('order_ref', $orderRef)
                 ->update(['awb_document_ready_at' => $now]);
         }
@@ -56,16 +66,17 @@ class MarketplaceChannelOrderAwbDocumentState
      * @param  list<string>  $orderRefs
      * @return array{allowed: list<string>, blocked: list<string>}
      */
-    public function partitionOrdersForAwbDownload(array $orderRefs): array
+    public function partitionOrdersForAwbDownload(string $channel, array $orderRefs): array
     {
         $orderRefs = $this->normalizeOrderRefs($orderRefs);
+        $channel = strtolower(trim($channel));
 
-        if ($orderRefs === [] || ! $this->columnsEnabled()) {
+        if ($orderRefs === [] || ! $this->columnsEnabled() || $channel === '') {
             return ['allowed' => $orderRefs, 'blocked' => []];
         }
 
         $readyRefs = MarketplaceChannelOrder::query()
-            ->where('channel', MarketplaceWebhookRecorder::CHANNEL_SHOPEE)
+            ->where('channel', $channel)
             ->whereIn('order_ref', $orderRefs)
             ->whereNotNull('awb_document_ready_at')
             ->pluck('order_ref')

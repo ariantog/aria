@@ -148,7 +148,7 @@ $eventsTableColspan = $showShopColumn ? 11 : 10;
                  return;
              }
              const rows = Object.values(this.selected);
-             const notReady = rows.filter((row) => row.channel === 'shopee' && !row.awb_ready);
+             const notReady = rows.filter((row) => ['shopee', 'tiktok'].includes(row.channel) && !row.awb_ready);
              if (notReady.length > 0) {
                  const ok = confirm(
                      notReady.length + ' order belum AWB siap — unduhan akan dilewati untuk yang belum siap. Lanjut?',
@@ -371,8 +371,8 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
         @endphp
         <div class="border-b border-gray-100 bg-gray-50 px-3 py-2 space-y-2" data-testid="omnichannel-awb-toolbar">
             <p class="text-xs text-gray-600">
-                <span class="font-medium text-gray-800">AWB Shopee (2 langkah)</span>
-                — <strong>Minta AWB</strong> (task Shopee) lalu <strong>Unduh AWB</strong> (PDF). v1 hanya Shopee.
+                <span class="font-medium text-gray-800">AWB marketplace (2 langkah)</span>
+                — <strong>Minta AWB</strong> lalu <strong>Unduh AWB</strong> (PDF). Shopee + TikTok/Tokopedia.
                 <span class="text-gray-500" x-show="selectedCount() > 0" x-cloak>
                     · <span x-text="selectedCount()"></span> terpilih
                 </span>
@@ -387,7 +387,7 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                             class="{{ $formControlClassSm }} border-indigo-600 bg-indigo-600 px-3 font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
                             data-testid="omnichannel-awb-request-button"
                             :disabled="selectedCount() === 0 || awbRequesting">
-                        <span x-show="awbRequesting" x-cloak>Meminta Shopee…</span>
+                        <span x-show="awbRequesting" x-cloak>Memproses…</span>
                         <span x-show="!awbRequesting" x-cloak>Minta AWB</span>
                     </button>
                 </form>
@@ -636,7 +636,7 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                             <span class="inline-flex rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-900"
                                   data-testid="omnichannel-awb-badge-pending"
                                   title="Diminta {{ $row->awb_document_requested_at?->format('Y-m-d H:i:s') ?? '—' }}">
-                                Menunggu Shopee
+                                Menunggu label
                             </span>
                             @else
                             —

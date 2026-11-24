@@ -9,7 +9,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * One AWB print per Shopee order unless the user may reprint; full append-only audit trail.
+ * One AWB print per marketplace order unless the user may reprint; full append-only audit trail.
  */
 class MarketplaceChannelOrderAwbPrintGuard
 {
@@ -17,9 +17,10 @@ class MarketplaceChannelOrderAwbPrintGuard
      * @param  list<string>  $orderRefs
      * @return array{allowed: list<string>, blocked: list<string>}
      */
-    public function partitionOrdersForAwbPrint(array $orderRefs, User $user): array
+    public function partitionOrdersForAwbPrint(string $channel, array $orderRefs, User $user): array
     {
         $orderRefs = $this->normalizeOrderRefs($orderRefs);
+        $channel = strtolower(trim($channel));
 
         if ($orderRefs === []) {
             return ['allowed' => [], 'blocked' => []];
@@ -34,8 +35,12 @@ class MarketplaceChannelOrderAwbPrintGuard
             return ['allowed' => $orderRefs, 'blocked' => []];
         }
 
+        if ($channel === '') {
+            return ['allowed' => $orderRefs, 'blocked' => []];
+        }
+
         $printedRefs = MarketplaceChannelOrder::query()
-            ->where('channel', MarketplaceWebhookRecorder::CHANNEL_SHOPEE)
+            ->where('channel', $channel)
             ->whereIn('order_ref', $orderRefs)
             ->whereNotNull('awb_printed_at')
             ->pluck('order_ref')
@@ -60,7 +65,7 @@ class MarketplaceChannelOrderAwbPrintGuard
     /**
      * @param  list<string>  $orderRefs
      */
-    public function recordSuccessfulPrints(array $orderRefs, User $user): int
+    public function recordSuccessfulPrints(string $channel, array $orderRefs, User $user): int
     {
         $userId = (int) $user->id;
         if ($userId <= 0) {
@@ -68,7 +73,8 @@ class MarketplaceChannelOrderAwbPrintGuard
         }
 
         $orderRefs = $this->normalizeOrderRefs($orderRefs);
-        if ($orderRefs === []) {
+        $channel = strtolower(trim($channel));
+        if ($orderRefs === [] || $channel === '') {
             return 0;
         }
 
@@ -84,7 +90,7 @@ class MarketplaceChannelOrderAwbPrintGuard
         if ($auditEnabled) {
             $priorPrintCounts = MarketplaceChannelOrderAwbPrint::query()
                 ->selectRaw('order_ref, COUNT(*) as c')
-                ->where('channel', MarketplaceWebhookRecorder::CHANNEL_SHOPEE)
+                ->where('channel', $channel)
                 ->whereIn('order_ref', $orderRefs)
                 ->groupBy('order_ref')
                 ->pluck('c', 'order_ref')
@@ -99,7 +105,7 @@ class MarketplaceChannelOrderAwbPrintGuard
 
             if ($auditEnabled) {
                 MarketplaceChannelOrderAwbPrint::query()->create([
-                    'channel' => MarketplaceWebhookRecorder::CHANNEL_SHOPEE,
+                    'channel' => $channel,
                     'order_ref' => $orderRef,
                     'user_id' => $userId,
                     'printed_at' => $now,
@@ -109,7 +115,7 @@ class MarketplaceChannelOrderAwbPrintGuard
 
             if ($summaryEnabled) {
                 MarketplaceChannelOrder::query()
-                    ->where('channel', MarketplaceWebhookRecorder::CHANNEL_SHOPEE)
+                    ->where('channel', $channel)
                     ->where('order_ref', $orderRef)
                     ->update([
                         'awb_printed_by' => $userId,
