@@ -510,13 +510,16 @@ class TikTokShopOpenApiService
                 ->acceptJson()
                 ->withHeaders([
                     'x-tts-access-token' => $accessToken,
-                    'content-type' => 'application/json',
                 ]);
+
+            if (strtoupper($method) === 'POST' && ($bodyJson === null || $bodyJson === '')) {
+                throw new \RuntimeException('TikTok Open API POST membutuhkan body JSON.');
+            }
 
             $response = match (strtoupper($method)) {
                 'POST' => $client
-                    ->withBody((string) $bodyJson, 'application/json')
                     ->withQueryParameters($query)
+                    ->withBody($bodyJson, 'application/json')
                     ->post($url),
                 default => $client->get($url, $query),
             };

@@ -67,6 +67,15 @@ it('calls product search with 202502 path, signed query, and access token header
 
         expect($request->header('x-tts-access-token'))->toContain('live-access-token');
 
+        $contentTypeHeaders = $request->header('Content-Type');
+        expect($contentTypeHeaders)->toHaveCount(1)
+            ->and($contentTypeHeaders[0])->toBe('application/json');
+
+        $decodedBody = json_decode($request->body(), true);
+        expect($decodedBody)->toBeArray()
+            ->and($decodedBody['status'])->toBe('ACTIVATE')
+            ->and($decodedBody['seller_skus'])->toBe(['SKU-ABC']);
+
         return true;
     });
 });
