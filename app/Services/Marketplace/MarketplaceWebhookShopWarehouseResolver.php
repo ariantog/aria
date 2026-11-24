@@ -22,6 +22,8 @@ class MarketplaceWebhookShopWarehouseResolver
 
     public function __construct(
         private MarketplaceWarehouseSyncResolver $warehouseSyncResolver,
+        private ShopeeSyncWarehouseResolver $shopeeSyncWarehouseResolver,
+        private ShopeeOrderPickupLocation $shopeeOrderPickupLocation,
     ) {}
     /**
      * @return array<int, string> warehouse_id => addrbook name
@@ -190,7 +192,18 @@ class MarketplaceWebhookShopWarehouseResolver
         ?string $shopRef,
         ?array $payload = null,
         ?string $commercePlatform = null,
+        ?string $channel = null,
     ): int {
+        $channel = strtolower(trim((string) $channel));
+
+        if ($channel === MarketplaceWebhookRecorder::CHANNEL_SHOPEE && is_array($payload) && $payload !== []) {
+            $shopId = $this->shopRefToPositiveInt($shopRef);
+            $hit = $this->shopeeSyncWarehouseResolver->ariaWarehouseIdForIngest($shopId, $payload);
+            if ($hit > 0) {
+                return $hit;
+            }
+        }
+
         $platformWarehouseId = $this->extractPlatformWarehouseIdFromPayload($payload);
         if ($platformWarehouseId !== null) {
             return $this->warehouseIdForTikTokShopRef($shopRef, $platformWarehouseId, $commercePlatform);
@@ -227,11 +240,14 @@ class MarketplaceWebhookShopWarehouseResolver
         $channel = strtolower((string) ($row->channel ?? ''));
         $payload = $this->payloadForListRow($row);
 
+        $commercePlatform = isset($row->commerce_platform) ? (string) $row->commerce_platform : null;
+
         if ($channel === MarketplaceWebhookRecorder::CHANNEL_TIKTOK) {
             $warehouseId = $this->resolveAriaWarehouseId(
                 $row->shop_ref ?? null,
                 $payload,
-                isset($row->commerce_platform) ? (string) $row->commerce_platform : null,
+                $commercePlatform,
+                $channel,
             );
             if ($warehouseId > 0) {
                 return $this->ariaWarehouseNameById($warehouseId, $warehouseNames);
@@ -244,7 +260,8 @@ class MarketplaceWebhookShopWarehouseResolver
             $warehouseId = $this->resolveAriaWarehouseId(
                 $row->shop_ref ?? null,
                 $payload,
-                isset($row->commerce_platform) ? (string) $row->commerce_platform : null,
+                $commercePlatform,
+                $channel !== '' ? $channel : null,
             );
             if ($warehouseId > 0) {
                 return $this->ariaWarehouseNameById($warehouseId, $warehouseNames);
@@ -260,12 +277,13 @@ class MarketplaceWebhookShopWarehouseResolver
     public function platformWarehouseLabelForListRow(object $row): ?string
     {
         $payload = $this->payloadForListRow($row);
-        $platformId = $this->extractPlatformWarehouseIdFromPayload($payload);
+        $channel = strtolower((string) ($row->channel ?? ''));
+        $platformId = $channel === MarketplaceWebhookRecorder::CHANNEL_SHOPEE
+            ? $this->extractShopeePlatformLocationKey($payload)
+            : $this->extractPlatformWarehouseIdFromPayload($payload);
         if ($platformId === null) {
             return null;
         }
-
-        $channel = strtolower((string) ($row->channel ?? ''));
         $shopRef = $this->normalizeShopRef($row->shop_ref ?? null);
         $commercePlatform = isset($row->commerce_platform) ? (string) $row->commerce_platform : null;
 
@@ -371,24 +389,36 @@ class MarketplaceWebhookShopWarehouseResolver
             return null;
         }
 
-        $base = MarketplaceWarehouseSync::query()
-            ->where('channel', $unifiedChannel)
-            ->where('shop_ref', $shopRef)
-            ->where('platform_warehouse_id', $platformWarehouseId);
-
         $name = null;
-        if ($unifiedChannel === MarketplaceWarehouseSync::CHANNEL_TIKTOK) {
-            $commerce = $this->normalizeCommercePlatform($commercePlatform);
-            if ($commerce !== '') {
-                $name = (clone $base)->where('commerce_platform', $commerce)->value('platform_warehouse_name');
-            }
-            if (! filled($name)) {
-                $name = (clone $base)->where('commerce_platform', '')->value('platform_warehouse_name');
-            }
-        }
+        if ($unifiedChannel === MarketplaceWarehouseSync::CHANNEL_SHOPEE) {
+            $base = MarketplaceWarehouseSync::query()
+                ->where('channel', $unifiedChannel)
+                ->where('shop_ref', $shopRef)
+                ->where('warehouse_id', '>', 0);
 
-        if (! filled($name)) {
-            $name = (clone $base)->value('platform_warehouse_name');
+            $name = (clone $base)->where('platform_location_id', $platformWarehouseId)->value('platform_warehouse_name');
+            if (! filled($name)) {
+                $name = (clone $base)->where('platform_warehouse_id', $platformWarehouseId)->value('platform_warehouse_name');
+            }
+        } else {
+            $base = MarketplaceWarehouseSync::query()
+                ->where('channel', $unifiedChannel)
+                ->where('shop_ref', $shopRef)
+                ->where('platform_warehouse_id', $platformWarehouseId);
+
+            if ($unifiedChannel === MarketplaceWarehouseSync::CHANNEL_TIKTOK) {
+                $commerce = $this->normalizeCommercePlatform($commercePlatform);
+                if ($commerce !== '') {
+                    $name = (clone $base)->where('commerce_platform', $commerce)->value('platform_warehouse_name');
+                }
+                if (! filled($name)) {
+                    $name = (clone $base)->where('commerce_platform', '')->value('platform_warehouse_name');
+                }
+            }
+
+            if (! filled($name)) {
+                $name = (clone $base)->value('platform_warehouse_name');
+            }
         }
 
         $name = filled($name) ? trim((string) $name) : null;
@@ -535,5 +565,64 @@ class MarketplaceWebhookShopWarehouseResolver
         }
 
         return null;
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $payload
+     */
+    public function extractShopeePlatformLocationKey(?array $payload): ?string
+    {
+        if ($payload === null || $payload === []) {
+            return null;
+        }
+
+        $pickup = $this->shopeeOrderPickupLocation->extract($payload);
+        if ($pickup === null) {
+            return null;
+        }
+
+        $locationId = strtoupper(trim((string) ($pickup['shopee_location_id'] ?? '')));
+        if ($locationId !== '') {
+            return $locationId;
+        }
+
+        $warehouseId = (int) ($pickup['shopee_warehouse_id'] ?? 0);
+        if ($warehouseId > 0) {
+            return (string) $warehouseId;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  object{channel?: ?string, shop_ref?: ?string, commerce_platform?: ?string, payload?: mixed}|MarketplaceChannelOrder  $row
+     * @return array{aria_name: ?string, platform_label: ?string, unmapped: bool}
+     */
+    public function warehouseDisplayForRow(
+        object $row,
+        array $shopRefToWarehouse = [],
+        array $warehouseNames = [],
+    ): array {
+        $ariaName = $this->warehouseNameForListRow($row, $shopRefToWarehouse, $warehouseNames);
+        $platformLabel = $this->platformWarehouseLabelForListRow($row);
+        $shopRef = $this->normalizeShopRef($row->shop_ref ?? null);
+
+        return [
+            'aria_name' => $ariaName,
+            'platform_label' => $platformLabel,
+            'unmapped' => $shopRef !== '' && $ariaName === null,
+        ];
+    }
+
+    protected function shopRefToPositiveInt(?string $shopRef): ?int
+    {
+        $shopRef = $this->normalizeShopRef($shopRef);
+        if ($shopRef === '' || ! ctype_digit($shopRef)) {
+            return null;
+        }
+
+        $id = (int) $shopRef;
+
+        return $id > 0 ? $id : null;
     }
 }

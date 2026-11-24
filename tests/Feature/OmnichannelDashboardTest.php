@@ -261,3 +261,62 @@ it('shows shopee push and jubelio inbox timestamps on the dashboard', function (
         ->assertSee($jubelioLabel, false)
         ->assertSee('+45s', false);
 });
+
+it('uses earliest shopee push inbox row for ingress timeline', function () {
+    $user = User::factory()->create();
+
+    $jubelioReceived = Carbon::parse('2026-11-23 09:00:31', OmnichannelReceivedTimes::TZ);
+    $shopeeEarliest = Carbon::parse('2026-11-23 09:00:31', OmnichannelReceivedTimes::TZ);
+    $shopeeLatest = Carbon::parse('2026-11-23 16:23:49', OmnichannelReceivedTimes::TZ);
+
+    $jubelio = Jubelioorder::create([
+        'jubelio_order_id' => 'j-ingress-earliest',
+        'source' => 1,
+        'invoice' => 'SP-EARLIEST1',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'status' => 0,
+        'created_at' => $jubelioReceived,
+    ]);
+
+    $shadow = MarketplaceOrderShadow::query()->create([
+        'channel' => MarketplaceOrderShadow::CHANNEL_SHOPEE,
+        'external_order_sn' => 'EARLIEST1',
+        'channel_status' => 'SHIPPED',
+        'compare_status' => MarketplaceOrderShadow::COMPARE_MATCHED,
+        'line_compare_status' => MarketplaceOrderShadow::LINE_COMPARE_MATCHED,
+        'jubelio_invoice' => 'SP-EARLIEST1',
+        'jubelio_order_id' => $jubelio->id,
+        'line_summary' => ['line_count' => 0, 'lines' => []],
+        'last_event_at' => $shopeeLatest,
+    ]);
+
+    ShopeePushInbox::query()->create([
+        'shop_id' => 1,
+        'push_code' => OmnichannelReceivedTimes::PUSH_CODE_ORDER_STATUS,
+        'ordersn' => 'EARLIEST1',
+        'order_status' => 'PROCESSED',
+        'signature_ok' => true,
+        'payload' => [],
+        'created_at' => $shopeeEarliest,
+    ]);
+
+    ShopeePushInbox::query()->create([
+        'shop_id' => 1,
+        'push_code' => OmnichannelReceivedTimes::PUSH_CODE_ORDER_STATUS,
+        'ordersn' => 'EARLIEST1',
+        'order_status' => 'SHIPPED',
+        'signature_ok' => true,
+        'payload' => [],
+        'created_at' => $shopeeLatest,
+    ]);
+
+    $earliestLabel = $shopeeEarliest->format('d M Y H:i:s');
+    $latestLabel = $shopeeLatest->format('d M Y H:i:s');
+
+    $this->actingAs($user)
+        ->get(route('omnichannel.index'))
+        ->assertOk()
+        ->assertSee($earliestLabel, false)
+        ->assertDontSee($latestLabel, false);
+});

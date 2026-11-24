@@ -3,7 +3,9 @@
 namespace App\Services\Marketplace;
 
 use App\Models\Jubelioorder;
+use App\Models\MarketplaceChannelOrder;
 use App\Models\MarketplaceOrderShadow;
+use App\Models\MarketplaceWebhookEvent;
 use App\Models\ShopeePushInbox;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
@@ -14,6 +16,8 @@ use Illuminate\Support\Facades\Schema;
 
 /**
  * Read-only ingress timestamps for /omnichannel (Shopee push vs Jubelio queue row).
+ *
+ * Shopee push uses the earliest successful inbox or webhook receipt (WIB display).
  */
 class OmnichannelReceivedTimes
 {
@@ -39,15 +43,20 @@ class OmnichannelReceivedTimes
             return [];
         }
 
-        $inboxLatest = $this->loadLatestInboxByOrdersn($rows);
+        $inboxEarliest = $this->loadEarliestInboxByOrdersn($rows);
+        $webhookEarliest = $this->loadEarliestWebhookByOrdersn($rows);
+        $channelOrderEarliest = $this->loadEarliestChannelOrderReceived($rows);
         $jubelioById = $this->loadJubelioOrdersForShadows($rows);
 
         $out = [];
         foreach ($rows as $shadow) {
             $jubelio = $this->resolveJubelioOrder($shadow, $jubelioById);
+            $sn = (string) $shadow->external_order_sn;
             $out[(int) $shadow->id] = $this->buildRow(
                 $shadow,
-                $inboxLatest[$shadow->external_order_sn] ?? null,
+                $inboxEarliest[$sn] ?? null,
+                $webhookEarliest[$sn] ?? null,
+                $channelOrderEarliest[$sn] ?? null,
                 $jubelio,
             );
         }
@@ -60,14 +69,18 @@ class OmnichannelReceivedTimes
      */
     public function forSingle(MarketplaceOrderShadow $shadow, ?Jubelioorder $jubelioOrder = null): array
     {
+        $sn = (string) $shadow->external_order_sn;
         $inboxAt = null;
-        if (Schema::hasTable('shopee_push_inbox')) {
+        if (Schema::hasTable('shopee_push_inbox') && $sn !== '') {
             $inboxAt = ShopeePushInbox::query()
                 ->where('push_code', self::PUSH_CODE_ORDER_STATUS)
-                ->where('ordersn', $shadow->external_order_sn)
-                ->orderByDesc('created_at')
+                ->where('ordersn', $sn)
+                ->orderBy('created_at')
                 ->value('created_at');
         }
+
+        $webhookAt = $this->earliestWebhookReceivedAt($sn);
+        $channelOrderAt = $this->earliestChannelOrderReceivedAt($sn);
 
         if ($jubelioOrder === null) {
             $map = $this->loadJubelioOrdersForShadows(collect([$shadow]));
@@ -77,6 +90,8 @@ class OmnichannelReceivedTimes
         return $this->buildRow(
             $shadow,
             $inboxAt,
+            $webhookAt,
+            $channelOrderAt,
             $jubelioOrder,
         );
     }
@@ -94,7 +109,7 @@ class OmnichannelReceivedTimes
      * @param  Collection<int, MarketplaceOrderShadow>  $shadows
      * @return array<string, CarbonInterface|string|null>
      */
-    private function loadLatestInboxByOrdersn(Collection $shadows): array
+    private function loadEarliestInboxByOrdersn(Collection $shadows): array
     {
         if (! Schema::hasTable('shopee_push_inbox')) {
             return [];
@@ -105,20 +120,114 @@ class OmnichannelReceivedTimes
             return [];
         }
 
-        $latest = [];
+        $earliest = [];
         ShopeePushInbox::query()
             ->where('push_code', self::PUSH_CODE_ORDER_STATUS)
             ->whereIn('ordersn', $orderSns)
-            ->orderByDesc('created_at')
+            ->orderBy('created_at')
             ->get(['ordersn', 'created_at'])
-            ->each(function (ShopeePushInbox $row) use (&$latest): void {
+            ->each(function (ShopeePushInbox $row) use (&$earliest): void {
                 $sn = (string) $row->ordersn;
-                if ($sn !== '' && ! array_key_exists($sn, $latest)) {
-                    $latest[$sn] = $row->created_at;
+                if ($sn !== '' && ! array_key_exists($sn, $earliest)) {
+                    $earliest[$sn] = $row->created_at;
                 }
             });
 
-        return $latest;
+        return $earliest;
+    }
+
+    /**
+     * @param  Collection<int, MarketplaceOrderShadow>  $shadows
+     * @return array<string, CarbonInterface|string|null>
+     */
+    private function loadEarliestWebhookByOrdersn(Collection $shadows): array
+    {
+        if (! Schema::hasTable('marketplace_webhook_events')) {
+            return [];
+        }
+
+        $orderSns = $shadows->pluck('external_order_sn')->filter()->unique()->values()->all();
+        if ($orderSns === []) {
+            return [];
+        }
+
+        $earliest = [];
+        MarketplaceWebhookEvent::query()
+            ->where('channel', MarketplaceWebhookRecorder::CHANNEL_SHOPEE)
+            ->whereIn('order_ref', $orderSns)
+            ->where('signature_ok', true)
+            ->orderBy('received_at')
+            ->get(['order_ref', 'received_at'])
+            ->each(function (MarketplaceWebhookEvent $row) use (&$earliest): void {
+                $ref = (string) $row->order_ref;
+                if ($ref !== '' && ! array_key_exists($ref, $earliest)) {
+                    $earliest[$ref] = $row->received_at;
+                }
+            });
+
+        return $earliest;
+    }
+
+    /**
+     * @param  Collection<int, MarketplaceOrderShadow>  $shadows
+     * @return array<string, CarbonInterface|string|null>
+     */
+    private function loadEarliestChannelOrderReceived(Collection $shadows): array
+    {
+        if (! Schema::hasTable('marketplace_channel_orders')) {
+            return [];
+        }
+
+        $orderSns = $shadows->pluck('external_order_sn')->filter()->unique()->values()->all();
+        if ($orderSns === []) {
+            return [];
+        }
+
+        $earliest = [];
+        MarketplaceChannelOrder::query()
+            ->where('channel', MarketplaceWebhookRecorder::CHANNEL_SHOPEE)
+            ->whereIn('order_ref', $orderSns)
+            ->orderBy('first_received_at')
+            ->get(['order_ref', 'first_received_at'])
+            ->each(function (MarketplaceChannelOrder $row) use (&$earliest): void {
+                $ref = (string) $row->order_ref;
+                if ($ref !== '' && ! array_key_exists($ref, $earliest) && $row->first_received_at !== null) {
+                    $earliest[$ref] = $row->first_received_at;
+                }
+            });
+
+        return $earliest;
+    }
+
+    private function earliestWebhookReceivedAt(string $orderSn): ?CarbonInterface
+    {
+        if ($orderSn === '' || ! Schema::hasTable('marketplace_webhook_events')) {
+            return null;
+        }
+
+        $value = MarketplaceWebhookEvent::query()
+            ->where('channel', MarketplaceWebhookRecorder::CHANNEL_SHOPEE)
+            ->where('order_ref', $orderSn)
+            ->where('signature_ok', true)
+            ->orderBy('received_at')
+            ->value('received_at');
+
+        return $this->castMoment($value);
+    }
+
+    private function earliestChannelOrderReceivedAt(string $orderSn): ?CarbonInterface
+    {
+        if ($orderSn === '' || ! Schema::hasTable('marketplace_channel_orders')) {
+            return null;
+        }
+
+        $value = MarketplaceChannelOrder::query()
+            ->where('channel', MarketplaceWebhookRecorder::CHANNEL_SHOPEE)
+            ->where('order_ref', $orderSn)
+            ->orderBy('first_received_at')
+            ->value('first_received_at');
+
+        return $this->castMoment($value);
     }
 
     /**
@@ -210,9 +319,16 @@ class OmnichannelReceivedTimes
     private function buildRow(
         MarketplaceOrderShadow $shadow,
         CarbonInterface|string|null $inboxCreatedAt,
+        CarbonInterface|string|null $webhookReceivedAt,
+        CarbonInterface|string|null $channelOrderFirstReceivedAt,
         ?Jubelioorder $jubelio,
     ): array {
-        [$shopeeAt, $shopeeSource] = $this->resolveShopeeReceivedAt($shadow, $inboxCreatedAt);
+        [$shopeeAt, $shopeeSource] = $this->resolveShopeeReceivedAt(
+            $shadow,
+            $inboxCreatedAt,
+            $webhookReceivedAt,
+            $channelOrderFirstReceivedAt,
+        );
         $jubelioAt = $jubelio !== null ? $this->castMoment($jubelio->created_at) : null;
 
         $shopeeFormatted = $this->formatWib($shopeeAt);
@@ -247,9 +363,33 @@ class OmnichannelReceivedTimes
     private function resolveShopeeReceivedAt(
         MarketplaceOrderShadow $shadow,
         CarbonInterface|string|null $inboxCreatedAt,
+        CarbonInterface|string|null $webhookReceivedAt,
+        CarbonInterface|string|null $channelOrderFirstReceivedAt,
     ): array {
+        $candidates = [];
+
         if ($inboxCreatedAt !== null) {
-            return [$this->castMoment($inboxCreatedAt), 'inbox'];
+            $candidates[] = [$this->castMoment($inboxCreatedAt), 'inbox'];
+        }
+        if ($webhookReceivedAt !== null) {
+            $candidates[] = [$this->castMoment($webhookReceivedAt), 'webhook'];
+        }
+        if ($channelOrderFirstReceivedAt !== null) {
+            $candidates[] = [$this->castMoment($channelOrderFirstReceivedAt), 'channel_order'];
+        }
+
+        $best = null;
+        foreach ($candidates as [$at, $source]) {
+            if ($at === null) {
+                continue;
+            }
+            if ($best === null || $at->getTimestamp() < $best[0]->getTimestamp()) {
+                $best = [$at, $source];
+            }
+        }
+
+        if ($best !== null) {
+            return $best;
         }
 
         if ($shadow->last_event_at !== null) {

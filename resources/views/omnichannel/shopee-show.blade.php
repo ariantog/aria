@@ -70,6 +70,24 @@ $lineLabels = [
         <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800/50">
             <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Ringkasan Shopee</h2>
             <dl class="mt-3 space-y-1 text-sm text-gray-700">
+                @php $warehouse = $warehouse ?? []; @endphp
+                @if(!empty($warehouse['aria_name']) || !empty($warehouse['platform_label']) || !empty($warehouse['unmapped']))
+                <div class="flex justify-between gap-4" data-testid="omnichannel-shadow-warehouse">
+                    <dt class="text-gray-500">Gudang</dt>
+                    <dd class="text-right">
+                        @if(!empty($warehouse['aria_name']))
+                        {{ $warehouse['aria_name'] }}
+                        @elseif(!empty($warehouse['unmapped']))
+                        <span class="text-amber-800">Not mapped</span>
+                        @else
+                        —
+                        @endif
+                        @if(!empty($warehouse['platform_label']))
+                        <span class="block font-mono text-xs text-gray-500">Platform: {{ $warehouse['platform_label'] }}</span>
+                        @endif
+                    </dd>
+                </div>
+                @endif
                 <div class="flex justify-between gap-4"><dt class="text-gray-500">Status</dt><dd>{{ $shadow->channel_status ?? '—' }}</dd></div>
                 <div class="flex justify-between gap-4"><dt class="text-gray-500">Baris</dt>
                     <dd>
