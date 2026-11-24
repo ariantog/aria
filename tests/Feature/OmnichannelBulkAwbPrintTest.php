@@ -600,6 +600,150 @@ it('continues awb flow when create returns duplicate package error', function ()
     ])->assertOk();
 });
 
+it('continues awb flow when probe returns should_print_first as top-level error', function () {
+    $user = User::factory()->create(['id' => 52]);
+    Permission::findOrCreate(Omnichannel::getPermissions()['orders'], 'web');
+    $user->givePermissionTo(Omnichannel::getPermissions()['orders']);
+
+    $orderSn = '2611245VU2MSJP';
+
+    MarketplaceChannelOrder::query()->create([
+        'channel' => 'shopee',
+        'order_ref' => $orderSn,
+        'shop_ref' => '100',
+        'order_status' => 'READY_TO_SHIP',
+        'last_event_at' => now(),
+        'first_received_at' => now(),
+    ]);
+
+    Http::fake([
+        'partner.shopeemobile.com/api/v2/order/get_order_detail*' => Http::response(
+            awbOrderDetailResponse($orderSn, 'READY_TO_SHIP', 'SPXID2611245'),
+        ),
+        'partner.shopeemobile.com/api/v2/logistics/get_shipping_document_result*' => Http::sequence()
+            ->push([
+                'error' => 'logistics.shipping_document_should_print_first',
+                'message' => 'The package should print first. Detail: these orders: '.$orderSn.' should print',
+                'request_id' => 'e3e3e7f361006cda1f5527c2afbec000',
+            ])
+            ->push([
+                'error' => '',
+                'response' => [
+                    'result_list' => [
+                        ['order_sn' => $orderSn, 'status' => 'READY'],
+                    ],
+                ],
+            ]),
+        'partner.shopeemobile.com/api/v2/logistics/create_shipping_document*' => Http::response([
+            'error' => '',
+            'response' => [
+                'result_list' => [
+                    ['order_sn' => $orderSn, 'fail_error' => ''],
+                ],
+            ],
+        ]),
+        'partner.shopeemobile.com/api/v2/logistics/download_shipping_document*' => Http::response(
+            '%PDF-1.4 probe-should-print-first',
+            200,
+            ['Content-Type' => 'application/pdf'],
+        ),
+    ]);
+
+    $response = $this->actingAs($user)->post(route('omnichannel.orders.shipping-documents'), [
+        'rows' => [
+            ['channel' => 'shopee', 'order_ref' => $orderSn, 'shop_ref' => '100'],
+        ],
+    ]);
+
+    $response->assertOk();
+    expect($response->streamedContent())->toContain('%PDF');
+
+    Http::assertSent(function ($request) {
+        return str_contains($request->url(), '/api/v2/logistics/create_shipping_document');
+    });
+});
+
+it('calls ship_order before create for processed orders without tracking', function () {
+    $user = User::factory()->create(['id' => 53]);
+    Permission::findOrCreate(Omnichannel::getPermissions()['orders'], 'web');
+    $user->givePermissionTo(Omnichannel::getPermissions()['orders']);
+
+    $orderSn = 'AWB-SHIP-FIRST';
+
+    MarketplaceChannelOrder::query()->create([
+        'channel' => 'shopee',
+        'order_ref' => $orderSn,
+        'shop_ref' => '100',
+        'order_status' => 'PROCESSED',
+        'last_event_at' => now(),
+        'first_received_at' => now(),
+    ]);
+
+    Http::fake([
+        'partner.shopeemobile.com/api/v2/order/get_order_detail*' => Http::response([
+            'error' => '',
+            'response' => [
+                'order_list' => [
+                    [
+                        'order_sn' => $orderSn,
+                        'order_status' => 'PROCESSED',
+                        'tracking_number' => '',
+                        'package_list' => [],
+                    ],
+                ],
+            ],
+        ]),
+        'partner.shopeemobile.com/api/v2/logistics/get_shipping_parameter*' => Http::response([
+            'error' => '',
+            'response' => [
+                'info_needed' => [
+                    'dropoff' => [],
+                ],
+            ],
+        ]),
+        'partner.shopeemobile.com/api/v2/logistics/ship_order*' => Http::response([
+            'error' => '',
+            'response' => [],
+        ]),
+        'partner.shopeemobile.com/api/v2/logistics/get_shipping_document_result*' => Http::sequence()
+            ->push([
+                'error' => 'logistics.shipping_document_should_print_first',
+                'message' => 'create shipping document first',
+            ])
+            ->push([
+                'error' => '',
+                'response' => [
+                    'result_list' => [
+                        ['order_sn' => $orderSn, 'status' => 'READY'],
+                    ],
+                ],
+            ]),
+        'partner.shopeemobile.com/api/v2/logistics/create_shipping_document*' => Http::response([
+            'error' => '',
+            'response' => [
+                'result_list' => [
+                    ['order_sn' => $orderSn, 'fail_error' => ''],
+                ],
+            ],
+        ]),
+        'partner.shopeemobile.com/api/v2/logistics/download_shipping_document*' => Http::response(
+            '%PDF-1.4 ship-first-flow',
+            200,
+            ['Content-Type' => 'application/pdf'],
+        ),
+    ]);
+
+    $this->actingAs($user)->post(route('omnichannel.orders.shipping-documents'), [
+        'rows' => [
+            ['channel' => 'shopee', 'order_ref' => $orderSn, 'shop_ref' => '100'],
+        ],
+    ])->assertOk();
+
+    Http::assertSent(function ($request) {
+        return str_contains($request->url(), '/api/v2/logistics/ship_order');
+    });
+});
+
 it('forbids awb download without omnichannel orders permission', function () {
     $user = User::factory()->create(['id' => 88]);
 
