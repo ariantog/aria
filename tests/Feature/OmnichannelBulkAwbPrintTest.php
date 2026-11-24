@@ -473,7 +473,7 @@ it('downloads awb for ready_to_ship order when shipping document is already read
     });
 });
 
-it('surfaces shopee batch create failure details instead of generic message', function () {
+it('completes awb when create returns tracking_number_invalid but label task becomes ready', function () {
     $user = User::factory()->create(['id' => 50]);
     Permission::findOrCreate(Omnichannel::getPermissions()['orders'], 'web');
     $user->givePermissionTo(Omnichannel::getPermissions()['orders']);
@@ -493,19 +493,6 @@ it('surfaces shopee batch create failure details instead of generic message', fu
         'partner.shopeemobile.com/api/v2/order/get_order_detail*' => Http::response(
             awbOrderDetailResponse($orderSn, 'READY_TO_SHIP', 'SPXFAIL001'),
         ),
-        'partner.shopeemobile.com/api/v2/logistics/get_shipping_document_result*' => Http::response([
-            'error' => '',
-            'response' => [
-                'result_list' => [
-                    [
-                        'order_sn' => $orderSn,
-                        'status' => 'FAILED',
-                        'fail_error' => 'logistics.shipping_document_should_print_first',
-                        'fail_message' => 'create shipping document first',
-                    ],
-                ],
-            ],
-        ]),
         'partner.shopeemobile.com/api/v2/logistics/create_shipping_document*' => Http::sequence()
             ->push([
                 'error' => 'common.batch_api_all_failed',
@@ -535,6 +522,33 @@ it('surfaces shopee batch create failure details instead of generic message', fu
                     ],
                 ],
             ]),
+        'partner.shopeemobile.com/api/v2/logistics/get_shipping_document_result*' => Http::sequence()
+            ->push([
+                'error' => '',
+                'response' => [
+                    'result_list' => [
+                        [
+                            'order_sn' => $orderSn,
+                            'status' => 'FAILED',
+                            'fail_error' => 'logistics.shipping_document_should_print_first',
+                            'fail_message' => 'create shipping document first',
+                        ],
+                    ],
+                ],
+            ])
+            ->push([
+                'error' => '',
+                'response' => [
+                    'result_list' => [
+                        ['order_sn' => $orderSn, 'status' => 'READY'],
+                    ],
+                ],
+            ]),
+        'partner.shopeemobile.com/api/v2/logistics/download_shipping_document*' => Http::response(
+            '%PDF-1.4 batch-invalid-fallback',
+            200,
+            ['Content-Type' => 'application/pdf'],
+        ),
     ]);
 
     $response = $this->actingAs($user)->post(route('omnichannel.orders.shipping-documents'), [
@@ -543,12 +557,8 @@ it('surfaces shopee batch create failure details instead of generic message', fu
         ],
     ]);
 
-    $response->assertRedirect();
-    $response->assertSessionHas('error');
-    $error = session('error');
-    expect($error)->toContain('logistics.tracking_number_invalid')
-        ->and($error)->toContain('req-batch-fail-99')
-        ->and($error)->not->toBe('Shopee create_shipping_document gagal.');
+    $response->assertOk();
+    expect($response->streamedContent())->toContain('%PDF');
 });
 
 it('continues awb flow when create returns duplicate package error', function () {

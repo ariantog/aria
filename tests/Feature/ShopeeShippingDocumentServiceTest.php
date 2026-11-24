@@ -464,6 +464,132 @@ it('retries create without tracking when Shopee returns tracking_number_invalid'
     }
 });
 
+it('polls and downloads when create still returns tracking_number_invalid', function () {
+    $orderSn = '2611245WYMT9ET';
+
+    Http::fake([
+        'partner.shopeemobile.com/api/v2/order/get_order_detail*' => Http::response([
+            'error' => '',
+            'response' => [
+                'order_list' => [
+                    [
+                        'order_sn' => $orderSn,
+                        'order_status' => 'READY_TO_SHIP',
+                        'tracking_number' => 'SPX-STALE-INVALID',
+                        'package_list' => [],
+                    ],
+                ],
+            ],
+        ]),
+        'partner.shopeemobile.com/api/v2/logistics/get_shipping_document_result*' => Http::sequence()
+            ->push([
+                'error' => 'logistics.shipping_document_should_print_first',
+                'message' => 'The package should print first.',
+            ])
+            ->push([
+                'error' => '',
+                'response' => [
+                    'result_list' => [
+                        ['order_sn' => $orderSn, 'status' => 'READY'],
+                    ],
+                ],
+            ]),
+        'partner.shopeemobile.com/api/v2/logistics/create_shipping_document*' => Http::sequence()
+            ->push([
+                'error' => 'common.batch_api_all_failed',
+                'message' => 'Failed, please check result_list for more details.',
+                'response' => [
+                    'result_list' => [
+                        [
+                            'order_sn' => $orderSn,
+                            'fail_error' => 'logistics.tracking_number_invalid',
+                            'fail_message' => 'The tracking number is invalid.',
+                        ],
+                    ],
+                ],
+            ])
+            ->push([
+                'error' => 'common.batch_api_all_failed',
+                'message' => 'Failed, please check result_list for more details.',
+                'response' => [
+                    'result_list' => [
+                        [
+                            'order_sn' => $orderSn,
+                            'fail_error' => 'logistics.tracking_number_invalid',
+                            'fail_message' => 'The tracking number is invalid.',
+                        ],
+                    ],
+                ],
+            ]),
+        'partner.shopeemobile.com/api/v2/logistics/download_shipping_document*' => Http::response(
+            '%PDF-1.4 poll-after-invalid',
+            200,
+            ['Content-Type' => 'application/pdf'],
+        ),
+    ]);
+
+    $service = app(ShopeeShippingDocumentService::class);
+    $pdfs = $service->downloadPdfBatchesForShop(100, [$orderSn]);
+
+    expect($pdfs)->toHaveCount(1)->and($pdfs[0])->toContain('%PDF');
+
+    $createRequests = collect(Http::recorded())->filter(
+        fn ($pair) => str_contains($pair[0]->url(), '/api/v2/logistics/create_shipping_document')
+    );
+    expect($createRequests)->toHaveCount(2);
+});
+
+it('skips create when get_shipping_document_result already shows PROCESSING', function () {
+    $orderSn = 'AWB-EXISTING-TASK';
+
+    Http::fake([
+        'partner.shopeemobile.com/api/v2/order/get_order_detail*' => Http::response([
+            'error' => '',
+            'response' => [
+                'order_list' => [
+                    [
+                        'order_sn' => $orderSn,
+                        'order_status' => 'READY_TO_SHIP',
+                        'tracking_number' => 'SPX-VALID-123',
+                        'package_list' => [],
+                    ],
+                ],
+            ],
+        ]),
+        'partner.shopeemobile.com/api/v2/logistics/get_shipping_document_result*' => Http::sequence()
+            ->push([
+                'error' => '',
+                'response' => [
+                    'result_list' => [
+                        ['order_sn' => $orderSn, 'status' => 'PROCESSING'],
+                    ],
+                ],
+            ])
+            ->push([
+                'error' => '',
+                'response' => [
+                    'result_list' => [
+                        ['order_sn' => $orderSn, 'status' => 'READY'],
+                    ],
+                ],
+            ]),
+        'partner.shopeemobile.com/api/v2/logistics/download_shipping_document*' => Http::response(
+            '%PDF-1.4 skip-create-processing',
+            200,
+            ['Content-Type' => 'application/pdf'],
+        ),
+    ]);
+
+    $service = app(ShopeeShippingDocumentService::class);
+    $pdfs = $service->downloadPdfBatchesForShop(100, [$orderSn]);
+
+    expect($pdfs)->toHaveCount(1)->and($pdfs[0])->toContain('%PDF');
+
+    Http::assertNotSent(function ($request) {
+        return str_contains($request->url(), '/api/v2/logistics/create_shipping_document');
+    });
+});
+
 it('throws actionable message when create still fails after arrange hint', function () {
     $orderSn = 'SVC-SHIP-ERR';
 
