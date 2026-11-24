@@ -84,12 +84,6 @@ class OmnichannelOrdersController extends Controller
                     ];
                 } elseif ($warehousePersist->orderNeedsWarehouseHydration($row)) {
                     $pendingWarehouseIds[] = (int) $row->id;
-                } elseif (filled($row->shop_ref)) {
-                    $initialWarehouseLabels[$row->id] = [
-                        'aria_name' => null,
-                        'platform_wh' => $shopResolver->platformWarehouseLabelForListRow($row),
-                        'unmapped' => true,
-                    ];
                 }
             }
         }

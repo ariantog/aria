@@ -61,7 +61,7 @@ $eventsTableColspan = $showShopColumn ? 11 : 10;
          detailHtml: {},
          loadingKey: null,
          warehouseById: @js($initialWarehouseLabels ?? []),
-         pendingWarehouseIds: @js($pendingWarehouseIds ?? []),
+         warehouseLoadingIds: @js($pendingWarehouseIds ?? []),
          warehouseLabelsUrl: @js($warehouseLabelsUrl ?? ''),
          pageRows: @js($pageOrderRows),
          canReprintAwb: @js($canReprintAwb ?? false),
@@ -172,25 +172,30 @@ $eventsTableColspan = $showShopColumn ? 11 : 10;
          isRowExpanded(id) {
              return this.expandedId === id;
          },
+         warehouseLabel(orderId) {
+             const key = String(orderId);
+             return this.warehouseById[key] ?? this.warehouseById[orderId] ?? null;
+         },
          warehousePending(orderId) {
-             return this.pendingWarehouseIds.includes(orderId) && !this.warehouseById[orderId];
+             return this.warehouseLoadingIds.includes(orderId);
          },
          warehouseAriaName(orderId) {
-             const row = this.warehouseById[orderId];
+             const row = this.warehouseLabel(orderId);
              return row && row.aria_name ? row.aria_name : null;
          },
          warehouseUnmapped(orderId) {
-             const row = this.warehouseById[orderId];
+             const row = this.warehouseLabel(orderId);
              return row ? !!row.unmapped : false;
          },
          warehousePlatformWh(orderId) {
-             const row = this.warehouseById[orderId];
+             const row = this.warehouseLabel(orderId);
              return row && row.platform_wh ? row.platform_wh : null;
          },
          async hydrateWarehouseLabels() {
-             if (@js($isEventsView) || this.pendingWarehouseIds.length === 0 || !this.warehouseLabelsUrl) {
+             if (@js($isEventsView) || this.warehouseLoadingIds.length === 0 || !this.warehouseLabelsUrl) {
                  return;
              }
+             const ids = this.warehouseLoadingIds.slice();
              try {
                  const res = await fetch(this.warehouseLabelsUrl, {
                      method: 'POST',
@@ -200,17 +205,23 @@ $eventsTableColspan = $showShopColumn ? 11 : 10;
                          'X-Requested-With': 'XMLHttpRequest',
                          'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]')?.getAttribute('content') ?? '',
                      },
-                     body: JSON.stringify({ ids: this.pendingWarehouseIds }),
+                     body: JSON.stringify({ ids }),
                  });
                  if (!res.ok) {
                      return;
                  }
                  const data = await res.json();
-                 if (data.labels && typeof data.labels === 'object') {
-                     this.warehouseById = { ...this.warehouseById, ...data.labels };
+                 if (!data.labels || typeof data.labels !== 'object') {
+                     return;
                  }
-             } finally {
-                 this.pendingWarehouseIds = [];
+                 for (const [id, label] of Object.entries(data.labels)) {
+                     this.warehouseById[String(id)] = label;
+                 }
+                 this.warehouseLoadingIds = ids.filter(
+                     (id) => !Object.prototype.hasOwnProperty.call(data.labels, String(id)),
+                 );
+             } catch (e) {
+                 /* keep spinners; maintainer can refresh */
              }
          }
      }"

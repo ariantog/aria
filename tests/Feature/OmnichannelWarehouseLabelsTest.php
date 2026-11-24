@@ -62,6 +62,32 @@ it('hydrates warehouse labels for current orders list rows via json endpoint', f
     expect((int) $order->aria_warehouse_id)->toBe($warehouse->id);
 });
 
+it('queues lazy warehouse load when aria warehouse id is not set yet', function () {
+    $admin = User::factory()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Deferred WH']);
+
+    if (! \Illuminate\Support\Facades\Schema::hasColumn('marketplace_channel_orders', 'platform_warehouse_id')) {
+        $this->markTestSkipped('platform_warehouse_id column missing');
+    }
+
+    $order = MarketplaceChannelOrder::query()->create([
+        'channel' => 'tiktok',
+        'order_ref' => 'LAZY-PENDING-1',
+        'shop_ref' => '7495540735365777507',
+        'order_status' => 'AWAITING_SHIPMENT',
+        'platform_warehouse_id' => 'wh-only',
+        'last_event_at' => now(),
+        'first_received_at' => now(),
+    ]);
+
+    $html = $this->actingAs($admin)
+        ->get(route('omnichannel.orders.index', ['view' => 'orders', 'order_ref' => 'LAZY-PENDING-1']))
+        ->assertOk()
+        ->getContent();
+
+    expect($html)->toContain('data-testid="omnichannel-order-gudang-loading-'.$order->id.'"');
+});
+
 it('hides shop column when only one mapped shop exists even with many webhook shop refs', function () {
     $admin = User::factory()->create();
 
