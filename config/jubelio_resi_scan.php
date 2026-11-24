@@ -43,6 +43,9 @@ return [
             'store_name_patterns' => ['lazada'],
             /** Jubelio salesorder_no is `{PREFIX}-{channelOrderId}-{store_id}` — same suffix rule as TikTok. */
             'append_jubelio_store_id' => true,
+            'resolve_invoice_from_tracking' => true,
+            /** AWB may be scanned before webhook; Jubelio tracking returns salesorder_no. */
+            'insert_queue_row_on_scan' => true,
         ],
         'blibli' => [
             'label' => 'Blibli',
