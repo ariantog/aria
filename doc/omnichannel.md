@@ -12,7 +12,7 @@ Collapsible **Omnichannel** menu (like Transactions):
 
 **Legacy redirect:** `GET /marketplace/webhooks` and `GET /tiktok-shop/webhooks` redirect to **Omnichannel** (`/omnichannel/orders`) with the full query string preserved (including `view=events|orders`).
 
-**Orders / Webhooks UI:** `GET /omnichannel/orders` defaults to **`view=events`** so every stored webhook (including non-order pushes) is visible first. Switch to **Current orders** for the `marketplace_channel_orders` summary; expand an order row for lazy detail. Channel filter **Tokopedia (TikTok Partner)** matches rows with `commerce_platform=TOKOPEDIA` (case-insensitive) on unified tables; **TikTok Shop** excludes Tokopedia-tagged rows.
+**Orders / Webhooks UI:** `GET /omnichannel/orders` defaults to **`view=events`** so every stored webhook (including non-order pushes) is visible first. Switch to **Current orders** for the `marketplace_channel_orders` summary; expand an order row for lazy detail. Channel filter **Tokopedia (TikTok Partner)** matches rows with `commerce_platform=TOKOPEDIA` (case-insensitive) on unified tables; **TikTok Shop** excludes Tokopedia-tagged rows. The **Shop** list column and filter dropdown appear only when webhook history has **more than one** distinct `shop_ref` for the active channel scope (single-shop aria3 installs hide the column; a `shop_ref` filter hides the column while keeping the filter visible).
 
 **Unified storage flag:** `MARKETPLACE_WEBHOOK_UNIFIED_STORAGE` (`config/marketplace.php`) — default stays **off** in production until maintainer enables dual-write; the UI reads unified tables whenever rows exist (backfill or flag on). Do not change the production default in code.
 

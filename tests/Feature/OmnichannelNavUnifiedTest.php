@@ -93,6 +93,30 @@ it('shows mapped gudang in gudang column with platform wh on current orders', fu
         'first_received_at' => now()->subMinutes(10),
     ]);
 
+    MarketplaceWebhookEvent::query()->create([
+        'channel' => 'tiktok',
+        'idempotency_key' => 'tiktok:unmapped-shop:1:GUDANG-TOKO-1:1',
+        'event_type' => '1',
+        'shop_ref' => 'unmapped-shop',
+        'order_ref' => 'GUDANG-TOKO-1',
+        'order_status' => 'AWAITING_SHIPMENT',
+        'signature_ok' => true,
+        'payload' => [],
+        'received_at' => now(),
+    ]);
+
+    MarketplaceWebhookEvent::query()->create([
+        'channel' => 'shopee',
+        'idempotency_key' => 'shopee:200:3:OTHER:1',
+        'event_type' => '3',
+        'shop_ref' => '200',
+        'order_ref' => 'OTHER',
+        'order_status' => 'PROCESSED',
+        'signature_ok' => true,
+        'payload' => [],
+        'received_at' => now(),
+    ]);
+
     $this->actingAs($admin)
         ->get(route('omnichannel.orders.index', ['view' => 'orders']))
         ->assertOk()
@@ -165,6 +189,30 @@ it('shows shop ref in shop column not aria warehouse on current orders', functio
         'warehouse_id' => $warehouse->id,
     ]);
 
+    MarketplaceWebhookEvent::query()->create([
+        'channel' => 'tiktok',
+        'idempotency_key' => 'tiktok:extra-shop:1:EXTRA:1',
+        'event_type' => '1',
+        'shop_ref' => '7495540735365777508',
+        'order_ref' => 'EXTRA-ORDER',
+        'order_status' => 'AWAITING_SHIPMENT',
+        'signature_ok' => true,
+        'payload' => [],
+        'received_at' => now(),
+    ]);
+
+    MarketplaceWebhookEvent::query()->create([
+        'channel' => 'tiktok',
+        'idempotency_key' => 'tiktok:7495540735365777507:1:SHOP-COL-1:1',
+        'event_type' => '1',
+        'shop_ref' => '7495540735365777507',
+        'order_ref' => 'SHOP-COL-1',
+        'order_status' => 'AWAITING_SHIPMENT',
+        'signature_ok' => true,
+        'payload' => [],
+        'received_at' => now(),
+    ]);
+
     $order = MarketplaceChannelOrder::query()->create([
         'channel' => 'tiktok',
         'order_ref' => 'SHOP-COL-1',
@@ -185,6 +233,38 @@ it('shows shop ref in shop column not aria warehouse on current orders', functio
             'data-testid="omnichannel-order-gudang-'.$order->id.'"',
             'Only In Aria Col',
         ], false);
+});
+
+it('hides shop column and shop filter on current orders when only one shop ref exists', function () {
+    $admin = User::factory()->create();
+
+    MarketplaceChannelOrder::query()->create([
+        'channel' => 'shopee',
+        'order_ref' => 'SINGLE-SHOP-1',
+        'shop_ref' => '100',
+        'order_status' => 'PROCESSED',
+        'last_event_at' => now(),
+        'first_received_at' => now(),
+    ]);
+
+    MarketplaceWebhookEvent::query()->create([
+        'channel' => 'shopee',
+        'idempotency_key' => 'shopee:100:3:SINGLE-SHOP-1:1',
+        'event_type' => '3',
+        'shop_ref' => '100',
+        'order_ref' => 'SINGLE-SHOP-1',
+        'order_status' => 'PROCESSED',
+        'signature_ok' => true,
+        'payload' => [],
+        'received_at' => now(),
+    ]);
+
+    $this->actingAs($admin)
+        ->get(route('omnichannel.orders.index', ['view' => 'orders', 'ops_bucket' => 'unprocessed']))
+        ->assertOk()
+        ->assertSee('data-testid="omnichannel-orders-table"', false)
+        ->assertDontSee('data-testid="omnichannel-order-shop-ref-', false)
+        ->assertDontSee('data-testid="omnichannel-filter-shop-ref"', false);
 });
 
 it('renders orders list without calling shopee admin api', function () {

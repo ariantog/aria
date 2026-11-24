@@ -66,6 +66,8 @@ class OmnichannelOrdersController extends Controller
         $warehouseOptions = $shopResolver->warehouseOptions();
         $shopOptions = $shopResolver->distinctShopRefsForChannel($channelForShops);
         $shopRefToWarehouse = $shopResolver->shopRefToWarehouseMap();
+        $showShopFilter = $shopOptions->count() > 1;
+        $showShopColumn = $showShopFilter && blank($filters['shop_ref']);
 
         return view('omnichannel.orders', [
             'filters' => $filters,
@@ -75,6 +77,8 @@ class OmnichannelOrdersController extends Controller
             'statusOptions' => $statusOptions,
             'warehouseOptions' => $warehouseOptions,
             'shopOptions' => $shopOptions,
+            'showShopColumn' => $showShopColumn,
+            'showShopFilter' => $showShopFilter,
             'shopRefToWarehouse' => $shopRefToWarehouse,
             'warehouseNames' => $warehouseOptions,
             'shopResolver' => $shopResolver,
