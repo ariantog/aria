@@ -43,6 +43,9 @@ return [
     /** Order API path version for getOrderDetail (Partner Center → Order API). */
     'order_api_version' => env('TIKTOK_SHOP_ORDER_API_VERSION', '202507'),
 
+    /** Product API path version (Search Products, etc.). */
+    'product_api_version' => env('TIKTOK_SHOP_PRODUCT_API_VERSION', '202502'),
+
     /** Fulfillment API path version (Ship Package, Get Package Shipping Document). */
     'fulfillment_api_version' => env('TIKTOK_SHOP_FULFILLMENT_API_VERSION', '202309'),
 

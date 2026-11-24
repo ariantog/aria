@@ -150,7 +150,7 @@ Match at link time uses Partner **`seller_sku`** against `items.code` / `items.l
 
 **Permissions:** `tiktok-shop-item-link` (new) or existing `tiktok-shop-view` to open tabs; `items-edit` to save links. After deploy: `php artisan tinker --execute="app(\App\Services\PermissionGenerator::class)->generateForModule('TikTokShop');"`.
 
-**OAuth / API:** Product search calls `POST /product/{version}/products/search` with `shop_cipher` (from `tiktok_shop_syncs`, `marketplace_warehouse_syncs`, or `TIKTOK_SHOP_SHOP_CIPHER`). Required seller token scope: **`seller.product.basic`** (Product read/search). Tokopedia listings on the same Partner stack use the same columns and routes.
+**OAuth / API:** Product search calls `POST /product/{version}/products/search` with `shop_cipher` (from `tiktok_shop_syncs`, `marketplace_warehouse_syncs`, or `TIKTOK_SHOP_SHOP_CIPHER`). Default `{version}` is **`202502`** (`TIKTOK_SHOP_PRODUCT_API_VERSION`); older `TIKTOK_SHOP_API_VERSION` (`202309`) is not used for product search. Required seller token scope: **`seller.product.basic`** (Product read/search). Tokopedia listings on the same Partner stack use the same columns and routes.
 
 **Warehouse items page:** When a gudang has TikTok mapping, shows a banner count of page items missing `tiktok_shop_product_id` (mirror Shopee unlinked banner).
 
