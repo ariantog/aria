@@ -63,6 +63,7 @@ $eventsTableColspan = $showShopColumn ? 11 : 10;
          warehouseById: @js($initialWarehouseLabels ?? []),
          warehouseLoadingIds: @js($pendingWarehouseIds ?? []),
          warehouseLabelsUrl: @js($warehouseLabelsUrl ?? ''),
+         warehouseLabelsFetchInFlight: false,
          pageRows: @js($pageOrderRows),
          canReprintAwb: @js($canReprintAwb ?? false),
          selected: {},
@@ -176,8 +177,15 @@ $eventsTableColspan = $showShopColumn ? 11 : 10;
              const key = String(orderId);
              return this.warehouseById[key] ?? this.warehouseById[orderId] ?? null;
          },
+         warehouseIdMatches(storedId, orderId) {
+             return Number(storedId) === Number(orderId);
+         },
          warehousePending(orderId) {
-             return this.warehouseLoadingIds.includes(orderId);
+             return this.warehouseLoadingIds.some((id) => this.warehouseIdMatches(id, orderId));
+         },
+         clearWarehouseLoadingForIds(batchIds) {
+             const requested = new Set(batchIds.map((id) => String(id)));
+             this.warehouseLoadingIds = this.warehouseLoadingIds.filter((id) => !requested.has(String(id)));
          },
          warehouseAriaName(orderId) {
              const row = this.warehouseLabel(orderId);
@@ -195,7 +203,11 @@ $eventsTableColspan = $showShopColumn ? 11 : 10;
              if (@js($isEventsView) || this.warehouseLoadingIds.length === 0 || !this.warehouseLabelsUrl) {
                  return;
              }
+             if (this.warehouseLabelsFetchInFlight) {
+                 return;
+             }
              const ids = this.warehouseLoadingIds.slice();
+             this.warehouseLabelsFetchInFlight = true;
              try {
                  const res = await fetch(this.warehouseLabelsUrl, {
                      method: 'POST',
@@ -217,11 +229,11 @@ $eventsTableColspan = $showShopColumn ? 11 : 10;
                  for (const [id, label] of Object.entries(data.labels)) {
                      this.warehouseById[String(id)] = label;
                  }
-                 this.warehouseLoadingIds = ids.filter(
-                     (id) => !Object.prototype.hasOwnProperty.call(data.labels, String(id)),
-                 );
+                 this.clearWarehouseLoadingForIds(ids);
              } catch (e) {
                  /* keep spinners; maintainer can refresh */
+             } finally {
+                 this.warehouseLabelsFetchInFlight = false;
              }
          }
      }"
