@@ -553,12 +553,19 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                         <td class="{{ $td }}">
                             @php
                                 $orderDisplayStatus = $statusPresenter->displayStatus($row->channel, $row->order_status);
-                                $orderStatusBucket = $statusPresenter->normalizeBucket($row->channel, $row->commerce_platform ?? null, $row->order_status);
-                                $orderBucketLabel = $statusPresenter->bucketChipLabel($orderStatusBucket);
+                                $orderOpsBucket = $opsBucketService?->opsBucketForOrderStatus(
+                                    (string) $row->channel,
+                                    $row->commerce_platform ?? null,
+                                    $row->order_status,
+                                );
+                                $orderOpsBucketLabel = $orderOpsBucket
+                                    ? $opsBucketService->cardTitle($orderOpsBucket)
+                                    : null;
                             @endphp
                             <span class="text-gray-800">{{ $orderDisplayStatus }}</span>
-                            @if($orderBucketLabel)
-                            <span class="ml-1 inline-flex rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-gray-500">{{ $orderBucketLabel }}</span>
+                            @if($orderOpsBucketLabel)
+                            <span class="ml-1 inline-flex rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-gray-500"
+                                  title="Ops queue bucket">{{ $orderOpsBucketLabel }}</span>
                             @endif
                         </td>
                         <td class="{{ $td }} text-[11px] text-gray-600"
