@@ -392,10 +392,16 @@ class JubelioResiScanService
 
         $out = [$invoice];
 
-        if (preg_match('/^(TT|TP)-(.+)-(\d+)$/i', $invoice, $matches) === 1) {
+        if (preg_match('/^(TT|TP|LZ)-(.+)-(\d+)$/i', $invoice, $matches) === 1) {
             $withoutSuffix = strtoupper($matches[1]).'-'.$matches[2];
             if (! in_array($withoutSuffix, $out, true)) {
                 $out[] = $withoutSuffix;
+            }
+        }
+
+        foreach ($this->lazadaInvoiceAlternates($marketplaceKey, $invoice, $jubelioStoreId) as $alternate) {
+            if (! in_array($alternate, $out, true)) {
+                $out[] = $alternate;
             }
         }
 
@@ -447,6 +453,13 @@ class JubelioResiScanService
             }
         }
 
+        if ($marketplaceKey === 'lazada') {
+            $numericId = $this->lazadaNumericOrderIdFromInvoice($invoice);
+            if ($numericId !== null && Jubeliosync::isMappedStoreId($jubelioStoreId)) {
+                return 'LZ-'.$numericId.'-'.$jubelioStoreId;
+            }
+        }
+
         $orderRef = $this->channelOrderRefFromInvoice($marketplaceKey, $invoice, $jubelioStoreId);
         if ($orderRef === null) {
             return $invoice;
@@ -465,7 +478,15 @@ class JubelioResiScanService
         $config = $this->marketplacesConfig()[$marketplaceKey] ?? null;
         $prefix = strtoupper((string) ($config['invoice_prefix'] ?? ''));
 
+        if ($prefix === 'LZ' && preg_match('/^LZ-(?:LXAD-)?(\d+)(?:-(\d+))?$/i', $invoice, $matches) === 1) {
+            return $matches[1];
+        }
+
         if ($prefix !== '' && preg_match('/^'.preg_quote($prefix, '/').'-(\d+)(?:-(\d+))?$/i', $invoice, $matches) === 1) {
+            return $matches[1];
+        }
+
+        if (preg_match('/^(?:LXAD)-(\d+)$/i', $invoice, $matches) === 1) {
             return $matches[1];
         }
 
@@ -603,6 +624,73 @@ class JubelioResiScanService
                     return $key;
                 }
             }
+        }
+
+        return null;
+    }
+
+    /**
+     * Lazada AWB labels use `LXAD-{digits}` while Jubelio often stores `LZ-{digits}-{store_id}`.
+     *
+     * @return list<string>
+     */
+    private function lazadaInvoiceAlternates(string $marketplaceKey, string $invoice, ?int $jubelioStoreId): array
+    {
+        if ($marketplaceKey !== 'lazada') {
+            return [];
+        }
+
+        $numericId = $this->lazadaNumericOrderIdFromInvoice($invoice);
+        if ($numericId === null) {
+            return [];
+        }
+
+        $storeId = $this->jubelioStoreSuffixFromInvoice($invoice);
+        if ($storeId === null && $jubelioStoreId !== null && Jubeliosync::isMappedStoreId($jubelioStoreId)) {
+            $storeId = $jubelioStoreId;
+        }
+
+        $candidates = [
+            'LZ-'.$numericId,
+            'LZ-LXAD-'.$numericId,
+        ];
+
+        if ($storeId !== null) {
+            $candidates[] = 'LZ-'.$numericId.'-'.$storeId;
+            $candidates[] = 'LZ-LXAD-'.$numericId.'-'.$storeId;
+        }
+
+        return $candidates;
+    }
+
+    public function lazadaNumericOrderIdFromInvoice(string $invoice): ?string
+    {
+        $invoice = trim($invoice);
+        if ($invoice === '') {
+            return null;
+        }
+
+        if (preg_match('/^(?:LXAD)-(\d+)$/i', $invoice, $matches) === 1) {
+            return $matches[1];
+        }
+
+        if (preg_match('/^LZ-(?:LXAD-)?(\d+)(?:-\d+)?$/i', $invoice, $matches) === 1) {
+            return $matches[1];
+        }
+
+        if (preg_match('/^\d+$/', $invoice) === 1) {
+            return $invoice;
+        }
+
+        return null;
+    }
+
+    private function jubelioStoreSuffixFromInvoice(string $invoice): ?int
+    {
+        if (preg_match('/^(?:TT|TP|LZ)-(.+)-(\d+)$/i', $invoice, $matches) === 1) {
+            $storeId = (int) $matches[2];
+
+            return Jubeliosync::isMappedStoreId($storeId) ? $storeId : null;
         }
 
         return null;
