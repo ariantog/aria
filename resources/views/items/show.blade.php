@@ -360,6 +360,8 @@ $showDualChannelStockMismatch = $hasShopeeStock && ! empty($jubelioByWarehouse);
     </div>
     @endif
 
+    @include('items.partials.marketplace-links-card', ['item' => $item])
+
     {{-- Warehouse --}}
     <div class="mt-6">
         <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
