@@ -29,6 +29,85 @@ it('maps shopee order status push ingest to data status', function () {
         ->and($presenter->displayStatus('shopee', 'READY_TO_SHIP'))->toBe('READY TO SHIP');
 });
 
+it('does not let fulfillment ingest clobber channel order summary status', function () {
+    $recorder = app(MarketplaceWebhookRecorder::class);
+    $orderRef = 'FUL-NO-CLOBBER';
+
+    $recorder->recordShopee(
+        ['code' => 3, 'data' => ['ordersn' => $orderRef, 'status' => 'READY_TO_SHIP']],
+        true,
+        1,
+        3,
+        $orderRef,
+        'READY_TO_SHIP',
+    );
+
+    $recorder->recordShopee(
+        ['code' => 30, 'data' => ['ordersn' => $orderRef, 'logistics_status' => 'LOGISTICS_READY']],
+        true,
+        1,
+        30,
+        $orderRef,
+        'FULFILLMENT:LOGISTICS_READY',
+    );
+
+    $order = MarketplaceChannelOrder::query()
+        ->where('order_ref', $orderRef)
+        ->first();
+
+    expect($order->order_status)->toBe('READY_TO_SHIP');
+});
+
+it('does not downgrade channel order status on older unpaid replay', function () {
+    $recorder = app(MarketplaceWebhookRecorder::class);
+    $orderRef = 'RANK-DOWNGRADE';
+
+    $recorder->recordShopee(
+        ['code' => 3, 'data' => ['ordersn' => $orderRef, 'status' => 'READY_TO_SHIP'], 'timestamp' => 2],
+        true,
+        1,
+        3,
+        $orderRef,
+        'READY_TO_SHIP',
+    );
+
+    $recorder->recordShopee(
+        ['code' => 3, 'data' => ['ordersn' => $orderRef, 'status' => 'UNPAID'], 'timestamp' => 1],
+        true,
+        1,
+        3,
+        $orderRef,
+        'UNPAID',
+    );
+
+    expect(MarketplaceChannelOrder::query()->where('order_ref', $orderRef)->value('order_status'))
+        ->toBe('READY_TO_SHIP');
+});
+
+it('stores processed summary for shopee cod unpaid webhook', function () {
+    $recorder = app(MarketplaceWebhookRecorder::class);
+    $orderRef = 'COD-UNPAID-1';
+
+    $recorder->recordShopee(
+        [
+            'code' => 3,
+            'data' => [
+                'ordersn' => $orderRef,
+                'status' => 'UNPAID',
+                'payment_method' => 'COD',
+            ],
+        ],
+        true,
+        1,
+        3,
+        $orderRef,
+        'UNPAID',
+    );
+
+    expect(MarketplaceChannelOrder::query()->where('order_ref', $orderRef)->value('order_status'))
+        ->toBe('PROCESSED');
+});
+
 it('maps shopee tracking push to tracking prefix ingest status', function () {
     $presenter = app(MarketplaceWebhookStatusPresenter::class);
 

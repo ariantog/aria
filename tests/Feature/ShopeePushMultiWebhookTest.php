@@ -1,6 +1,7 @@
 <?php
 
 use App\Jobs\PersistShopeePushInboxJob;
+use App\Models\MarketplaceChannelOrder;
 use App\Models\MarketplaceWebhookEvent;
 use App\Models\ShopeePushInbox;
 use App\Models\User;
@@ -78,6 +79,14 @@ it('persists distinct inbox and webhook rows for code 3 status changes and code 
         'FULFILLMENT:LOGISTICS_NOT_START',
         'FULFILLMENT:LOGISTICS_READY',
     ]);
+
+    $order = MarketplaceChannelOrder::query()
+        ->where('channel', 'shopee')
+        ->where('order_ref', $ordersn)
+        ->first();
+
+    expect($order)->not->toBeNull()
+        ->and($order->order_status)->toBe('READY_TO_SHIP');
 });
 
 it('records code 30 on unified storage when shopee inbox storage is off', function () {
@@ -85,6 +94,7 @@ it('records code 30 on unified storage when shopee inbox storage is off', functi
 
     $body = '{"data":{"ordersn":"FUL-ONLY","logistics_status":"LOGISTICS_READY"},"shop_id":9,"code":30,"timestamp":1660123127}';
     postSignedShopeePush($body)->assertOk();
+    runPersistShopeePushJobFromJson($body);
 
     expect(ShopeePushInbox::count())->toBe(0)
         ->and(MarketplaceWebhookEvent::query()->where('order_ref', 'FUL-ONLY')->count())->toBe(1);
@@ -93,6 +103,7 @@ it('records code 30 on unified storage when shopee inbox storage is off', functi
 it('stores uncommon shopee push codes in inbox when store_inbox is enabled', function () {
     $body = '{"data":{"ping":true},"shop_id":1,"code":99,"timestamp":12345}';
     postSignedShopeePush($body)->assertOk();
+    runPersistShopeePushJobFromJson($body);
 
     expect(ShopeePushInbox::query()->where('push_code', 99)->count())->toBe(1)
         ->and(MarketplaceWebhookEvent::query()->where('event_type', '99')->count())->toBe(1);
