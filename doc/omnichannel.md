@@ -116,7 +116,7 @@ Response includes `created`, `updated`, and `skipped` arrays.
 | Reserve (Shopee) | `SHOPEE_PUSH_ON_ORDER_ENABLED` (default **false** until Jubelio SELL releases `on_order` / OMN-66 ships) on push code **3** in **awaiting shipment** bucket + `item_list`; queued via `PersistShopeePushInboxJob` after HTTP ack |
 | Reserve (TikTok) | `TIKTOK_SHOP_ON_ORDER_ENABLED` on awaiting-shipment webhooks (`TikTokShopWebhookOnOrderApplicator`) |
 | Release | Physical deduct path in `InventoryService` (Jubelio SELL post) |
-| UI | Gudang **Items** list shows **On order** column (Aria, not Jubelio API) |
+| UI | Gudang **Items**, global **/items** & **/assetlancar** index, item show warehouse grid, and warehouse stock export show **Aria on order** when `warehouse_item.on_order` exists (distinct from Jubelio on order) |
 
 **Shopee push HTTP path:** `POST /shopee/push` verifies signature, returns **200** immediately, then `PersistShopeePushInboxJob` (queue worker required) runs shadow stub, optional inbox/unified storage, warehouse snapshot on channel orders, status ingest, and on_order. Disable on_order only: `SHOPEE_PUSH_ON_ORDER_ENABLED=false`.
 

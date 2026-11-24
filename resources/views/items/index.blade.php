@@ -15,6 +15,7 @@ $jahitTags = ($tags[\App\Models\Tag::TYPE_JAHIT] ?? collect());
 $idr = fn ($v) => format_table_currency($v);
 $filtersStorageKey = $isAsset ? 'aria-assetlancar-index-filters-open' : 'aria-items-index-filters-open';
 $columnsStorageKey = $isAsset ? 'aria-assetlancar-index-columns' : 'aria-items-index-columns';
+$hasAriaOnOrder = $hasAriaOnOrder ?? false;
 @endphp
 
 <div class="flex flex-col gap-3 p-3 sm:p-4" x-data="itemsIndexPage(@js($filtersStorageKey), @js($columnsStorageKey), @js($isAsset), @js($can['view_cost'] ?? false))">
@@ -106,6 +107,9 @@ $columnsStorageKey = $isAsset ? 'aria-assetlancar-index-columns' : 'aria-items-i
                     <th class="px-3 py-2.5 text-left font-medium">NB</th>
                     @endif
                     <th class="px-3 py-2.5 text-right font-medium">Qty</th>
+                    @if($hasAriaOnOrder)
+                    <th class="px-3 py-2.5 text-right font-medium text-orange-700" title="Aria marketplace reserved qty (not physical stock)">On order</th>
+                    @endif
                     <th class="px-3 py-2.5 text-left font-medium">Jubelio</th>
                     <th class="px-3 py-2.5 text-left font-medium">Shopee</th>
                     <th class="w-12 px-3 py-2.5 text-center font-medium"></th>
@@ -168,6 +172,10 @@ $columnsStorageKey = $isAsset ? 'aria-assetlancar-index-columns' : 'aria-items-i
                         </td>
                         @endif
                         <td class="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-emerald-600">{{ format_table_amount((float) ($item->active_qty ?? 0), 0) }}</td>
+                        @if($hasAriaOnOrder)
+                        @php $listOnOrder = (float) ($item->active_on_order ?? 0); @endphp
+                        <td class="whitespace-nowrap px-3 py-2.5 text-right font-mono text-xs tabular-nums {{ $listOnOrder > 0 ? 'text-orange-600 font-semibold' : 'text-gray-400' }}" data-testid="item-list-on-order-{{ $item->id }}">{{ format_table_amount($listOnOrder, 0) }}</td>
+                        @endif
                         <td class="whitespace-nowrap px-3 py-2.5">
                             @if($item->jubelio_item_id)
                                 <span class="inline-flex rounded-full border border-blue-200 bg-blue-100 px-2 py-0.5 text-[10px] text-blue-700">{{ $item->jubelio_item_id }}</span>
@@ -191,7 +199,7 @@ $columnsStorageKey = $isAsset ? 'aria-assetlancar-index-columns' : 'aria-items-i
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="13" class="px-4 py-12 text-center text-sm italic text-gray-500">No {{ $isAsset ? 'assets' : 'items' }} found matching your filters.</td></tr>
+                    <tr><td colspan="{{ $hasAriaOnOrder ? 14 : 13 }}" class="px-4 py-12 text-center text-sm italic text-gray-500">No {{ $isAsset ? 'assets' : 'items' }} found matching your filters.</td></tr>
                 @endforelse
             </tbody>
         </table>

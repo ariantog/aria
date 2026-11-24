@@ -7,6 +7,9 @@
     'hasShopeeStock' => false,
 ])
 @php
+    use Illuminate\Support\Facades\Schema;
+
+    $hasAriaOnOrder = $variant === 'physical' && Schema::hasColumn('warehouse_item', 'on_order');
     $isDeleted = $variant === 'deleted';
     $isVirtual = $variant === 'virtual';
     $emptyLabel = match ($variant) {
@@ -70,6 +73,9 @@
                                 <span x-show="sortCol === 'qty'" class="text-blue-600" x-text="sortDir === 'asc' ? '↑' : '↓'"></span>
                             </button>
                         </th>
+                        @if($hasAriaOnOrder)
+                            <th class="px-3 py-3 text-right font-bold text-orange-700" data-copy-col="aria_on_order" title="Aria marketplace reserved qty (not physical stock)">Aria on order</th>
+                        @endif
                         @if($showJubelioColumns)
                             <th class="px-3 py-3 text-right font-bold" data-copy-col="jb_on_hand" title="Jubelio on hand at mapped location">JB on hand</th>
                             <th class="px-3 py-3 text-right font-bold" data-copy-col="jb_on_order" title="Jubelio on order">JB on order</th>
@@ -86,6 +92,7 @@
                     @foreach($warehouseItems as $wh)
                         @php
                             $qty = (float) $wh->quantity;
+                            $ariaOnOrder = $hasAriaOnOrder ? (float) ($wh->on_order ?? 0) : 0.0;
                             $warehouseName = $wh->warehouse?->name ?? ('Warehouse #'.$wh->warehouse_id);
                             $warehouseUrl = $wh->warehouse ? url('/'.$wh->warehouse->type_slug.'/'.$wh->warehouse->id) : null;
                             $jubelio = $jubelioByWarehouse[$wh->warehouse_id] ?? null;
@@ -127,6 +134,9 @@
                                     'text-gray-400' => $qty == 0.0,
                                 ])>{{ format_amount($qty, 0) }}</span>
                             </td>
+                            @if($hasAriaOnOrder)
+                                <td class="whitespace-nowrap px-3 py-2 text-right font-mono text-xs tabular-nums {{ $ariaOnOrder > 0 ? 'text-orange-600 font-semibold' : 'text-gray-400' }}" data-copy-col="aria_on_order" data-sum-col="aria_on_order" data-sum-value="{{ $ariaOnOrder }}" data-copy-value="{{ format_copy_number($ariaOnOrder) }}" data-testid="warehouse-grid-aria-on-order-{{ $wh->warehouse_id }}">{{ format_amount($ariaOnOrder, 0) }}</td>
+                            @endif
                             @if($showJubelioColumns)
                                 @if($jubelio)
                                     <td class="whitespace-nowrap px-3 py-2 text-right font-mono text-xs font-semibold {{ ($jubelio['mismatch'] ?? false) ? 'text-red-600' : 'text-blue-700' }}" data-copy-col="jb_on_hand" data-sum-col="jb_on_hand" @if($jubelio['on_hand'] !== null) data-sum-value="{{ $jubelio['on_hand'] }}" @endif data-copy-value="{{ $jubelio['on_hand'] !== null ? format_copy_number($jubelio['on_hand']) : '' }}" title="{{ $jubelio['location_name'] ?? '' }}">{{ $fmtJubelio($jubelio['on_hand']) }}</td>
@@ -165,6 +175,9 @@
                     <tr x-show="visibleRowCount() > 0">
                         <td colspan="{{ $totalLabelColspan }}" class="px-3 py-2.5 text-right text-[10px] font-bold uppercase tracking-wider text-gray-600">Total Stok</td>
                         <td class="whitespace-nowrap px-3 py-2.5 text-right font-mono text-sm font-bold text-blue-600" data-testid="{{ $testId }}-sum-qty" x-text="columnSum('qty')"></td>
+                        @if($hasAriaOnOrder)
+                            <td class="whitespace-nowrap px-3 py-2.5 text-right font-mono text-sm font-bold text-orange-600" x-text="columnSum('aria_on_order')"></td>
+                        @endif
                         @if($showJubelioColumns)
                             <td class="whitespace-nowrap px-3 py-2.5 text-right font-mono text-sm font-bold text-blue-700" x-text="columnSum('jb_on_hand')"></td>
                             <td class="whitespace-nowrap px-3 py-2.5 text-right font-mono text-sm font-bold text-orange-600" x-text="columnSum('jb_on_order')"></td>
