@@ -5,6 +5,7 @@ import 'create_transaction_sheet.dart';
 import 'dashboard_screen.dart';
 import 'pos_sell_screen.dart';
 import 'resi_scan_screen.dart';
+import 'printer_settings_screen.dart';
 import 'transactions_list_screen.dart';
 
 class ShellScreen extends StatefulWidget {
@@ -250,6 +251,14 @@ class _ShellScreenState extends State<ShellScreen> {
                 child: const Text('Dark'),
               ),
             ],
+          ),
+          IconButton(
+            tooltip: 'Bluetooth printer',
+            icon: const Icon(Icons.print_outlined),
+            onPressed: () => Navigator.push<void>(
+              context,
+              MaterialPageRoute(builder: (c) => const PrinterSettingsScreen()),
+            ),
           ),
           IconButton(
             icon: const Icon(Icons.logout),

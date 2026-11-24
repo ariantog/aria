@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../api/aria_api.dart';
+import '../printing/transaction_print_actions.dart';
+import 'printer_settings_screen.dart';
 
 class TransactionDetailScreen extends StatefulWidget {
   const TransactionDetailScreen({
@@ -20,6 +22,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   Map<String, dynamic>? _tx;
   String? _error;
   bool _loading = true;
+  bool _printing = false;
 
   @override
   void initState() {
@@ -52,7 +55,43 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Transaction')),
+      appBar: AppBar(
+        title: const Text('Transaction'),
+        actions: [
+          IconButton(
+            tooltip: 'Printer settings',
+            icon: const Icon(Icons.bluetooth),
+            onPressed: () => Navigator.push<void>(
+              context,
+              MaterialPageRoute(builder: (c) => const PrinterSettingsScreen()),
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: _tx != null && !_loading
+          ? FloatingActionButton.extended(
+              onPressed: _printing
+                  ? null
+                  : () async {
+                      final tx = _tx;
+                      if (tx == null) return;
+                      setState(() => _printing = true);
+                      try {
+                        await printTransactionBluetooth(context, tx);
+                      } finally {
+                        if (mounted) setState(() => _printing = false);
+                      }
+                    },
+              icon: _printing
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.print),
+              label: const Text('BT print'),
+            )
+          : null,
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null

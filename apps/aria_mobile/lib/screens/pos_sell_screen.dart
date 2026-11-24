@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 import '../api/aria_api.dart';
 import '../widgets/addrbook_picker_field.dart';
 import '../widgets/transaction_form_fields.dart';
+import '../printing/transaction_print_actions.dart';
 import 'scanner_screen.dart';
 
 class _Line {
@@ -243,8 +244,33 @@ class _PosSellScreenState extends State<PosSellScreen> {
                     }
                   }
                 },
-                icon: const Icon(Icons.print),
-                label: const Text('Print receipt (58mm)'),
+                icon: const Icon(Icons.picture_as_pdf),
+                label: const Text('Print PDF (58mm)'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  try {
+                    final j = await widget.api.getTransaction(transactionId);
+                    final tx = j['transaction'];
+                    if (tx is! Map) {
+                      throw StateError('Transaksi tidak ditemukan.');
+                    }
+                    final map = tx is Map<String, dynamic> ? tx : Map<String, dynamic>.from(tx);
+                    if (!ctx.mounted) {
+                      return;
+                    }
+                    final rootContext = context;
+                    Navigator.pop(ctx);
+                    await printTransactionBluetooth(rootContext, map);
+                  } catch (e) {
+                    if (ctx.mounted) {
+                      ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(e.toString())));
+                    }
+                  }
+                },
+                icon: const Icon(Icons.bluetooth),
+                label: const Text('Bluetooth ESC/POS print'),
               ),
               if (waUrl != null && waUrl.isNotEmpty) ...[
                 const SizedBox(height: 8),

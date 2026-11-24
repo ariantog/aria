@@ -187,6 +187,12 @@ test('mobile transaction show returns detail without real_total', function () {
     $response->assertOk()
         ->assertJsonPath('transaction.id', $tx->id)
         ->assertJsonPath('transaction.total', -25000)
+        ->assertJsonPath('transaction.grand_total', 25000)
+        ->assertJsonStructure([
+            'transaction' => [
+                'receipt_branding' => ['company_name', 'address', 'phone'],
+            ],
+        ])
         ->assertJsonMissingPath('transaction.real_total');
 
     expect(json_encode($response->json()))->not->toContain('real_total');

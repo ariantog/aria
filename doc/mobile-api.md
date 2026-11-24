@@ -55,7 +55,7 @@ Resolves AWB → invoice first (Jubelio tracking lookup or prefix rules), then u
 
 List rows use `visibleToUser` / ACL like web. Each row includes `type` (`id`, `slug`, `label`), `sender` / `receiver` (`id`, `name`), and signed header `total` (never `real_total`). Bank running balances on list parties follow web hidden-balance rules (superadmin exempt).
 
-Detail returns `transaction` with header amounts from `total` only, optional line `details`, and party balances hidden for bank contacts when the user has `addrbook-bank-account-hidden-balance` (unless superadmin).
+Detail returns `transaction` with header amounts from `total` only, unsigned `grand_total` for receipt print (same as PDF `displayGrandTotal()`), `receipt_branding` (`company_name`, `address`, `phone` from invoice branding / sender), optional line `details` (each line may include `display_name` for thermal receipts), and party balances hidden for bank contacts when the user has `addrbook-bank-account-hidden-balance` (unless superadmin).
 
 ## Lookups
 
