@@ -12,6 +12,7 @@ class MarketplaceWebhookInboxQuery
 {
     public function __construct(
         protected MarketplaceWebhookShopWarehouseResolver $shopResolver,
+        protected MarketplaceChannelOrderOpsBucket $opsBucket,
     ) {}
 
     /**
@@ -60,6 +61,19 @@ class MarketplaceWebhookInboxQuery
 
         $perPage = min(max((int) $request->query('per_page', 25), 10), 100);
 
+        $opsBucket = null;
+        if ($view === 'orders') {
+            $hasOpsParam = $request->query->has('ops_bucket');
+            $rawOps = $hasOpsParam ? (string) $request->query('ops_bucket', '') : '';
+            if ($hasOpsParam && strtolower(trim($rawOps)) === MarketplaceChannelOrderOpsBucket::BUCKET_ALL) {
+                $opsBucket = MarketplaceChannelOrderOpsBucket::BUCKET_ALL;
+            } elseif ($hasOpsParam && $rawOps !== '') {
+                $opsBucket = MarketplaceChannelOrderOpsBucket::normalize($rawOps, $view);
+            } else {
+                $opsBucket = MarketplaceChannelOrderOpsBucket::DEFAULT_ORDERS_VIEW;
+            }
+        }
+
         return [
             'channel' => $channel,
             'view' => $view,
@@ -70,6 +84,7 @@ class MarketplaceWebhookInboxQuery
             'order_status' => $orderStatus,
             'order_ref' => $orderRef,
             'per_page' => $perPage,
+            'ops_bucket' => $opsBucket,
         ];
     }
 
@@ -94,18 +109,48 @@ class MarketplaceWebhookInboxQuery
      */
     public function ordersQuery(array $filters): Builder
     {
+        $opsBucket = $filters['ops_bucket'] ?? null;
         $query = MarketplaceChannelOrder::query()
             ->with([
                 'lastWebhookEvent:id,channel,payload,commerce_platform',
-            ])
-            ->orderByDesc('last_event_at')
-            ->orderByDesc('id');
+            ]);
 
         $this->applyChannel($query, $filters['channel']);
         $this->applyDateRange($query, 'last_event_at', $filters);
         $this->applyShopAndWarehouse($query, 'shop_ref', $filters);
         $this->applyOrderStatus($query, 'order_status', $filters['order_status']);
         $this->applyOrderRef($query, $filters);
+
+        $skipOpsBucket = filled($filters['order_ref'] ?? null);
+        if (is_string($opsBucket) && $opsBucket !== '' && ! $skipOpsBucket) {
+            $this->opsBucket->applyOpsBucketFilter($query, $opsBucket, $filters['channel']);
+        }
+
+        if ($opsBucket === MarketplaceChannelOrderOpsBucket::BUCKET_ALL && ! $skipOpsBucket) {
+            $this->opsBucket->applyAllBucketSort($query);
+        } else {
+            $query->orderByDesc('last_event_at')->orderByDesc('id');
+        }
+
+        return $query;
+    }
+
+    /**
+     * Base orders query with shared list filters but without ops_bucket (for stat cards).
+     *
+     * @param  array<string, mixed>  $filters
+     */
+    public function ordersQueryForStats(array $filters): Builder
+    {
+        $filtersWithoutOps = $filters;
+        $filtersWithoutOps['ops_bucket'] = null;
+
+        $query = MarketplaceChannelOrder::query();
+        $this->applyChannel($query, $filtersWithoutOps['channel']);
+        $this->applyDateRange($query, 'last_event_at', $filtersWithoutOps);
+        $this->applyShopAndWarehouse($query, 'shop_ref', $filtersWithoutOps);
+        $this->applyOrderStatus($query, 'order_status', $filtersWithoutOps['order_status']);
+        $this->applyOrderRef($query, $filtersWithoutOps);
 
         return $query;
     }
@@ -120,6 +165,9 @@ class MarketplaceWebhookInboxQuery
     {
         $filtersWithoutStatus = $filters;
         $filtersWithoutStatus['order_status'] = null;
+        if ($view === 'orders') {
+            $filtersWithoutStatus['ops_bucket'] = null;
+        }
 
         $query = $view === 'orders'
             ? $this->ordersQuery($filtersWithoutStatus)

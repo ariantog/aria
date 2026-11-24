@@ -20,6 +20,9 @@
     </div>
     <div x-show="showFilters" x-cloak class="p-3">
         <form method="get" action="{{ route('omnichannel.orders.index') }}" class="flex flex-wrap items-end gap-2">
+            @if(($filters['view'] ?? 'events') === 'orders' && filled($filters['ops_bucket'] ?? null))
+            <input type="hidden" name="ops_bucket" value="{{ $filters['ops_bucket'] }}">
+            @endif
             <div class="flex flex-col gap-1">
                 <label for="channel" class="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Marketplace</label>
                 <select name="channel" id="channel" class="{{ $formControlClassSm }}">

@@ -233,6 +233,20 @@ Ops list **Current orders** shows one summary row per `(channel, order_ref)`. We
 
 Code: `MarketplaceWebhookStatusPresenter` (ranks, COD, skip tracking/fulfillment), `MarketplaceWebhookRecorder::upsertChannelOrder`, `MarketplaceChannelOrderAwbPromoter`, `OmnichannelOrdersController@downloadShippingDocuments`.
 
+### Current orders ops buckets (`view=orders`)
+
+The **Current orders** tab groups rows like Jubelio’s pending / ready queue (not only `last_event_at` sort). Query param **`ops_bucket`**: `all` | `unprocessed` | `ready_to_ship` | `in_transit` | `completed` | `cancelled`. **Default** when the param is omitted: **`unprocessed`** (events view ignores this).
+
+| Bucket | Shopee `order_status` | TikTok / Tokopedia |
+|--------|----------------------|-------------------|
+| Unprocessed | `PROCESSED` (needs AWB/pick) | `AWAITING_SHIPMENT` |
+| Ready to ship | `READY_TO_SHIP`, `RETRY_SHIP` | `AWAITING_COLLECTION` only |
+| In transit | `SHIPPED`, `TO_CONFIRM_RECEIVE` | `PARTIALLY_SHIPPING`, `IN_TRANSIT`, `DELIVERED` |
+| Completed | `COMPLETED` | `COMPLETED` |
+| Cancelled | `IN_CANCEL`, `CANCELLED`, … | `CANCEL`, `CANCELLED`, … |
+
+`ops_bucket=all` sorts **unprocessed first**, then `last_event_at` desc. Stat card counts respect the same date/channel/warehouse filters but not the active bucket. Filling **order ref** skips the ops bucket (and date window), same as Jubelio invoice search. Implementation: `MarketplaceChannelOrderOpsBucket`, `MarketplaceWebhookInboxQuery::ordersQuery()`.
+
 ## Push code 0 vs code 3
 
 | Code | Shopee Console action | `shopee_push_inbox` | `marketplace_order_shadows` |
