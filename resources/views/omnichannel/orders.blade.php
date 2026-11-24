@@ -557,6 +557,7 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                                     (string) $row->channel,
                                     $row->commerce_platform ?? null,
                                     $row->order_status,
+                                    filled($row->awb_printed_at ?? null),
                                 );
                                 $orderOpsBucketLabel = $orderOpsBucket
                                     ? $opsBucketService->cardTitle($orderOpsBucket)

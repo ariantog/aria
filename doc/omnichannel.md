@@ -241,8 +241,8 @@ The **Current orders** tab groups rows like Jubelio’s pending / ready queue (n
 
 | Bucket | Shopee `order_status` | TikTok / Tokopedia |
 |--------|----------------------|-------------------|
-| Unprocessed | `PROCESSED` (needs AWB/pick) | `AWAITING_SHIPMENT` |
-| Ready to ship | `READY_TO_SHIP`, `RETRY_SHIP` | `AWAITING_COLLECTION` only |
+| Unprocessed | `PROCESSED` (needs AWB/pick); also `READY_TO_SHIP` / `RETRY_SHIP` when **`awb_printed_at` is null** (webhook may advance platform status before Cetak AWB) | `AWAITING_SHIPMENT` |
+| Ready to ship | `READY_TO_SHIP`, `RETRY_SHIP` **and** `awb_printed_at` set | `AWAITING_COLLECTION` only (no AWB column gate) |
 | In transit | `SHIPPED`, `TO_CONFIRM_RECEIVE` | `PARTIALLY_SHIPPING`, `IN_TRANSIT`, `DELIVERED` |
 | Completed | `COMPLETED` | `COMPLETED` |
 | Cancelled | `IN_CANCEL`, `CANCELLED`, … | `CANCEL`, `CANCELLED`, … |
