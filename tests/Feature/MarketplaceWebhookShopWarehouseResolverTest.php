@@ -195,3 +195,37 @@ it('resolves shopee list row warehouse from product_location_id via matrix', fun
     expect($resolver->warehouseNameForListRow($order, $map, $names))->toBe('Gudang - Online Sambisari')
         ->and($resolver->platformWarehouseLabelForListRow($order))->toBe('Toko pusat');
 });
+
+it('reads aria and platform warehouse from persisted channel order columns', function () {
+    if (! \Illuminate\Support\Facades\Schema::hasColumn('marketplace_channel_orders', 'aria_warehouse_id')) {
+        $this->markTestSkipped('aria_warehouse_id column missing');
+    }
+
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Stored Column WH']);
+    $shopRef = '76610113';
+
+    $order = MarketplaceChannelOrder::query()->create([
+        'channel' => 'shopee',
+        'order_ref' => 'STORED-COLS-1',
+        'shop_ref' => $shopRef,
+        'order_status' => 'PROCESSED',
+        'last_event_at' => now(),
+        'first_received_at' => now(),
+        'platform_location_id' => 'IDZ',
+        'aria_warehouse_id' => $warehouse->id,
+    ]);
+
+    MarketplaceWarehouseSync::query()->create([
+        'channel' => MarketplaceWarehouseSync::CHANNEL_SHOPEE,
+        'shop_ref' => $shopRef,
+        'platform_warehouse_id' => '0',
+        'platform_location_id' => 'IDZ',
+        'platform_warehouse_name' => 'Toko pusat',
+        'warehouse_id' => $warehouse->id,
+    ]);
+
+    $resolver = app(MarketplaceWebhookShopWarehouseResolver::class);
+
+    expect($resolver->warehouseNameForListRow($order, [], []))->toBe('Stored Column WH')
+        ->and($resolver->platformWarehouseLabelForListRow($order))->toBe('Toko pusat');
+});

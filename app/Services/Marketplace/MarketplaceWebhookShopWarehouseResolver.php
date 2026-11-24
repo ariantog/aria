@@ -238,6 +238,15 @@ class MarketplaceWebhookShopWarehouseResolver
         array $warehouseNames,
     ): ?string {
         $channel = strtolower((string) ($row->channel ?? ''));
+
+        if ($row instanceof MarketplaceChannelOrder
+            && Schema::hasColumn('marketplace_channel_orders', 'aria_warehouse_id')) {
+            $persistedId = (int) ($row->aria_warehouse_id ?? 0);
+            if ($persistedId > 0) {
+                return $this->ariaWarehouseNameById($persistedId, $warehouseNames);
+            }
+        }
+
         $payload = $this->payloadForListRow($row);
 
         $commercePlatform = isset($row->commerce_platform) ? (string) $row->commerce_platform : null;
@@ -276,11 +285,14 @@ class MarketplaceWebhookShopWarehouseResolver
      */
     public function platformWarehouseLabelForListRow(object $row): ?string
     {
-        $payload = $this->payloadForListRow($row);
         $channel = strtolower((string) ($row->channel ?? ''));
-        $platformId = $channel === MarketplaceWebhookRecorder::CHANNEL_SHOPEE
-            ? $this->extractShopeePlatformLocationKey($payload)
-            : $this->extractPlatformWarehouseIdFromPayload($payload);
+        $platformId = $this->persistedPlatformKeyForListRow($row, $channel);
+        if ($platformId === null) {
+            $payload = $this->payloadForListRow($row);
+            $platformId = $channel === MarketplaceWebhookRecorder::CHANNEL_SHOPEE
+                ? $this->extractShopeePlatformLocationKey($payload)
+                : $this->extractPlatformWarehouseIdFromPayload($payload);
+        }
         if ($platformId === null) {
             return null;
         }
@@ -332,11 +344,22 @@ class MarketplaceWebhookShopWarehouseResolver
      */
     protected function syntheticPayloadFromPersistedPlatformWarehouse(object $row): ?array
     {
+        $platformLocationId = null;
         $platformWarehouseId = null;
         if ($row instanceof MarketplaceChannelOrder) {
+            $platformLocationId = $row->platform_location_id ?? null;
             $platformWarehouseId = $row->platform_warehouse_id ?? null;
-        } elseif (isset($row->platform_warehouse_id)) {
-            $platformWarehouseId = $row->platform_warehouse_id;
+        } else {
+            $platformLocationId = $row->platform_location_id ?? null;
+            $platformWarehouseId = $row->platform_warehouse_id ?? null;
+        }
+
+        if (filled($platformLocationId) && Schema::hasColumn('marketplace_channel_orders', 'platform_location_id')) {
+            return [
+                'item_list' => [
+                    ['product_location_id' => [(string) $platformLocationId]],
+                ],
+            ];
         }
 
         if (! filled($platformWarehouseId)
@@ -350,6 +373,26 @@ class MarketplaceWebhookShopWarehouseResolver
                 'warehouse_id' => (string) $platformWarehouseId,
             ],
         ];
+    }
+
+    protected function persistedPlatformKeyForListRow(object $row, string $channel): ?string
+    {
+        if (! $row instanceof MarketplaceChannelOrder) {
+            return null;
+        }
+
+        if ($channel === MarketplaceWebhookRecorder::CHANNEL_SHOPEE
+            && Schema::hasColumn('marketplace_channel_orders', 'platform_location_id')
+            && filled($row->platform_location_id)) {
+            return strtoupper(trim((string) $row->platform_location_id));
+        }
+
+        if (Schema::hasColumn('marketplace_channel_orders', 'platform_warehouse_id')
+            && filled($row->platform_warehouse_id)) {
+            return trim((string) $row->platform_warehouse_id);
+        }
+
+        return null;
     }
 
     public function ariaWarehouseNameById(int $warehouseId, array $warehouseNames): ?string

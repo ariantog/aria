@@ -11,6 +11,7 @@ class MarketplaceWebhookRecorder
 {
     public function __construct(
         protected MarketplaceWebhookStatusPresenter $statusPresenter,
+        protected MarketplaceChannelOrderWarehousePersist $warehousePersist,
     ) {}
 
     public const CHANNEL_SHOPEE = 'shopee';
@@ -221,6 +222,8 @@ class MarketplaceWebhookRecorder
         $order->last_webhook_event_id = $event->id;
         $order->updated_at = $receivedAt;
         $order->save();
+
+        $this->warehousePersist->persistFromWebhookEvent($order, $event);
     }
 
     protected function unifiedStorageEnabled(): bool

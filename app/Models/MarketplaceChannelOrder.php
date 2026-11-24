@@ -23,6 +23,8 @@ class MarketplaceChannelOrder extends Model
         'order_status',
         'commerce_platform',
         'platform_warehouse_id',
+        'platform_location_id',
+        'aria_warehouse_id',
         'last_event_at',
         'first_received_at',
         'paid_at',
@@ -37,6 +39,7 @@ class MarketplaceChannelOrder extends Model
             'first_received_at' => 'datetime',
             'paid_at' => 'datetime',
             'updated_at' => 'datetime',
+            'aria_warehouse_id' => 'integer',
         ];
     }
 
