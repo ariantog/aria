@@ -363,6 +363,8 @@ class ShopeeShippingDocumentService
             return [$entry];
         }
 
+        $splitShipment = $this->orderIsSplitShipment($packages);
+
         $entries = [];
         foreach ($packages as $package) {
             if (! is_array($package)) {
@@ -370,15 +372,19 @@ class ShopeeShippingDocumentService
             }
             $packageNumber = trim((string) ($package['package_number'] ?? ''));
             $entry = ['order_sn' => $orderSn];
-            if ($packageNumber !== '') {
+            if ($splitShipment && $packageNumber !== '') {
                 $entry['package_number'] = $packageNumber;
             }
             $tracking = trim((string) ($package['tracking_number'] ?? ''));
             if ($tracking === '' && $headerTracking !== '') {
                 $tracking = $headerTracking;
             }
-            if ($tracking === '' && $packageNumber !== '' && $this->orderStatusMayHaveTracking($orderStatus)) {
-                $tracking = $this->fetchTrackingNumber($shopId, $orderSn, $packageNumber);
+            if ($tracking === '' && $this->orderStatusMayHaveTracking($orderStatus)) {
+                if ($splitShipment && $packageNumber !== '') {
+                    $tracking = $this->fetchTrackingNumber($shopId, $orderSn, $packageNumber);
+                } elseif (! $splitShipment) {
+                    $tracking = $this->fetchTrackingNumber($shopId, $orderSn, null);
+                }
             }
             if ($tracking !== '') {
                 $entry['tracking_number'] = $tracking;
@@ -387,6 +393,27 @@ class ShopeeShippingDocumentService
         }
 
         return $entries !== [] ? $entries : [['order_sn' => $orderSn]];
+    }
+
+    /**
+     * Shopee unsplit orders must not send package_number on ship_order / get_shipping_parameter.
+     *
+     * @param  list<mixed>  $packages
+     */
+    private function orderIsSplitShipment(array $packages): bool
+    {
+        $count = 0;
+        foreach ($packages as $package) {
+            if (! is_array($package)) {
+                continue;
+            }
+            $count++;
+            if ($count > 1) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
