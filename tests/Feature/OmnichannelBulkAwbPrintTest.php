@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Jubelioorder;
 use App\Models\MarketplaceChannelOrder;
 use App\Models\Omnichannel;
 use App\Models\Setting;
@@ -135,6 +136,11 @@ it('downloads shopee awb pdf for selected orders', function () {
 
     expect(MarketplaceChannelOrder::query()->where('order_ref', $orderSn)->value('order_status'))
         ->toBe('READY_TO_SHIP');
+
+    $queue = Jubelioorder::query()->where('invoice', 'SP-'.$orderSn)->first();
+    expect($queue)->not->toBeNull()
+        ->and($queue->type)->toBe('SELL')
+        ->and($queue->source)->toBe(Jubelioorder::SOURCE_SHOPEE_PUSH);
 });
 
 it('shows awb toolbar on current orders view', function () {

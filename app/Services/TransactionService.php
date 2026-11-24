@@ -8,6 +8,7 @@ use App\Models\AddrbookStat;
 use App\Models\Item;
 use App\Models\Transaction;
 use App\Models\WarehouseItem;
+use App\Services\Marketplace\ShopeeJubelioSellOnOrderRelease;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -146,6 +147,9 @@ class TransactionService
 
         $transaction->loadMissing('details');
 
+        $releaseShopeeOnOrder = ! $revert
+            && app(ShopeeJubelioSellOnOrderRelease::class)->shouldReleaseForTransaction($transaction);
+
         foreach ($transaction->details as $detail) {
             $qty = $revert ? -(float) $detail->quantity : (float) $detail->quantity;
 
@@ -157,6 +161,14 @@ class TransactionService
                     ? $transaction->sender_type
                     : $this->partyType($senderId);
                 $this->adjustStock($senderId, $senderType, (int) $detail->item_id, -$qty);
+
+                if ($releaseShopeeOnOrder && ! $revert && $qty > 0) {
+                    app(WarehouseOnOrderService::class)->releaseOnPhysicalDeduct(
+                        $senderId,
+                        (int) $detail->item_id,
+                        $qty,
+                    );
+                }
             }
 
             if ($receiverId) {

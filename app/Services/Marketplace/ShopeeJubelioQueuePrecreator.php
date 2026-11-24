@@ -4,6 +4,7 @@ namespace App\Services\Marketplace;
 
 use App\Models\Jubelioorder;
 use App\Models\Jubeliosync;
+use App\Models\MarketplaceChannelOrder;
 use App\Models\Shopeesync;
 use App\Services\Jubelio\JubelioOrderReadyToShip;
 use App\Services\Jubelio\JubelioSellInvoiceGuard;
@@ -103,6 +104,78 @@ class ShopeeJubelioQueuePrecreator
         return true;
     }
 
+    /**
+     * After successful omnichannel AWB print — ensure a jubelioorders row exists (no SELL post).
+     *
+     * @param  array<int, list<string>>  $ordersByShopId  shop_id => order_sn list
+     */
+    public function ensureQueueRowsFromAwbPrint(array $ordersByShopId): int
+    {
+        $count = 0;
+
+        foreach ($ordersByShopId as $shopId => $orderSns) {
+            $shopId = (int) $shopId;
+            foreach (array_values(array_unique(array_filter(array_map(
+                static fn ($sn) => trim((string) $sn),
+                is_array($orderSns) ? $orderSns : [],
+            )))) as $orderSn) {
+                if ($orderSn === '') {
+                    continue;
+                }
+
+                if ($this->ensureQueueRowFromOmnichannelAwb($shopId, $orderSn)) {
+                    $count++;
+                }
+            }
+        }
+
+        return $count;
+    }
+
+    public function ensureQueueRowFromOmnichannelAwb(int $shopId, string $orderSn): bool
+    {
+        $orderSn = trim($orderSn);
+        if ($orderSn === '' || $shopId <= 0) {
+            return false;
+        }
+
+        if ($this->shopeeInvoicePrefix->isFlexiExportShop($shopId)) {
+            return false;
+        }
+
+        $invoice = $this->invoiceForOrderSn($orderSn, $shopId);
+
+        if ($this->sellInvoiceGuard->sellInvoiceInTransactions($invoice)) {
+            return false;
+        }
+
+        $warehouseColumns = $this->resolveWarehouseColumnsForAwb($shopId, $orderSn);
+
+        $existing = Jubelioorder::query()
+            ->where('type', 'SELL')
+            ->where('invoice', $invoice)
+            ->first();
+
+        if ($existing !== null) {
+            return $this->touchExistingRowForAwb($existing, $warehouseColumns);
+        }
+
+        Jubelioorder::query()->create([
+            'jubelio_order_id' => $this->placeholderJubelioOrderId($orderSn),
+            'source' => Jubelioorder::SOURCE_SHOPEE_PUSH,
+            'invoice' => $invoice,
+            'type' => 'SELL',
+            'order_status' => JubelioOrderReadyToShip::STATUS,
+            'run_count' => 0,
+            'warehouse_id' => $warehouseColumns['warehouse_id'],
+            'jubelio_store_id' => $warehouseColumns['jubelio_store_id'],
+            'jubelio_location_id' => $warehouseColumns['jubelio_location_id'],
+            'status' => 0,
+        ]);
+
+        return true;
+    }
+
     public function invoiceForOrderSn(string $orderSn, ?int $shopId = null): string
     {
         return $this->shopeeInvoicePrefix->invoiceForOrderSn($shopId, $orderSn);
@@ -176,10 +249,112 @@ class ShopeeJubelioQueuePrecreator
     }
 
     /**
+     * @param  array{warehouse_id: int, jubelio_store_id: int, jubelio_location_id: int}  $warehouseColumns
+     */
+    private function touchExistingRowForAwb(Jubelioorder $existing, array $warehouseColumns): bool
+    {
+        if ($existing->type !== 'SELL') {
+            return false;
+        }
+
+        $dirty = false;
+
+        if (! JubelioOrderReadyToShip::isReadyToShipStatus($existing->order_status)) {
+            $existing->order_status = JubelioOrderReadyToShip::STATUS;
+            $dirty = true;
+        }
+
+        if ($warehouseColumns['warehouse_id'] > 0 && (int) $existing->warehouse_id === 0) {
+            $existing->warehouse_id = $warehouseColumns['warehouse_id'];
+            $existing->jubelio_store_id = $warehouseColumns['jubelio_store_id'];
+            $existing->jubelio_location_id = $warehouseColumns['jubelio_location_id'];
+            $dirty = true;
+        }
+
+        if ($dirty) {
+            $existing->save();
+        }
+
+        return true;
+    }
+
+    /**
      * @return array{warehouse_id: int, jubelio_store_id: int, jubelio_location_id: int}
      */
+    private function resolveWarehouseColumnsForAwb(int $shopId, string $orderSn): array
+    {
+        $pushData = [];
+
+        if (Schema::hasTable('marketplace_channel_orders')) {
+            $channelOrder = MarketplaceChannelOrder::query()
+                ->where('channel', MarketplaceWebhookRecorder::CHANNEL_SHOPEE)
+                ->where('order_ref', $orderSn)
+                ->first();
+
+            if ($channelOrder !== null) {
+                $persistedWarehouseId = (int) ($channelOrder->aria_warehouse_id ?? 0);
+                if ($persistedWarehouseId > 0) {
+                    return $this->jubelioColumnsForAriaWarehouse($persistedWarehouseId);
+                }
+
+                $last = $channelOrder->relationLoaded('lastWebhookEvent')
+                    ? $channelOrder->lastWebhookEvent
+                    : $channelOrder->lastWebhookEvent()->first();
+
+                if ($last !== null && is_array($last->payload)) {
+                    $data = is_array($last->payload['data'] ?? null) ? $last->payload['data'] : [];
+                    if ($data !== []) {
+                        $pushData = $data;
+                    }
+                }
+            }
+        }
+
+        return $this->resolveWarehouseColumns($shopId, $pushData);
+    }
+
+    /**
+     * @return array{warehouse_id: int, jubelio_store_id: int, jubelio_location_id: int}
+     */
+    private function jubelioColumnsForAriaWarehouse(int $warehouseId): array
+    {
+        $defaults = [
+            'warehouse_id' => $warehouseId,
+            'jubelio_store_id' => 0,
+            'jubelio_location_id' => 0,
+        ];
+
+        if (! Schema::hasTable('jubeliosyncs')) {
+            return $defaults;
+        }
+
+        $sync = Jubeliosync::query()
+            ->where('warehouse_id', $warehouseId)
+            ->whereMappedJubelioLocation()
+            ->orderBy('id')
+            ->first();
+
+        if ($sync === null) {
+            $sync = Jubeliosync::query()
+                ->where('warehouse_id', $warehouseId)
+                ->orderBy('id')
+                ->first();
+        }
+
+        if ($sync === null) {
+            return $defaults;
+        }
+
+        return [
+            'warehouse_id' => $warehouseId,
+            'jubelio_store_id' => (int) ($sync->jubelio_store_id ?? 0),
+            'jubelio_location_id' => (int) ($sync->jubelio_location_id ?? 0),
+        ];
+    }
+
     /**
      * @param  array<string, mixed>  $pushData
+     * @return array{warehouse_id: int, jubelio_store_id: int, jubelio_location_id: int}
      */
     private function resolveWarehouseColumns(?int $shopId, array $pushData = []): array
     {

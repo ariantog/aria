@@ -24,6 +24,12 @@ Collapsible **Omnichannel** menu (like Transactions):
 - **Orders view:** summary from `marketplace_channel_orders` (no Shopee/TikTok/Jubelio API on first paint).
 - Expand row or `GET /omnichannel/orders/{channel}/{order_ref}` (HTML fragment or `?format=json`) loads webhook events, stored shadow snippet (Shopee), ingress timeline, and Jubelio invoice links from DB. **TikTok:** on expand, a read-only **Get Order Detail** (`TikTokShopOpenApiService`) resolves `shop_cipher` from `tiktok_shop_syncs` for the latest webhook `shop_ref` (fallback `TIKTOK_SHOP_SHOP_CIPHER`), returns `line_summary` (SKU × qty), a compact `channel_order` snippet (status, platform, payment/total when present), `api_detail_loaded` / `api_error` on credential or HTTP failure (webhooks still shown). Persist `commerce_platform` when the API returns it — no `warehouse_item` or transaction writes. **Events view** keeps raw payload only; TikTok events with `order_ref` show a hint to open **Current orders** for line detail.
 
+### AWB print → Jubelio queue (Shopee, OMN-66)
+
+After a successful **Cetak AWB (Shopee)** (`POST /omnichannel/orders/shipping-documents`), Aria upserts a **`jubelioorders` SELL** row per printed order (`SP-{ordersn}`, `source = 4` shopee push placeholder) when the row does not already exist — same invoice key as resi scan / optional push pre-create. **No SELL transaction** is posted.
+
+When Jubelio cron posts that sell (`submit_type = 2`), `TransactionService` deducts physical stock and **releases matching `warehouse_item.on_order`** for **Shopee invoices only** (`SP-…` / flexi prefixes, or queue `source = shopee push`). Safe to enable `SHOPEE_PUSH_ON_ORDER_ENABLED=true` once this ships on production.
+
 ### Bulk AWB print (Shopee, v1)
 
 **Current orders** only (`view=orders`): checkbox selection + **Cetak AWB (Shopee)** → `POST /omnichannel/orders/shipping-documents` (`omnichannel.orders.shipping-documents`). Permission: `omnichannel-orders` / `Omnichannel::userCanOrders`.

@@ -233,6 +233,7 @@ class OmnichannelOrdersController extends Controller
         }
 
         $awbStatusPromoter->promoteShopeeOrdersAfterAwb($shopeeOrderRefs);
+        $awbStatusPromoter->ensureJubelioQueueAfterAwb($byShop);
 
         if ($skippedNonShopee > 0) {
             session()->flash(
