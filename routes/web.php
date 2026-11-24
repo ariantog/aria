@@ -137,6 +137,8 @@ Route::middleware(['auth', 'verified', 'active', 'enforce.readonly'])->group(fun
         ->name('omnichannel.orders.show');
     Route::post('omnichannel/orders/shipping-documents', [App\Http\Controllers\OmnichannelOrdersController::class, 'downloadShippingDocuments'])
         ->name('omnichannel.orders.shipping-documents');
+    Route::post('omnichannel/orders/warehouse-labels', [App\Http\Controllers\OmnichannelOrdersController::class, 'warehouseLabels'])
+        ->name('omnichannel.orders.warehouse-labels');
     Route::get('omnichannel/settings', [App\Http\Controllers\OmnichannelSettingsController::class, 'index'])->name('omnichannel.settings.index');
     Route::post('omnichannel/settings/low-stock', [App\Http\Controllers\OmnichannelSettingsController::class, 'updateLowStock'])->name('omnichannel.settings.low-stock.update');
     Route::post('omnichannel/settings/tokopedia', [App\Http\Controllers\OmnichannelSettingsController::class, 'updateTokopedia'])->name('omnichannel.settings.tokopedia.update');

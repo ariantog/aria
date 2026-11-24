@@ -48,6 +48,15 @@ class MarketplaceChannelOrderWarehousePersist
     /**
      * @param  EloquentCollection<int, MarketplaceChannelOrder>|Collection<int, MarketplaceChannelOrder>  $orders
      */
+    public function orderNeedsWarehouseHydration(MarketplaceChannelOrder $order): bool
+    {
+        if ($this->hasPersistedWarehouseSnapshot($order)) {
+            return false;
+        }
+
+        return true;
+    }
+
     public function hydrateListPage(EloquentCollection|Collection $orders): void
     {
         if (! Schema::hasTable('marketplace_channel_orders')) {

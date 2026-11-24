@@ -539,6 +539,65 @@ class MarketplaceWebhookShopWarehouseResolver
             ->pluck('shop_ref');
     }
 
+    /**
+     * Mapped marketplace shops only (sync tables), not historical webhook noise.
+     *
+     * @return Collection<int, string>
+     */
+    public function distinctMappedShopRefsForChannel(?string $channel): Collection
+    {
+        $channel = $channel === null || $channel === '' ? null : strtolower($channel);
+        $refs = collect();
+
+        $includeShopee = $channel === null || $channel === 'shopee';
+        $includeTiktok = $channel === null || in_array($channel, ['tiktok', 'tokopedia'], true);
+
+        if ($includeShopee && Schema::hasTable('shopee_syncs')) {
+            $refs = $refs->merge(
+                Shopeesync::query()
+                    ->where('shop_id', '>', 0)
+                    ->distinct()
+                    ->pluck('shop_id')
+                    ->map(fn ($id) => $this->normalizeShopRef((string) $id))
+                    ->filter()
+            );
+        }
+
+        if ($includeTiktok && Schema::hasTable('tiktok_shop_syncs')) {
+            $refs = $refs->merge(
+                TiktokShopSync::query()
+                    ->whereNotNull('shop_ref')
+                    ->where('shop_ref', '!=', '')
+                    ->distinct()
+                    ->pluck('shop_ref')
+                    ->map(fn (string $ref) => $this->normalizeShopRef($ref))
+                    ->filter()
+            );
+        }
+
+        if (Schema::hasTable('marketplace_warehouse_syncs')) {
+            $matrixQuery = MarketplaceWarehouseSync::query()
+                ->whereNotNull('shop_ref')
+                ->where('shop_ref', '!=', '');
+
+            if ($includeShopee && ! $includeTiktok) {
+                $matrixQuery->where('channel', MarketplaceWarehouseSync::CHANNEL_SHOPEE);
+            } elseif ($includeTiktok && ! $includeShopee) {
+                $matrixQuery->where('channel', MarketplaceWarehouseSync::CHANNEL_TIKTOK);
+            }
+
+            $refs = $refs->merge(
+                $matrixQuery
+                    ->distinct()
+                    ->pluck('shop_ref')
+                    ->map(fn (string $ref) => $this->normalizeShopRef($ref))
+                    ->filter()
+            );
+        }
+
+        return $refs->unique()->sort()->values();
+    }
+
     protected function normalizeCommercePlatform(?string $commercePlatform): string
     {
         $commercePlatform = strtoupper(trim((string) $commercePlatform));
