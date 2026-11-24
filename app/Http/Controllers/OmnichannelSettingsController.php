@@ -113,6 +113,10 @@ class OmnichannelSettingsController extends Controller
             'jubelioConnection' => $jubelioService->getConnectionStatus(),
             'shopeePushConfigured' => filled(config('services.shopee_push.partner_key')),
             'tiktokAppConfigured' => filled(config('tiktok_shop.app_key')) && filled(config('tiktok_shop.app_secret')),
+            'tiktokAppKeyHint' => filled(config('tiktok_shop.app_key'))
+                ? '…'.substr((string) config('tiktok_shop.app_key'), -4)
+                : null,
+            'tiktokDriver' => (string) config('tiktok_shop.driver', 'mock'),
             'tiktokOAuthConnection' => $tikTokOAuth->getConnectionStatus(),
             'tiktokWebhookInbox' => (bool) config('tiktok_shop.webhook.store_inbox'),
             'jubelioActive' => (bool) config('services.jubelio.active'),

@@ -88,7 +88,11 @@ $tabs = [
             <p class="mt-2 text-lg font-semibold {{ ($tiktokOAuthConnection['has_token'] ?? false) && !($tiktokOAuthConnection['is_expired'] ?? true) ? 'text-green-700' : 'text-red-700' }}">
                 {{ ($tiktokOAuthConnection['has_token'] ?? false) ? (($tiktokOAuthConnection['is_expired'] ?? false) ? 'Kedaluwarsa' : 'Terhubung') : 'Belum authorize' }}
             </p>
-            <p class="mt-1 text-xs text-gray-500">App key: {{ $tiktokAppConfigured ? 'OK' : 'belum' }} · Webhook inbox: {{ $tiktokWebhookInbox ? 'on' : 'off' }}</p>
+            <p class="mt-1 text-xs text-gray-500">
+                App key: {{ $tiktokAppConfigured ? 'OK' : 'belum' }}@if($tiktokAppKeyHint) ({{ $tiktokAppKeyHint }})@endif
+                · driver: {{ $tiktokDriver }}
+                · Webhook inbox: {{ $tiktokWebhookInbox ? 'on' : 'off' }}
+            </p>
             <a href="{{ route('tiktok-shop.authorize', ['return' => 'omnichannel']) }}"
                class="mt-3 inline-flex rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
                data-testid="tiktok-shop-authorize-button">Authorize TikTok Shop</a>
