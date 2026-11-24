@@ -94,7 +94,12 @@ class MarketplaceWebhookInboxQuery
      */
     public function ordersQuery(array $filters): Builder
     {
-        $query = MarketplaceChannelOrder::query()->orderByDesc('last_event_at')->orderByDesc('id');
+        $query = MarketplaceChannelOrder::query()
+            ->with([
+                'lastWebhookEvent:id,channel,payload,commerce_platform',
+            ])
+            ->orderByDesc('last_event_at')
+            ->orderByDesc('id');
 
         $this->applyChannel($query, $filters['channel']);
         $this->applyDateRange($query, 'last_event_at', $filters);

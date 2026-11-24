@@ -154,8 +154,8 @@
 
     $omnichannelNavLabels = ['Omnichannel'];
     if ($canOmnichannelOrders) {
-        $omnichannelNavLabels[] = 'Webhooks';
         $omnichannelNavLabels[] = 'Current orders';
+        $omnichannelNavLabels[] = 'Webhooks';
     }
     if ($canOmnichannelView) {
         $omnichannelNavLabels[] = 'Compare';
@@ -624,8 +624,8 @@
     </button>
     <div x-show="open && sidebarOpen" x-cloak class="ml-6 mt-1 space-y-0.5">
         @if($canOmnichannelOrders)
-        <a href="{{ route('omnichannel.orders.index', ['view' => 'events']) }}" x-show="navLinkVisible('Webhooks', 'Omnichannel')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $omniWebhooksNavActive ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Webhooks</a>
         <a href="{{ route('omnichannel.orders.index', ['view' => 'orders']) }}" x-show="navLinkVisible('Current orders', 'Omnichannel')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $omniCurrentOrdersNavActive ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Current orders</a>
+        <a href="{{ route('omnichannel.orders.index', ['view' => 'events']) }}" x-show="navLinkVisible('Webhooks', 'Omnichannel')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $omniWebhooksNavActive ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Webhooks</a>
         @endif
         @if($canOmnichannelView)
         <a href="{{ route('omnichannel.index') }}" x-show="navLinkVisible('Compare', 'Omnichannel')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $currentUrl === 'omnichannel' || str_starts_with($currentUrl, 'omnichannel/shopee') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Compare</a>
