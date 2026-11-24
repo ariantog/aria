@@ -27,6 +27,8 @@ class ShopeeShippingDocumentService
 
     private const MAX_SHOULD_PRINT_FIRST_RETRIES = 2;
 
+    private const ERROR_TRACKING_NUMBER_INVALID = 'logistics.tracking_number_invalid';
+
     public function __construct(
         private ShopeeAdminOpenApiService $shopeeApi,
         private ShopeeAwbPdfPortraitNormalizer $awbPdfPortraitNormalizer,
@@ -165,14 +167,38 @@ class ShopeeShippingDocumentService
      */
     private function createShippingDocument(int $shopId, array $orderList): void
     {
+        $decoded = $this->postCreateShippingDocument($shopId, $orderList, includeTracking: false);
+
+        $retryRows = $this->orderListRowsWithCreateError($decoded, $orderList, self::ERROR_TRACKING_NUMBER_INVALID);
+        if ($retryRows !== []) {
+            $retryDecoded = $this->postCreateShippingDocument(
+                $shopId,
+                $this->stripTrackingFromOrderList($retryRows),
+                includeTracking: false,
+            );
+            $decoded = $this->mergeCreateShippingDocumentResults($decoded, $retryDecoded);
+        }
+
+        $this->assertCreatePerOrderFailures($decoded, 'create_shipping_document');
+    }
+
+    /**
+     * Shopee assigns resi on create; stale tracking from get_order_detail often triggers
+     * logistics.tracking_number_invalid on READY_TO_SHIP / unsplit orders — omit unless explicitly asked.
+     *
+     * @param  list<array{order_sn: string, package_number?: string, tracking_number?: string}>  $orderList
+     * @return array<string, mixed>
+     */
+    private function postCreateShippingDocument(int $shopId, array $orderList, bool $includeTracking): array
+    {
         $docType = $this->shippingDocumentType();
         $payload = [
-            'order_list' => array_map(function (array $row) use ($docType) {
+            'order_list' => array_map(function (array $row) use ($docType, $includeTracking) {
                 $item = ['order_sn' => $row['order_sn'], 'shipping_document_type' => $docType];
                 if (filled($row['package_number'] ?? null)) {
                     $item['package_number'] = (string) $row['package_number'];
                 }
-                if (filled($row['tracking_number'] ?? null)) {
+                if ($includeTracking && filled($row['tracking_number'] ?? null)) {
                     $item['tracking_number'] = (string) $row['tracking_number'];
                 }
 
@@ -181,9 +207,140 @@ class ShopeeShippingDocumentService
         ];
 
         $response = $this->shopeeApi->shopApiPost('/api/v2/logistics/create_shipping_document', $payload, $shopId);
-        $decoded = $this->decodeLogisticsBatchResponse($response, 'create_shipping_document');
 
-        $this->assertCreatePerOrderFailures($decoded, 'create_shipping_document');
+        return $this->decodeLogisticsBatchResponse($response, 'create_shipping_document');
+    }
+
+    /**
+     * @param  list<array{order_sn: string, package_number?: string, tracking_number?: string}>  $orderList
+     * @return list<array{order_sn: string, package_number?: string, tracking_number?: string}>
+     */
+    private function stripTrackingFromOrderList(array $orderList): array
+    {
+        return array_map(function (array $row) {
+            unset($row['tracking_number']);
+
+            return $row;
+        }, $orderList);
+    }
+
+    /**
+     * @param  array<string, mixed>  $decoded
+     * @param  list<array{order_sn: string, package_number?: string, tracking_number?: string}>  $orderList
+     * @return list<array{order_sn: string, package_number?: string, tracking_number?: string}>
+     */
+    private function orderListRowsWithCreateError(array $decoded, array $orderList, string $failError): array
+    {
+        $failErrorLower = strtolower($failError);
+        $retry = [];
+
+        $results = $decoded['response']['result_list'] ?? [];
+        if (! is_array($results)) {
+            return [];
+        }
+
+        foreach ($results as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $perFail = strtolower(trim((string) ($row['fail_error'] ?? '')));
+            if ($perFail !== $failErrorLower) {
+                continue;
+            }
+            $sn = trim((string) ($row['order_sn'] ?? ''));
+            if ($sn === '') {
+                continue;
+            }
+            $pkg = trim((string) ($row['package_number'] ?? ''));
+            foreach ($orderList as $entry) {
+                $entrySn = trim((string) ($entry['order_sn'] ?? ''));
+                if ($entrySn !== $sn) {
+                    continue;
+                }
+                $entryPkg = trim((string) ($entry['package_number'] ?? ''));
+                if ($pkg !== '' && $entryPkg !== $pkg) {
+                    continue;
+                }
+                if ($pkg === '' && $entryPkg !== '') {
+                    continue;
+                }
+                $retry[] = $entry;
+
+                break;
+            }
+        }
+
+        return $retry;
+    }
+
+    /**
+     * @param  array<string, mixed>  $primary
+     * @param  array<string, mixed>  $retry
+     * @return array<string, mixed>
+     */
+    private function mergeCreateShippingDocumentResults(array $primary, array $retry): array
+    {
+        $primaryList = $primary['response']['result_list'] ?? [];
+        $retryList = $retry['response']['result_list'] ?? [];
+        if (! is_array($primaryList) || ! is_array($retryList)) {
+            return $primary;
+        }
+
+        $retryByKey = [];
+        foreach ($retryList as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $sn = trim((string) ($row['order_sn'] ?? ''));
+            if ($sn === '') {
+                continue;
+            }
+            $pkg = trim((string) ($row['package_number'] ?? ''));
+            $retryByKey[$this->resultKey($sn, $pkg !== '' ? $pkg : null)] = $row;
+        }
+
+        $merged = [];
+        foreach ($primaryList as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $sn = trim((string) ($row['order_sn'] ?? ''));
+            $pkg = trim((string) ($row['package_number'] ?? ''));
+            $key = $this->resultKey($sn, $pkg !== '' ? $pkg : null);
+            $merged[] = $retryByKey[$key] ?? $row;
+        }
+
+        foreach ($retryList as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $sn = trim((string) ($row['order_sn'] ?? ''));
+            $pkg = trim((string) ($row['package_number'] ?? ''));
+            $key = $this->resultKey($sn, $pkg !== '' ? $pkg : null);
+            $found = false;
+            foreach ($merged as $existing) {
+                if (! is_array($existing)) {
+                    continue;
+                }
+                $existingSn = trim((string) ($existing['order_sn'] ?? ''));
+                $existingPkg = trim((string) ($existing['package_number'] ?? ''));
+                if ($this->resultKey($existingSn, $existingPkg !== '' ? $existingPkg : null) === $key) {
+                    $found = true;
+
+                    break;
+                }
+            }
+            if (! $found) {
+                $merged[] = $row;
+            }
+        }
+
+        $primary['response']['result_list'] = $merged;
+        if (trim((string) ($retry['request_id'] ?? '')) !== '') {
+            $primary['request_id'] = $retry['request_id'];
+        }
+
+        return $primary;
     }
 
     /**
