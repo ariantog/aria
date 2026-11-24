@@ -48,6 +48,9 @@ $hasActiveFilters = collect(request()->query())
 $activeOpsBucket = $filters['ops_bucket'] ?? null;
 $opsBucketStats = $opsBucketStats ?? [];
 $opsBucketService = $opsBucketService ?? null;
+$showShopColumn = $showShopColumn ?? ($shopOptions->count() > 1 && blank($filters['shop_ref'] ?? ''));
+$ordersTableColspan = $showShopColumn ? 11 : 10;
+$eventsTableColspan = $showShopColumn ? 11 : 10;
 @endphp
 
 <div class="flex flex-col gap-4 p-2 sm:gap-6 sm:p-4"
@@ -305,7 +308,9 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                         <th class="{{ $th }} w-16">event</th>
                         <th class="{{ $th }}">order_ref</th>
                         <th class="{{ $th }} w-28">order_status</th>
+                        @if($showShopColumn)
                         <th class="{{ $th }} w-32">Shop</th>
+                        @endif
                         <th class="{{ $th }} w-36">Aria warehouse</th>
                         <th class="{{ $th }} w-32">Platform WH</th>
                         <th class="{{ $th }} w-20 text-center">sign OK</th>
@@ -339,10 +344,12 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                             <span class="ml-1 inline-flex rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-gray-500">{{ $bucketLabel }}</span>
                             @endif
                         </td>
+                        @if($showShopColumn)
                         <td class="{{ $td }} font-mono text-[11px] text-gray-600 break-all"
                             data-testid="omnichannel-event-shop-ref-{{ $row->id }}">
                             {{ filled($row->shop_ref) ? $row->shop_ref : '—' }}
                         </td>
+                        @endif
                         <td class="{{ $td }} text-gray-800"
                             data-testid="omnichannel-event-gudang-{{ $row->id }}">
                             @if($gudangName)
@@ -380,7 +387,7 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                         </td>
                     </tr>
                     <tr x-show="isRowExpanded(@js($row->id))" x-cloak class="bg-gray-50">
-                        <td colspan="11" class="px-3 py-3">
+                        <td colspan="{{ $eventsTableColspan }}" class="px-3 py-3">
                             @if(filled($row->order_ref))
                             @php
                                 $eventToOrdersUrl = route('omnichannel.orders.index', array_merge(request()->query(), [
@@ -426,7 +433,9 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                         <th class="{{ $th }}">order_ref</th>
                         <th class="{{ $th }} w-28">status</th>
                         <th class="{{ $th }} w-28">AWB cetak</th>
+                        @if($showShopColumn)
                         <th class="{{ $th }} w-32">Shop</th>
+                        @endif
                         <th class="{{ $th }} w-36">Aria warehouse</th>
                         <th class="{{ $th }} w-32">Platform WH</th>
                         <th class="{{ $th }} w-36">last_event</th>
@@ -494,10 +503,12 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                             —
                             @endif
                         </td>
+                        @if($showShopColumn)
                         <td class="{{ $td }} font-mono text-[11px] text-gray-600 break-all"
                             data-testid="omnichannel-order-shop-ref-{{ $row->id }}">
                             {{ filled($row->shop_ref) ? $row->shop_ref : '—' }}
                         </td>
+                        @endif
                         <td class="{{ $td }} text-gray-800"
                             data-testid="omnichannel-order-gudang-{{ $row->id }}">
                             @if($gudangName)
@@ -521,7 +532,7 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                         <td class="{{ $td }} whitespace-nowrap text-gray-600">{{ $row->first_received_at?->format('Y-m-d H:i:s') ?? '—' }}</td>
                     </tr>
                     <tr x-show="isExpanded(@js($row->channel), @js($row->order_ref))" x-cloak class="bg-gray-50">
-                        <td colspan="11" class="p-0">
+                        <td colspan="{{ $ordersTableColspan }}" class="p-0">
                             <template x-if="isLoading(@js($row->channel), @js($row->order_ref))">
                                 <p class="p-4 text-xs text-gray-500">Memuat detail…</p>
                             </template>

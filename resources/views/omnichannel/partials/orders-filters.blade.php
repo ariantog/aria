@@ -64,7 +64,8 @@
                     @endforeach
                 </datalist>
             </div>
-            <div class="flex flex-col gap-1">
+            @if($showShopFilter ?? ($shopOptions->count() > 1))
+            <div class="flex flex-col gap-1" data-testid="omnichannel-filter-shop-ref">
                 <label for="shop_ref" class="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Shop</label>
                 <select name="shop_ref" id="shop_ref" class="max-w-[14rem] {{ $formControlClassSm }}">
                     <option value="">Semua</option>
@@ -73,6 +74,7 @@
                     @endforeach
                 </select>
             </div>
+            @endif
             <div class="flex flex-col gap-1">
                 <label for="warehouse_id" class="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Gudang</label>
                 <select name="warehouse_id" id="warehouse_id" class="max-w-[14rem] {{ $formControlClassSm }}">
