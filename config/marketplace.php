@@ -16,7 +16,7 @@ return [
      */
     'shopee_on_order' => [
         'enabled' => filter_var(
-            env('SHOPEE_PUSH_ON_ORDER_ENABLED', true),
+            env('SHOPEE_PUSH_ON_ORDER_ENABLED', false),
             FILTER_VALIDATE_BOOLEAN
         ),
     ],

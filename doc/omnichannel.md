@@ -107,7 +107,7 @@ Response includes `created`, `updated`, and `skipped` arrays.
 | Layer | Behaviour |
 |-------|------------|
 | Schema | `warehouse_item.on_order` decimal, default `0` — migrate `2026_11_22_150000_add_on_order_to_warehouse_item.php` |
-| Reserve (Shopee) | `SHOPEE_PUSH_ON_ORDER_ENABLED` (default **true**) on push code **3** in **awaiting shipment** bucket + `item_list`; queued via `PersistShopeePushInboxJob` after HTTP ack |
+| Reserve (Shopee) | `SHOPEE_PUSH_ON_ORDER_ENABLED` (default **false** until Jubelio SELL releases `on_order` / OMN-66 ships) on push code **3** in **awaiting shipment** bucket + `item_list`; queued via `PersistShopeePushInboxJob` after HTTP ack |
 | Reserve (TikTok) | `TIKTOK_SHOP_ON_ORDER_ENABLED` on awaiting-shipment webhooks (`TikTokShopWebhookOnOrderApplicator`) |
 | Release | Physical deduct path in `InventoryService` (Jubelio SELL post) |
 | UI | Gudang **Items** list shows **On order** column (Aria, not Jubelio API) |

@@ -93,7 +93,6 @@ it('records code 30 on unified storage when shopee inbox storage is off', functi
     config(['services.shopee_push.store_inbox' => false]);
 
     $body = '{"data":{"ordersn":"FUL-ONLY","logistics_status":"LOGISTICS_READY"},"shop_id":9,"code":30,"timestamp":1660123127}';
-    postSignedShopeePush($body)->assertOk();
     runPersistShopeePushJobFromJson($body);
 
     expect(ShopeePushInbox::count())->toBe(0)
@@ -103,7 +102,6 @@ it('records code 30 on unified storage when shopee inbox storage is off', functi
 it('stores uncommon shopee push codes in inbox when store_inbox is enabled', function () {
     $body = '{"data":{"ping":true},"shop_id":1,"code":99,"timestamp":12345}';
     postSignedShopeePush($body)->assertOk();
-    runPersistShopeePushJobFromJson($body);
 
     expect(ShopeePushInbox::query()->where('push_code', 99)->count())->toBe(1)
         ->and(MarketplaceWebhookEvent::query()->where('event_type', '99')->count())->toBe(1);

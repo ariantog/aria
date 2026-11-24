@@ -24,7 +24,7 @@ class ShopeePushWebhookOnOrderApplicator
 
     public function enabled(): bool
     {
-        return (bool) config('marketplace.shopee_on_order.enabled', true);
+        return (bool) config('marketplace.shopee_on_order.enabled', false);
     }
 
     /**
