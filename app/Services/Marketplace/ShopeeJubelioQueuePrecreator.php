@@ -103,7 +103,7 @@ class ShopeeJubelioQueuePrecreator
      *
      * @param  array<int, list<string>>  $ordersByShopId  shop_id => order_sn list
      */
-    public function ensureQueueRowsFromAwbPrint(array $ordersByShopId): int
+    public function ensureQueueRowsFromAwbPrint(array $ordersByShopId, ?int $printerUserId = null): int
     {
         $count = 0;
 
@@ -117,7 +117,7 @@ class ShopeeJubelioQueuePrecreator
                     continue;
                 }
 
-                if ($this->ensureQueueRowFromOmnichannelAwb($shopId, $orderSn)) {
+                if ($this->ensureQueueRowFromOmnichannelAwb($shopId, $orderSn, $printerUserId)) {
                     $count++;
                 }
             }
@@ -126,7 +126,7 @@ class ShopeeJubelioQueuePrecreator
         return $count;
     }
 
-    public function ensureQueueRowFromOmnichannelAwb(int $shopId, string $orderSn): bool
+    public function ensureQueueRowFromOmnichannelAwb(int $shopId, string $orderSn, ?int $printerUserId = null): bool
     {
         $orderSn = trim($orderSn);
         if ($orderSn === '' || $shopId <= 0) {
@@ -151,10 +151,10 @@ class ShopeeJubelioQueuePrecreator
             ->first();
 
         if ($existing !== null) {
-            return $this->touchExistingRowForAwb($existing, $warehouseColumns);
+            return $this->touchExistingRowForAwb($existing, $warehouseColumns, $printerUserId);
         }
 
-        Jubelioorder::query()->create([
+        $create = [
             'jubelio_order_id' => $this->placeholderJubelioOrderId($orderSn),
             'source' => Jubelioorder::SOURCE_SHOPEE_PUSH,
             'invoice' => $invoice,
@@ -165,7 +165,13 @@ class ShopeeJubelioQueuePrecreator
             'jubelio_store_id' => $warehouseColumns['jubelio_store_id'],
             'jubelio_location_id' => $warehouseColumns['jubelio_location_id'],
             'status' => 0,
-        ]);
+        ];
+
+        if ($printerUserId !== null && (int) $printerUserId > 0) {
+            $create['user_id'] = (int) $printerUserId;
+        }
+
+        Jubelioorder::query()->create($create);
 
         return true;
     }
@@ -289,8 +295,11 @@ class ShopeeJubelioQueuePrecreator
     /**
      * @param  array{warehouse_id: int, jubelio_store_id: int, jubelio_location_id: int}  $warehouseColumns
      */
-    private function touchExistingRowForAwb(Jubelioorder $existing, array $warehouseColumns): bool
-    {
+    private function touchExistingRowForAwb(
+        Jubelioorder $existing,
+        array $warehouseColumns,
+        ?int $printerUserId = null,
+    ): bool {
         if ($existing->type !== 'SELL') {
             return false;
         }
@@ -306,6 +315,13 @@ class ShopeeJubelioQueuePrecreator
             $existing->warehouse_id = $warehouseColumns['warehouse_id'];
             $existing->jubelio_store_id = $warehouseColumns['jubelio_store_id'];
             $existing->jubelio_location_id = $warehouseColumns['jubelio_location_id'];
+            $dirty = true;
+        }
+
+        if ($printerUserId !== null
+            && (int) $printerUserId > 0
+            && (int) ($existing->user_id ?? 0) === 0) {
+            $existing->user_id = (int) $printerUserId;
             $dirty = true;
         }
 

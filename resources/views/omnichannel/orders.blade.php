@@ -415,6 +415,7 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                         <th class="{{ $th }} w-24">channel</th>
                         <th class="{{ $th }}">order_ref</th>
                         <th class="{{ $th }} w-28">status</th>
+                        <th class="{{ $th }} w-28">AWB cetak</th>
                         <th class="{{ $th }} w-32">Shop</th>
                         <th class="{{ $th }} w-36">Aria warehouse</th>
                         <th class="{{ $th }} w-32">Platform WH</th>
@@ -466,6 +467,17 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                             <span class="ml-1 inline-flex rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-gray-500">{{ $orderBucketLabel }}</span>
                             @endif
                         </td>
+                        <td class="{{ $td }} text-[11px] text-gray-600"
+                            data-testid="omnichannel-order-awb-printer-{{ $row->id }}">
+                            @if((int) ($row->awb_printed_by ?? 0) > 0)
+                            <span class="inline-flex rounded-full bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-900"
+                                  title="AWB dicetak {{ $row->awb_printed_at?->format('Y-m-d H:i:s') ?? '—' }}">
+                                {{ $row->awbPrintedBy?->username ?? 'user #'.$row->awb_printed_by }}
+                            </span>
+                            @else
+                            —
+                            @endif
+                        </td>
                         <td class="{{ $td }} font-mono text-[11px] text-gray-600 break-all"
                             data-testid="omnichannel-order-shop-ref-{{ $row->id }}">
                             {{ filled($row->shop_ref) ? $row->shop_ref : '—' }}
@@ -493,7 +505,7 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                         <td class="{{ $td }} whitespace-nowrap text-gray-600">{{ $row->first_received_at?->format('Y-m-d H:i:s') ?? '—' }}</td>
                     </tr>
                     <tr x-show="isExpanded(@js($row->channel), @js($row->order_ref))" x-cloak class="bg-gray-50">
-                        <td colspan="10" class="p-0">
+                        <td colspan="11" class="p-0">
                             <template x-if="isLoading(@js($row->channel), @js($row->order_ref))">
                                 <p class="p-4 text-xs text-gray-500">Memuat detail…</p>
                             </template>

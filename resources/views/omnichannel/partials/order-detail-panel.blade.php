@@ -20,6 +20,17 @@ $apiDetail = $detail['api_detail'] ?? null;
     </p>
     @endif
 
+    @php $awbPrint = $detail['awb_print'] ?? null; @endphp
+    @if(!empty($awbPrint['user_id']))
+    <p class="text-gray-600" data-testid="omnichannel-order-awb-print-detail">
+        AWB dicetak oleh
+        <strong>{{ $awbPrint['username'] ?? 'user #'.$awbPrint['user_id'] }}</strong>
+        @if(!empty($awbPrint['printed_at']))
+        <span class="text-gray-500">· {{ \Illuminate\Support\Carbon::parse($awbPrint['printed_at'])->format('Y-m-d H:i:s') }}</span>
+        @endif
+    </p>
+    @endif
+
     @php $warehouse = $detail['warehouse'] ?? []; @endphp
     @if(!empty($warehouse['aria_name']) || !empty($warehouse['platform_label']) || !empty($warehouse['unmapped']))
     <div class="rounded-lg border border-gray-200 bg-white p-3" data-testid="omnichannel-order-warehouse">
