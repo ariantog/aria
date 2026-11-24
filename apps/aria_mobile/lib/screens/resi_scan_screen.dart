@@ -110,6 +110,34 @@ class _ResiScanScreenState extends State<ResiScanScreen> {
     setState(() => _marketplace = mps.first['key']?.toString());
   }
 
+  String? _invoicePrefixForMarketplace(String? marketplaceKey) {
+    if (marketplaceKey == null) return null;
+    final list = _options?['marketplaces'];
+    if (list is! List) return null;
+    for (final row in list) {
+      if (row is Map && row['key']?.toString() == marketplaceKey) {
+        final prefix = row['invoice_prefix']?.toString().trim();
+        if (prefix != null && prefix.isNotEmpty) {
+          return prefix.toUpperCase();
+        }
+      }
+    }
+    return null;
+  }
+
+  static const _awbNotInvoiceMessage =
+      'Scan nomor resi (AWB), bukan nomor invoice Jubelio.';
+
+  String? _clientAwbPrecheckMessage(String trimmed) {
+    if (_marketplace == null || trimmed.isEmpty) return null;
+    final prefix = _invoicePrefixForMarketplace(_marketplace);
+    if (prefix == null) return null;
+    final upper = trimmed.toUpperCase();
+    if (upper.startsWith('$prefix-')) {
+      return _awbNotInvoiceMessage;
+    }
+  }
+
   Future<void> _scan() async {
     final code = await Navigator.push<String>(
       context,
@@ -117,6 +145,15 @@ class _ResiScanScreenState extends State<ResiScanScreen> {
     );
     if (code == null || code.trim().isEmpty) return;
     final trimmed = code.trim();
+    final precheck = _clientAwbPrecheckMessage(trimmed);
+    if (precheck != null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(precheck)),
+        );
+      }
+      return;
+    }
     if (_barcodes.contains(trimmed)) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -266,6 +303,13 @@ class _ResiScanScreenState extends State<ResiScanScreen> {
                             onChanged: _warehouseId == null
                                 ? null
                                 : (v) => setState(() => _marketplace = v),
+                          ),
+                          const Padding(
+                            padding: EdgeInsets.only(top: 8),
+                            child: Text(
+                              'Scan label resi / nomor AWB kurir, bukan barcode invoice Jubelio.',
+                              style: TextStyle(fontSize: 13, color: Colors.black54),
+                            ),
                           ),
                           const SizedBox(height: 8),
                           SwitchListTile(

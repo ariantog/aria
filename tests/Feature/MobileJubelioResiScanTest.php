@@ -724,6 +724,90 @@ it('builds lazada invoice match candidates for lxad awb and store suffix', funct
         ->toBe('LZ-5126991362-18697');
 });
 
+it('skips lazada resi scan when barcode is jubelio invoice not awb', function () {
+    $user = User::factory()->create();
+    $user->givePermissionTo('jubelio-view');
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 18697,
+        'jubelio_store_name' => 'Lazada Crystal',
+        'jubelio_location_id' => -1,
+        'jubelio_location_name' => 'Pusat',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => 1,
+        'bin_id' => 0,
+    ]);
+
+    $response = $this->actingAs($user, 'sanctum')->postJson('/api/mobile/v1/jubelio/resi-scan', [
+        'warehouse_id' => $warehouse->id,
+        'marketplace' => 'lazada',
+        'barcodes' => ['LZ-2706952969613265-18697'],
+    ]);
+
+    $response->assertOk()
+        ->assertJsonCount(0, 'created')
+        ->assertJsonCount(0, 'updated')
+        ->assertJsonCount(1, 'skipped')
+        ->assertJsonPath('skipped.0.raw', 'LZ-2706952969613265-18697')
+        ->assertJsonPath('skipped.0.invoice', null)
+        ->assertJsonPath('skipped.0.reason', 'Scan nomor resi (AWB), bukan nomor invoice Jubelio.');
+
+    expect(Jubelioorder::count())->toBe(0);
+});
+
+it('allows lazada lxad awb barcode and updates queue row', function () {
+    $user = User::factory()->create();
+    $user->givePermissionTo('jubelio-view');
+
+    $warehouse = Addrbook::factory()->warehouse()->create();
+
+    Jubeliosync::create([
+        'jubelio_store_id' => 18697,
+        'jubelio_store_name' => 'Lazada Crystal',
+        'jubelio_location_id' => -1,
+        'jubelio_location_name' => 'Pusat',
+        'warehouse_id' => $warehouse->id,
+        'customer_id' => 1,
+        'bin_id' => 0,
+    ]);
+
+    Jubelioorder::create([
+        'jubelio_order_id' => 'webhook-lxad',
+        'source' => Jubelioorder::SOURCE_WEBHOOK,
+        'invoice' => 'LZ-2706952969613265-18697',
+        'type' => 'SELL',
+        'order_status' => 'SHIPPED',
+        'run_count' => 0,
+        'jubelio_store_id' => 18697,
+        'status' => 0,
+    ]);
+
+    config(['services.jubelio.active' => true]);
+
+    $this->mock(JubelioService::class, function (MockInterface $mock) {
+        $mock->shouldReceive('resolveSalesOrderByTracking')
+            ->once()
+            ->andReturn([
+                'status' => 'found',
+                'salesorder_no' => 'LZ-2706952969613265-18697',
+                'salesorder_id' => 'so-lxad',
+            ]);
+    });
+
+    $response = $this->actingAs($user, 'sanctum')->postJson('/api/mobile/v1/jubelio/resi-scan', [
+        'warehouse_id' => $warehouse->id,
+        'marketplace' => 'lazada',
+        'barcodes' => ['LXAD-5126AWB999'],
+    ]);
+
+    $response->assertOk()
+        ->assertJsonCount(0, 'created')
+        ->assertJsonCount(1, 'updated')
+        ->assertJsonPath('updated.0.invoice', 'LZ-2706952969613265-18697');
+});
+
 it('exposes scan_resi in mobile actions when jubelio-view is granted', function () {
     $user = User::factory()->create();
     $user->givePermissionTo('jubelio-view');

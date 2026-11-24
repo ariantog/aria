@@ -573,10 +573,57 @@ class JubelioResiScanService
     }
 
     /**
+     * Reject raw barcodes that are Jubelio/marketplace salesorder_no (e.g. SP-, LZ-18697), not courier AWB.
+     *
+     * @throws InvalidArgumentException
+     */
+    public function assertBarcodeIsCourierAwb(string $marketplaceKey, string $rawBarcode): void
+    {
+        $raw = trim($rawBarcode);
+        if ($raw === '') {
+            throw new InvalidArgumentException('Nomor resi kosong.');
+        }
+
+        $config = $this->marketplacesConfig()[$marketplaceKey] ?? null;
+        if ($config === null) {
+            throw new InvalidArgumentException('Marketplace tidak dikenal.');
+        }
+
+        $selectedPrefix = strtoupper((string) $config['invoice_prefix']);
+        $upper = strtoupper($raw);
+
+        if ($selectedPrefix !== '' && str_starts_with($upper, $selectedPrefix.'-')) {
+            throw new InvalidArgumentException('Scan nomor resi (AWB), bukan nomor invoice Jubelio.');
+        }
+
+        if (preg_match('/^([A-Za-z]{2})-/u', $raw, $matches) !== 1) {
+            return;
+        }
+
+        $scannedPrefix = strtoupper($matches[1]);
+        if ($scannedPrefix === $selectedPrefix) {
+            return;
+        }
+
+        foreach ($this->marketplacesConfig() as $key => $row) {
+            $otherPrefix = strtoupper((string) ($row['invoice_prefix'] ?? ''));
+            if ($otherPrefix !== '' && $scannedPrefix === $otherPrefix) {
+                $label = (string) ($row['label'] ?? $key);
+
+                throw new InvalidArgumentException(
+                    "Barcode terlihat seperti invoice {$label}. Pilih marketplace yang benar, atau scan nomor resi (AWB)."
+                );
+            }
+        }
+    }
+
+    /**
      * @return array{invoice: string, jubelio_order_id: string|int|null}
      */
     public function resolveInvoiceForBarcode(string $marketplaceKey, string $rawBarcode, int $jubelioStoreId): array
     {
+        $this->assertBarcodeIsCourierAwb($marketplaceKey, $rawBarcode);
+
         if ($this->invoiceResolver->marketplaceResolvesViaTracking($marketplaceKey)) {
             $resolved = $this->invoiceResolver->resolveInvoice($marketplaceKey, $rawBarcode, $jubelioStoreId);
             if ($resolved === null) {
