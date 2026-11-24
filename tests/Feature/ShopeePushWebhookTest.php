@@ -1,10 +1,25 @@
 <?php
 
+use App\Jobs\PersistShopeePushInboxJob;
 use App\Jobs\RecordShopeePushShadowJob;
 use App\Models\MarketplaceOrderShadow;
 use App\Models\ShopeePushInbox;
 use App\Services\Shopee\ShopeePushSignatureVerifier;
 use Illuminate\Support\Facades\Queue;
+
+function runQueuedShopeePushJobs(): void
+{
+    Queue::assertPushed(PersistShopeePushInboxJob::class, function (PersistShopeePushInboxJob $job): bool {
+        $job->handle(
+            app(\App\Services\Marketplace\ShopeeOrderStatusIngest::class),
+            app(\App\Services\Marketplace\MarketplaceWebhookRecorder::class),
+            app(\App\Services\Marketplace\MarketplaceWebhookStatusPresenter::class),
+            app(\App\Services\Marketplace\ShopeePushWebhookOnOrderApplicator::class),
+        );
+
+        return true;
+    });
+}
 
 it('does not dispatch shadow job when shadow is disabled', function () {
     Queue::fake();
@@ -26,6 +41,7 @@ it('does not dispatch shadow job when shadow is disabled', function () {
     ], $body)->assertOk();
 
     Queue::assertNotPushed(RecordShopeePushShadowJob::class);
+    runQueuedShopeePushJobs();
 });
 
 it('upserts shadow stub only for order status push without queue enrich', function () {
@@ -48,6 +64,7 @@ it('upserts shadow stub only for order status push without queue enrich', functi
     ], $body)->assertOk();
 
     Queue::assertNotPushed(RecordShopeePushShadowJob::class);
+    runQueuedShopeePushJobs();
 
     $stub = MarketplaceOrderShadow::query()->where('external_order_sn', 'PUSH123')->first();
     expect($stub)->not->toBeNull()
@@ -76,6 +93,8 @@ it('upserts shadow stub when push data uses order_sn key', function () {
         'CONTENT_TYPE' => 'application/json',
     ], $body)->assertOk();
 
+    runQueuedShopeePushJobs();
+
     expect(MarketplaceOrderShadow::query()->where('external_order_sn', 'ALT_SN_1')->exists())->toBeTrue();
 });
 
@@ -97,6 +116,8 @@ it('accepts console sample code-3 push and upserts test shadow stub', function (
         'HTTP_AUTHORIZATION' => $authorization,
         'CONTENT_TYPE' => 'application/json',
     ], $body)->assertOk();
+
+    runQueuedShopeePushJobs();
 
     $stub = MarketplaceOrderShadow::query()->where('external_order_sn', '220810QSK8S7BX')->first();
     expect($stub)->not->toBeNull()

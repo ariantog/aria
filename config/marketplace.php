@@ -10,6 +10,17 @@ return [
         ),
     ],
 
+    /**
+     * Increment warehouse_item.on_order on Shopee push code 3 (awaiting shipment) without jubelioorders placeholder.
+     * Uses item_list + ShopeeSyncWarehouseResolver; idempotent via marketplace_on_order_reservations.
+     */
+    'shopee_on_order' => [
+        'enabled' => filter_var(
+            env('SHOPEE_PUSH_ON_ORDER_ENABLED', true),
+            FILTER_VALIDATE_BOOLEAN
+        ),
+    ],
+
     'webhook' => [
         /**
          * Dual-write Shopee/TikTok deliveries to marketplace_webhook_events / marketplace_channel_orders
