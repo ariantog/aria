@@ -37,7 +37,7 @@ beforeEach(function () {
     );
 });
 
-function awbOrderDetailResponse(string $orderSn): array
+function awbOrderDetailResponse(string $orderSn, string $orderStatus = 'PROCESSED', string $tracking = 'SPXAWB123'): array
 {
     return [
         'error' => '',
@@ -45,8 +45,8 @@ function awbOrderDetailResponse(string $orderSn): array
             'order_list' => [
                 [
                     'order_sn' => $orderSn,
-                    'order_status' => 'PROCESSED',
-                    'tracking_number' => 'SPXAWB123',
+                    'order_status' => $orderStatus,
+                    'tracking_number' => $tracking,
                     'package_list' => [],
                 ],
             ],
@@ -422,6 +422,182 @@ it('appends awb audit row on first successful print', function () {
     expect($audit)->not->toBeNull()
         ->and((int) $audit->user_id)->toBe((int) $user->id)
         ->and((bool) $audit->is_reprint)->toBeFalse();
+});
+
+it('downloads awb for ready_to_ship order when shipping document is already ready', function () {
+    $user = User::factory()->create(['id' => 49]);
+    Permission::findOrCreate(Omnichannel::getPermissions()['orders'], 'web');
+    $user->givePermissionTo(Omnichannel::getPermissions()['orders']);
+
+    $orderSn = '2611245VU2MSJP';
+
+    MarketplaceChannelOrder::query()->create([
+        'channel' => 'shopee',
+        'order_ref' => $orderSn,
+        'shop_ref' => '100',
+        'order_status' => 'READY_TO_SHIP',
+        'last_event_at' => now(),
+        'first_received_at' => now(),
+    ]);
+
+    Http::fake([
+        'partner.shopeemobile.com/api/v2/order/get_order_detail*' => Http::response(
+            awbOrderDetailResponse($orderSn, 'READY_TO_SHIP', 'SPXID2611245'),
+        ),
+        'partner.shopeemobile.com/api/v2/logistics/get_shipping_document_result*' => Http::response([
+            'error' => '',
+            'response' => [
+                'result_list' => [
+                    ['order_sn' => $orderSn, 'status' => 'READY'],
+                ],
+            ],
+        ]),
+        'partner.shopeemobile.com/api/v2/logistics/download_shipping_document*' => Http::response(
+            '%PDF-1.4 ready-to-ship-existing',
+            200,
+            ['Content-Type' => 'application/pdf'],
+        ),
+    ]);
+
+    $response = $this->actingAs($user)->post(route('omnichannel.orders.shipping-documents'), [
+        'rows' => [
+            ['channel' => 'shopee', 'order_ref' => $orderSn, 'shop_ref' => '100'],
+        ],
+    ]);
+
+    $response->assertOk();
+    expect($response->streamedContent())->toContain('%PDF');
+
+    Http::assertNotSent(function ($request) {
+        return str_contains($request->url(), '/api/v2/logistics/create_shipping_document');
+    });
+});
+
+it('surfaces shopee batch create failure details instead of generic message', function () {
+    $user = User::factory()->create(['id' => 50]);
+    Permission::findOrCreate(Omnichannel::getPermissions()['orders'], 'web');
+    $user->givePermissionTo(Omnichannel::getPermissions()['orders']);
+
+    $orderSn = 'AWB-BATCH-FAIL';
+
+    MarketplaceChannelOrder::query()->create([
+        'channel' => 'shopee',
+        'order_ref' => $orderSn,
+        'shop_ref' => '100',
+        'order_status' => 'READY_TO_SHIP',
+        'last_event_at' => now(),
+        'first_received_at' => now(),
+    ]);
+
+    Http::fake([
+        'partner.shopeemobile.com/api/v2/order/get_order_detail*' => Http::response(
+            awbOrderDetailResponse($orderSn, 'READY_TO_SHIP', 'SPXFAIL001'),
+        ),
+        'partner.shopeemobile.com/api/v2/logistics/get_shipping_document_result*' => Http::response([
+            'error' => '',
+            'response' => [
+                'result_list' => [
+                    [
+                        'order_sn' => $orderSn,
+                        'status' => 'FAILED',
+                        'fail_error' => 'logistics.shipping_document_should_print_first',
+                        'fail_message' => 'create shipping document first',
+                    ],
+                ],
+            ],
+        ]),
+        'partner.shopeemobile.com/api/v2/logistics/create_shipping_document*' => Http::response([
+            'error' => 'common.batch_api_all_failed',
+            'message' => 'Failed, please check result_list for more details.',
+            'request_id' => 'req-batch-fail-99',
+            'response' => [
+                'result_list' => [
+                    [
+                        'order_sn' => $orderSn,
+                        'fail_error' => 'logistics.tracking_number_invalid',
+                        'fail_message' => 'The tracking number is invalid.',
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    $response = $this->actingAs($user)->post(route('omnichannel.orders.shipping-documents'), [
+        'rows' => [
+            ['channel' => 'shopee', 'order_ref' => $orderSn, 'shop_ref' => '100'],
+        ],
+    ]);
+
+    $response->assertRedirect();
+    $response->assertSessionHas('error');
+    $error = session('error');
+    expect($error)->toContain('logistics.tracking_number_invalid')
+        ->and($error)->toContain('req-batch-fail-99')
+        ->and($error)->not->toBe('Shopee create_shipping_document gagal.');
+});
+
+it('continues awb flow when create returns duplicate package error', function () {
+    $user = User::factory()->create(['id' => 51]);
+    Permission::findOrCreate(Omnichannel::getPermissions()['orders'], 'web');
+    $user->givePermissionTo(Omnichannel::getPermissions()['orders']);
+
+    $orderSn = 'AWB-DUP-CREATE';
+
+    MarketplaceChannelOrder::query()->create([
+        'channel' => 'shopee',
+        'order_ref' => $orderSn,
+        'shop_ref' => '100',
+        'order_status' => 'READY_TO_SHIP',
+        'last_event_at' => now(),
+        'first_received_at' => now(),
+    ]);
+
+    Http::fake([
+        'partner.shopeemobile.com/api/v2/order/get_order_detail*' => Http::response(
+            awbOrderDetailResponse($orderSn, 'READY_TO_SHIP', 'SPXDUP001'),
+        ),
+        'partner.shopeemobile.com/api/v2/logistics/get_shipping_document_result*' => Http::sequence()
+            ->push([
+                'error' => '',
+                'response' => [
+                    'result_list' => [
+                        ['order_sn' => $orderSn, 'status' => 'PROCESSING'],
+                    ],
+                ],
+            ])
+            ->push([
+                'error' => '',
+                'response' => [
+                    'result_list' => [
+                        ['order_sn' => $orderSn, 'status' => 'READY'],
+                    ],
+                ],
+            ]),
+        'partner.shopeemobile.com/api/v2/logistics/create_shipping_document*' => Http::response([
+            'error' => 'common.batch_api_all_failed',
+            'message' => 'Failed, please check result_list for more details.',
+            'response' => [
+                'result_list' => [
+                    [
+                        'order_sn' => $orderSn,
+                        'fail_error' => 'logistics.package_can_not_print',
+                        'fail_message' => 'Failed, duplicated',
+                    ],
+                ],
+            ],
+        ]),
+        'partner.shopeemobile.com/api/v2/logistics/download_shipping_document*' => Http::response(
+            '%PDF-1.4 dup-recovered',
+            200,
+            ['Content-Type' => 'application/pdf'],
+        ),
+    ]);
+
+    $this->actingAs($user)->post(route('omnichannel.orders.shipping-documents'), [
+        'rows' => [
+            ['channel' => 'shopee', 'order_ref' => $orderSn, 'shop_ref' => '100'],
+        ],
+    ])->assertOk();
 });
 
 it('forbids awb download without omnichannel orders permission', function () {
