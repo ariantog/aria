@@ -2,7 +2,20 @@
 
 ## POS v1 (sell)
 
-Counter **POS — Sell** (`lib/screens/pos_sell_screen.dart`): scanner-first sell, per-user defaults (`preferences.pos`), 58mm receipt download + print (`printing`), optional WhatsApp link, Jubelio push reminder (no reserve). See `doc/pos-mobile-kickoff.md` and `doc/mobile-api.md`.
+Counter **POS — Sell** (`lib/screens/pos_sell_screen.dart`): scanner-first sell, per-user defaults (`preferences.pos`), 58mm receipt via **PDF** (`printing` package) or **Bluetooth ESC/POS** (native thermal), optional WhatsApp link, Jubelio push reminder (no reserve). See `doc/pos-mobile-kickoff.md` and `doc/mobile-api.md`.
+
+## Bluetooth thermal print (58mm, Android-first)
+
+**Packages:** [`print_bluetooth_thermal`](https://pub.dev/packages/print_bluetooth_thermal) (RFCOMM transport) + [`esc_pos_utils_plus`](https://pub.dev/packages/esc_pos_utils_plus) (ESC/POS bytes). Receipt text follows the same layout as `resources/views/transactions/pdf/receipt.blade.php` (18|3|9 monospace columns, branding, subtotal, disc/adj/ppn, total).
+
+1. Pair the 58mm printer in **Android Settings → Bluetooth** (SPP / classic Bluetooth, not BLE-only gadgets without a serial profile).
+2. In Aria Mobile, open **Bluetooth printer** (print icon on the shell app bar, or bluetooth icon on transaction detail).
+3. Select the paired device (MAC is saved in SharedPreferences), tap **Test print**.
+4. From **Transaction detail** or POS success sheet, use **BT print** / **Bluetooth ESC/POS print**.
+
+**iOS:** `print_bluetooth_thermal` lists iOS support, but this project has **not** validated thermal printing on iOS yet (no committed `Info.plist` Bluetooth usage strings). Use PDF print or web for v1 on iOS until tested.
+
+Data comes from `GET /api/mobile/v1/transactions/{id}` (`receipt_branding`, `grand_total`, line `display_name`).
 
 Native client for Aria ERP. Talks to the same Laravel host via `/api/mobile/v1` (Bearer Sanctum token).
 

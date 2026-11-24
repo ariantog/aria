@@ -4,6 +4,7 @@ namespace App\Support\Mobile;
 
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\InvoiceBrandingService;
 
 class MobileTransactionPresenter
 {
@@ -41,12 +42,15 @@ class MobileTransactionPresenter
                 'item_id' => $detail->item_id,
                 'code' => $item?->code,
                 'name' => $item?->name,
+                'display_name' => $item?->getItemName(),
                 'quantity' => (float) $detail->quantity,
                 'price' => (float) $detail->price,
                 'discount' => (float) $detail->discount,
                 'total' => (float) $detail->total,
             ];
         })->values()->all();
+
+        $branding = app(InvoiceBrandingService::class)->forTransaction($transaction);
 
         return [
             'id' => $transaction->id,
@@ -57,6 +61,12 @@ class MobileTransactionPresenter
             'status' => (int) $transaction->status,
             'note' => $transaction->note,
             'total' => $transaction->displaySignedGrandTotal(),
+            'grand_total' => $transaction->displayGrandTotal(),
+            'receipt_branding' => [
+                'company_name' => $branding['company_name'],
+                'address' => $branding['address'],
+                'phone' => $branding['phone'],
+            ],
             'discount' => (float) $transaction->discount,
             'adjustment' => (float) $transaction->adjustment,
             'ppn' => (float) $transaction->ppn,

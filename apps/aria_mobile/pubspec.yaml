@@ -18,6 +18,8 @@ dependencies:
   uuid: ^4.5.1
   printing: ^5.13.4
   url_launcher: ^6.3.1
+  print_bluetooth_thermal: ^1.2.5
+  esc_pos_utils_plus: ^2.0.4
 
 dev_dependencies:
   flutter_test:
