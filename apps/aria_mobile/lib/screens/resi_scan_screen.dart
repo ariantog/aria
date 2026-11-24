@@ -136,6 +136,7 @@ class _ResiScanScreenState extends State<ResiScanScreen> {
     if (upper.startsWith('$prefix-')) {
       return _awbNotInvoiceMessage;
     }
+    return null;
   }
 
   Future<void> _scan() async {

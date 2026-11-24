@@ -29,7 +29,7 @@ it('shows tiktok orders on omnichannel list for user with tiktok shop view permi
         'channel' => 'tiktok',
         'order_ref' => '576653688135258178',
         'shop_ref' => '7495540735365777507',
-        'order_status' => 'UNPAID',
+        'order_status' => 'AWAITING_SHIPMENT',
         'last_event_at' => now(),
         'first_received_at' => now(),
     ]);
@@ -39,7 +39,7 @@ it('shows tiktok orders on omnichannel list for user with tiktok shop view permi
         ->assertOk()
         ->assertSee('data-testid="omnichannel-orders-table"', false)
         ->assertSee('576653688135258178', false)
-        ->assertSee('UNPAID', false);
+        ->assertSee('AWAITING_SHIPMENT', false);
 });
 
 it('forbids legacy webhook route without view permission', function () {
