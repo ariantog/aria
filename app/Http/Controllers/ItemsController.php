@@ -11,6 +11,7 @@ use App\Models\ItemGroup;
 use App\Models\ReadonlyExport;
 use App\Models\Report;
 use App\Models\ShopeeStock;
+use App\Models\TikTokShop;
 use App\Models\Tag;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
@@ -152,6 +153,10 @@ class ItemsController extends Controller
             'can' => $this->itemPermissions($type),
             'isAsset' => $type === ItemType::ASSET_LANCAR,
             'baseUrl' => $type === ItemType::ASSET_LANCAR ? '/assetlancar' : '/items',
+            'showTikTokShopColumn' => Gate::any([
+                TikTokShop::getPermissions()['item_link'],
+                TikTokShop::getPermissions()['view'],
+            ]),
             'flash' => ['success' => session('success'), 'error' => session('error')],
         ]);
     }
@@ -598,6 +603,113 @@ class ItemsController extends Controller
         }
 
         return redirect()->route('items.shopee', $item->id)->with('success', 'Koneksi Shopee diperbarui');
+    }
+
+    public function tiktokShop(
+        Item $item,
+        \App\Services\TikTokShop\TikTokShopItemSearchService $searchService,
+    ) {
+        if (! Gate::any([
+            TikTokShop::getPermissions()['item_link'],
+            TikTokShop::getPermissions()['view'],
+        ])) {
+            abort(403);
+        }
+
+        $item->load(['group', 'tags']);
+
+        return view('items.tiktok-shop', [
+            'item' => $item,
+            'connectionReady' => $searchService->isReady(),
+            'shopCipher' => $searchService->resolveShopCipher(request()->query('shop_cipher')),
+            'searchErrorHint' => $searchService->formatLastErrorForUser(),
+            'flash' => ['success' => session('success'), 'error' => session('error')],
+        ]);
+    }
+
+    public function getTikTokShopItems(
+        Item $item,
+        \App\Services\TikTokShop\TikTokShopItemSearchService $searchService,
+        Request $request,
+    ) {
+        Gate::authorize(Item::getPermissions()['edit']);
+
+        if (! Gate::any([
+            TikTokShop::getPermissions()['item_link'],
+            TikTokShop::getPermissions()['view'],
+        ])) {
+            abort(403);
+        }
+
+        if (! $searchService->isReady()) {
+            return back()->withErrors(['message' => 'TikTok Shop belum ter-authorize. Buka Omnichannel → Settings → Connections → Authorize TikTok Shop.']);
+        }
+
+        $query = (string) $request->input('q', $item->code);
+        $shopCipher = $searchService->resolveShopCipher($request->query('shop_cipher'));
+        $results = $searchService->searchForItem($item, $query, $shopCipher);
+
+        return view('items.tiktok-shop-search', [
+            'item' => $item,
+            'query' => $query,
+            'ariaSku' => (string) $item->code,
+            'shopCipher' => $shopCipher,
+            'searchResults' => $results,
+            'searchErrorHint' => $results === []
+                ? $searchService->formatLastErrorForUser()
+                : null,
+        ]);
+    }
+
+    public function updateTikTokShopLink(
+        Item $item,
+        Request $request,
+        \App\Services\TikTokShop\TikTokShopItemLinkApplier $linkApplier,
+        \App\Services\TikTokShop\TikTokShopItemSearchService $searchService,
+    ) {
+        Gate::authorize(Item::getPermissions()['edit']);
+
+        if (! Gate::any([
+            TikTokShop::getPermissions()['item_link'],
+            TikTokShop::getPermissions()['view'],
+        ])) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'tiktok_shop_product_id' => 'required|string|max:64',
+            'tiktok_shop_sku_id' => 'required|string|max:64',
+            'shop_cipher' => 'nullable|string|max:128',
+        ]);
+
+        $prefetched = null;
+        $productId = (string) $validated['tiktok_shop_product_id'];
+        $skuId = (string) $validated['tiktok_shop_sku_id'];
+        if ($searchService->isReady()) {
+            $shopCipher = $searchService->resolveShopCipher($validated['shop_cipher'] ?? null);
+            $candidates = $searchService->searchForItem($item, (string) $item->code, $shopCipher);
+            $hasMatch = collect($candidates)->contains(
+                fn (array $row) => ($row['product_id'] ?? '') === $productId && ($row['sku_id'] ?? '') === $skuId
+            );
+            if ($hasMatch) {
+                $prefetched = $candidates;
+            }
+        }
+
+        $result = $linkApplier->apply(
+            $item,
+            $productId,
+            $skuId,
+            $prefetched,
+        );
+
+        if (! ($result['ok'] ?? false)) {
+            $field = str_contains((string) ($result['message'] ?? ''), 'SKU') ? 'tiktok_shop_sku_id' : 'tiktok_shop_product_id';
+
+            return back()->withErrors([$field => (string) ($result['message'] ?? 'Gagal link.')]);
+        }
+
+        return redirect()->route('items.tiktok-shop', $item->id)->with('success', 'Koneksi TikTok Shop diperbarui');
     }
 
     public function group(Request $request)

@@ -25,6 +25,7 @@ $filtersStorageKey = 'aria-warehouse-items-filters-open-' . $addrbook->id;
 $columnsStorageKey = 'aria-warehouse-items-columns-' . $addrbook->id;
 $hasJubelio = (bool) ($jubelioSync ?? null);
 $hasShopee = (bool) ($shopeeSync ?? null);
+$hasTikTokWarehouse = (bool) ($hasTikTokWarehouse ?? false);
 $hasAriaOnOrder = Schema::hasColumn('warehouse_item', 'on_order');
 $maxTableCols = 4 + 4
     + ($hasItemAliasColumn ? 1 : 0)
@@ -99,6 +100,12 @@ $sortLink = function (string $column) use ($filters, $sortColumn, $sortDirection
     @if($hasShopee && ($shopeeUnlinkedCount ?? 0) > 0)
         <div x-show="loadShopeeStock" x-cloak class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
             <strong>{{ $shopeeUnlinkedCount }}</strong> item(s) on this page are not linked to Shopee (missing Shopee item ID).
+        </div>
+    @endif
+
+    @if($hasTikTokWarehouse && ($tiktokUnlinkedCount ?? 0) > 0)
+        <div class="rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900" data-testid="warehouse-items-tiktok-unlinked-banner">
+            <strong>{{ $tiktokUnlinkedCount }}</strong> item(s) on this page are not linked to TikTok Shop / Tokopedia (missing product ID).
         </div>
     @endif
 

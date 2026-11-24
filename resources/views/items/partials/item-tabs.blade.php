@@ -10,6 +10,10 @@
     if (\Illuminate\Support\Facades\Gate::check(\App\Models\ShopeeStock::getPermissions()['view'])) {
         $tabs[] = ['Shopee', route('items.shopee', $item->id)];
     }
+    $tiktokPerms = \App\Models\TikTokShop::getPermissions();
+    if (\Illuminate\Support\Facades\Gate::any([$tiktokPerms['item_link'], $tiktokPerms['view']])) {
+        $tabs[] = ['TikTok Shop', route('items.tiktok-shop', $item->id)];
+    }
 @endphp
 <div class="mb-6 flex overflow-x-auto border-b border-gray-200">
     @foreach($tabs as [$label, $href])

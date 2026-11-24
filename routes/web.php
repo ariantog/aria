@@ -113,6 +113,9 @@ Route::middleware(['auth', 'verified', 'active', 'enforce.readonly'])->group(fun
     Route::get('items/{item}/shopee', [App\Http\Controllers\ItemsController::class, 'shopee'])->name('items.shopee');
     Route::get('items/{item}/shopee-search', [App\Http\Controllers\ItemsController::class, 'getShopeeItems'])->name('items.shopee-search');
     Route::post('items/{item}/shopee-link', [App\Http\Controllers\ItemsController::class, 'updateShopeeLink'])->name('items.shopee-link');
+    Route::get('items/{item}/tiktok-shop', [App\Http\Controllers\ItemsController::class, 'tiktokShop'])->name('items.tiktok-shop');
+    Route::get('items/{item}/tiktok-shop-search', [App\Http\Controllers\ItemsController::class, 'getTikTokShopItems'])->name('items.tiktok-shop-search');
+    Route::post('items/{item}/tiktok-shop-link', [App\Http\Controllers\ItemsController::class, 'updateTikTokShopLink'])->name('items.tiktok-shop-link');
     Route::post('items/{item}/convert-identity', [App\Http\Controllers\ItemIdentityConvertController::class, 'store'])->name('items.convert-identity');
     Route::post('items/{item}/recalculate-qty', [App\Http\Controllers\ItemsController::class, 'recalculateQuantity'])->name('items.recalculate-qty');
     Route::post('items/{item}/shopee-warehouse-stock', [App\Http\Controllers\ItemsController::class, 'itemShopeeWarehouseStock'])->name('items.shopee-warehouse-stock');

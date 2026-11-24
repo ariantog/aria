@@ -129,6 +129,31 @@ Aria menyimpan detail error Partner terakhir di `TikTokShopOpenApiService::getLa
 
 Saat gagal, `storage/logs/laravel.log` memuat baris `TikTok Shop Open API GET` dengan `path` berisi `/logistics/…/warehouses`.
 
+## Item SKU link (TikTok Shop + Tokopedia)
+
+Aria stores Partner product identifiers on `items` (nullable, additive migration):
+
+| Column | Meaning |
+|--------|---------|
+| `tiktok_shop_product_id` | TikTok Shop product ID |
+| `tiktok_shop_sku_id` | SKU ID within that product (variant) |
+
+Match at link time uses Partner **`seller_sku`** against `items.code` / `items.legacy_code` (same idea as Shopee `model_sku`).
+
+**UI routes**
+
+| Route name | Method | Notes |
+|------------|--------|-------|
+| `items.tiktok-shop` | `GET items/{item}/tiktok-shop` | Link status tab (with item tabs) |
+| `items.tiktok-shop-search` | `GET items/{item}/tiktok-shop-search` | Product search (`?q=` seller SKU) |
+| `items.tiktok-shop-link` | `POST items/{item}/tiktok-shop-link` | Save `tiktok_shop_product_id` + `tiktok_shop_sku_id` |
+
+**Permissions:** `tiktok-shop-item-link` (new) or existing `tiktok-shop-view` to open tabs; `items-edit` to save links. After deploy: `php artisan tinker --execute="app(\App\Services\PermissionGenerator::class)->generateForModule('TikTokShop');"`.
+
+**OAuth / API:** Product search calls `POST /product/{version}/products/search` with `shop_cipher` (from `tiktok_shop_syncs`, `marketplace_warehouse_syncs`, or `TIKTOK_SHOP_SHOP_CIPHER`). Required seller token scope: **`seller.product.basic`** (Product read/search). Tokopedia listings on the same Partner stack use the same columns and routes.
+
+**Warehouse items page:** When a gudang has TikTok mapping, shows a banner count of page items missing `tiktok_shop_product_id` (mirror Shopee unlinked banner).
+
 ## What’s next (not in this PR)
 
 - Shadow compare to `jubelioorders` (like Shopee omnichannel) — read-only `GET` order detail behind a separate flag, default off.

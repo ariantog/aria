@@ -14,11 +14,13 @@ use App\Models\Operation;
 use App\Models\ReportingEntity;
 use App\Models\ReportingLedgerRole;
 use App\Models\ShopeeStock;
+use App\Models\TikTokShop;
 use App\Models\Tag;
 use App\Services\ExportSellExportService;
 use App\Services\ExportSellQueryService;
 use App\Services\ItemListFilter;
 use App\Services\Shopee\WarehouseShopeeStockService;
+use App\Services\TikTokShop\WarehouseTikTokShopService;
 use App\Services\WarehouseJubelioStockService;
 use App\Services\WarehouseStockExportService;
 use App\Services\Warehouse\WarehouseItemAgeService;
@@ -314,7 +316,7 @@ class AddrbookController extends Controller
         ]);
     }
 
-    public function items($id, Request $request, WarehouseStockQueryService $queryService, WarehouseJubelioStockService $jubelioStockService, WarehouseShopeeStockService $shopeeStockService)
+    public function items($id, Request $request, WarehouseStockQueryService $queryService, WarehouseJubelioStockService $jubelioStockService, WarehouseShopeeStockService $shopeeStockService, WarehouseTikTokShopService $tiktokShopService)
     {
         $a = Addrbook::withTrashed()->findOrFail($id);
         if (! Addrbook::typeHasWarehouseStock((int) $a->type)) {
@@ -341,6 +343,15 @@ class AddrbookController extends Controller
             ? $items->getCollection()->filter(fn (Item $item) => (int) $item->shopee_item_id <= 0)->count()
             : 0;
 
+        $hasTikTokWarehouse = $tiktokShopService->hasWarehouseMapping((int) $a->id);
+        $canViewTikTokItemLink = Gate::any([
+            TikTokShop::getPermissions()['item_link'],
+            TikTokShop::getPermissions()['view'],
+        ]);
+        $tiktokUnlinkedCount = ($hasTikTokWarehouse && $canViewTikTokItemLink)
+            ? $items->getCollection()->filter(fn (Item $item) => ! filled($item->tiktok_shop_product_id))->count()
+            : 0;
+
         return view('addrbook.items', [
             'addrbook' => $a,
             'items' => $items,
@@ -353,6 +364,8 @@ class AddrbookController extends Controller
             'jubelioUnlinkedCount' => $jubelioUnlinkedCount,
             'shopeeSync' => $canViewShopeeStock ? $shopeeSync : null,
             'shopeeUnlinkedCount' => $shopeeUnlinkedCount,
+            'hasTikTokWarehouse' => $hasTikTokWarehouse && $canViewTikTokItemLink,
+            'tiktokUnlinkedCount' => $tiktokUnlinkedCount,
             'can' => [
                 'bank_hidden_balance' => ! (request()->user()?->is_superadmin ?? false) && (request()->user()?->can('addrbook-bank-account-hidden-balance') ?? false),
             ],
