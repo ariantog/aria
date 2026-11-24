@@ -20,6 +20,8 @@ beforeEach(function () {
         'services.shopee_admin.base_url' => 'https://partner.shopeemobile.com',
         'services.shopee_admin.primary_shop_id' => 100,
         'services.shopee_admin.shipping_document_type' => 'NORMAL_AIR_WAYBILL',
+        'services.shopee_admin.awb_tracking_wait_seconds' => 1,
+        'services.shopee_admin.awb_document_poll_seconds' => 30,
     ]);
 
     Setting::query()->updateOrCreate(
@@ -248,6 +250,10 @@ function fakeShopeeAwbHttpForOrder(string $orderSn): void
         'partner.shopeemobile.com/api/v2/order/get_order_detail*' => Http::response(
             awbOrderDetailResponse($orderSn),
         ),
+        'partner.shopeemobile.com/api/v2/logistics/get_tracking_number*' => Http::response([
+            'error' => '',
+            'response' => ['tracking_number' => 'SPXAWB123'],
+        ]),
         'partner.shopeemobile.com/api/v2/logistics/create_shipping_document*' => Http::response([
             'error' => '',
             'response' => [
@@ -493,7 +499,25 @@ it('completes awb when create returns tracking_number_invalid but label task bec
         'partner.shopeemobile.com/api/v2/order/get_order_detail*' => Http::response(
             awbOrderDetailResponse($orderSn, 'READY_TO_SHIP', 'SPXFAIL001'),
         ),
+        'partner.shopeemobile.com/api/v2/logistics/get_tracking_number*' => Http::response([
+            'error' => '',
+            'response' => ['tracking_number' => 'SPXFAIL001'],
+        ]),
         'partner.shopeemobile.com/api/v2/logistics/create_shipping_document*' => Http::sequence()
+            ->push([
+                'error' => 'common.batch_api_all_failed',
+                'message' => 'Failed, please check result_list for more details.',
+                'request_id' => 'req-batch-fail-99',
+                'response' => [
+                    'result_list' => [
+                        [
+                            'order_sn' => $orderSn,
+                            'fail_error' => 'logistics.tracking_number_invalid',
+                            'fail_message' => 'The tracking number is invalid.',
+                        ],
+                    ],
+                ],
+            ])
             ->push([
                 'error' => 'common.batch_api_all_failed',
                 'message' => 'Failed, please check result_list for more details.',
@@ -645,6 +669,10 @@ it('continues awb flow when probe returns should_print_first as top-level error'
         'partner.shopeemobile.com/api/v2/order/get_order_detail*' => Http::response(
             awbOrderDetailResponse($orderSn, 'READY_TO_SHIP', 'SPXID2611245'),
         ),
+        'partner.shopeemobile.com/api/v2/logistics/get_tracking_number*' => Http::response([
+            'error' => '',
+            'response' => ['tracking_number' => 'SPXID2611245'],
+        ]),
         'partner.shopeemobile.com/api/v2/logistics/get_shipping_document_result*' => Http::sequence()
             ->push([
                 'error' => 'logistics.shipping_document_should_print_first',
@@ -729,6 +757,10 @@ it('calls ship_order before create for processed orders without tracking', funct
         'partner.shopeemobile.com/api/v2/logistics/ship_order*' => Http::response([
             'error' => '',
             'response' => [],
+        ]),
+        'partner.shopeemobile.com/api/v2/logistics/get_tracking_number*' => Http::response([
+            'error' => '',
+            'response' => ['tracking_number' => 'SPX-SHIP-FIRST'],
         ]),
         'partner.shopeemobile.com/api/v2/logistics/get_shipping_document_result*' => Http::sequence()
             ->push([

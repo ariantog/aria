@@ -66,6 +66,7 @@ $eventsTableColspan = $showShopColumn ? 11 : 10;
          warehouseLabelsFetchInFlight: false,
          pageRows: @js($pageOrderRows),
          canReprintAwb: @js($canReprintAwb ?? false),
+         awbPrinting: false,
          selected: {},
          rowAwbSelectable(row) {
              return this.canReprintAwb || !row.awb_printed;
@@ -130,6 +131,7 @@ $eventsTableColspan = $showShopColumn ? 11 : 10;
                      form.appendChild(input);
                  });
              });
+             this.awbPrinting = true;
              form.submit();
          },
          async toggleDetail(channel, orderRef, url) {
@@ -356,8 +358,9 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                         @click="submitAwbPrint($event)"
                         class="{{ $formControlClassSm }} border-blue-600 bg-blue-600 px-3 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                         data-testid="omnichannel-awb-print-button"
-                        :disabled="selectedCount() === 0">
-                    Cetak AWB (Shopee)
+                        :disabled="selectedCount() === 0 || awbPrinting">
+                    <span x-show="awbPrinting" x-cloak>Menunggu Shopee…</span>
+                    <span x-show="!awbPrinting" x-cloak>Cetak AWB (Shopee)</span>
                 </button>
             </div>
         </form>

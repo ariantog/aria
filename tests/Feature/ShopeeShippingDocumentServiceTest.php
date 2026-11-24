@@ -12,6 +12,8 @@ beforeEach(function () {
         'services.shopee_admin.base_url' => 'https://partner.shopeemobile.com',
         'services.shopee_admin.primary_shop_id' => 100,
         'services.shopee_admin.shipping_document_type' => 'NORMAL_AIR_WAYBILL',
+        'services.shopee_admin.awb_tracking_wait_seconds' => 1,
+        'services.shopee_admin.awb_document_poll_seconds' => 30,
     ]);
 
     Setting::query()->updateOrCreate(
@@ -45,6 +47,10 @@ it('treats probe should_print_first as pending and completes create download flo
                     ],
                 ],
             ],
+        ]),
+        'partner.shopeemobile.com/api/v2/logistics/get_tracking_number*' => Http::response([
+            'error' => '',
+            'response' => ['tracking_number' => 'SPX-SVC-1'],
         ]),
         'partner.shopeemobile.com/api/v2/logistics/get_shipping_document_result*' => Http::sequence()
             ->push([
@@ -109,6 +115,10 @@ it('retries arrange and create when poll returns should_print_first on ready to 
         'partner.shopeemobile.com/api/v2/logistics/ship_order*' => Http::response([
             'error' => '',
             'response' => [],
+        ]),
+        'partner.shopeemobile.com/api/v2/logistics/get_tracking_number*' => Http::response([
+            'error' => '',
+            'response' => ['tracking_number' => 'SPX-2611245'],
         ]),
         'partner.shopeemobile.com/api/v2/logistics/get_shipping_document_result*' => Http::sequence()
             ->push([
@@ -280,6 +290,10 @@ it('includes package_number on ship_order for split multi-package orders', funct
             'error' => '',
             'response' => [],
         ]),
+        'partner.shopeemobile.com/api/v2/logistics/get_tracking_number*' => Http::response([
+            'error' => '',
+            'response' => ['tracking_number' => 'TRK-SPLIT'],
+        ]),
         'partner.shopeemobile.com/api/v2/logistics/get_shipping_document_result*' => Http::sequence()
             ->push([
                 'error' => 'logistics.shipping_document_should_print_first',
@@ -326,7 +340,7 @@ it('includes package_number on ship_order for split multi-package orders', funct
     }
 });
 
-it('omits tracking_number on create_shipping_document even when order detail has resi', function () {
+it('omits tracking_number on create_shipping_document when get_tracking_number stays empty', function () {
     $orderSn = '2611245WYMT9ET';
 
     Http::fake([
@@ -342,6 +356,10 @@ it('omits tracking_number on create_shipping_document even when order detail has
                     ],
                 ],
             ],
+        ]),
+        'partner.shopeemobile.com/api/v2/logistics/get_tracking_number*' => Http::response([
+            'error' => '',
+            'response' => ['tracking_number' => ''],
         ]),
         'partner.shopeemobile.com/api/v2/logistics/get_shipping_document_result*' => Http::sequence()
             ->push([
@@ -405,6 +423,10 @@ it('retries create without tracking when Shopee returns tracking_number_invalid'
                 ],
             ],
         ]),
+        'partner.shopeemobile.com/api/v2/logistics/get_tracking_number*' => Http::response([
+            'error' => '',
+            'response' => ['tracking_number' => 'SPX-STALE-INVALID'],
+        ]),
         'partner.shopeemobile.com/api/v2/logistics/get_shipping_document_result*' => Http::sequence()
             ->push([
                 'error' => 'logistics.shipping_document_should_print_first',
@@ -456,7 +478,9 @@ it('retries create without tracking when Shopee returns tracking_number_invalid'
         fn ($pair) => str_contains($pair[0]->url(), '/api/v2/logistics/create_shipping_document')
     );
     expect($createRequests)->toHaveCount(2);
-    foreach ($createRequests as [$request]) {
+    $firstBody = $createRequests->first()[0]->data()['order_list'][0] ?? [];
+    expect($firstBody)->toHaveKey('tracking_number');
+    foreach ($createRequests->slice(1) as [$request]) {
         $orderList = $request->data()['order_list'] ?? [];
         foreach ($orderList as $item) {
             expect($item)->not->toHaveKey('tracking_number');
@@ -481,6 +505,10 @@ it('polls and downloads when create still returns tracking_number_invalid', func
                 ],
             ],
         ]),
+        'partner.shopeemobile.com/api/v2/logistics/get_tracking_number*' => Http::response([
+            'error' => '',
+            'response' => ['tracking_number' => 'SPX-STALE-INVALID'],
+        ]),
         'partner.shopeemobile.com/api/v2/logistics/get_shipping_document_result*' => Http::sequence()
             ->push([
                 'error' => 'logistics.shipping_document_should_print_first',
@@ -495,6 +523,19 @@ it('polls and downloads when create still returns tracking_number_invalid', func
                 ],
             ]),
         'partner.shopeemobile.com/api/v2/logistics/create_shipping_document*' => Http::sequence()
+            ->push([
+                'error' => 'common.batch_api_all_failed',
+                'message' => 'Failed, please check result_list for more details.',
+                'response' => [
+                    'result_list' => [
+                        [
+                            'order_sn' => $orderSn,
+                            'fail_error' => 'logistics.tracking_number_invalid',
+                            'fail_message' => 'The tracking number is invalid.',
+                        ],
+                    ],
+                ],
+            ])
             ->push([
                 'error' => 'common.batch_api_all_failed',
                 'message' => 'Failed, please check result_list for more details.',
@@ -536,7 +577,22 @@ it('polls and downloads when create still returns tracking_number_invalid', func
     $createRequests = collect(Http::recorded())->filter(
         fn ($pair) => str_contains($pair[0]->url(), '/api/v2/logistics/create_shipping_document')
     );
-    expect($createRequests)->toHaveCount(2);
+    expect($createRequests)->toHaveCount(3);
+});
+
+it('waitForTrackingNumber polls until resi is returned', function () {
+    Http::fake([
+        'partner.shopeemobile.com/api/v2/logistics/get_tracking_number*' => Http::sequence()
+            ->push(['error' => '', 'response' => ['tracking_number' => '']])
+            ->push(['error' => '', 'response' => ['tracking_number' => '004692022568']]),
+    ]);
+
+    config(['services.shopee_admin.awb_tracking_wait_seconds' => 5]);
+
+    $service = app(ShopeeShippingDocumentService::class);
+    $tracking = $service->waitForTrackingNumber(100, '2611245WYMT9ET');
+
+    expect($tracking)->toBe('004692022568');
 });
 
 it('skips create when get_shipping_document_result already shows PROCESSING', function () {
@@ -606,6 +662,10 @@ it('throws actionable message when create still fails after arrange hint', funct
                     ],
                 ],
             ],
+        ]),
+        'partner.shopeemobile.com/api/v2/logistics/get_tracking_number*' => Http::response([
+            'error' => '',
+            'response' => ['tracking_number' => 'SPX-ERR'],
         ]),
         'partner.shopeemobile.com/api/v2/logistics/get_shipping_document_result*' => Http::response([
             'error' => 'logistics.shipping_document_should_print_first',
