@@ -5,12 +5,14 @@ namespace App\Services\Marketplace;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\Expression;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Ops queue buckets for marketplace_channel_orders (Current orders view).
  *
  * Unprocessed = paid-valid rows that still need AWB/pick (Shopee PROCESSED; TikTok AWAITING_SHIPMENT).
- * Ready to ship = label printed / handover-ready (Shopee READY_TO_SHIP + RETRY_SHIP; TikTok AWAITING_COLLECTION only).
+ * Shopee READY_TO_SHIP / RETRY_SHIP from webhooks stay Unprocessed until awb_printed_at is set (Cetak AWB).
+ * Ready to ship = Shopee printed AWB + those statuses; TikTok AWAITING_COLLECTION only (no awb_printed_at gate yet).
  */
 class MarketplaceChannelOrderOpsBucket
 {
@@ -172,6 +174,7 @@ class MarketplaceChannelOrderOpsBucket
         string $channel,
         ?string $commercePlatform,
         ?string $orderStatus,
+        ?bool $awbPrinted = null,
     ): ?string {
         if ($orderStatus === null || trim($orderStatus) === '') {
             return null;
@@ -201,6 +204,10 @@ class MarketplaceChannelOrderOpsBucket
             }
             $statuses = array_map('strtoupper', $this->statusesForBucket($statusKey, $bucket));
             if (in_array($upper, $statuses, true)) {
+                if ($this->shopeeReadyTabRequiresAwb($statusKey, $upper) && $awbPrinted !== true) {
+                    return self::BUCKET_UNPROCESSED;
+                }
+
                 return $bucket;
             }
         }
@@ -227,6 +234,12 @@ class MarketplaceChannelOrderOpsBucket
         $parts = [];
         foreach ($this->statusesForBucket('shopee', self::BUCKET_UNPROCESSED) as $status) {
             $parts[] = "(channel = 'shopee' AND UPPER(TRIM(order_status)) = '".addslashes($status)."')";
+        }
+        if ($this->shopeeAwbGateEnabled()) {
+            foreach ($this->statusesForBucket('shopee', self::BUCKET_READY_TO_SHIP) as $status) {
+                $esc = addslashes($status);
+                $parts[] = "(channel = 'shopee' AND UPPER(TRIM(order_status)) = '{$esc}' AND awb_printed_at IS NULL)";
+            }
         }
         foreach ($this->statusesForBucket('tiktok', self::BUCKET_UNPROCESSED) as $status) {
             $esc = addslashes($status);
@@ -263,11 +276,75 @@ class MarketplaceChannelOrderOpsBucket
 
         $upperStatuses = array_map(static fn (string $s) => strtoupper($s), $statuses);
 
-        $outer->{$boolean}(function (Builder $inner) use ($channel, $platformScope, $upperStatuses): void {
+        $outer->{$boolean}(function (Builder $inner) use ($channel, $platformScope, $upperStatuses, $opsBucket): void {
             $inner->where('channel', $channel);
             $this->applyCommercePlatformScope($inner, $platformScope);
+
+            if ($channel === MarketplaceWebhookRecorder::CHANNEL_SHOPEE && $this->shopeeAwbGateEnabled()) {
+                $this->applyShopeeAwbScopedStatuses($inner, $opsBucket, $upperStatuses);
+
+                return;
+            }
+
             $inner->whereIn(DB::raw('UPPER(TRIM(order_status))'), $upperStatuses);
         });
+    }
+
+    /**
+     * @param  Builder<\App\Models\MarketplaceChannelOrder>  $inner
+     * @param  list<string>  $upperStatuses
+     */
+    private function applyShopeeAwbScopedStatuses(Builder $inner, string $opsBucket, array $upperStatuses): void
+    {
+        if ($opsBucket === self::BUCKET_UNPROCESSED) {
+            $unprocessedStatuses = array_map(
+                static fn (string $s) => strtoupper($s),
+                $this->statusesForBucket('shopee', self::BUCKET_UNPROCESSED),
+            );
+            $readyStatuses = array_map(
+                static fn (string $s) => strtoupper($s),
+                $this->statusesForBucket('shopee', self::BUCKET_READY_TO_SHIP),
+            );
+
+            $inner->where(function (Builder $clause) use ($unprocessedStatuses, $readyStatuses): void {
+                $clause->whereIn(DB::raw('UPPER(TRIM(order_status))'), $unprocessedStatuses)
+                    ->orWhere(function (Builder $preAwbReady) use ($readyStatuses): void {
+                        $preAwbReady->whereIn(DB::raw('UPPER(TRIM(order_status))'), $readyStatuses)
+                            ->whereNull('awb_printed_at');
+                    });
+            });
+
+            return;
+        }
+
+        if ($opsBucket === self::BUCKET_READY_TO_SHIP) {
+            $inner->whereIn(DB::raw('UPPER(TRIM(order_status))'), $upperStatuses)
+                ->whereNotNull('awb_printed_at');
+
+            return;
+        }
+
+        $inner->whereIn(DB::raw('UPPER(TRIM(order_status))'), $upperStatuses);
+    }
+
+    private function shopeeAwbGateEnabled(): bool
+    {
+        return Schema::hasTable('marketplace_channel_orders')
+            && Schema::hasColumn('marketplace_channel_orders', 'awb_printed_at');
+    }
+
+    private function shopeeReadyTabRequiresAwb(string $statusKey, string $upperOrderStatus): bool
+    {
+        if ($statusKey !== 'shopee' || ! $this->shopeeAwbGateEnabled()) {
+            return false;
+        }
+
+        $ready = array_map(
+            'strtoupper',
+            $this->statusesForBucket('shopee', self::BUCKET_READY_TO_SHIP),
+        );
+
+        return in_array($upperOrderStatus, $ready, true);
     }
 
     /**

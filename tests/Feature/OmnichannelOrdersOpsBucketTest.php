@@ -17,7 +17,8 @@ function seedOpsBucketFixtureOrders(): void
   $now = now();
     $rows = [
         ['channel' => 'shopee', 'order_ref' => 'OPS-UNPROC-S', 'order_status' => 'PROCESSED', 'last' => $now->copy()->subMinutes(1)],
-        ['channel' => 'shopee', 'order_ref' => 'OPS-READY-S', 'order_status' => 'READY_TO_SHIP', 'last' => $now],
+        ['channel' => 'shopee', 'order_ref' => 'OPS-READY-S', 'order_status' => 'READY_TO_SHIP', 'last' => $now, 'awb_printed_at' => $now],
+        ['channel' => 'shopee', 'order_ref' => 'OPS-READY-NOAWB', 'order_status' => 'READY_TO_SHIP', 'last' => $now->copy()->subMinutes(3)],
         ['channel' => 'shopee', 'order_ref' => 'OPS-SHIP-S', 'order_status' => 'SHIPPED', 'last' => $now],
         ['channel' => 'tiktok', 'order_ref' => 'OPS-UNPROC-T', 'order_status' => 'AWAITING_SHIPMENT', 'last' => $now->copy()->subMinutes(2)],
         ['channel' => 'tiktok', 'order_ref' => 'OPS-READY-T', 'order_status' => 'AWAITING_COLLECTION', 'last' => $now],
@@ -34,6 +35,7 @@ function seedOpsBucketFixtureOrders(): void
             'order_status' => $row['order_status'],
             'last_event_at' => $row['last'],
             'first_received_at' => $now->subDay(),
+            'awb_printed_at' => $row['awb_printed_at'] ?? null,
         ]);
     }
 }
@@ -47,6 +49,7 @@ it('defaults current orders view to unprocessed ops bucket', function () {
         ->assertSee('data-testid="omnichannel-ops-bucket-cards"', false)
         ->assertSee('OPS-UNPROC-S', false)
         ->assertSee('OPS-UNPROC-T', false)
+        ->assertSee('OPS-READY-NOAWB', false)
         ->assertDontSee('OPS-READY-S', false)
         ->assertDontSee('OPS-SHIP-S', false);
 });
@@ -112,7 +115,45 @@ it('exposes stat card counts per ops bucket', function () {
         ]))
         ->assertOk()
         ->assertSee('data-testid="omnichannel-ops-bucket-unprocessed"', false)
-        ->assertSee('>2<', false);
+        ->assertSee('>3<', false);
+});
+
+it('keeps shopee ready_to_ship without awb in unprocessed bucket', function () {
+    MarketplaceChannelOrder::query()->create([
+        'channel' => 'shopee',
+        'order_ref' => 'WEBHOOK-READY',
+        'shop_ref' => 'shop-1',
+        'order_status' => 'READY_TO_SHIP',
+        'last_event_at' => now(),
+        'first_received_at' => now()->subHour(),
+    ]);
+
+    $this->actingAs($this->admin)
+        ->get(route('omnichannel.orders.index', ['view' => 'orders', 'ops_bucket' => 'unprocessed']))
+        ->assertOk()
+        ->assertSee('WEBHOOK-READY', false);
+
+    $this->actingAs($this->admin)
+        ->get(route('omnichannel.orders.index', ['view' => 'orders', 'ops_bucket' => 'ready_to_ship']))
+        ->assertOk()
+        ->assertDontSee('WEBHOOK-READY', false);
+});
+
+it('places shopee ready_to_ship with awb in ready_to_ship bucket', function () {
+    MarketplaceChannelOrder::query()->create([
+        'channel' => 'shopee',
+        'order_ref' => 'AWB-READY',
+        'shop_ref' => 'shop-1',
+        'order_status' => 'READY_TO_SHIP',
+        'awb_printed_at' => now(),
+        'last_event_at' => now(),
+        'first_received_at' => now()->subHour(),
+    ]);
+
+    $this->actingAs($this->admin)
+        ->get(route('omnichannel.orders.index', ['view' => 'orders', 'ops_bucket' => 'ready_to_ship']))
+        ->assertOk()
+        ->assertSee('AWB-READY', false);
 });
 
 it('validates ops bucket via presenter service', function () {
@@ -125,7 +166,9 @@ it('reverse-maps platform status to ops bucket for list chips', function () {
     $service = app(MarketplaceChannelOrderOpsBucket::class);
     expect($service->opsBucketForOrderStatus('shopee', null, 'PROCESSED'))
         ->toBe(MarketplaceChannelOrderOpsBucket::BUCKET_UNPROCESSED);
-    expect($service->opsBucketForOrderStatus('shopee', null, 'READY_TO_SHIP'))
+    expect($service->opsBucketForOrderStatus('shopee', null, 'READY_TO_SHIP', false))
+        ->toBe(MarketplaceChannelOrderOpsBucket::BUCKET_UNPROCESSED);
+    expect($service->opsBucketForOrderStatus('shopee', null, 'READY_TO_SHIP', true))
         ->toBe(MarketplaceChannelOrderOpsBucket::BUCKET_READY_TO_SHIP);
     expect($service->opsBucketForOrderStatus('tiktok', null, 'AWAITING_SHIPMENT'))
         ->toBe(MarketplaceChannelOrderOpsBucket::BUCKET_UNPROCESSED);
