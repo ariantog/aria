@@ -39,6 +39,27 @@ beforeEach(function () {
     );
 });
 
+function awbShippingDocumentParameterHttpResponse(string $orderSn = '', string $suggest = 'THERMAL_AIR_WAYBILL'): array
+{
+    $list = $orderSn !== ''
+        ? [[
+            'order_sn' => $orderSn,
+            'suggest_shipping_document_type' => $suggest,
+            'selectable_shipping_document_type_list' => [
+                'NORMAL_AIR_WAYBILL',
+                'THERMAL_AIR_WAYBILL',
+            ],
+        ]]
+        : [];
+
+    return [
+        'partner.shopeemobile.com/api/v2/logistics/get_shipping_document_parameter*' => Http::response([
+            'error' => '',
+            'response' => ['result_list' => $list],
+        ]),
+    ];
+}
+
 function awbOrderDetailResponse(string $orderSn, string $orderStatus = 'PROCESSED', string $tracking = 'SPXAWB123'): array
 {
     return [
@@ -75,7 +96,7 @@ it('skips non-shopee rows when printing awb', function () {
     Http::assertNothingSent();
 });
 
-it('downloads shopee awb pdf for selected orders', function () {
+it('requests then downloads shopee awb pdf for selected orders', function () {
     $user = User::factory()->create(['id' => 42]);
     Permission::findOrCreate(Omnichannel::getPermissions()['orders'], 'web');
     $user->givePermissionTo(Omnichannel::getPermissions()['orders']);
@@ -91,7 +112,7 @@ it('downloads shopee awb pdf for selected orders', function () {
         'first_received_at' => now(),
     ]);
 
-    Http::fake([
+    Http::fake(array_merge(awbShippingDocumentParameterHttpResponse($orderSn), [
         'partner.shopeemobile.com/api/v2/order/get_order_detail*' => Http::response(
             awbOrderDetailResponse($orderSn),
         ),
@@ -119,13 +140,30 @@ it('downloads shopee awb pdf for selected orders', function () {
                         ['order_sn' => $orderSn, 'status' => 'READY'],
                     ],
                 ],
+            ])
+            ->push([
+                'error' => '',
+                'response' => [
+                    'result_list' => [
+                        ['order_sn' => $orderSn, 'status' => 'READY'],
+                    ],
+                ],
             ]),
         'partner.shopeemobile.com/api/v2/logistics/download_shipping_document*' => Http::response(
             '%PDF-1.4 fake-awb-binary',
             200,
             ['Content-Type' => 'application/pdf'],
         ),
-    ]);
+    ]));
+
+    $this->actingAs($user)->post(route('omnichannel.orders.shipping-documents.request'), [
+        'rows' => [
+            ['channel' => 'shopee', 'order_ref' => $orderSn, 'shop_ref' => '100'],
+        ],
+    ])->assertRedirect()->assertSessionHas('success');
+
+    $channelOrder = MarketplaceChannelOrder::query()->where('order_ref', $orderSn)->first();
+    expect($channelOrder->awb_document_ready_at)->not->toBeNull();
 
     $response = $this->actingAs($user)->post(route('omnichannel.orders.shipping-documents'), [
         'rows' => [
@@ -133,14 +171,15 @@ it('downloads shopee awb pdf for selected orders', function () {
         ],
     ]);
 
-    $response->assertOk();
+    $response->assertOk()
+        ->assertSessionMissing('error');
     $response->assertHeader('content-type', 'application/pdf');
     expect($response->streamedContent())->toContain('%PDF');
 
     expect(MarketplaceChannelOrder::query()->where('order_ref', $orderSn)->value('order_status'))
         ->toBe('READY_TO_SHIP');
 
-    $channelOrder = MarketplaceChannelOrder::query()->where('order_ref', $orderSn)->first();
+    $channelOrder->refresh();
     expect($channelOrder)->not->toBeNull()
         ->and((int) $channelOrder->awb_printed_by)->toBe((int) $user->id)
         ->and($channelOrder->awb_printed_at)->not->toBeNull();
@@ -170,7 +209,8 @@ it('shows awb toolbar on current orders view', function () {
         ->get(route('omnichannel.orders.index', ['view' => 'orders']))
         ->assertOk()
         ->assertSee('data-testid="omnichannel-awb-toolbar"', false)
-        ->assertSee('TikTok/Tokopedia belum didukung', false)
+        ->assertSee('Minta AWB', false)
+        ->assertSee('Unduh AWB', false)
         ->assertSee('data-testid="omnichannel-awb-row-', false)
         ->assertSee($admin->username, false);
 });
@@ -230,6 +270,8 @@ it('does not overwrite jubelio scanner user when awb print touches queue row', f
         ),
     ]);
 
+    awbMarkDocumentReady($orderSn);
+
     $this->actingAs($printer)->post(route('omnichannel.orders.shipping-documents'), [
         'rows' => [
             ['channel' => 'shopee', 'order_ref' => $orderSn, 'shop_ref' => '100'],
@@ -246,7 +288,7 @@ it('does not overwrite jubelio scanner user when awb print touches queue row', f
 
 function fakeShopeeAwbHttpForOrder(string $orderSn): void
 {
-    Http::fake([
+    Http::fake(array_merge(awbShippingDocumentParameterHttpResponse($orderSn), [
         'partner.shopeemobile.com/api/v2/order/get_order_detail*' => Http::response(
             awbOrderDetailResponse($orderSn),
         ),
@@ -275,7 +317,15 @@ function fakeShopeeAwbHttpForOrder(string $orderSn): void
             200,
             ['Content-Type' => 'application/pdf'],
         ),
-    ]);
+    ]));
+}
+
+function awbMarkDocumentReady(string $orderSn): void
+{
+    MarketplaceChannelOrder::query()
+        ->where('channel', 'shopee')
+        ->where('order_ref', $orderSn)
+        ->update(['awb_document_ready_at' => now()]);
 }
 
 it('blocks second awb print without reprint permission', function () {
@@ -350,6 +400,7 @@ it('allows awb reprint with reprint permission and records audit rows', function
     ]);
 
     fakeShopeeAwbHttpForOrder($orderSn);
+    awbMarkDocumentReady($orderSn);
 
     $this->actingAs($user)->post(route('omnichannel.orders.shipping-documents'), [
         'rows' => [
@@ -383,6 +434,7 @@ it('allows superadmin to reprint awb without explicit permission', function () {
     ]);
 
     fakeShopeeAwbHttpForOrder($orderSn);
+    awbMarkDocumentReady($orderSn);
 
     $this->actingAs($admin)->post(route('omnichannel.orders.shipping-documents'), [
         'rows' => [
@@ -417,6 +469,7 @@ it('appends awb audit row on first successful print', function () {
     ]);
 
     fakeShopeeAwbHttpForOrder($orderSn);
+    awbMarkDocumentReady($orderSn);
 
     $this->actingAs($user)->post(route('omnichannel.orders.shipping-documents'), [
         'rows' => [
@@ -446,7 +499,7 @@ it('downloads awb for ready_to_ship order when shipping document is already read
         'first_received_at' => now(),
     ]);
 
-    Http::fake([
+    Http::fake(array_merge(awbShippingDocumentParameterHttpResponse($orderSn), [
         'partner.shopeemobile.com/api/v2/order/get_order_detail*' => Http::response(
             awbOrderDetailResponse($orderSn, 'READY_TO_SHIP', 'SPXID2611245'),
         ),
@@ -463,7 +516,9 @@ it('downloads awb for ready_to_ship order when shipping document is already read
             200,
             ['Content-Type' => 'application/pdf'],
         ),
-    ]);
+    ]));
+
+    awbMarkDocumentReady($orderSn);
 
     $response = $this->actingAs($user)->post(route('omnichannel.orders.shipping-documents'), [
         'rows' => [
@@ -575,6 +630,8 @@ it('completes awb when create returns tracking_number_invalid but label task bec
         ),
     ]);
 
+    awbMarkDocumentReady($orderSn);
+
     $response = $this->actingAs($user)->post(route('omnichannel.orders.shipping-documents'), [
         'rows' => [
             ['channel' => 'shopee', 'order_ref' => $orderSn, 'shop_ref' => '100'],
@@ -642,6 +699,8 @@ it('continues awb flow when create returns duplicate package error', function ()
         ),
     ]);
 
+    awbMarkDocumentReady($orderSn);
+
     $this->actingAs($user)->post(route('omnichannel.orders.shipping-documents'), [
         'rows' => [
             ['channel' => 'shopee', 'order_ref' => $orderSn, 'shop_ref' => '100'],
@@ -702,14 +761,13 @@ it('continues awb flow when probe returns should_print_first as top-level error'
         ),
     ]);
 
-    $response = $this->actingAs($user)->post(route('omnichannel.orders.shipping-documents'), [
+    $response = $this->actingAs($user)->post(route('omnichannel.orders.shipping-documents.request'), [
         'rows' => [
             ['channel' => 'shopee', 'order_ref' => $orderSn, 'shop_ref' => '100'],
         ],
     ]);
 
-    $response->assertOk();
-    expect($response->streamedContent())->toContain('%PDF');
+    $response->assertRedirect()->assertSessionHas('success');
 
     Http::assertSent(function ($request) {
         return str_contains($request->url(), '/api/v2/logistics/create_shipping_document');
@@ -790,11 +848,11 @@ it('calls ship_order before create for processed orders without tracking', funct
         ),
     ]);
 
-    $this->actingAs($user)->post(route('omnichannel.orders.shipping-documents'), [
+    $this->actingAs($user)->post(route('omnichannel.orders.shipping-documents.request'), [
         'rows' => [
             ['channel' => 'shopee', 'order_ref' => $orderSn, 'shop_ref' => '100'],
         ],
-    ])->assertOk();
+    ])->assertRedirect()->assertSessionHas('success');
 
     Http::assertSent(function ($request) {
         return str_contains($request->url(), '/api/v2/logistics/ship_order');

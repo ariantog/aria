@@ -38,6 +38,9 @@ if (! $isEventsView && isset($rows) && $rows !== null) {
             'order_ref' => (string) $orderRow->order_ref,
             'shop_ref' => (string) ($orderRow->shop_ref ?? ''),
             'awb_printed' => filled($orderRow->awb_printed_at ?? null),
+            'awb_ready' => filled($orderRow->awb_document_ready_at ?? null),
+            'awb_pending' => filled($orderRow->awb_document_requested_at ?? null)
+                && blank($orderRow->awb_document_ready_at ?? null),
         ];
     }
 }
@@ -67,6 +70,7 @@ $eventsTableColspan = $showShopColumn ? 11 : 10;
          pageRows: @js($pageOrderRows),
          canReprintAwb: @js($canReprintAwb ?? false),
          awbPrinting: false,
+         awbRequesting: false,
          selected: {},
          rowAwbSelectable(row) {
              return this.canReprintAwb || !row.awb_printed;
@@ -109,17 +113,12 @@ $eventsTableColspan = $showShopColumn ? 11 : 10;
                  selectable.forEach((row) => { this.selected[this.selectionKey(row)] = row; });
              }
          },
-         submitAwbPrint(e) {
-             e.preventDefault();
-             const form = this.$refs.awbForm;
-             if (!form) {
-                 return;
-             }
+         appendAwbRowsToForm(form) {
              form.querySelectorAll('[data-awb-dynamic]').forEach((el) => el.remove());
              const rows = Object.values(this.selected);
              if (rows.length === 0) {
                  alert('Pilih minimal satu baris order.');
-                 return;
+                 return false;
              }
              rows.forEach((row, index) => {
                  ['channel', 'order_ref', 'shop_ref'].forEach((field) => {
@@ -131,6 +130,33 @@ $eventsTableColspan = $showShopColumn ? 11 : 10;
                      form.appendChild(input);
                  });
              });
+             return true;
+         },
+         submitAwbRequest(e) {
+             e.preventDefault();
+             const form = this.$refs.awbRequestForm;
+             if (!form || !this.appendAwbRowsToForm(form)) {
+                 return;
+             }
+             this.awbRequesting = true;
+             form.submit();
+         },
+         submitAwbDownload(e) {
+             e.preventDefault();
+             const form = this.$refs.awbDownloadForm;
+             if (!form || !this.appendAwbRowsToForm(form)) {
+                 return;
+             }
+             const rows = Object.values(this.selected);
+             const notReady = rows.filter((row) => row.channel === 'shopee' && !row.awb_ready);
+             if (notReady.length > 0) {
+                 const ok = confirm(
+                     notReady.length + ' order belum AWB siap — unduhan akan dilewati untuk yang belum siap. Lanjut?',
+                 );
+                 if (!ok) {
+                     return;
+                 }
+             }
              this.awbPrinting = true;
              form.submit();
          },
@@ -314,6 +340,9 @@ $eventsTableColspan = $showShopColumn ? 11 : 10;
     @if(session('warning'))
     <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" data-testid="omnichannel-awb-flash-warning">{{ session('warning') }}</div>
     @endif
+    @if(session('success'))
+    <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900" data-testid="omnichannel-awb-flash-success">{{ session('success') }}</div>
+    @endif
 
     @php
     $missingTable = $isEventsView ? ! $eventsTableExists : ! $ordersTableExists;
@@ -340,30 +369,43 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
         @php
             require resource_path('views/partials/form-control-class-vars.php');
         @endphp
-        <form method="post"
-              action="{{ route('omnichannel.orders.shipping-documents') }}"
-              x-ref="awbForm"
-              class="border-b border-gray-100 bg-gray-50 px-3 py-2"
-              data-testid="omnichannel-awb-toolbar">
-            @csrf
-            <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-                <p class="text-xs text-gray-600">
-                    <span class="font-medium text-gray-800">Cetak AWB (Shopee)</span>
-                    — v1 hanya Shopee Admin Open API. TikTok/Tokopedia belum didukung.
-                    <span class="text-gray-500" x-show="selectedCount() > 0" x-cloak>
-                        · <span x-text="selectedCount()"></span> terpilih
-                    </span>
-                </p>
-                <button type="button"
-                        @click="submitAwbPrint($event)"
-                        class="{{ $formControlClassSm }} border-blue-600 bg-blue-600 px-3 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-                        data-testid="omnichannel-awb-print-button"
-                        :disabled="selectedCount() === 0 || awbPrinting">
-                    <span x-show="awbPrinting" x-cloak>Menunggu Shopee…</span>
-                    <span x-show="!awbPrinting" x-cloak>Cetak AWB (Shopee)</span>
-                </button>
+        <div class="border-b border-gray-100 bg-gray-50 px-3 py-2 space-y-2" data-testid="omnichannel-awb-toolbar">
+            <p class="text-xs text-gray-600">
+                <span class="font-medium text-gray-800">AWB Shopee (2 langkah)</span>
+                — <strong>Minta AWB</strong> (task Shopee) lalu <strong>Unduh AWB</strong> (PDF). v1 hanya Shopee.
+                <span class="text-gray-500" x-show="selectedCount() > 0" x-cloak>
+                    · <span x-text="selectedCount()"></span> terpilih
+                </span>
+            </p>
+            <div class="flex flex-wrap gap-2">
+                <form method="post"
+                      action="{{ route('omnichannel.orders.shipping-documents.request') }}"
+                      x-ref="awbRequestForm">
+                    @csrf
+                    <button type="button"
+                            @click="submitAwbRequest($event)"
+                            class="{{ $formControlClassSm }} border-indigo-600 bg-indigo-600 px-3 font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            data-testid="omnichannel-awb-request-button"
+                            :disabled="selectedCount() === 0 || awbRequesting">
+                        <span x-show="awbRequesting" x-cloak>Meminta Shopee…</span>
+                        <span x-show="!awbRequesting" x-cloak>Minta AWB</span>
+                    </button>
+                </form>
+                <form method="post"
+                      action="{{ route('omnichannel.orders.shipping-documents') }}"
+                      x-ref="awbDownloadForm">
+                    @csrf
+                    <button type="button"
+                            @click="submitAwbDownload($event)"
+                            class="{{ $formControlClassSm }} border-blue-600 bg-blue-600 px-3 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            data-testid="omnichannel-awb-download-button"
+                            :disabled="selectedCount() === 0 || awbPrinting">
+                        <span x-show="awbPrinting" x-cloak>Mengunduh…</span>
+                        <span x-show="!awbPrinting" x-cloak>Unduh AWB</span>
+                    </button>
+                </form>
             </div>
-        </form>
+        </div>
         @endif
         <div class="border-b border-gray-100 px-3 py-2 text-xs text-gray-500">
             {{ number_format($rows->total()) }} baris — halaman {{ $rows->currentPage() }} / {{ $rows->lastPage() }}
@@ -504,7 +546,7 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                         <th class="{{ $th }} w-24">channel</th>
                         <th class="{{ $th }}">order_ref</th>
                         <th class="{{ $th }} w-28">status</th>
-                        <th class="{{ $th }} w-28">AWB cetak</th>
+                        <th class="{{ $th }} w-32">AWB</th>
                         @if($showShopColumn)
                         <th class="{{ $th }} w-32">Shop</th>
                         @endif
@@ -527,8 +569,13 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                             'order_ref' => (string) $row->order_ref,
                             'shop_ref' => (string) ($row->shop_ref ?? ''),
                             'awb_printed' => filled($row->awb_printed_at ?? null),
+                            'awb_ready' => filled($row->awb_document_ready_at ?? null),
+                            'awb_pending' => filled($row->awb_document_requested_at ?? null)
+                                && blank($row->awb_document_ready_at ?? null),
                         ];
                         $awbAlreadyPrinted = filled($row->awb_printed_at ?? null);
+                        $awbDocumentReady = filled($row->awb_document_ready_at ?? null);
+                        $awbDocumentPending = filled($row->awb_document_requested_at ?? null) && ! $awbDocumentReady;
                     @endphp
                     <tr class="hover:bg-gray-50/80">
                         <td class="{{ $td }} text-center">
@@ -573,11 +620,23 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                             @endif
                         </td>
                         <td class="{{ $td }} text-[11px] text-gray-600"
-                            data-testid="omnichannel-order-awb-printer-{{ $row->id }}">
+                            data-testid="omnichannel-order-awb-status-{{ $row->id }}">
                             @if((int) ($row->awb_printed_by ?? 0) > 0)
                             <span class="inline-flex rounded-full bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-900"
-                                  title="AWB dicetak {{ $row->awb_printed_at?->format('Y-m-d H:i:s') ?? '—' }}">
-                                {{ $row->awbPrintedBy?->username ?? 'user #'.$row->awb_printed_by }}
+                                  title="AWB diunduh {{ $row->awb_printed_at?->format('Y-m-d H:i:s') ?? '—' }}">
+                                Dicetak · {{ $row->awbPrintedBy?->username ?? 'user #'.$row->awb_printed_by }}
+                            </span>
+                            @elseif($awbDocumentReady)
+                            <span class="inline-flex rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-900"
+                                  data-testid="omnichannel-awb-badge-ready"
+                                  title="Siap unduh {{ $row->awb_document_ready_at?->format('Y-m-d H:i:s') ?? '—' }}">
+                                AWB ready
+                            </span>
+                            @elseif($awbDocumentPending)
+                            <span class="inline-flex rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-900"
+                                  data-testid="omnichannel-awb-badge-pending"
+                                  title="Diminta {{ $row->awb_document_requested_at?->format('Y-m-d H:i:s') ?? '—' }}">
+                                Menunggu Shopee
                             </span>
                             @else
                             —

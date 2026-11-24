@@ -35,6 +35,10 @@ it('treats probe should_print_first as pending and completes create download flo
     $orderSn = 'SVC-PROBE-FIRST';
 
     Http::fake([
+        'partner.shopeemobile.com/api/v2/logistics/get_shipping_document_parameter*' => Http::response([
+            'error' => '',
+            'response' => ['result_list' => []],
+        ]),
         'partner.shopeemobile.com/api/v2/order/get_order_detail*' => Http::response([
             'error' => '',
             'response' => [
@@ -91,6 +95,10 @@ it('retries arrange and create when poll returns should_print_first on ready to 
     $orderSn = '2611245VU2MSJP';
 
     Http::fake([
+        'partner.shopeemobile.com/api/v2/logistics/get_shipping_document_parameter*' => Http::response([
+            'error' => '',
+            'response' => ['result_list' => []],
+        ]),
         'partner.shopeemobile.com/api/v2/order/get_order_detail*' => Http::response([
             'error' => '',
             'response' => [
@@ -169,6 +177,10 @@ it('omits package_number on ship_order for unsplit orders with a single package_
     $packageNumber = 'OFG-i947sh1';
 
     Http::fake([
+        'partner.shopeemobile.com/api/v2/logistics/get_shipping_document_parameter*' => Http::response([
+            'error' => '',
+            'response' => ['result_list' => []],
+        ]),
         'partner.shopeemobile.com/api/v2/order/get_order_detail*' => Http::response([
             'error' => '',
             'response' => [
@@ -262,6 +274,10 @@ it('includes package_number on ship_order for split multi-package orders', funct
     $pkgB = 'PKG-SPLIT-B';
 
     Http::fake([
+        'partner.shopeemobile.com/api/v2/logistics/get_shipping_document_parameter*' => Http::response([
+            'error' => '',
+            'response' => ['result_list' => []],
+        ]),
         'partner.shopeemobile.com/api/v2/order/get_order_detail*' => Http::response([
             'error' => '',
             'response' => [
@@ -344,6 +360,10 @@ it('omits tracking_number on create_shipping_document when get_tracking_number s
     $orderSn = '2611245WYMT9ET';
 
     Http::fake([
+        'partner.shopeemobile.com/api/v2/logistics/get_shipping_document_parameter*' => Http::response([
+            'error' => '',
+            'response' => ['result_list' => []],
+        ]),
         'partner.shopeemobile.com/api/v2/order/get_order_detail*' => Http::response([
             'error' => '',
             'response' => [
@@ -410,6 +430,10 @@ it('retries create without tracking when Shopee returns tracking_number_invalid'
     $orderSn = '2611245WYMT9ET';
 
     Http::fake([
+        'partner.shopeemobile.com/api/v2/logistics/get_shipping_document_parameter*' => Http::response([
+            'error' => '',
+            'response' => ['result_list' => []],
+        ]),
         'partner.shopeemobile.com/api/v2/order/get_order_detail*' => Http::response([
             'error' => '',
             'response' => [
@@ -492,6 +516,10 @@ it('polls and downloads when create still returns tracking_number_invalid', func
     $orderSn = '2611245WYMT9ET';
 
     Http::fake([
+        'partner.shopeemobile.com/api/v2/logistics/get_shipping_document_parameter*' => Http::response([
+            'error' => '',
+            'response' => ['result_list' => []],
+        ]),
         'partner.shopeemobile.com/api/v2/order/get_order_detail*' => Http::response([
             'error' => '',
             'response' => [
@@ -599,6 +627,10 @@ it('skips create when get_shipping_document_result already shows PROCESSING', fu
     $orderSn = 'AWB-EXISTING-TASK';
 
     Http::fake([
+        'partner.shopeemobile.com/api/v2/logistics/get_shipping_document_parameter*' => Http::response([
+            'error' => '',
+            'response' => ['result_list' => []],
+        ]),
         'partner.shopeemobile.com/api/v2/order/get_order_detail*' => Http::response([
             'error' => '',
             'response' => [
@@ -650,6 +682,10 @@ it('throws actionable message when create still fails after arrange hint', funct
     $orderSn = 'SVC-SHIP-ERR';
 
     Http::fake([
+        'partner.shopeemobile.com/api/v2/logistics/get_shipping_document_parameter*' => Http::response([
+            'error' => '',
+            'response' => ['result_list' => []],
+        ]),
         'partner.shopeemobile.com/api/v2/order/get_order_detail*' => Http::response([
             'error' => '',
             'response' => [
@@ -706,4 +742,77 @@ it('throws actionable message when create still fails after arrange hint', funct
     } catch (\RuntimeException $e) {
         expect($e->getMessage())->toContain('ship the order first');
     }
+});
+
+it('sends thermal air waybill type from get_shipping_document_parameter on create', function () {
+    $orderSn = 'SVC-THERMAL-TYPE';
+
+    Http::fake([
+        'partner.shopeemobile.com/api/v2/logistics/get_shipping_document_parameter*' => Http::response([
+            'error' => '',
+            'response' => [
+                'result_list' => [
+                    [
+                        'order_sn' => $orderSn,
+                        'suggest_shipping_document_type' => 'THERMAL_AIR_WAYBILL',
+                        'selectable_shipping_document_type_list' => [
+                            'NORMAL_AIR_WAYBILL',
+                            'THERMAL_AIR_WAYBILL',
+                        ],
+                    ],
+                ],
+            ],
+        ]),
+        'partner.shopeemobile.com/api/v2/order/get_order_detail*' => Http::response([
+            'error' => '',
+            'response' => [
+                'order_list' => [
+                    [
+                        'order_sn' => $orderSn,
+                        'order_status' => 'READY_TO_SHIP',
+                        'tracking_number' => 'SPX-THERMAL',
+                        'package_list' => [],
+                    ],
+                ],
+            ],
+        ]),
+        'partner.shopeemobile.com/api/v2/logistics/get_shipping_document_result*' => Http::sequence()
+            ->push([
+                'error' => 'logistics.shipping_document_should_print_first',
+                'message' => 'should print first',
+            ])
+            ->push([
+                'error' => '',
+                'response' => [
+                    'result_list' => [
+                        ['order_sn' => $orderSn, 'status' => 'READY'],
+                    ],
+                ],
+            ]),
+        'partner.shopeemobile.com/api/v2/logistics/create_shipping_document*' => Http::response([
+            'error' => '',
+            'response' => [
+                'result_list' => [
+                    ['order_sn' => $orderSn, 'fail_error' => ''],
+                ],
+            ],
+        ]),
+        'partner.shopeemobile.com/api/v2/logistics/download_shipping_document*' => Http::response(
+            '%PDF-1.4 thermal',
+            200,
+            ['Content-Type' => 'application/pdf'],
+        ),
+    ]);
+
+    app(ShopeeShippingDocumentService::class)->downloadPdfBatchesForShop(100, [$orderSn]);
+
+    Http::assertSent(function ($request) {
+        if (! str_contains($request->url(), '/api/v2/logistics/create_shipping_document')) {
+            return false;
+        }
+        $body = $request->data();
+        $list = $body['order_list'] ?? [];
+
+        return ($list[0]['shipping_document_type'] ?? '') === 'THERMAL_AIR_WAYBILL';
+    });
 });

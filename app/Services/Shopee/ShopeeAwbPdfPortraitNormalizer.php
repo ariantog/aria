@@ -24,7 +24,10 @@ class ShopeeAwbPdfPortraitNormalizer
 
     private const SIZE_TOLERANCE_MM = 4.0;
 
-    public function normalize(string $pdfBinary): string
+    /**
+     * @param  bool  $minimalTransform  When true (Shopee THERMAL_AIR_WAYBILL), only fix true landscape A6 — no wide-crop or squeeze.
+     */
+    public function normalize(string $pdfBinary, bool $minimalTransform = false): string
     {
         if (! str_starts_with($pdfBinary, '%PDF')) {
             return $pdfBinary;
@@ -44,7 +47,7 @@ class ShopeeAwbPdfPortraitNormalizer
             for ($pageNo = 1; $pageNo <= $pageCount; $pageNo++) {
                 $templateId = $pdf->importPage($pageNo);
                 $size = $pdf->getTemplateSize($templateId);
-                $plan = $this->planTransform((float) $size['width'], (float) $size['height']);
+                $plan = $this->planTransform((float) $size['width'], (float) $size['height'], $minimalTransform);
                 $plans[$pageNo] = ['templateId' => $templateId, 'size' => $size, 'plan' => $plan];
                 if ($plan['mode'] !== 'portrait_already_a6') {
                     $needsRewrite = true;
@@ -62,7 +65,7 @@ class ShopeeAwbPdfPortraitNormalizer
             for ($pageNo = 1; $pageNo <= $pageCount; $pageNo++) {
                 $templateId = $pdf->importPage($pageNo);
                 $size = $pdf->getTemplateSize($templateId);
-                $plan = $this->planTransform((float) $size['width'], (float) $size['height']);
+                $plan = $this->planTransform((float) $size['width'], (float) $size['height'], $minimalTransform);
                 $this->renderPage($pdf, $templateId, $size, $plan);
             }
 
@@ -79,13 +82,24 @@ class ShopeeAwbPdfPortraitNormalizer
     /**
      * @return array{mode: string}
      */
-    private function planTransform(float $widthMm, float $heightMm): array
+    private function planTransform(float $widthMm, float $heightMm, bool $minimalTransform): array
     {
         if ($widthMm <= 0.0 || $heightMm <= 0.0) {
-            return ['mode' => 'portrait_fit'];
+            return $minimalTransform ? ['mode' => 'portrait_already_a6'] : ['mode' => 'portrait_fit'];
         }
 
         if ($this->isPortraitA6($widthMm, $heightMm)) {
+            return ['mode' => 'portrait_already_a6'];
+        }
+
+        if ($minimalTransform) {
+            if ($widthMm > $heightMm) {
+                $ratio = $widthMm / $heightMm;
+                if ($ratio >= self::LANDSCAPE_A6_RATIO_MIN && $ratio <= self::LANDSCAPE_A6_RATIO_MAX) {
+                    return ['mode' => 'rotate_landscape_a6'];
+                }
+            }
+
             return ['mode' => 'portrait_already_a6'];
         }
 

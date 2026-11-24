@@ -32,6 +32,8 @@ class MarketplaceChannelOrder extends Model
         'updated_at',
         'awb_printed_by',
         'awb_printed_at',
+        'awb_document_requested_at',
+        'awb_document_ready_at',
     ];
 
     protected function casts(): array
@@ -44,6 +46,8 @@ class MarketplaceChannelOrder extends Model
             'aria_warehouse_id' => 'integer',
             'awb_printed_by' => 'integer',
             'awb_printed_at' => 'datetime',
+            'awb_document_requested_at' => 'datetime',
+            'awb_document_ready_at' => 'datetime',
         ];
     }
 

@@ -55,6 +55,18 @@ it('crops wide landscape awb canvas to portrait a6', function () {
         ->and((float) $size['height'])->toBeLessThan(153.0);
 });
 
+it('passes through wide canvas unchanged in minimal thermal mode', function () {
+    $wide = new ShopeeAwbPortraitPdf('L', 'mm');
+    $wide->AddPage('L', [420, 210]);
+    $wide->SetFont('Helvetica', '', 12);
+    $wide->Cell(90, 8, 'THERMAL-WIDE');
+    $input = $wide->Output('S');
+
+    $out = app(ShopeeAwbPdfPortraitNormalizer::class)->normalize($input, minimalTransform: true);
+
+    expect($out)->toBe($input);
+});
+
 it('leaves portrait a6 pdf unchanged', function () {
     $portrait = new ShopeeAwbPortraitPdf('P', 'mm');
     $portrait->AddPage('P', [105, 148]);
