@@ -255,8 +255,8 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                         <th class="{{ $th }} w-16">event</th>
                         <th class="{{ $th }}">order_ref</th>
                         <th class="{{ $th }} w-28">order_status</th>
-                        <th class="{{ $th }}">shop_ref</th>
-                        <th class="{{ $th }} w-32">gudang</th>
+                        <th class="{{ $th }} w-36">gudang</th>
+                        <th class="{{ $th }} w-32">Platform WH</th>
                         <th class="{{ $th }} w-20 text-center">sign OK</th>
                         <th class="{{ $th }} w-24 text-right">payload</th>
                     </tr>
@@ -266,6 +266,7 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                     @php
                         $gudangName = $shopResolver->warehouseNameForListRow($row, $shopRefToWarehouse, $warehouseNames);
                         $gudangUnmapped = filled($row->shop_ref) && $gudangName === null;
+                        $platformWhLabel = $shopResolver->platformWarehouseLabelForListRow($row);
                         $payloadJson = json_encode($row->payload ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
                         $payloadPreview = \Illuminate\Support\Str::limit($payloadJson, 80, '…');
                         $channelLabel = $omnichannelChannelLabel($row);
@@ -287,16 +288,26 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                             <span class="ml-1 inline-flex rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-gray-500">{{ $bucketLabel }}</span>
                             @endif
                         </td>
-                        <td class="{{ $td }} font-mono text-[11px] break-all">{{ $row->shop_ref ?? '—' }}</td>
-                        <td class="{{ $td }} text-gray-600"
+                        <td class="{{ $td }} text-gray-800"
                             data-testid="omnichannel-event-gudang-{{ $row->id }}">
                             @if($gudangName)
-                            {{ $gudangName }}
+                            <span class="font-medium">{{ $gudangName }}</span>
+                            @elseif($gudangUnmapped)
+                            <span title="Not mapped to an Aria warehouse">—</span>
+                            <span class="block text-[10px] text-gray-400">Not mapped</span>
                             @else
-                            <span @if($gudangUnmapped) title="belum di-sync" @endif>—</span>
-                            @if($gudangUnmapped)
-                            <span class="block text-[10px] text-gray-400">belum di-sync</span>
+                            —
                             @endif
+                            @if(filled($row->shop_ref))
+                            <span class="mt-0.5 block font-mono text-[10px] text-gray-500 break-all" data-testid="omnichannel-event-shop-ref-{{ $row->id }}">{{ $row->shop_ref }}</span>
+                            @endif
+                        </td>
+                        <td class="{{ $td }} text-gray-600"
+                            data-testid="omnichannel-event-platform-wh-{{ $row->id }}">
+                            @if($platformWhLabel)
+                            <span class="text-xs">{{ $platformWhLabel }}</span>
+                            @else
+                            —
                             @endif
                         </td>
                         <td class="{{ $td }} text-center">
@@ -362,8 +373,8 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                         <th class="{{ $th }} w-24">channel</th>
                         <th class="{{ $th }}">order_ref</th>
                         <th class="{{ $th }} w-28">status</th>
-                        <th class="{{ $th }}">shop</th>
-                        <th class="{{ $th }} w-32">gudang</th>
+                        <th class="{{ $th }} w-36">gudang</th>
+                        <th class="{{ $th }} w-32">Platform WH</th>
                         <th class="{{ $th }} w-36">last_event</th>
                         <th class="{{ $th }} w-36">first_received</th>
                     </tr>
@@ -373,6 +384,7 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                     @php
                         $gudangName = $shopResolver->warehouseNameForListRow($row, $shopRefToWarehouse, $warehouseNames);
                         $gudangUnmapped = filled($row->shop_ref) && $gudangName === null;
+                        $platformWhLabel = $shopResolver->platformWarehouseLabelForListRow($row);
                         $detailUrl = route('omnichannel.orders.show', ['channel' => $row->channel, 'orderRef' => $row->order_ref]);
                         $channelLabel = $omnichannelChannelLabel($row);
                         $awbRow = [
@@ -411,16 +423,26 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                             <span class="ml-1 inline-flex rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-gray-500">{{ $orderBucketLabel }}</span>
                             @endif
                         </td>
-                        <td class="{{ $td }} font-mono text-[11px] break-all">{{ $row->shop_ref ?? '—' }}</td>
-                        <td class="{{ $td }} text-gray-600"
+                        <td class="{{ $td }} text-gray-800"
                             data-testid="omnichannel-order-gudang-{{ $row->id }}">
                             @if($gudangName)
-                            {{ $gudangName }}
+                            <span class="font-medium">{{ $gudangName }}</span>
+                            @elseif($gudangUnmapped)
+                            <span title="Not mapped to an Aria warehouse">—</span>
+                            <span class="block text-[10px] text-gray-400">Not mapped</span>
                             @else
-                            <span @if($gudangUnmapped) title="belum di-sync" @endif>—</span>
-                            @if($gudangUnmapped)
-                            <span class="block text-[10px] text-gray-400">belum di-sync</span>
+                            —
                             @endif
+                            @if(filled($row->shop_ref))
+                            <span class="mt-0.5 block font-mono text-[10px] text-gray-500 break-all" data-testid="omnichannel-order-shop-ref-{{ $row->id }}">{{ $row->shop_ref }}</span>
+                            @endif
+                        </td>
+                        <td class="{{ $td }} text-gray-600"
+                            data-testid="omnichannel-order-platform-wh-{{ $row->id }}">
+                            @if($platformWhLabel)
+                            <span class="text-xs">{{ $platformWhLabel }}</span>
+                            @else
+                            —
                             @endif
                         </td>
                         <td class="{{ $td }} whitespace-nowrap text-gray-600">{{ $row->last_event_at?->format('Y-m-d H:i:s') ?? '—' }}</td>

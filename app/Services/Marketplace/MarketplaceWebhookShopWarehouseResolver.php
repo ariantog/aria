@@ -3,6 +3,7 @@
 namespace App\Services\Marketplace;
 
 use App\Models\Addrbook;
+use App\Models\MarketplaceChannelOrder;
 use App\Models\MarketplaceWarehouseSync;
 use App\Models\Shopeesync;
 use App\Models\TiktokShopSync;
@@ -16,6 +17,9 @@ use Illuminate\Support\Facades\Schema;
  */
 class MarketplaceWebhookShopWarehouseResolver
 {
+    /** @var array<string, ?string> */
+    private array $platformWarehouseLabelCache = [];
+
     public function __construct(
         private MarketplaceWarehouseSyncResolver $warehouseSyncResolver,
     ) {}
@@ -221,9 +225,9 @@ class MarketplaceWebhookShopWarehouseResolver
         array $warehouseNames,
     ): ?string {
         $channel = strtolower((string) ($row->channel ?? ''));
+        $payload = $this->payloadForListRow($row);
 
         if ($channel === MarketplaceWebhookRecorder::CHANNEL_TIKTOK) {
-            $payload = is_array($row->payload ?? null) ? $row->payload : null;
             $warehouseId = $this->resolveAriaWarehouseId(
                 $row->shop_ref ?? null,
                 $payload,
@@ -236,7 +240,113 @@ class MarketplaceWebhookShopWarehouseResolver
             return null;
         }
 
+        if ($payload !== null) {
+            $warehouseId = $this->resolveAriaWarehouseId(
+                $row->shop_ref ?? null,
+                $payload,
+                isset($row->commerce_platform) ? (string) $row->commerce_platform : null,
+            );
+            if ($warehouseId > 0) {
+                return $warehouseNames[$warehouseId] ?? $warehouseNames[(string) $warehouseId] ?? null;
+            }
+        }
+
         return $this->warehouseNameForShopRef($row->shop_ref ?? null, $shopRefToWarehouse, $warehouseNames);
+    }
+
+    /**
+     * Platform warehouse label for list rows (matrix name when mapped, else raw id).
+     */
+    public function platformWarehouseLabelForListRow(object $row): ?string
+    {
+        $payload = $this->payloadForListRow($row);
+        $platformId = $this->extractPlatformWarehouseIdFromPayload($payload);
+        if ($platformId === null) {
+            return null;
+        }
+
+        $channel = strtolower((string) ($row->channel ?? ''));
+        $shopRef = $this->normalizeShopRef($row->shop_ref ?? null);
+        $commercePlatform = isset($row->commerce_platform) ? (string) $row->commerce_platform : null;
+
+        if ($shopRef !== '' && Schema::hasTable('marketplace_warehouse_syncs')) {
+            $name = $this->lookupPlatformWarehouseName($channel, $shopRef, $platformId, $commercePlatform);
+            if ($name !== null && $name !== '') {
+                return $name;
+            }
+        }
+
+        return $platformId;
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $payload
+     */
+    public function payloadForListRow(object $row): ?array
+    {
+        if (is_array($row->payload ?? null)) {
+            return $row->payload;
+        }
+
+        $event = null;
+        if ($row instanceof MarketplaceChannelOrder && $row->relationLoaded('lastWebhookEvent')) {
+            $event = $row->lastWebhookEvent;
+        } elseif (isset($row->lastWebhookEvent)) {
+            $event = $row->lastWebhookEvent;
+        }
+
+        if ($event !== null && is_array($event->payload ?? null)) {
+            return $event->payload;
+        }
+
+        return null;
+    }
+
+    protected function lookupPlatformWarehouseName(
+        string $channel,
+        string $shopRef,
+        string $platformWarehouseId,
+        ?string $commercePlatform,
+    ): ?string {
+        $cacheKey = $channel.':'.$shopRef.':'.$platformWarehouseId.':'.strtoupper(trim((string) $commercePlatform));
+        if (array_key_exists($cacheKey, $this->platformWarehouseLabelCache)) {
+            return $this->platformWarehouseLabelCache[$cacheKey];
+        }
+
+        $unifiedChannel = $channel === MarketplaceWebhookRecorder::CHANNEL_SHOPEE
+            ? MarketplaceWarehouseSync::CHANNEL_SHOPEE
+            : MarketplaceWarehouseSync::CHANNEL_TIKTOK;
+
+        if (! in_array($unifiedChannel, [MarketplaceWarehouseSync::CHANNEL_SHOPEE, MarketplaceWarehouseSync::CHANNEL_TIKTOK], true)) {
+            $this->platformWarehouseLabelCache[$cacheKey] = null;
+
+            return null;
+        }
+
+        $base = MarketplaceWarehouseSync::query()
+            ->where('channel', $unifiedChannel)
+            ->where('shop_ref', $shopRef)
+            ->where('platform_warehouse_id', $platformWarehouseId);
+
+        $name = null;
+        if ($unifiedChannel === MarketplaceWarehouseSync::CHANNEL_TIKTOK) {
+            $commerce = $this->normalizeCommercePlatform($commercePlatform);
+            if ($commerce !== '') {
+                $name = (clone $base)->where('commerce_platform', $commerce)->value('platform_warehouse_name');
+            }
+            if (! filled($name)) {
+                $name = (clone $base)->where('commerce_platform', '')->value('platform_warehouse_name');
+            }
+        }
+
+        if (! filled($name)) {
+            $name = (clone $base)->value('platform_warehouse_name');
+        }
+
+        $name = filled($name) ? trim((string) $name) : null;
+        $this->platformWarehouseLabelCache[$cacheKey] = $name;
+
+        return $name;
     }
 
     /**

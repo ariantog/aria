@@ -2,6 +2,7 @@
 
 use App\Models\Addrbook;
 use App\Models\MarketplaceChannelOrder;
+use App\Models\MarketplaceWarehouseSync;
 use App\Models\MarketplaceWebhookEvent;
 use App\Models\Omnichannel;
 use App\Models\Shopeesync;
@@ -35,8 +36,9 @@ it('renders sidebar omnichannel group with child links for superadmin', function
         ->assertSee(route('omnichannel.orders.index', ['view' => 'orders']), false)
         ->assertSee($webhooksUrl, false)
         ->assertSee($currentOrdersUrl, false)
-        ->assertSee('Webhooks', false)
+        ->assertSeeInOrder(['Current orders', 'Webhooks'], false)
         ->assertSee('Current orders', false)
+        ->assertSee('Webhooks', false)
         ->assertDontSee('Webhook Inbox', false)
         ->assertSee(route('omnichannel.index'), false)
         ->assertSee(route('omnichannel.settings.index'), false);
@@ -60,7 +62,7 @@ it('forbids omnichannel orders without permission', function () {
         ->assertForbidden();
 });
 
-it('shows gudang from shop_ref and hides platform column on current orders', function () {
+it('shows mapped gudang in gudang column with platform wh on current orders', function () {
     $admin = User::factory()->create();
     $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Demo']);
 
@@ -96,8 +98,57 @@ it('shows gudang from shop_ref and hides platform column on current orders', fun
         ->assertOk()
         ->assertSee('Gudang Demo', false)
         ->assertSee('Tokopedia', false)
-        ->assertSee('belum di-sync', false)
-        ->assertDontSee('>platform</th>', false);
+        ->assertSee('Not mapped', false)
+        ->assertSee('>Platform WH</th>', false);
+});
+
+it('resolves tiktok gudang on orders list from last webhook payload and matrix', function () {
+    $admin = User::factory()->create();
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Matrix CITOS']);
+    $shopRef = '7495540735365777507';
+    $platformWhId = '7392489215199020821';
+
+    MarketplaceWarehouseSync::query()->create([
+        'channel' => MarketplaceWarehouseSync::CHANNEL_TIKTOK,
+        'shop_ref' => $shopRef,
+        'platform_warehouse_id' => $platformWhId,
+        'platform_location_id' => '',
+        'platform_warehouse_name' => 'TTS Hub CITOS',
+        'warehouse_id' => $warehouse->id,
+    ]);
+
+    $event = MarketplaceWebhookEvent::query()->create([
+        'channel' => 'tiktok',
+        'idempotency_key' => 'tiktok:'.$shopRef.':1:TIKTOK-WH-LIST-1:1',
+        'event_type' => '1',
+        'shop_ref' => $shopRef,
+        'order_ref' => 'TIKTOK-WH-LIST-1',
+        'order_status' => 'AWAITING_SHIPMENT',
+        'signature_ok' => true,
+        'payload' => [
+            'data' => [
+                'warehouse_id' => $platformWhId,
+            ],
+        ],
+        'received_at' => now(),
+    ]);
+
+    $order = MarketplaceChannelOrder::query()->create([
+        'channel' => 'tiktok',
+        'order_ref' => 'TIKTOK-WH-LIST-1',
+        'shop_ref' => $shopRef,
+        'order_status' => 'AWAITING_SHIPMENT',
+        'last_event_at' => now(),
+        'first_received_at' => now()->subMinutes(5),
+        'last_webhook_event_id' => $event->id,
+    ]);
+
+    $this->actingAs($admin)
+        ->get(route('omnichannel.orders.index', ['view' => 'orders', 'order_ref' => 'TIKTOK-WH-LIST-1']))
+        ->assertOk()
+        ->assertSee('Matrix CITOS', false)
+        ->assertSee('TTS Hub CITOS', false)
+        ->assertSee('data-testid="omnichannel-order-gudang-'.$order->id.'"', false);
 });
 
 it('renders orders list without calling shopee admin api', function () {
