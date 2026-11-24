@@ -14,6 +14,7 @@ class MarketplaceChannelOrderAwbPromoter
 
     public function __construct(
         private MarketplaceWebhookStatusPresenter $statusPresenter,
+        private ShopeeJubelioQueuePrecreator $jubelioQueuePrecreator,
     ) {}
 
     /**
@@ -66,5 +67,13 @@ class MarketplaceChannelOrderAwbPromoter
         }
 
         return $updated;
+    }
+
+    /**
+     * @param  array<int, list<string>>  $ordersByShopId
+     */
+    public function ensureJubelioQueueAfterAwb(array $ordersByShopId): int
+    {
+        return $this->jubelioQueuePrecreator->ensureQueueRowsFromAwbPrint($ordersByShopId);
     }
 }
