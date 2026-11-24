@@ -84,6 +84,7 @@ class BackfillMarketplaceWebhookEventsCommand extends Command
                     $row->push_code !== null ? (int) $row->push_code : null,
                     $row->ordersn,
                     $payload,
+                    filled($row->order_status) ? (string) $row->order_status : null,
                 );
 
                 if ($dryRun) {

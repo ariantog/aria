@@ -66,6 +66,14 @@ $lineLabels = [
         @include('omnichannel.partials.ingress-timeline', ['ingress' => $ingress ?? [], 'dataTestid' => 'omnichannel-ingress-timeline'])
     </div>
 
+    @if(!empty($orderDetail))
+    @include('omnichannel.partials.webhook-log', [
+        'events' => $orderDetail['webhook_events'] ?? [],
+        'channel' => 'shopee',
+        'statusPresenter' => $statusPresenter ?? null,
+    ])
+    @endif
+
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800/50">
             <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Ringkasan Shopee</h2>

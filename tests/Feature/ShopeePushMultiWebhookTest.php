@@ -1,0 +1,142 @@
+<?php
+
+use App\Models\MarketplaceWebhookEvent;
+use App\Models\ShopeePushInbox;
+use App\Models\User;
+use App\Services\Marketplace\MarketplaceWebhookRecorder;
+use App\Services\Marketplace\MarketplaceWebhookStatusPresenter;
+use App\Services\Shopee\ShopeePushSignatureVerifier;
+
+beforeEach(function () {
+    config([
+        'marketplace.webhook.unified_storage' => true,
+        'services.shopee_push.partner_key' => 'test-partner-key',
+        'services.shopee_push.verify_signature' => true,
+        'services.shopee_push.callback_url' => '',
+        'services.shopee_push.store_inbox' => true,
+        'services.shopee_push.store_inbox_codes' => [0, 3, 4, 30],
+        'services.shopee_push.shadow_enabled' => false,
+    ]);
+});
+
+function postSignedShopeePush(string $body): \Illuminate\Testing\TestResponse
+{
+    $callbackUrl = url(route('shopee.push', [], false));
+    $authorization = app(ShopeePushSignatureVerifier::class)->sign($callbackUrl, $body);
+
+    return test()->call('POST', route('shopee.push'), [], [], [], [
+        'HTTP_AUTHORIZATION' => $authorization,
+        'CONTENT_TYPE' => 'application/json',
+    ], $body);
+}
+
+it('persists distinct inbox and webhook rows for code 3 status changes and code 30 fulfillment', function () {
+    $shopId = 727720655;
+    $ordersn = '2611245BWFK367';
+    $sharedTimestamp = 1_732_413_400;
+
+    $pushes = [
+        '{"data":{"items":[],"ordersn":"'.$ordersn.'","status":"UNPAID","update_time":'.$sharedTimestamp.'},"shop_id":'.$shopId.',"code":3,"timestamp":'.$sharedTimestamp.'}',
+        '{"data":{"items":[],"ordersn":"'.$ordersn.'","status":"READY_TO_SHIP","update_time":'.$sharedTimestamp.'},"shop_id":'.$shopId.',"code":3,"timestamp":'.$sharedTimestamp.'}',
+        '{"data":{"ordersn":"'.$ordersn.'","package_number":"PKG1","logistics_status":"LOGISTICS_NOT_START"},"shop_id":'.$shopId.',"code":30,"timestamp":'.$sharedTimestamp.'}',
+        '{"data":{"ordersn":"'.$ordersn.'","package_number":"PKG1","logistics_status":"LOGISTICS_READY"},"shop_id":'.$shopId.',"code":30,"timestamp":'.($sharedTimestamp + 3).'}',
+    ];
+
+    foreach ($pushes as $body) {
+        postSignedShopeePush($body)->assertOk();
+    }
+
+    expect(ShopeePushInbox::query()->where('ordersn', $ordersn)->count())->toBe(4)
+        ->and(MarketplaceWebhookEvent::query()->where('order_ref', $ordersn)->count())->toBe(4);
+
+    $statuses = MarketplaceWebhookEvent::query()
+        ->where('order_ref', $ordersn)
+        ->orderBy('id')
+        ->pluck('order_status')
+        ->all();
+
+    expect($statuses)->toBe([
+        'UNPAID',
+        'READY_TO_SHIP',
+        'FULFILLMENT:LOGISTICS_NOT_START',
+        'FULFILLMENT:LOGISTICS_READY',
+    ]);
+});
+
+it('records code 30 on unified storage when inbox code filter excludes it', function () {
+    config(['services.shopee_push.store_inbox' => false]);
+
+    $body = '{"data":{"ordersn":"FUL-ONLY","logistics_status":"LOGISTICS_READY"},"shop_id":9,"code":30,"timestamp":1660123127}';
+    postSignedShopeePush($body)->assertOk();
+
+    expect(ShopeePushInbox::count())->toBe(0)
+        ->and(MarketplaceWebhookEvent::query()->where('order_ref', 'FUL-ONLY')->count())->toBe(1);
+});
+
+it('dedupes identical shopee pushes by payload hash suffix', function () {
+    $body = '{"data":{"ordersn":"DEDUPE1","status":"SHIPPED","update_time":1},"shop_id":1,"code":3,"timestamp":99}';
+
+    postSignedShopeePush($body)->assertOk();
+    postSignedShopeePush($body)->assertOk();
+
+    expect(MarketplaceWebhookEvent::query()->where('order_ref', 'DEDUPE1')->count())->toBe(1);
+});
+
+it('shopee idempotency keys differ for same timestamp and different ingest status', function () {
+    $payloadA = ['code' => 3, 'timestamp' => 100, 'data' => ['status' => 'UNPAID']];
+    $payloadB = ['code' => 3, 'timestamp' => 100, 'data' => ['status' => 'READY_TO_SHIP']];
+
+    $keyA = MarketplaceWebhookRecorder::shopeeIdempotencyKey(1, 3, 'SN', $payloadA, 'UNPAID');
+    $keyB = MarketplaceWebhookRecorder::shopeeIdempotencyKey(1, 3, 'SN', $payloadB, 'READY_TO_SHIP');
+
+    expect($keyA)->not->toBe($keyB);
+});
+
+it('maps shopee code 30 logistics status for ingest', function () {
+    $presenter = app(MarketplaceWebhookStatusPresenter::class);
+
+    expect($presenter->resolveIngestStatus('shopee', 30, [
+        'code' => 30,
+        'data' => ['ordersn' => 'X', 'logistics_status' => 'LOGISTICS_READY'],
+    ]))->toBe('FULFILLMENT:LOGISTICS_READY')
+        ->and($presenter->eventTypeLabel('shopee', 30))->toBe('Package fulfillment');
+});
+
+it('shows webhook log on shopee shadow detail page', function () {
+    $admin = User::factory()->create();
+
+    $ordersn = 'WHLOG-SHOPEE-1';
+    $recorder = app(MarketplaceWebhookRecorder::class);
+    $recorder->recordShopee(
+        ['code' => 3, 'data' => ['ordersn' => $ordersn, 'status' => 'UNPAID']],
+        true,
+        1,
+        3,
+        $ordersn,
+        'UNPAID',
+    );
+    $recorder->recordShopee(
+        ['code' => 30, 'data' => ['ordersn' => $ordersn, 'logistics_status' => 'LOGISTICS_READY']],
+        true,
+        1,
+        30,
+        $ordersn,
+        'FULFILLMENT:LOGISTICS_READY',
+    );
+
+    \App\Models\MarketplaceOrderShadow::query()->create([
+        'channel' => 'shopee',
+        'external_order_sn' => $ordersn,
+        'shop_id' => 1,
+        'channel_status' => 'UNPAID',
+        'compare_status' => 'pending',
+        'line_compare_status' => 'skipped',
+    ]);
+
+    $this->actingAs($admin)
+        ->get(route('omnichannel.shopee.show', $ordersn))
+        ->assertOk()
+        ->assertSee('data-testid="omnichannel-webhook-log"', false)
+        ->assertSee('Package fulfillment', false)
+        ->assertSee('Order status', false);
+});

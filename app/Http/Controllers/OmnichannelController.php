@@ -6,6 +6,8 @@ use App\Models\Jubelioorder;
 use App\Models\MarketplaceOrderShadow;
 use App\Models\Omnichannel;
 use App\Services\Marketplace\MarketplaceWebhookShopWarehouseResolver;
+use App\Services\Marketplace\MarketplaceWebhookStatusPresenter;
+use App\Services\Marketplace\OmnichannelOrderDetailReader;
 use App\Services\Marketplace\OmnichannelReceivedTimes;
 use App\Services\Marketplace\ShopeeOrderShadowRecorder;
 use App\Services\Shopee\ShopeeAdminOpenApiService;
@@ -88,6 +90,8 @@ class OmnichannelController extends Controller
         string $ordersn,
         ShopeeOrderShadowRecorder $shadowRecorder,
         OmnichannelReceivedTimes $receivedTimes,
+        OmnichannelOrderDetailReader $detailReader,
+        MarketplaceWebhookStatusPresenter $statusPresenter,
     ): View {
         Gate::authorize(Omnichannel::getPermissions()['view']);
 
@@ -107,11 +111,15 @@ class OmnichannelController extends Controller
             $detailFetchedNow = true;
         }
 
+        $orderDetail = $detailReader->build(MarketplaceOrderShadow::CHANNEL_SHOPEE, $ordersn);
+
         return view('omnichannel.shopee-show', array_merge(
             $this->shopeeShowViewData($shadow, $ordersn, $receivedTimes),
             [
                 'detailFetchedNow' => $detailFetchedNow,
                 'detailFromCache' => ! $detailFetchedNow && $shadow->detailLoaded(),
+                'orderDetail' => $orderDetail,
+                'statusPresenter' => $statusPresenter,
             ],
         ));
     }

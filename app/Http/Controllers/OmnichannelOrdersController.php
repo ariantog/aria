@@ -79,6 +79,7 @@ class OmnichannelOrdersController extends Controller
         string $channel,
         string $orderRef,
         OmnichannelOrderDetailReader $detailReader,
+        MarketplaceWebhookStatusPresenter $statusPresenter,
     ): JsonResponse|View {
         abort_unless(Omnichannel::userCanOrders($request->user()), 403);
 
@@ -105,7 +106,65 @@ class OmnichannelOrdersController extends Controller
 
         return view('omnichannel.partials.order-detail-panel', [
             'detail' => $payload,
+            'statusPresenter' => $statusPresenter,
         ]);
+    }
+
+    public function showTikTokPage(
+        Request $request,
+        string $orderRef,
+        OmnichannelOrderDetailReader $detailReader,
+        MarketplaceWebhookStatusPresenter $statusPresenter,
+    ): View {
+        return $this->showChannelPage($request, 'tiktok', $orderRef, $detailReader, $statusPresenter);
+    }
+
+    public function showTokopediaPage(
+        Request $request,
+        string $orderRef,
+        OmnichannelOrderDetailReader $detailReader,
+        MarketplaceWebhookStatusPresenter $statusPresenter,
+    ): View {
+        return $this->showChannelPage($request, 'tokopedia', $orderRef, $detailReader, $statusPresenter);
+    }
+
+    public function showChannelPage(
+        Request $request,
+        string $channel,
+        string $orderRef,
+        OmnichannelOrderDetailReader $detailReader,
+        MarketplaceWebhookStatusPresenter $statusPresenter,
+    ): View {
+        abort_unless(Omnichannel::userCanOrders($request->user()), 403);
+
+        $storageChannel = $this->resolveStorageChannel(strtolower($channel));
+
+        if (Schema::hasTable('marketplace_channel_orders')) {
+            $exists = MarketplaceChannelOrder::query()
+                ->where('channel', $storageChannel)
+                ->where('order_ref', $orderRef)
+                ->exists();
+            if (! $exists) {
+                abort(404);
+            }
+        }
+
+        $detail = $detailReader->build($storageChannel, $orderRef);
+
+        return view('omnichannel.channel-order-show', [
+            'channelLabel' => $channel === 'tokopedia' ? 'Tokopedia' : ucfirst($storageChannel),
+            'storageChannel' => $storageChannel,
+            'detail' => $detail,
+            'statusPresenter' => $statusPresenter,
+        ]);
+    }
+
+    private function resolveStorageChannel(string $channel): string
+    {
+        return match ($channel) {
+            'tokopedia' => 'tiktok',
+            default => $channel,
+        };
     }
 
     public function downloadShippingDocuments(

@@ -74,7 +74,7 @@ class MarketplaceWebhookRecorder
 
         $this->recordEvent(
             self::CHANNEL_SHOPEE,
-            self::shopeeIdempotencyKey($shopId, $pushCode, $orderRef, $payload),
+            self::shopeeIdempotencyKey($shopId, $pushCode, $orderRef, $payload, $orderStatus),
             [
                 'event_type' => $pushCode !== null ? (string) $pushCode : null,
                 'shop_ref' => $shopId !== null ? (string) $shopId : null,
@@ -104,6 +104,7 @@ class MarketplaceWebhookRecorder
         ?int $pushCode,
         ?string $orderRef,
         array $payload,
+        ?string $ingestStatus = null,
     ): string {
         $shop = $shopId ?? 0;
         $code = $pushCode ?? 0;
@@ -115,11 +116,32 @@ class MarketplaceWebhookRecorder
             $ts = $data['update_time'] ?? null;
         }
 
-        $suffix = is_numeric($ts) && (string) $ts !== ''
+        $timeSuffix = is_numeric($ts) && (string) $ts !== ''
             ? (string) $ts
-            : substr(hash('sha256', json_encode($payload) ?: ''), 0, 16);
+            : 't'.substr(hash('sha256', self::payloadFingerprint($payload)), 0, 12);
 
-        return sprintf('shopee:%s:%s:%s:%s', $shop, $code, $order, $suffix);
+        if (filled($ingestStatus)) {
+            $statusSuffix = self::idempotencyToken((string) $ingestStatus);
+        } else {
+            $statusSuffix = 'h'.substr(hash('sha256', self::payloadFingerprint($payload)), 0, 16);
+        }
+
+        return sprintf('shopee:%s:%s:%s:%s:%s', $shop, $code, $order, $timeSuffix, $statusSuffix);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    protected static function payloadFingerprint(array $payload): string
+    {
+        return json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '';
+    }
+
+    protected static function idempotencyToken(string $value): string
+    {
+        $slug = preg_replace('/[^A-Za-z0-9._-]+/', '_', $value) ?? $value;
+
+        return substr($slug, 0, 48);
     }
 
     /**
