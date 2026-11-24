@@ -2,8 +2,11 @@
 
 use App\Models\MarketplaceChannelOrder;
 use App\Models\MarketplaceWebhookEvent;
+use App\Models\ShopeePushInbox;
+use App\Models\TikTokShopWebhookInbox;
 use App\Services\Marketplace\MarketplaceWebhookRecorder;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Schema;
 
 beforeEach(function () {
     config(['marketplace.webhook.unified_storage' => true]);
@@ -93,6 +96,53 @@ it('prunes webhook events older than retention with dry-run and delete', functio
     Artisan::call('marketplace:prune-webhook-events', ['--days' => 90]);
     expect(MarketplaceWebhookEvent::count())->toBe(1)
         ->and(MarketplaceWebhookEvent::query()->value('idempotency_key'))->toBe('tiktok:recent-1');
+});
+
+it('prunes legacy shopee and tiktok inbox tables by created_at', function () {
+    if (! Schema::hasTable('shopee_push_inbox') || ! Schema::hasTable('tiktok_shop_webhook_inbox')) {
+        $this->markTestSkipped('legacy inbox migrations not loaded');
+    }
+
+    ShopeePushInbox::query()->create([
+        'shop_id' => 1,
+        'push_code' => 3,
+        'ordersn' => 'OLD-SHOP',
+        'order_status' => 'SHIPPED',
+        'signature_ok' => true,
+        'payload' => ['code' => 3],
+        'created_at' => now()->subDays(120),
+    ]);
+    ShopeePushInbox::query()->create([
+        'shop_id' => 1,
+        'push_code' => 3,
+        'ordersn' => 'NEW-SHOP',
+        'order_status' => 'UNPAID',
+        'signature_ok' => true,
+        'payload' => ['code' => 3],
+        'created_at' => now()->subDays(5),
+    ]);
+
+    TikTokShopWebhookInbox::query()->create([
+        'tts_notification_id' => 'old-tts',
+        'event_type' => 1,
+        'signature_ok' => true,
+        'payload' => ['type' => 1],
+        'created_at' => now()->subDays(120),
+    ]);
+    TikTokShopWebhookInbox::query()->create([
+        'tts_notification_id' => 'new-tts',
+        'event_type' => 1,
+        'signature_ok' => true,
+        'payload' => ['type' => 1],
+        'created_at' => now()->subDays(5),
+    ]);
+
+    Artisan::call('marketplace:prune-webhook-events', ['--days' => 90]);
+
+    expect(ShopeePushInbox::count())->toBe(1)
+        ->and(ShopeePushInbox::query()->value('ordersn'))->toBe('NEW-SHOP')
+        ->and(TikTokShopWebhookInbox::count())->toBe(1)
+        ->and(TikTokShopWebhookInbox::query()->value('tts_notification_id'))->toBe('new-tts');
 });
 
 it('persists tiktok webhook without tts_notification_id using body hash idempotency', function () {

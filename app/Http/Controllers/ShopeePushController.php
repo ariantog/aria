@@ -129,21 +129,8 @@ class ShopeePushController extends Controller
 
     private function shouldPersistInbox(?int $pushCode): bool
     {
-        if (! config('services.shopee_push.store_inbox')) {
-            return false;
-        }
-
-        if ($pushCode === null) {
-            return false;
-        }
-
-        $allowed = config('services.shopee_push.store_inbox_codes');
-
-        if ($allowed === ['*']) {
-            return true;
-        }
-
-        return in_array($pushCode, $allowed, true);
+        return (bool) config('services.shopee_push.store_inbox')
+            && $pushCode !== null;
     }
 
     private function shouldRecordUnifiedWebhook(?int $pushCode): bool

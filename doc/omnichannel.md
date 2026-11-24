@@ -209,10 +209,10 @@ Bucket examples: Shopee `READY_TO_SHIP` → `awaiting_shipment`; TikTok `AWAITIN
 
 | Code | Shopee Console action | `shopee_push_inbox` | `marketplace_order_shadows` |
 |------|----------------------|---------------------|-----------------------------|
-| **0** | URL **Verify** / connectivity sample | Yes, when `SHOPEE_PUSH_STORE_INBOX=true` and code listed in `SHOPEE_PUSH_STORE_INBOX_CODES` (default `0,3,4`) | **No** — not an order event |
+| **0** | URL **Verify** / connectivity sample | Yes, when `SHOPEE_PUSH_STORE_INBOX=true` (every push code) | **No** — not an order event |
 | **3** | **Order status push** / **Push Test Data → order_status_push** | Optional (same env) | **Yes** when `SHOPEE_PUSH_SHADOW_ENABLED=true` and `data.ordersn` present |
 | **4** | **Order tracking number push** | Optional (same env) | **No** — tracking only; see table above |
-| **30** | **Package fulfillment** (`logistics_status`) | Optional (default in `SHOPEE_PUSH_STORE_INBOX_CODES` includes `30`) | **No** — observability only; unified storage when `MARKETPLACE_WEBHOOK_UNIFIED_STORAGE=true` |
+| **30** | **Package fulfillment** (`logistics_status`) | Same inbox flag | **No** — observability only; unified storage when `MARKETPLACE_WEBHOOK_UNIFIED_STORAGE=true` |
 
 Console **Verify** succeeding with inbox rows but an empty omnichannel table is normal until a **code 3** push arrives (or you simulate one below).
 
