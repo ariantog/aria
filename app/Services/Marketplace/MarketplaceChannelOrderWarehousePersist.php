@@ -50,7 +50,7 @@ class MarketplaceChannelOrderWarehousePersist
      */
     public function orderNeedsWarehouseHydration(MarketplaceChannelOrder $order): bool
     {
-        if ($this->hasPersistedWarehouseSnapshot($order)) {
+        if ($this->hasAriaWarehouseColumn() && (int) ($order->aria_warehouse_id ?? 0) > 0) {
             return false;
         }
 
