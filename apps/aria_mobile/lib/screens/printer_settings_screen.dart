@@ -146,12 +146,14 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
                 if (_devices.isEmpty)
                   const Text('No paired Bluetooth printers found. Pair the printer in Android Settings first.'),
                 for (final d in _devices)
-                  RadioListTile<String>(
-                    value: d.mac,
-                    groupValue: _selectedMac,
-                    onChanged: (v) => _saveSelection(d),
+                  ListTile(
+                    leading: Icon(
+                      _selectedMac == d.mac ? Icons.check_circle : Icons.circle_outlined,
+                    ),
                     title: Text(d.name),
                     subtitle: Text(d.mac),
+                    selected: _selectedMac == d.mac,
+                    onTap: () => _saveSelection(d),
                   ),
               ],
             ),

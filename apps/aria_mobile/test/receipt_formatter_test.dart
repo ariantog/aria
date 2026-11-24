@@ -29,7 +29,7 @@ void main() {
       _padLeft('135.000', 9),
     );
     expect(row.length, 30);
-    expect(row, '${'Item' + ' ' * 14}  2  135.000');
+    expect(row, '${'Item${' ' * 14}'}  2  135.000');
   });
 
   test('buildReceiptTextLines includes branding and total', () {
