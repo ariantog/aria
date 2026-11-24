@@ -23,7 +23,9 @@ class ShopeeShippingDocumentService
 
     private const ERROR_SHOULD_PRINT_FIRST = 'logistics.shipping_document_should_print_first';
 
-    private const ORDER_STATUSES_NEED_ARRANGE = ['PROCESSED'];
+    private const ORDER_STATUSES_NEED_ARRANGE = ['PROCESSED', 'READY_TO_SHIP', 'RETRY_SHIP'];
+
+    private const MAX_SHOULD_PRINT_FIRST_RETRIES = 2;
 
     public function __construct(
         private ShopeeAdminOpenApiService $shopeeApi,
@@ -218,6 +220,7 @@ class ShopeeShippingDocumentService
     {
         $deadline = microtime(true) + self::POLL_MAX_SECONDS;
         $docType = $this->shippingDocumentType();
+        $shouldPrintFirstRetries = 0;
 
         do {
             $payload = [
@@ -232,23 +235,62 @@ class ShopeeShippingDocumentService
             ];
 
             $response = $this->shopeeApi->shopApiPost('/api/v2/logistics/get_shipping_document_result', $payload, $shopId);
-            $decoded = $this->decodeLogisticsBatchResponse($response, 'get_shipping_document_result');
+
+            if (! $response->successful()) {
+                throw new \RuntimeException('Shopee get_shipping_document_result HTTP '.$response->status().'.');
+            }
+
+            $raw = $response->json();
+            if ($this->rawResponseIndicatesShouldPrintFirst($raw)
+                && $shouldPrintFirstRetries < self::MAX_SHOULD_PRINT_FIRST_RETRIES) {
+                $shouldPrintFirstRetries++;
+                $this->recoverMissingShippingDocumentTask($shopId, $orderList);
+
+                continue;
+            }
+
+            $decoded = $this->decodeLogisticsBatchResponse(
+                $response,
+                'get_shipping_document_result',
+                allowMissingDocumentTask: true,
+            );
 
             $statuses = $this->resultStatuses($decoded, $orderList);
             if ($this->allReady($statuses)) {
                 return;
             }
 
+            if ($this->resultListHasShouldPrintFirst($decoded)
+                && $shouldPrintFirstRetries < self::MAX_SHOULD_PRINT_FIRST_RETRIES) {
+                $shouldPrintFirstRetries++;
+                $this->recoverMissingShippingDocumentTask($shopId, $orderList);
+
+                continue;
+            }
+
             if ($this->anyFailed($statuses)) {
                 $detail = $this->formatFailedDocumentOrders($decoded, $orderList);
+                $trackingHint = $this->formatTrackingResiHint($orderList);
 
-                throw new \RuntimeException('Shopee gagal membuat AWB untuk: '.$detail);
+                throw new \RuntimeException('Shopee gagal membuat AWB untuk: '.$detail.$trackingHint);
             }
 
             Sleep::sleep(1);
         } while (microtime(true) < $deadline);
 
-        throw new \RuntimeException('Timeout menunggu AWB Shopee ('.self::POLL_MAX_SECONDS.' detik).');
+        throw new \RuntimeException(
+            'Timeout menunggu AWB Shopee ('.self::POLL_MAX_SECONDS.' detik).'
+            .$this->formatTrackingResiHint($orderList),
+        );
+    }
+
+    /**
+     * @param  list<array{order_sn: string, package_number?: string, tracking_number?: string}>  $orderList
+     */
+    private function recoverMissingShippingDocumentTask(int $shopId, array $orderList): void
+    {
+        $this->arrangeShipmentsBeforeCreate($shopId, $orderList, force: true);
+        $this->createShippingDocument($shopId, $orderList);
     }
 
     /**
@@ -720,7 +762,9 @@ class ShopeeShippingDocumentService
         return str_contains($haystack, 'ship the order first')
             || str_contains($haystack, 'ship_order')
             || str_contains($haystack, 'package_should_ship')
-            || str_contains($haystack, 'logistics.package_not_ready');
+            || str_contains($haystack, 'logistics.package_not_ready')
+            || str_contains($haystack, self::ERROR_SHOULD_PRINT_FIRST)
+            || str_contains($haystack, 'should print first');
     }
 
     private function exceptionIsIgnorableShipOrderFailure(\RuntimeException $exception): bool
@@ -797,6 +841,81 @@ class ShopeeShippingDocumentService
         throw new \RuntimeException("Shopee {$context}: {$detail}");
     }
 
+    /**
+     * @param  mixed  $data
+     */
+    private function rawResponseIndicatesShouldPrintFirst(mixed $data): bool
+    {
+        if (! is_array($data)) {
+            return false;
+        }
+
+        if (isset($data[0]) && is_array($data[0]) && array_key_exists('error', $data[0])) {
+            $data = $data[0];
+        }
+
+        $error = strtolower(trim((string) ($data['error'] ?? '')));
+        $message = strtolower(trim((string) ($data['message'] ?? '')));
+
+        if ($error === strtolower(self::ERROR_SHOULD_PRINT_FIRST)
+            || str_contains($message, 'create shipping document first')
+            || str_contains($message, 'should print first')) {
+            return true;
+        }
+
+        return $this->resultListHasShouldPrintFirst($data);
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function resultListHasShouldPrintFirst(array $data): bool
+    {
+        $results = $data['response']['result_list'] ?? [];
+        if (! is_array($results)) {
+            return false;
+        }
+
+        foreach ($results as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $fail = strtolower(trim((string) ($row['fail_error'] ?? '')));
+            $message = strtolower(trim((string) ($row['fail_message'] ?? '')));
+            if ($fail === strtolower(self::ERROR_SHOULD_PRINT_FIRST)
+                || str_contains($message, 'create shipping document first')
+                || str_contains($message, 'should print first')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  list<array{order_sn: string, package_number?: string, tracking_number?: string}>  $orderList
+     */
+    private function formatTrackingResiHint(array $orderList): string
+    {
+        $lines = [];
+        foreach ($orderList as $row) {
+            $sn = trim((string) ($row['order_sn'] ?? ''));
+            if ($sn === '') {
+                continue;
+            }
+            $tracking = trim((string) ($row['tracking_number'] ?? ''));
+            $lines[] = $tracking !== ''
+                ? "{$sn}: resi {$tracking} (dari get_order_detail/get_tracking_number)"
+                : "{$sn}: resi tidak ditemukan di Aria";
+        }
+
+        if ($lines === []) {
+            return '';
+        }
+
+        return ' — '.implode('; ', $lines);
+    }
+
     private function formatLogisticsErrorForUser(string $error, string $message): string
     {
         $errorLower = strtolower($error);
@@ -805,7 +924,7 @@ class ShopeeShippingDocumentService
         if ($error === self::ERROR_SHOULD_PRINT_FIRST
             || str_contains($messageLower, 'create shipping document first')
             || str_contains($messageLower, 'should print first')) {
-            return self::ERROR_SHOULD_PRINT_FIRST.' — Belum ada task AWB di Shopee; Aria akan memanggil create_shipping_document. Jika ini muncul lagi, pastikan order sudah READY_TO_SHIP dan punya resi.';
+            return self::ERROR_SHOULD_PRINT_FIRST.' — Belum ada task AWB di Shopee setelah percobaan arrange + create. Pastikan order READY_TO_SHIP/PROCESSED dan punya resi di Seller Center.';
         }
 
         if (str_contains($errorLower, 'package_should_ship')
