@@ -55,13 +55,21 @@ class MarketplaceTikTokCommercePlatformEnricher
 
         $channel = MarketplaceWebhookRecorder::CHANNEL_TIKTOK;
         $channelOrder = null;
+        $hasPlatformWhColumn = Schema::hasTable('marketplace_channel_orders')
+            && Schema::hasColumn('marketplace_channel_orders', 'platform_warehouse_id');
+
         if (Schema::hasTable('marketplace_channel_orders')) {
             $channelOrder = MarketplaceChannelOrder::query()
                 ->where('channel', $channel)
                 ->where('order_ref', $orderRef)
                 ->first();
 
-            if ($channelOrder !== null && filled($channelOrder->commerce_platform)) {
+            $commerceFilled = $channelOrder !== null && filled($channelOrder->commerce_platform);
+            $warehouseFilled = $channelOrder !== null
+                && $hasPlatformWhColumn
+                && filled($channelOrder->platform_warehouse_id);
+
+            if ($commerceFilled && (! $hasPlatformWhColumn || $warehouseFilled)) {
                 return strtoupper((string) $channelOrder->commerce_platform);
             }
         }
@@ -70,8 +78,16 @@ class MarketplaceTikTokCommercePlatformEnricher
             $shopRef = filled($channelOrder?->shop_ref) ? (string) $channelOrder->shop_ref : null;
             $apiResponse = $this->tikTokOpenApi->getOrderDetail($orderRef, null, $shopRef);
             $platform = $this->tikTokOpenApi->extractCommercePlatform($apiResponse);
+            $platformWarehouseId = $this->extractPlatformWarehouseIdFromApiResponse($apiResponse);
+
+            if ($platformWarehouseId !== null && $hasPlatformWhColumn) {
+                $this->persistPlatformWarehouseId($channel, $orderRef, $platformWarehouseId, $channelOrder);
+            }
+
             if (! filled($platform)) {
-                return null;
+                return $channelOrder !== null && filled($channelOrder->commerce_platform)
+                    ? strtoupper((string) $channelOrder->commerce_platform)
+                    : null;
             }
 
             $this->persistCommercePlatform($channel, $orderRef, $platform, $channelOrder);
@@ -119,5 +135,55 @@ class MarketplaceTikTokCommercePlatformEnricher
                 })
                 ->update(['commerce_platform' => $platform]);
         }
+    }
+
+    public function persistPlatformWarehouseId(
+        string $channel,
+        string $orderRef,
+        string $platformWarehouseId,
+        ?MarketplaceChannelOrder $channelOrder,
+    ): void {
+        $platformWarehouseId = trim($platformWarehouseId);
+        if ($platformWarehouseId === '' || $platformWarehouseId === '0') {
+            return;
+        }
+
+        if (! Schema::hasTable('marketplace_channel_orders')
+            || ! Schema::hasColumn('marketplace_channel_orders', 'platform_warehouse_id')) {
+            return;
+        }
+
+        if ($channelOrder === null) {
+            $channelOrder = MarketplaceChannelOrder::query()
+                ->where('channel', $channel)
+                ->where('order_ref', $orderRef)
+                ->first();
+        }
+
+        if ($channelOrder !== null && ! filled($channelOrder->platform_warehouse_id)) {
+            $channelOrder->platform_warehouse_id = $platformWarehouseId;
+            $channelOrder->save();
+        }
+    }
+
+    protected function extractPlatformWarehouseIdFromApiResponse(?array $apiResponse): ?string
+    {
+        $order = $this->tikTokOpenApi->extractFirstOrder($apiResponse);
+        if ($order === null) {
+            return null;
+        }
+
+        foreach (['warehouse_id', 'shipping_warehouse_id', 'fulfillment_warehouse_id'] as $key) {
+            $candidate = $order[$key] ?? null;
+            if ($candidate === null || $candidate === '' || $candidate === 0 || $candidate === '0') {
+                continue;
+            }
+
+            if (is_scalar($candidate)) {
+                return trim((string) $candidate);
+            }
+        }
+
+        return null;
     }
 }
