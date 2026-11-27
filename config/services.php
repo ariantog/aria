@@ -118,6 +118,11 @@ return [
             'trim',
             explode(',', (string) env('SHOPEE_PRECREATE_TRIGGER_STATUSES', '')),
         ))),
+        /** CDN ACK-first edge → POST /shopee/push/relay (see doc/marketplace-webhook-cdn-relay.md). */
+        'relay' => [
+            'enabled' => filter_var(env('SHOPEE_PUSH_RELAY_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+            'bearer' => env('SHOPEE_PUSH_RELAY_BEARER', ''),
+        ],
     ],
 
     'jubelio' => [

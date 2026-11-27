@@ -1,0 +1,79 @@
+<?php
+
+/**
+ * Shopee Push Mechanism — CDN ACK-first relay (deploy as shopeepush.php on CDN host).
+ *
+ * 1) Verify platform HMAC (callback URL + raw body).
+ * 2) Return HTTP 200 immediately.
+ * 3) Forward raw body to aria3 POST /shopee/push/relay (async).
+ *
+ * Requires aria3: SHOPEE_PUSH_RELAY_ENABLED=true — see doc/marketplace-webhook-cdn-relay.md
+ */
+
+declare(strict_types=1);
+
+header('Content-Type: text/plain; charset=utf-8');
+
+$partnerKey = trim((string) getenv('SHOPEE_PUSH_PARTNER_KEY'));
+$callbackUrl = trim((string) getenv('SHOPEE_PUSH_CALLBACK_URL'));
+$ariaBase = rtrim((string) (getenv('ARIA_BASE_URL') ?: 'https://aria3.corenationactive.com'), '/');
+$relayBearer = trim((string) getenv('ARIA_WEBHOOK_RELAY_BEARER'));
+
+$rawBody = file_get_contents('php://input') ?: '';
+$platformAuth = trim((string) ($_SERVER['HTTP_AUTHORIZATION'] ?? ''));
+
+if ($partnerKey === '' || $callbackUrl === '' || $relayBearer === '') {
+    http_response_code(500);
+    echo '';
+    exit;
+}
+
+$expected = hash_hmac('sha256', $callbackUrl.'|'.$rawBody, $partnerKey);
+if ($platformAuth === '' || ! hash_equals($expected, $platformAuth)) {
+    http_response_code(401);
+    echo '';
+    exit;
+}
+
+http_response_code(200);
+echo '';
+
+if (function_exists('fastcgi_finish_request')) {
+    fastcgi_finish_request();
+} else {
+    if (ob_get_level() > 0) {
+        ob_end_flush();
+    }
+    flush();
+}
+
+$relayUrl = $ariaBase.'/shopee/push/relay';
+
+$ch = curl_init($relayUrl);
+curl_setopt_array($ch, [
+    CURLOPT_POST => true,
+    CURLOPT_POSTFIELDS => $rawBody,
+    CURLOPT_HTTPHEADER => [
+        'Content-Type: application/json',
+        'Authorization: Bearer '.$relayBearer,
+        'X-Shopee-Push-Authorization: '.$platformAuth,
+        'X-Shopee-Push-Callback-Url: '.$callbackUrl,
+    ],
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_TIMEOUT => 5,
+    CURLOPT_CONNECTTIMEOUT => 3,
+]);
+
+$response = curl_exec($ch);
+$httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+$curlError = curl_error($ch);
+curl_close($ch);
+
+if ($httpCode < 200 || $httpCode >= 300) {
+    error_log(sprintf(
+        'shopeepush relay forward failed http=%d curl=%s body=%s',
+        $httpCode,
+        $curlError,
+        is_string($response) ? substr($response, 0, 500) : ''
+    ));
+}

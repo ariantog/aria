@@ -84,6 +84,11 @@ return [
         'verify_signature' => filter_var(env('TIKTOK_SHOP_WEBHOOK_VERIFY_SIGNATURE', true), FILTER_VALIDATE_BOOLEAN),
         /** Persist payloads to tiktok_shop_webhook_inbox (read-only observability). */
         'store_inbox' => filter_var(env('TIKTOK_SHOP_WEBHOOK_STORE_INBOX', true), FILTER_VALIDATE_BOOLEAN),
+        /** CDN edge → POST /tiktok-shop/webhook/relay (see doc/marketplace-webhook-cdn-relay.md). */
+        'relay' => [
+            'enabled' => filter_var(env('TIKTOK_SHOP_WEBHOOK_RELAY_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+            'bearer' => env('TIKTOK_SHOP_WEBHOOK_RELAY_BEARER', ''),
+        ],
     ],
 
 ];
