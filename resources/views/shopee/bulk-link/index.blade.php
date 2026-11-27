@@ -79,14 +79,31 @@ $batchSize = \App\Services\Shopee\ShopeeItemBulkLinkService::BATCH_SIZE;
         </p>
         @if(! empty($displayRun['failed_rows']))
         <div class="mt-5 border-t border-gray-100 pt-4" data-testid="shopee-bulk-link-failed-rows">
-            <h3 class="text-xs font-semibold uppercase tracking-wider text-red-800">
-                Baris gagal link ({{ count($displayRun['failed_rows']) }}
-                @if($displayRun['failed_rows_truncated'] ?? false)
-                    / {{ number_format($displayRun['error_count'], 0, ',', '.') }} total
-                @endif
-                )
-            </h3>
-            <p class="mt-1 text-xs text-gray-500">Disimpan dari setiap batch cron — tetap tampil setelah run selesai.</p>
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <h3 class="text-xs font-semibold uppercase tracking-wider text-red-800">
+                    Baris gagal link ({{ count($displayRun['failed_rows']) }}
+                    @if($displayRun['failed_rows_truncated'] ?? false)
+                        / {{ number_format($displayRun['error_count'], 0, ',', '.') }} total
+                    @endif
+                    )
+                </h3>
+                <div class="flex flex-wrap items-center gap-2">
+                    <a href="{{ route('shopee.bulk-link.errors.download', $displayRun['id']) }}"
+                       data-testid="shopee-bulk-link-errors-download"
+                       class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                        Unduh CSV
+                    </a>
+                    <form method="POST" action="{{ route('shopee.bulk-link.errors.dismiss', $displayRun['id']) }}" class="inline">
+                        @csrf
+                        <button type="submit"
+                                data-testid="shopee-bulk-link-errors-dismiss"
+                                class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                            Tutup
+                        </button>
+                    </form>
+                </div>
+            </div>
+            <p class="mt-1 text-xs text-gray-500">Disimpan dari setiap batch cron — tetap tampil setelah run selesai. Unduh CSV tetap bisa lewat URL setelah Tutup.</p>
             @include('shopee.bulk-link.partials.result-table', ['rows' => $displayRun['failed_rows'], 'itemModels' => $itemModels ?? collect()])
             @if($displayRun['failed_rows_truncated'] ?? false)
             <p class="mt-2 text-xs text-amber-800">Hanya {{ number_format(count($displayRun['failed_rows']), 0, ',', '.') }} error terakhir disimpan (batas {{ number_format(\App\Services\Shopee\ShopeeItemBulkLinkService::FAILED_RESULTS_LIMIT, 0, ',', '.') }}).</p>

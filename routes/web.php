@@ -247,10 +247,14 @@ Route::middleware(['auth', 'verified', 'active', 'enforce.readonly'])->group(fun
     Route::get('shopee/bulk-link', [App\Http\Controllers\ShopeeItemBulkLinkController::class, 'index'])->name('shopee.bulk-link.index');
     Route::post('shopee/bulk-link/preview', [App\Http\Controllers\ShopeeItemBulkLinkController::class, 'preview'])->name('shopee.bulk-link.preview');
     Route::post('shopee/bulk-link/apply', [App\Http\Controllers\ShopeeItemBulkLinkController::class, 'apply'])->name('shopee.bulk-link.apply');
+    Route::get('shopee/bulk-link/runs/{run}/errors.csv', [App\Http\Controllers\ShopeeItemBulkLinkController::class, 'downloadErrors'])->name('shopee.bulk-link.errors.download');
+    Route::post('shopee/bulk-link/runs/{run}/dismiss-errors', [App\Http\Controllers\ShopeeItemBulkLinkController::class, 'dismissErrors'])->name('shopee.bulk-link.errors.dismiss');
 
     Route::get('tiktok-shop/bulk-link', [App\Http\Controllers\TikTokShopItemBulkLinkController::class, 'index'])->name('tiktok-shop.bulk-link.index');
     Route::post('tiktok-shop/bulk-link/preview', [App\Http\Controllers\TikTokShopItemBulkLinkController::class, 'preview'])->name('tiktok-shop.bulk-link.preview');
     Route::post('tiktok-shop/bulk-link/apply', [App\Http\Controllers\TikTokShopItemBulkLinkController::class, 'apply'])->name('tiktok-shop.bulk-link.apply');
+    Route::get('tiktok-shop/bulk-link/runs/{run}/errors.csv', [App\Http\Controllers\TikTokShopItemBulkLinkController::class, 'downloadErrors'])->name('tiktok-shop.bulk-link.errors.download');
+    Route::post('tiktok-shop/bulk-link/runs/{run}/dismiss-errors', [App\Http\Controllers\TikTokShopItemBulkLinkController::class, 'dismissErrors'])->name('tiktok-shop.bulk-link.errors.dismiss');
     Route::get('shopee/auto-link', [App\Http\Controllers\ShopeeItemAutoLinkController::class, 'index'])->name('shopee.auto-link.index');
     Route::post('shopee/auto-link/pause', [App\Http\Controllers\ShopeeItemAutoLinkController::class, 'pause'])->name('shopee.auto-link.pause');
     Route::post('shopee/auto-link/resume', [App\Http\Controllers\ShopeeItemAutoLinkController::class, 'resume'])->name('shopee.auto-link.resume');

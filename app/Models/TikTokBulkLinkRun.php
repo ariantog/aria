@@ -31,6 +31,7 @@ class TikTokBulkLinkRun extends Model
         'payload',
         'recent_results',
         'failed_results',
+        'errors_dismissed_at',
         'completed_at',
         'error_message',
     ];
@@ -50,6 +51,7 @@ class TikTokBulkLinkRun extends Model
             'payload' => 'array',
             'recent_results' => 'array',
             'failed_results' => 'array',
+            'errors_dismissed_at' => 'datetime',
         ];
     }
 

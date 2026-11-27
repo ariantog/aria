@@ -27,7 +27,7 @@ function seedOpsBucketFixtureOrders(): void
     ];
 
     foreach ($rows as $row) {
-        MarketplaceChannelOrder::query()->create([
+        createMarketplaceChannelOrder([
             'channel' => $row['channel'],
             'commerce_platform' => $row['commerce_platform'] ?? null,
             'order_ref' => $row['order_ref'],
@@ -90,7 +90,7 @@ it('sorts all bucket with unprocessed rows first', function () {
 });
 
 it('does not apply ops bucket on events view', function () {
-    MarketplaceChannelOrder::query()->create([
+    createMarketplaceChannelOrder([
         'channel' => 'shopee',
         'order_ref' => 'EVENTS-ONLY',
         'shop_ref' => '1',
@@ -119,7 +119,7 @@ it('exposes stat card counts per ops bucket', function () {
 });
 
 it('keeps shopee ready_to_ship without awb in unprocessed bucket', function () {
-    MarketplaceChannelOrder::query()->create([
+    createMarketplaceChannelOrder([
         'channel' => 'shopee',
         'order_ref' => 'WEBHOOK-READY',
         'shop_ref' => 'shop-1',
@@ -140,7 +140,7 @@ it('keeps shopee ready_to_ship without awb in unprocessed bucket', function () {
 });
 
 it('places shopee ready_to_ship with awb in ready_to_ship bucket', function () {
-    MarketplaceChannelOrder::query()->create([
+    createMarketplaceChannelOrder([
         'channel' => 'shopee',
         'order_ref' => 'AWB-READY',
         'shop_ref' => 'shop-1',

@@ -121,6 +121,21 @@ function enrichJubelioPayloadItems(array $payload): array
     return $payload;
 }
 
+/**
+ * Seed rows for omnichannel orders list (date filter uses marketplace_ordered_at).
+ *
+ * @param  array<string, mixed>  $attributes
+ */
+function createMarketplaceChannelOrder(array $attributes = []): \App\Models\MarketplaceChannelOrder
+{
+    $last = $attributes['last_event_at'] ?? now();
+    if (! array_key_exists('marketplace_ordered_at', $attributes)) {
+        $attributes['marketplace_ordered_at'] = $last;
+    }
+
+    return \App\Models\MarketplaceChannelOrder::query()->create($attributes);
+}
+
 function jubelioPayloadLine(\App\Models\Item $item, float $qty, float $price, array $extra = []): array
 {
     $jubelioItemId = (int) ($item->jubelio_item_id ?? 0);

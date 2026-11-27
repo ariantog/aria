@@ -12,6 +12,7 @@ use Illuminate\Support\Carbon;
 beforeEach(function () {
     $this->artisan('migrate', ['--path' => 'database/migrations/2026_11_24_120000_add_tiktok_shop_item_link_columns_to_items.php']);
     $this->artisan('migrate', ['--path' => 'database/migrations/2026_11_27_120000_install_tiktok_bulk_link_runs.php']);
+    $this->artisan('migrate', ['--path' => 'database/migrations/2026_11_27_140000_add_errors_dismissed_at_to_bulk_link_runs.php']);
 
     app(PermissionGenerator::class)->generateForModule('TikTokShop');
 
@@ -175,4 +176,70 @@ it('forbids bulk link without item link permission', function () {
     $this->actingAs($user)
         ->get(route('tiktok-shop.bulk-link.index'))
         ->assertForbidden();
+});
+
+it('downloads failed tiktok bulk link rows as csv', function () {
+    $run = TikTokBulkLinkRun::query()->create([
+        'filename' => 'errors.csv',
+        'status' => TikTokBulkLinkRun::STATUS_COMPLETED,
+        'total_rows' => 1,
+        'processed_rows' => 1,
+        'error_count' => 1,
+        'payload' => [],
+        'failed_results' => [[
+            'line' => 2,
+            'code' => 'MISSING-TTS-SKU',
+            'tiktok_product_id' => '749001',
+            'tiktok_sku_id' => '749101',
+            'status' => 'error',
+            'message' => 'SKU tidak ditemukan',
+        ]],
+    ]);
+
+    $response = $this->actingAs($this->user)
+        ->get(route('tiktok-shop.bulk-link.errors.download', $run));
+
+    $response->assertOk()
+        ->assertHeader('content-type', 'text/csv; charset=UTF-8');
+
+    expect($response->streamedContent())->toContain('MISSING-TTS-SKU')
+        ->and($response->streamedContent())->toContain('SKU tidak ditemukan');
+});
+
+it('dismisses tiktok failed rows display while keeping error count', function () {
+    TikTokBulkLinkRun::query()->delete();
+
+    $run = TikTokBulkLinkRun::query()->create([
+        'filename' => 'dismiss.csv',
+        'status' => TikTokBulkLinkRun::STATUS_COMPLETED,
+        'total_rows' => 1,
+        'processed_rows' => 1,
+        'error_count' => 1,
+        'payload' => [],
+        'failed_results' => [[
+            'line' => 2,
+            'code' => 'BAD-TTS-SKU',
+            'tiktok_product_id' => '749002',
+            'tiktok_sku_id' => '749102',
+            'status' => 'error',
+            'message' => 'SKU tidak ditemukan',
+        ]],
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('tiktok-shop.bulk-link.index'))
+        ->assertOk()
+        ->assertSee('data-testid="tiktok-bulk-link-failed-rows"', false);
+
+    $this->actingAs($this->user)
+        ->post(route('tiktok-shop.bulk-link.errors.dismiss', $run))
+        ->assertRedirect(route('tiktok-shop.bulk-link.index'));
+
+    expect($run->fresh()->errors_dismissed_at)->not->toBeNull();
+
+    $this->actingAs($this->user)
+        ->get(route('tiktok-shop.bulk-link.index'))
+        ->assertOk()
+        ->assertDontSee('data-testid="tiktok-bulk-link-failed-rows"', false)
+        ->assertSee('1 error', false);
 });

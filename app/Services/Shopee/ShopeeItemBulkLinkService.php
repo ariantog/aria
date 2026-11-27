@@ -250,9 +250,36 @@ class ShopeeItemBulkLinkService
     /**
      * @return array<string, mixed>
      */
+    public function findRun(int $id): ?ShopeeBulkLinkRun
+    {
+        return ShopeeBulkLinkRun::query()->find($id);
+    }
+
+    public function dismissErrorDisplay(ShopeeBulkLinkRun $run): void
+    {
+        if ($run->errors_dismissed_at !== null) {
+            return;
+        }
+
+        $run->errors_dismissed_at = now();
+        $run->save();
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function storedFailedResults(ShopeeBulkLinkRun $run): array
+    {
+        $failed = $run->failed_results;
+
+        return is_array($failed) ? $failed : [];
+    }
+
     public function runForDisplay(ShopeeBulkLinkRun $run): array
     {
-        $failed = is_array($run->failed_results) ? $run->failed_results : [];
+        $storedFailed = $this->storedFailedResults($run);
+        $errorsDismissed = $run->errors_dismissed_at !== null;
+        $failed = $errorsDismissed ? [] : $storedFailed;
 
         return [
             'id' => $run->id,
@@ -272,7 +299,8 @@ class ShopeeItemBulkLinkService
             'rows' => [],
             'rows_truncated' => false,
             'failed_rows' => $failed,
-            'failed_rows_truncated' => $run->error_count > count($failed),
+            'failed_rows_truncated' => $run->error_count > count($storedFailed),
+            'errors_dismissed' => $errorsDismissed,
         ];
     }
 
