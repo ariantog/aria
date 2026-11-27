@@ -115,6 +115,7 @@ it('does not leak the route type segment into sell line filters', function () {
         'transaction_type' => Transaction::TYPE_SELL,
         'sender_id' => $warehouse->id,
         'receiver_id' => $customer->id,
+        'date' => now()->toDateString(),
     ]);
 
     $this->actingAs($user)
@@ -140,6 +141,7 @@ it('lists buy lines on addrbook item sales page', function () {
         'transaction_type' => Transaction::TYPE_BUY,
         'sender_id' => $supplier->id,
         'receiver_id' => $warehouse->id,
+        'date' => now()->toDateString(),
     ]);
 
     $this->actingAs($user)

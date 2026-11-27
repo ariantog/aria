@@ -245,6 +245,7 @@ it('shows awb toolbar on current orders view', function () {
         'order_ref' => 'UI-AWB-SN',
         'shop_ref' => '100',
         'order_status' => 'PROCESSED',
+        'marketplace_ordered_at' => now(),
         'last_event_at' => now(),
         'first_received_at' => now()->subHour(),
         'awb_printed_by' => $admin->id,
