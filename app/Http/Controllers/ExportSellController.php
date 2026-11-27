@@ -19,17 +19,15 @@ class ExportSellController extends Controller
         Gate::authorize(Report::getPermissions()['view-export-sell']);
 
         $perPage = $queryService->resolvePerPage($request);
-        $filters = $queryService->filtersFromRequest($request);
-        $rows = $queryService
-            ->buildQuery($request, Auth::user())
-            ->paginate($perPage)
-            ->withQueryString();
+        $filters = $queryService->effectiveFilters($request);
+        $rows = $queryService->paginateForIndex($request, Auth::user());
 
         $partyLookups = self::exportSellPartyLookups($queryService);
 
         return view('transactions.export-sell', [
             'rows' => $rows,
             'filters' => $filters,
+            'exportQuery' => $this->exportQueryParams($request, $filters),
             'perPage' => $perPage,
             'typeOptions' => $queryService->typeOptions(),
             'senderLookupUrl' => $partyLookups['sender_route'],
@@ -133,6 +131,19 @@ class ExportSellController extends Controller
             'name' => $name,
             'code' => $item->code,
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $filters
+     * @return array<string, mixed>
+     */
+    private function exportQueryParams(Request $request, array $filters): array
+    {
+        $defaults = collect($filters)
+            ->except(['per_page'])
+            ->filter(fn ($value) => $value !== null && $value !== '');
+
+        return array_merge($defaults->all(), $request->query());
     }
 
     public static function itemShowUrl(?ItemType $type, int $itemId): string

@@ -362,7 +362,7 @@ it('omits optional transaction header columns from excel by default', function (
         ->and($sheet->getCell('J1')->getValue())->toBe('Receiver');
 });
 
-it('orders export sell lines by date invoice and sku ascending', function () {
+it('orders export sell lines by date invoice and sku descending', function () {
     $olderTx = Transaction::factory()->create([
         'type' => Transaction::TYPE_SELL,
         'invoice' => 'SELL-SORT-OLDER',
@@ -399,8 +399,26 @@ it('orders export sell lines by date invoice and sku ascending', function () {
     $sheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($tmp)->getActiveSheet();
     unlink($tmp);
 
-    expect($sheet->getCell('C2')->getValue())->toBe('SELL-SORT-OLDER')
-        ->and($sheet->getCell('C3')->getValue())->toBe('SELL-SORT-NEWER');
+    expect($sheet->getCell('C2')->getValue())->toBe('SELL-SORT-NEWER')
+        ->and($sheet->getCell('C3')->getValue())->toBe('SELL-SORT-OLDER');
+});
+
+it('applies a default recent date window when no filters are set', function () {
+    $service = app(ExportSellQueryService::class);
+
+    $filters = $service->effectiveFilters(request());
+
+    expect($filters['from'])->toBe(now()->subDays(ExportSellQueryService::DEFAULT_RANGE_DAYS)->toDateString())
+        ->and($filters['to'])->toBe(now()->toDateString());
+});
+
+it('does not apply default dates when invoice filter is set', function () {
+    $service = app(ExportSellQueryService::class);
+
+    $filters = $service->effectiveFilters(request()->merge(['invoice' => 'INV-ONLY']));
+
+    expect($filters)->not->toHaveKey('from')
+        ->and($filters)->not->toHaveKey('to');
 });
 
 it('orders lines on the same invoice by item code not entry order', function () {
@@ -516,17 +534,21 @@ it('filters export sell lines by user location', function () {
         'receiver_id' => $customer->id,
     ]);
 
+    $today = now()->toDateString();
+
     TransactionDetail::factory()->create([
         'transaction_id' => $visibleTx->id,
         'transaction_type' => Transaction::TYPE_SELL,
         'sender_id' => $addrbookA->id,
         'receiver_id' => $customer->id,
+        'date' => $today,
     ]);
     TransactionDetail::factory()->create([
         'transaction_id' => $hiddenTx->id,
         'transaction_type' => Transaction::TYPE_SELL,
         'sender_id' => $addrbookB->id,
         'receiver_id' => $customer->id,
+        'date' => $today,
     ]);
 
     $scopedUser = User::factory()->create(['location_id' => $locationA->id]);
@@ -560,17 +582,22 @@ it('lists non-cash transaction detail lines by default', function () {
         'invoice' => 'CASH-EXP-HIDDEN',
     ]);
 
+    $today = now()->toDateString();
+
     TransactionDetail::factory()->create([
         'transaction_id' => $sellTx->id,
         'transaction_type' => Transaction::TYPE_SELL,
+        'date' => $today,
     ]);
     TransactionDetail::factory()->create([
         'transaction_id' => $buyTx->id,
         'transaction_type' => Transaction::TYPE_BUY,
+        'date' => $today,
     ]);
     TransactionDetail::factory()->create([
         'transaction_id' => $cashTx->id,
         'transaction_type' => Transaction::TYPE_CASH_IN,
+        'date' => $today,
     ]);
 
     $this->actingAs($this->user)

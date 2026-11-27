@@ -462,11 +462,8 @@ class AddrbookController extends Controller
         $this->authorizeAddrbookLocation($a);
 
         $perPage = $queryService->resolvePerPage($request);
-        $filters = $queryService->filtersFromRequest($request);
-        $rows = $queryService
-            ->buildQuery($request, Auth::user(), $a->id)
-            ->paginate($perPage)
-            ->withQueryString();
+        $filters = $queryService->effectiveFilters($request);
+        $rows = $queryService->paginateForIndex($request, Auth::user(), $a->id);
 
         return view('addrbook.item-sales', [
             'addrbook' => $a,

@@ -4,7 +4,7 @@
 
 @php
     $perPage = $perPage ?? (int) request()->query('per_page', 100);
-    $exportQuery = request()->query();
+    $exportQuery = $exportQuery ?? request()->query();
     $selectedType = (string) ($filters['type'] ?? '');
 @endphp
 
@@ -15,7 +15,8 @@
         <div>
             <h2 class="text-2xl font-bold tracking-tight text-gray-900">Export Sell</h2>
             <p class="mt-0.5 text-sm text-gray-500">
-                {{ number_format($rows->total()) }} line{{ $rows->total() === 1 ? '' : 's' }} found.
+                {{ number_format($rows->total()) }} transaction{{ $rows->total() === 1 ? '' : 's' }} in range
+                ({{ number_format($rows->count()) }} line{{ $rows->count() === 1 ? '' : 's' }} on this page).
             </p>
         </div>
     </div>
