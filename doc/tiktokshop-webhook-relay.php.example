@@ -7,26 +7,68 @@
  * 2) Return HTTP 200 immediately.
  * 3) Forward to aria3 POST /tiktok-shop/webhook/relay (async).
  *
+ * Secrets live in a PHP array file outside public_html — never commit real config; chmod 600.
+ * Template: doc/tiktokshop-webhook-relay-config.php.example
+ *
  * See doc/marketplace-webhook-cdn-relay.md
  */
 
 declare(strict_types=1);
 
+// Absolute path to private config (outside public_html / web root).
+define('TIKTOK_SHOP_WEBHOOK_RELAY_CONFIG_FILE', '/absolute/path/outside/public_html/tiktokshop-webhook-relay-config.php');
+
+/**
+ * @return array<string, string>
+ */
+function tiktokShopWebhookRelayLoadConfig(): array
+{
+    if (! is_file(TIKTOK_SHOP_WEBHOOK_RELAY_CONFIG_FILE)) {
+        return [];
+    }
+
+    $cfg = require TIKTOK_SHOP_WEBHOOK_RELAY_CONFIG_FILE;
+    if (! is_array($cfg)) {
+        return [];
+    }
+
+    $required = [
+        'TIKTOK_SHOP_APP_KEY',
+        'TIKTOK_SHOP_APP_SECRET',
+        'ARIA_BASE_URL',
+        'ARIA_WEBHOOK_RELAY_BEARER',
+    ];
+    foreach ($required as $key) {
+        if (! isset($cfg[$key]) || trim((string) $cfg[$key]) === '') {
+            return [];
+        }
+    }
+
+    /** @var array<string, string> $out */
+    $out = [];
+    foreach ($required as $key) {
+        $out[$key] = trim((string) $cfg[$key]);
+    }
+
+    return $out;
+}
+
 header('Content-Type: text/plain; charset=utf-8');
 
-$appKey = trim((string) getenv('TIKTOK_SHOP_APP_KEY'));
-$appSecret = trim((string) getenv('TIKTOK_SHOP_APP_SECRET'));
-$ariaBase = rtrim((string) (getenv('ARIA_BASE_URL') ?: 'https://aria3.corenationactive.com'), '/');
-$relayBearer = trim((string) getenv('ARIA_WEBHOOK_RELAY_BEARER'));
-
-$rawBody = file_get_contents('php://input') ?: '';
-$platformAuth = trim((string) ($_SERVER['HTTP_AUTHORIZATION'] ?? ''));
-
-if ($appKey === '' || $appSecret === '' || $relayBearer === '') {
+$cfg = tiktokShopWebhookRelayLoadConfig();
+if ($cfg === []) {
     http_response_code(500);
     echo '';
     exit;
 }
+
+$appKey = $cfg['TIKTOK_SHOP_APP_KEY'];
+$appSecret = $cfg['TIKTOK_SHOP_APP_SECRET'];
+$ariaBase = rtrim($cfg['ARIA_BASE_URL'], '/');
+$relayBearer = $cfg['ARIA_WEBHOOK_RELAY_BEARER'];
+
+$rawBody = file_get_contents('php://input') ?: '';
+$platformAuth = trim((string) ($_SERVER['HTTP_AUTHORIZATION'] ?? ''));
 
 $expected = hash_hmac('sha256', $appKey.$rawBody, $appSecret);
 if ($platformAuth === '' || ! hash_equals($expected, $platformAuth)) {

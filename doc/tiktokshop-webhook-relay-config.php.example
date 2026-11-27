@@ -1,0 +1,14 @@
+<?php
+
+/**
+ * TikTok Shop webhook CDN relay — private config (copy outside public_html).
+ *
+ * Deploy as e.g. /home/user/config/tiktokshop-webhook-relay-config.php
+ * Never commit this file with real secrets. chmod 600 on the live copy.
+ */
+return [
+    'TIKTOK_SHOP_APP_KEY' => 'your-tiktok-app-key',
+    'TIKTOK_SHOP_APP_SECRET' => 'your-tiktok-app-secret',
+    'ARIA_BASE_URL' => 'https://aria3.corenationactive.com',
+    'ARIA_WEBHOOK_RELAY_BEARER' => 'long-random-shared-secret-matches-aria3',
+];
