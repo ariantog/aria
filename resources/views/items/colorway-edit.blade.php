@@ -17,6 +17,7 @@ $breadcrumbs = [
         'id' => $tag->id,
         'code' => $tag->code,
     ])->values()->all();
+    $colorwayTypeCode = strtoupper((string) (optional($sample->tags->firstWhere('type', \App\Models\Tag::TYPE_TYPE))->code ?? ''));
 @endphp
 <div class="p-4 sm:p-6" x-data="colorwayForm(@js([
     'product_name' => old('product_name', $productTitle),
@@ -28,6 +29,7 @@ $breadcrumbs = [
     'rows' => $previewRows,
     'warnaCode' => $color['code'] ?? '',
     'warnaName' => $color['name'] ?? '',
+    'typeCode' => $colorwayTypeCode,
     'sizeTags' => $colorwaySizeTagsJs,
 ]))" x-init="initColorwayTags()">
     <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -157,8 +159,8 @@ $breadcrumbs = [
                     <p class="text-sm text-gray-500">Updates as you type the product name.</p>
                 </div>
                 <div class="max-h-[420px] space-y-2 overflow-y-auto p-5">
-                    <template x-for="(row, idx) in previewNames" :key="idx">
-                        <div class="rounded-lg border border-gray-100 bg-gray-50/80 p-3">
+                    <template x-for="row in previewNames()" :key="row.key">
+                        <div class="rounded-lg border border-gray-100 bg-gray-50/80 p-3" :data-testid="'colorway-preview-' + row.key">
                             <p class="font-mono text-xs text-blue-600" x-text="row.code"></p>
                             <p class="mt-1 text-sm font-medium text-gray-900" x-text="row.name"></p>
                         </div>
@@ -190,6 +192,7 @@ function colorwayForm(config) {
         effectiveTitle: (config.effectiveTitle || '').toUpperCase().trim(),
         warnaCode: (config.warnaCode || '').toUpperCase(),
         warnaName: (config.warnaName || config.warnaCode || '').toUpperCase(),
+        typeCode: (config.typeCode || '').toUpperCase(),
         allSizeCode: 'AS',
         sizeTags: config.sizeTags || [],
         draftRows: [],
@@ -242,16 +245,25 @@ function colorwayForm(config) {
             }
         },
 
+        syncTypeFromDom() {
+            const typeInput = this.$root.querySelector('input[name="tags[types]"]:checked, input[name="tags[types][]"]:checked');
+            if (typeInput) {
+                this.typeCode = (typeInput.dataset.code || this.typeCode || '').toUpperCase();
+            }
+        },
+
         onWarna() {
             this.syncWarnaFromDom();
         },
 
         onTypeChange() {
+            this.syncTypeFromDom();
         },
 
         initColorwayTags() {
             this.$nextTick(() => {
                 this.syncWarnaFromDom();
+                this.syncTypeFromDom();
             });
         },
 
@@ -330,11 +342,82 @@ function colorwayForm(config) {
             return parts.join(' - ');
         },
 
-        get previewNames() {
-            return this.rows.map((row) => ({
-                code: row.code,
-                name: this.buildName(this.displayTitle, row.size_code),
-            }));
+        appendSizeSegment(base, sizeCode) {
+            const sc = (sizeCode || '').toUpperCase();
+            if (sc === this.allSizeCode) {
+                return (base || '').toUpperCase();
+            }
+
+            return `${base}-${sc}`.toUpperCase();
+        },
+
+        sizeCodeForTagId(tagId) {
+            const id = String(tagId ?? '').trim();
+            if (id === '') {
+                return '';
+            }
+            const tag = this.sizeTags.find((t) => String(t.id) === id);
+
+            return tag ? String(tag.code || '').toUpperCase() : '';
+        },
+
+        buildSkuCode(sizeCode) {
+            const pcode = (this.form.pcode || this.pcode || '').toUpperCase().trim();
+            const sc = (sizeCode || '').toUpperCase();
+            if (pcode === '' || sc === '' || sc === '—') {
+                return '—';
+            }
+
+            if (this.isAsset) {
+                const wc = (this.warnaCode || '').toUpperCase().trim();
+                if (wc === '') {
+                    return '—';
+                }
+
+                return this.appendSizeSegment(`${pcode}-${wc}`, sc);
+            }
+
+            const tc = (this.typeCode || '').toUpperCase().trim();
+            if (tc === '') {
+                return '—';
+            }
+
+            return this.appendSizeSegment(`${tc}-${pcode}`, sc);
+        },
+
+        draftSkuPreview(draft) {
+            const sizeCode = this.sizeCodeForTagId(draft.size_tag_id);
+            if (sizeCode === '') {
+                return '— (pick size)';
+            }
+
+            return this.buildSkuCode(sizeCode);
+        },
+
+        previewNames() {
+            const title = this.displayTitle;
+            const saved = (this.rows || []).map((row) => {
+                const sizeCode = row.size_code || '—';
+
+                return {
+                    key: `saved-${sizeCode}`,
+                    code: this.buildSkuCode(sizeCode),
+                    name: this.buildName(title, sizeCode),
+                };
+            });
+            const drafts = (this.draftRows || []).map((draft) => {
+                const sizeCode = this.sizeCodeForTagId(draft.size_tag_id);
+                const code = sizeCode === '' ? '— (pick size)' : this.buildSkuCode(sizeCode);
+                const name = sizeCode === '' ? '— (pick size)' : this.buildName(title, sizeCode);
+
+                return {
+                    key: `draft-${draft.key}`,
+                    code,
+                    name,
+                };
+            });
+
+            return [...saved, ...drafts];
         },
     };
 }

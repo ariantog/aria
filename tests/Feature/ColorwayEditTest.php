@@ -236,6 +236,8 @@ test('colorway edit page renders with size matrix and preview', function () {
         ->assertSee('data-testid="colorway-mass-description"', false)
         ->assertSee('data-testid="colorway-add-size-row"', false)
         ->assertSee('data-testid="colorway-mass-ongkir"', false)
+        ->assertSee('draftSkuPreview', false)
+        ->assertSee('buildSkuCode', false)
         ->assertDontSee('id="colorway-description"', false);
 
     $html = $response->getContent();
