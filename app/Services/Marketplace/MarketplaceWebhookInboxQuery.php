@@ -26,7 +26,7 @@ class MarketplaceWebhookInboxQuery
         }
 
         $view = strtolower(trim((string) $request->query('view', 'events')));
-        if (! in_array($view, ['events', 'orders'], true)) {
+        if (! in_array($view, ['events', 'orders', 'missed_push'], true)) {
             $view = 'events';
         }
 

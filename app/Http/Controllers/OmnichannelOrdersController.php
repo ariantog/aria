@@ -13,7 +13,10 @@ use App\Services\Marketplace\MarketplaceWebhookInboxQuery;
 use App\Services\Marketplace\MarketplaceWebhookStatusPresenter;
 use App\Services\Marketplace\MarketplaceWebhookShopWarehouseResolver;
 use App\Services\Marketplace\OmnichannelOrderDetailReader;
+use App\Models\MarketplaceMissedPushGap;
+use App\Services\Marketplace\MarketplaceMissedPushGapQuery;
 use App\Services\Marketplace\MarketplaceWebhookRecorder;
+use App\Services\Marketplace\ShopeeMissedPushReconcileService;
 use App\Services\Shopee\ShopeeShippingDocumentService;
 use App\Services\TikTokShop\TikTokShopShippingDocumentService;
 use Illuminate\Http\JsonResponse;
@@ -33,6 +36,7 @@ class OmnichannelOrdersController extends Controller
         MarketplaceWebhookStatusPresenter $statusPresenter,
         MarketplaceChannelOrderWarehousePersist $warehousePersist,
         MarketplaceChannelOrderOpsBucket $opsBucket,
+        MarketplaceMissedPushGapQuery $missedPushQuery,
     ): View {
         abort_unless(Omnichannel::userCanOrders($request->user()), 403);
 
@@ -40,11 +44,20 @@ class OmnichannelOrdersController extends Controller
 
         $eventsTableExists = Schema::hasTable('marketplace_webhook_events');
         $ordersTableExists = Schema::hasTable('marketplace_channel_orders');
+        $missedPushTableExists = Schema::hasTable('marketplace_missed_push_gaps');
         $rows = null;
         $statusOptions = [];
         $opsBucketStats = [];
+        $shopeeLastReconcileByShop = [];
 
-        if ($filters['view'] === 'orders' && $ordersTableExists) {
+        if ($filters['view'] === 'missed_push' && $missedPushTableExists) {
+            $gapFilters = $missedPushQuery->parseFilters($request);
+            $rows = $missedPushQuery->openGapsQuery($gapFilters)
+                ->paginate($gapFilters['per_page'])
+                ->withQueryString();
+            $filters = array_merge($filters, $gapFilters);
+            $shopeeLastReconcileByShop = $missedPushQuery->shopeeLastReconcileByShop();
+        } elseif ($filters['view'] === 'orders' && $ordersTableExists) {
             $opsBucketStats = $opsBucket->countBuckets($inboxQuery->ordersQueryForStats($filters));
             $rows = $inboxQuery->ordersQuery($filters)
                 ->paginate($filters['per_page'])
@@ -112,7 +125,47 @@ class OmnichannelOrdersController extends Controller
             'warehouseLabelsUrl' => route('omnichannel.orders.warehouse-labels'),
             'pendingWarehouseIds' => $pendingWarehouseIds,
             'initialWarehouseLabels' => $initialWarehouseLabels,
+            'missedPushTableExists' => $missedPushTableExists,
+            'shopeeLastReconcileByShop' => $shopeeLastReconcileByShop,
         ]);
+    }
+
+    public function ingestMissedPush(
+        Request $request,
+        int $gap,
+        ShopeeMissedPushReconcileService $reconcile,
+    ): RedirectResponse {
+        abort_unless(Omnichannel::userCanOrders($request->user()), 403);
+
+        if (! Schema::hasTable('marketplace_missed_push_gaps')) {
+            return back()->with('error', 'Tabel missed push belum ada — jalankan migrasi.');
+        }
+
+        $row = MarketplaceMissedPushGap::query()->find($gap);
+        if ($row === null || $row->channel !== MarketplaceWebhookRecorder::CHANNEL_SHOPEE) {
+            return back()->with('error', 'Gap tidak ditemukan atau channel belum didukung untuk ingest manual.');
+        }
+
+        if (! $row->isOpen()) {
+            return back()->with('warning', "Order {$row->order_ref} sudah di-ingest.");
+        }
+
+        $result = $reconcile->ingestGap($row);
+
+        if (($result['error'] ?? null) !== null) {
+            return back()->with('error', $result['error']);
+        }
+
+        if ($result['ingested'] ?? false) {
+            $row->forceFill(['ingested_at' => now()])->save();
+
+            return back()->with('success', "Order {$row->order_ref} di-ingest ke unified storage.");
+        }
+
+        return back()->with(
+            'warning',
+            'Pull selesai tetapi tidak ada layer ingest aktif (cek MARKETPLACE_WEBHOOK_UNIFIED_STORAGE / shadow / jubelio queue).',
+        );
     }
 
     public function warehouseLabels(

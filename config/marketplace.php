@@ -21,6 +21,29 @@ return [
         ),
     ],
 
+    /**
+     * Detect platform orders missing from marketplace_channel_orders (missed push / relay gap).
+     * Does not replay status churn for orders already in Aria.
+     */
+    'missed_push_reconcile' => [
+        'enabled' => filter_var(
+            env('MARKETPLACE_MISSED_PUSH_RECONCILE_ENABLED', false),
+            FILTER_VALIDATE_BOOLEAN
+        ),
+        'days' => max(1, (int) env('MARKETPLACE_MISSED_PUSH_RECONCILE_DAYS', 14)),
+        'max_days' => max(1, (int) env('MARKETPLACE_MISSED_PUSH_RECONCILE_MAX_DAYS', 30)),
+        'shopee' => [
+            // UNPAID..SHIPPED only — no COMPLETED/CANCEL churn; RETRY_SHIP invalid for get_order_list filter.
+            'order_statuses' => array_values(array_filter(array_map(
+                'trim',
+                explode(',', (string) env(
+                    'MARKETPLACE_MISSED_PUSH_RECONCILE_SHOPEE_STATUSES',
+                    'UNPAID,READY_TO_SHIP,PROCESSED,SHIPPED'
+                )),
+            ))),
+        ],
+    ],
+
     'webhook' => [
         /**
          * Dual-write Shopee/TikTok deliveries to marketplace_webhook_events / marketplace_channel_orders
