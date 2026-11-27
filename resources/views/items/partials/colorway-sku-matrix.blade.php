@@ -178,7 +178,10 @@
                                 </template>
                             </select>
                         </td>
-                        <td class="px-2 py-2 align-top text-xs text-gray-500 italic">New (save to create)</td>
+                        <td class="px-2 py-2 align-top">
+                            <span class="font-mono text-xs text-blue-600" x-text="draftSkuPreview(draft)"></span>
+                            <span class="mt-0.5 block text-xs text-gray-500 italic">New (save to create)</span>
+                        </td>
                         @foreach($matrixPricingFields as $fieldKey => $fieldMeta)
                         <td class="px-2 py-2 text-right align-top">
                             <input type="hidden" :name="'new_items[' + draft.key + '][pricing][' + '{{ $fieldKey }}' + '][scope]'" value="size">
