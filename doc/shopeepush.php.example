@@ -1,40 +1,38 @@
 <?php
 
 /**
- * TikTok Shop Event API webhook — CDN ACK-first relay (deploy as tiktokshop-webhook.php).
+ * Shopee Push Mechanism — CDN ACK-first relay (deploy as shopeepush.php in public_html).
  *
- * 1) Verify HMAC-SHA256(app_key + raw_body, app_secret) hex in Authorization.
+ * 1) Verify platform HMAC (callback URL + raw body).
  * 2) Return HTTP 200 immediately.
- * 3) Forward to aria3 POST /tiktok-shop/webhook/relay (async).
+ * 3) Forward raw body to aria3 POST /shopee/push/relay (async).
  *
- * Secrets live in a PHP array file outside public_html — never commit real config; chmod 600.
- * Template: doc/tiktokshop-webhook-relay-config.php.example
+ * Secrets: pushconfig.php outside public_html — template doc/pushconfig.php.example
  *
- * See doc/marketplace-webhook-cdn-relay.md
+ * Requires aria3: SHOPEE_PUSH_RELAY_ENABLED=true — see doc/cdn-push-relay-deploy.md
  */
 
 declare(strict_types=1);
 
-// Absolute path to private config (outside public_html / web root).
-define('TIKTOK_SHOP_WEBHOOK_RELAY_CONFIG_FILE', '/absolute/path/outside/public_html/tiktokshop-webhook-relay-config.php');
+define('PUSH_RELAY_CONFIG_FILE', '/absolute/path/outside/public_html/pushconfig.php');
 
 /**
  * @return array<string, string>
  */
-function tiktokShopWebhookRelayLoadConfig(): array
+function shopeePushRelayLoadConfig(): array
 {
-    if (! is_file(TIKTOK_SHOP_WEBHOOK_RELAY_CONFIG_FILE)) {
+    if (! is_file(PUSH_RELAY_CONFIG_FILE)) {
         return [];
     }
 
-    $cfg = require TIKTOK_SHOP_WEBHOOK_RELAY_CONFIG_FILE;
+    $cfg = require PUSH_RELAY_CONFIG_FILE;
     if (! is_array($cfg)) {
         return [];
     }
 
     $required = [
-        'TIKTOK_SHOP_APP_KEY',
-        'TIKTOK_SHOP_APP_SECRET',
+        'SHOPEE_PUSH_PARTNER_KEY',
+        'SHOPEE_PUSH_CALLBACK_URL',
         'ARIA_BASE_URL',
         'ARIA_WEBHOOK_RELAY_BEARER',
     ];
@@ -55,22 +53,22 @@ function tiktokShopWebhookRelayLoadConfig(): array
 
 header('Content-Type: text/plain; charset=utf-8');
 
-$cfg = tiktokShopWebhookRelayLoadConfig();
+$cfg = shopeePushRelayLoadConfig();
 if ($cfg === []) {
     http_response_code(500);
     echo '';
     exit;
 }
 
-$appKey = $cfg['TIKTOK_SHOP_APP_KEY'];
-$appSecret = $cfg['TIKTOK_SHOP_APP_SECRET'];
+$partnerKey = $cfg['SHOPEE_PUSH_PARTNER_KEY'];
+$callbackUrl = $cfg['SHOPEE_PUSH_CALLBACK_URL'];
 $ariaBase = rtrim($cfg['ARIA_BASE_URL'], '/');
 $relayBearer = $cfg['ARIA_WEBHOOK_RELAY_BEARER'];
 
 $rawBody = file_get_contents('php://input') ?: '';
 $platformAuth = trim((string) ($_SERVER['HTTP_AUTHORIZATION'] ?? ''));
 
-$expected = hash_hmac('sha256', $appKey.$rawBody, $appSecret);
+$expected = hash_hmac('sha256', $callbackUrl.'|'.$rawBody, $partnerKey);
 if ($platformAuth === '' || ! hash_equals($expected, $platformAuth)) {
     http_response_code(401);
     echo '';
@@ -89,7 +87,7 @@ if (function_exists('fastcgi_finish_request')) {
     flush();
 }
 
-$relayUrl = $ariaBase.'/tiktok-shop/webhook/relay';
+$relayUrl = $ariaBase.'/shopee/push/relay';
 
 $ch = curl_init($relayUrl);
 curl_setopt_array($ch, [
@@ -98,7 +96,8 @@ curl_setopt_array($ch, [
     CURLOPT_HTTPHEADER => [
         'Content-Type: application/json',
         'Authorization: Bearer '.$relayBearer,
-        'X-TikTok-Shop-Authorization: '.$platformAuth,
+        'X-Shopee-Push-Authorization: '.$platformAuth,
+        'X-Shopee-Push-Callback-Url: '.$callbackUrl,
     ],
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_TIMEOUT => 5,
@@ -112,8 +111,9 @@ curl_close($ch);
 
 if ($httpCode < 200 || $httpCode >= 300) {
     error_log(sprintf(
-        'tiktokshop webhook relay forward failed http=%d curl=%s',
+        'shopeepush relay forward failed http=%d curl=%s body=%s',
         $httpCode,
-        $curlError
+        $curlError,
+        is_string($response) ? substr($response, 0, 500) : ''
     ));
 }

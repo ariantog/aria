@@ -1,0 +1,24 @@
+<?php
+
+/**
+ * Marketplace push relay — private CDN config (one file, both channels).
+ *
+ * Copy to a path OUTSIDE public_html, e.g. /home/user/config/pushconfig.php
+ * Never commit live secrets. chmod 600 on the deployed copy.
+ *
+ * Loaded by public scripts shopeepush.php and tiktokpush.php via PUSH_RELAY_CONFIG_FILE.
+ */
+return [
+    // --- Shared (aria3 forward) ---
+    'ARIA_BASE_URL' => 'https://aria3.corenationactive.com',
+    'ARIA_WEBHOOK_RELAY_BEARER' => 'long-random-shared-secret-matches-aria3',
+
+    // --- Shopee Push Mechanism (CDN edge verify + HMAC base string) ---
+    'SHOPEE_PUSH_PARTNER_KEY' => 'your-live-push-partner-key',
+    // Must match Shopee Open Platform → Push Mechanism callback URL exactly:
+    'SHOPEE_PUSH_CALLBACK_URL' => 'https://cdn.corenationactive.com/shopeepush.php',
+
+    // --- TikTok Shop Event API webhook (CDN edge verify) ---
+    'TIKTOK_SHOP_APP_KEY' => 'your-tiktok-app-key',
+    'TIKTOK_SHOP_APP_SECRET' => 'your-tiktok-app-secret',
+];

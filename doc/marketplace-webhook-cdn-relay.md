@@ -4,6 +4,8 @@
 
 **When to use:** Flash sales / traffic spikes where PHP-FPM on aria3 is contended **before** the app can return 200, or you want geographic edge close to platforms. Optional — direct `https://aria3…/shopee/push` stays valid for dev and low traffic.
 
+**Ops checklist:** step-by-step deploy is **`doc/cdn-push-relay-deploy.md`** (this page is architecture and behaviour).
+
 ---
 
 ## Architecture
@@ -12,12 +14,12 @@
 Shopee / TikTok
     │ POST (signed body + Authorization)
     ▼
-https://cdn.corenationactive.com/shopeepush.php   (or tiktokshop-webhook.php)
+https://cdn.corenationactive.com/shopeepush.php   or   …/tiktokpush.php
     │ 1) HMAC verify (same rules as Open Platform docs)
     │ 2) echo 200; flush
     │ 3) background POST → aria3 (raw body preserved)
     ▼
-https://aria3.corenationactive.com/shopee/push/relay   (or /tiktok-shop/webhook/relay)
+https://aria3.corenationactive.com/shopee/push/relay   or   /tiktok-shop/webhook/relay
     │ relay bearer (optional) + re-verify platform HMAC; enqueue Persist*Job
     ▼
 Queue workers (existing jobs)
@@ -25,7 +27,7 @@ Queue workers (existing jobs)
 
 TikTok: same pattern with `app_key + raw_body` HMAC hex in `Authorization`.
 
-**CDN secrets:** keep partner keys, app secrets, and relay bearer in a **private PHP config file** outside `public_html` (not beside `shopeepush.php` in the docroot). The public relay script only defines the path constant and `require`s the array — see Shopee / TikTok sections below. OAuth CDN relay (`doc/tiktok-ttsbot-relay.md`) uses the same idea on the ops side.
+**CDN secrets:** one private **`pushconfig.php`** outside `public_html` (template `doc/pushconfig.php.example`). Public scripts `shopeepush.php` / `tiktokpush.php` define `PUSH_RELAY_CONFIG_FILE` and `require` the array — see deploy guide. OAuth CDN relay (`doc/tiktok-ttsbot-relay.md`) is separate (`ttsbot.php`).
 
 ---
 
@@ -33,7 +35,7 @@ TikTok: same pattern with `app_key + raw_body` HMAC hex in `Authorization`.
 
 ### Console
 
-Register **Push Mechanism → Set Push** callback to the **CDN URL**, e.g.:
+Register **Push Mechanism → Set Push** callback to the **CDN URL**:
 
 ```text
 https://cdn.corenationactive.com/shopeepush.php
@@ -43,16 +45,16 @@ HMAC base string uses that exact URL: `{callbackUrl}|{rawBody}` with **Live Push
 
 ### CDN configuration (outside `public_html`)
 
-**Default (maintainer):** copy `doc/shopeepush-relay-config.php.example` to a path **outside** the CDN web root (same pattern as the Telegram Grok relay — `return [ … ];` loaded from the public script). Set `SHOPEE_PUSH_RELAY_CONFIG_FILE` in `doc/shopeepush-relay.php.example` to that absolute path. Never commit the live file; `chmod 600`.
+Copy `doc/pushconfig.php.example` outside the CDN web root. Set `PUSH_RELAY_CONFIG_FILE` in both `doc/shopeepush.php.example` and `doc/tiktokpush.php.example` to that absolute path before deploying. Never commit the live file; `chmod 600`.
 
 | Config key | Purpose |
 |------------|---------|
 | `SHOPEE_PUSH_PARTNER_KEY` | Live Push Partner Key (verify at edge) |
-| `SHOPEE_PUSH_CALLBACK_URL` | Must match Console URL **exactly** (including path, no stray slash) |
+| `SHOPEE_PUSH_CALLBACK_URL` | Must match Console URL **exactly** (`https://cdn.corenationactive.com/shopeepush.php`) |
 | `ARIA_BASE_URL` | `https://aria3.corenationactive.com` (no trailing slash) |
 | `ARIA_WEBHOOK_RELAY_BEARER` | Shared secret; sent as `Authorization: Bearer …` to aria3 relay route |
 
-On PHP-FPM you may still wire the same keys via hosting-panel **environment variables** and a thin local wrapper that builds the array — the repo examples use the **config file** only so secrets are not in `public_html` or process listings.
+On PHP-FPM you may still build the same array from hosting-panel env vars in a local `pushconfig.php` wrapper — the repo template uses a **config file** so secrets are not in `public_html`.
 
 ### Edge behaviour
 
@@ -73,7 +75,7 @@ On PHP-FPM you may still wire the same keys via hosting-panel **environment vari
 
 ```env
 SHOPEE_PUSH_RELAY_ENABLED=true
-SHOPEE_PUSH_RELAY_BEARER=...        # matches CDN ARIA_WEBHOOK_RELAY_BEARER (optional when empty)
+SHOPEE_PUSH_RELAY_BEARER=...        # matches pushconfig ARIA_WEBHOOK_RELAY_BEARER (optional when empty)
 SHOPEE_PUSH_CALLBACK_URL=https://cdn.corenationactive.com/shopeepush.php
 SHOPEE_PUSH_PARTNER_KEY=...         # same Live Push Partner Key as CDN
 ```
@@ -86,11 +88,13 @@ Route: `POST /shopee/push/relay` (`shopee.push.relay`). Direct `/shopee/push` re
 
 ## TikTok Shop webhook
 
-Partner Center webhook URL → CDN, e.g. `https://cdn.corenationactive.com/tiktokshop-webhook.php`.
+Partner Center webhook URL → CDN:
 
-### CDN configuration (outside `public_html`)
+```text
+https://cdn.corenationactive.com/tiktokpush.php
+```
 
-Copy `doc/tiktokshop-webhook-relay-config.php.example` outside the web root; point `TIKTOK_SHOP_WEBHOOK_RELAY_CONFIG_FILE` in `doc/tiktokshop-webhook-relay.php.example` at it (`chmod 600`, never commit secrets). Same Telegram-style private PHP config as Shopee; `getenv()` on FPM is fine if you prefer env, but the maintained templates use the config file.
+Same `pushconfig.php` as Shopee; keys `TIKTOK_SHOP_APP_KEY`, `TIKTOK_SHOP_APP_SECRET`, plus shared `ARIA_*`.
 
 | Config key | Purpose |
 |------------|---------|
@@ -109,6 +113,8 @@ Forward headers:
 ```env
 TIKTOK_SHOP_WEBHOOK_RELAY_ENABLED=true
 TIKTOK_SHOP_WEBHOOK_RELAY_BEARER=...
+TIKTOK_SHOP_APP_KEY=...
+TIKTOK_SHOP_APP_SECRET=...
 ```
 
 Route: `POST /tiktok-shop/webhook/relay` (`tiktok-shop.webhook.relay`).
@@ -140,7 +146,7 @@ Return 200 within ~3s at edge; forward async same as Shopee.
 ## Rollout (recommended)
 
 1. Deploy aria3 **relay routes** + env flags (no change to default direct webhooks).
-2. Deploy CDN scripts from `doc/shopeepush-relay.php.example` and `doc/tiktokshop-webhook-relay.php.example` plus matching `*-relay-config.php.example` copies **outside public_html** — never commit live config.
+2. Deploy CDN `shopeepush.php` + `tiktokpush.php` from repo examples and `pushconfig.php` outside public_html — see **`doc/cdn-push-relay-deploy.md`**.
 3. Smoke: Console verify → CDN → relay → one inbox row + job processed.
 4. Cutover: change Console webhook URL to CDN.
 5. Monitor queue lag during promo.
@@ -149,6 +155,7 @@ Return 200 within ~3s at edge; forward async same as Shopee.
 
 ## Related
 
+- `doc/cdn-push-relay-deploy.md` — maintainer step-by-step deploy
 - `doc/shopee-push-test.md` — keys, callback URL, simulate command
 - `doc/tiktok-shop-webhook.md` — TikTok verify + inbox
 - `doc/tiktok-ttsbot-relay.md` — OAuth relay (different path from webhooks)
