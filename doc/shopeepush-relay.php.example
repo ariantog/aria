@@ -7,26 +7,68 @@
  * 2) Return HTTP 200 immediately.
  * 3) Forward raw body to aria3 POST /shopee/push/relay (async).
  *
+ * Secrets live in a PHP array file outside public_html — never commit real config; chmod 600.
+ * Template: doc/shopeepush-relay-config.php.example → copy beside other CDN private config.
+ *
  * Requires aria3: SHOPEE_PUSH_RELAY_ENABLED=true — see doc/marketplace-webhook-cdn-relay.md
  */
 
 declare(strict_types=1);
 
+// Absolute path to private config (outside public_html / web root).
+define('SHOPEE_PUSH_RELAY_CONFIG_FILE', '/absolute/path/outside/public_html/shopeepush-relay-config.php');
+
+/**
+ * @return array<string, string>
+ */
+function shopeePushRelayLoadConfig(): array
+{
+    if (! is_file(SHOPEE_PUSH_RELAY_CONFIG_FILE)) {
+        return [];
+    }
+
+    $cfg = require SHOPEE_PUSH_RELAY_CONFIG_FILE;
+    if (! is_array($cfg)) {
+        return [];
+    }
+
+    $required = [
+        'SHOPEE_PUSH_PARTNER_KEY',
+        'SHOPEE_PUSH_CALLBACK_URL',
+        'ARIA_BASE_URL',
+        'ARIA_WEBHOOK_RELAY_BEARER',
+    ];
+    foreach ($required as $key) {
+        if (! isset($cfg[$key]) || trim((string) $cfg[$key]) === '') {
+            return [];
+        }
+    }
+
+    /** @var array<string, string> $out */
+    $out = [];
+    foreach ($required as $key) {
+        $out[$key] = trim((string) $cfg[$key]);
+    }
+
+    return $out;
+}
+
 header('Content-Type: text/plain; charset=utf-8');
 
-$partnerKey = trim((string) getenv('SHOPEE_PUSH_PARTNER_KEY'));
-$callbackUrl = trim((string) getenv('SHOPEE_PUSH_CALLBACK_URL'));
-$ariaBase = rtrim((string) (getenv('ARIA_BASE_URL') ?: 'https://aria3.corenationactive.com'), '/');
-$relayBearer = trim((string) getenv('ARIA_WEBHOOK_RELAY_BEARER'));
-
-$rawBody = file_get_contents('php://input') ?: '';
-$platformAuth = trim((string) ($_SERVER['HTTP_AUTHORIZATION'] ?? ''));
-
-if ($partnerKey === '' || $callbackUrl === '' || $relayBearer === '') {
+$cfg = shopeePushRelayLoadConfig();
+if ($cfg === []) {
     http_response_code(500);
     echo '';
     exit;
 }
+
+$partnerKey = $cfg['SHOPEE_PUSH_PARTNER_KEY'];
+$callbackUrl = $cfg['SHOPEE_PUSH_CALLBACK_URL'];
+$ariaBase = rtrim($cfg['ARIA_BASE_URL'], '/');
+$relayBearer = $cfg['ARIA_WEBHOOK_RELAY_BEARER'];
+
+$rawBody = file_get_contents('php://input') ?: '';
+$platformAuth = trim((string) ($_SERVER['HTTP_AUTHORIZATION'] ?? ''));
 
 $expected = hash_hmac('sha256', $callbackUrl.'|'.$rawBody, $partnerKey);
 if ($platformAuth === '' || ! hash_equals($expected, $platformAuth)) {
