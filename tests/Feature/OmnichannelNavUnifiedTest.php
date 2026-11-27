@@ -82,7 +82,7 @@ it('shows mapped gudang in gudang column with platform wh on current orders', fu
         'shopee_warehouse_name' => 'Pickup B',
     ]);
 
-    MarketplaceChannelOrder::query()->create([
+    createMarketplaceChannelOrder([
         'channel' => 'shopee',
         'order_ref' => 'GUDANG-SN-1',
         'shop_ref' => '100',
@@ -91,7 +91,7 @@ it('shows mapped gudang in gudang column with platform wh on current orders', fu
         'first_received_at' => now()->subHour(),
     ]);
 
-    MarketplaceChannelOrder::query()->create([
+    createMarketplaceChannelOrder([
         'channel' => 'tiktok',
         'commerce_platform' => 'TOKOPEDIA',
         'order_ref' => 'GUDANG-TOKO-1',
@@ -168,7 +168,7 @@ it('resolves tiktok gudang on orders list from last webhook payload and matrix',
         'received_at' => now(),
     ]);
 
-    $order = MarketplaceChannelOrder::query()->create([
+    $order = createMarketplaceChannelOrder([
         'channel' => 'tiktok',
         'order_ref' => 'TIKTOK-WH-LIST-1',
         'shop_ref' => $shopRef,
@@ -204,7 +204,7 @@ it('shows shop ref in shop column not aria warehouse on current orders', functio
         'warehouse_id' => $warehouse->id,
     ]);
 
-    $order = MarketplaceChannelOrder::query()->create([
+    $order = createMarketplaceChannelOrder([
         'channel' => 'tiktok',
         'order_ref' => 'SHOP-COL-1',
         'shop_ref' => '7495540735365777507',
@@ -238,7 +238,7 @@ it('hides shop column and shop filter on current orders when only one shop ref e
         'shopee_warehouse_name' => 'WH',
     ]);
 
-    MarketplaceChannelOrder::query()->create([
+    createMarketplaceChannelOrder([
         'channel' => 'shopee',
         'order_ref' => 'SINGLE-SHOP-1',
         'shop_ref' => '100',
@@ -274,7 +274,7 @@ it('renders orders list without calling shopee admin api', function () {
     $mock->shouldNotReceive('getOrderDetail');
     $this->instance(ShopeeAdminOpenApiService::class, $mock);
 
-    MarketplaceChannelOrder::query()->create([
+    createMarketplaceChannelOrder([
         'channel' => 'shopee',
         'order_ref' => 'LIST-SN-1',
         'shop_ref' => '100',
@@ -293,7 +293,7 @@ it('renders orders list without calling shopee admin api', function () {
 it('returns order detail json from stored data only', function () {
     $admin = User::factory()->create();
 
-    MarketplaceChannelOrder::query()->create([
+    createMarketplaceChannelOrder([
         'channel' => 'shopee',
         'order_ref' => 'DETAIL-SN-9',
         'shop_ref' => '200',
@@ -324,7 +324,7 @@ it('returns order detail json from stored data only', function () {
 it('enriches tiktok order detail with commerce_platform when driver is mock', function () {
     config(['tiktok_shop.driver' => 'mock']);
 
-    MarketplaceChannelOrder::query()->create([
+    createMarketplaceChannelOrder([
         'channel' => 'tiktok',
         'order_ref' => 'TOKO-ENRICH-1',
         'shop_ref' => 'shop-x',
@@ -350,7 +350,7 @@ it('loads tiktok line summary from mock get order detail on orders expand', func
         'tiktok_shop.enrich_commerce_platform' => false,
     ]);
 
-    MarketplaceChannelOrder::query()->create([
+    createMarketplaceChannelOrder([
         'channel' => 'tiktok',
         'order_ref' => 'ONORDER-DETAIL-1',
         'shop_ref' => '7495540735365777507',
@@ -380,7 +380,7 @@ it('loads tiktok line summary from mock get order detail on orders expand', func
 it('renders tiktok channel order detail page with webhook log', function () {
     config(['tiktok_shop.driver' => 'mock', 'tiktok_shop.enrich_commerce_platform' => false]);
 
-    MarketplaceChannelOrder::query()->create([
+    createMarketplaceChannelOrder([
         'channel' => 'tiktok',
         'order_ref' => 'TIKTOK-PAGE-1',
         'shop_ref' => 'shop-1',
@@ -416,7 +416,7 @@ it('reports tiktok api_error when live credentials are missing', function () {
         'tiktok_shop.enrich_commerce_platform' => false,
     ]);
 
-    MarketplaceChannelOrder::query()->create([
+    createMarketplaceChannelOrder([
         'channel' => 'tiktok',
         'order_ref' => 'LIVE-MISSING-CRED',
         'shop_ref' => 'shop-y',

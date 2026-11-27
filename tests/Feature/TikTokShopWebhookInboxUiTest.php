@@ -25,7 +25,7 @@ it('shows tiktok orders on omnichannel list for user with tiktok shop view permi
     $user = User::factory()->create();
     $user->givePermissionTo(TikTokShop::getPermissions()['view']);
 
-    MarketplaceChannelOrder::query()->create([
+    createMarketplaceChannelOrder([
         'channel' => 'tiktok',
         'order_ref' => '576653688135258178',
         'shop_ref' => '7495540735365777507',
