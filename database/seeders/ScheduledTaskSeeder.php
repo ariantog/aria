@@ -225,6 +225,16 @@ class ScheduledTaskSeeder extends Seeder
         );
 
         \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'app:process-tiktok-bulk-link'],
+            [
+                'name' => 'TikTok Shop Bulk Link Worker',
+                'frequency' => 'everyMinute',
+                'active' => true,
+                'description' => 'Continues in-progress TikTok Shop bulk link uploads (max 1000 rows per minute per run).',
+            ]
+        );
+
+        \App\Models\ScheduledTask::updateOrCreate(
             ['command' => 'shopee-ads:process'],
             [
                 'name' => 'Shopee Ads Process',

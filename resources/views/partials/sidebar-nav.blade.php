@@ -197,6 +197,9 @@
     if ($hasPerm('tiktok-shop-view') || $isSuperAdmin) {
         $tiktokNavLabels[] = 'Customer Chat';
     }
+    if ($hasPerm('tiktok-shop-item-link') || $hasPerm('tiktok-shop-view') || $isSuperAdmin) {
+        $tiktokNavLabels[] = 'Bulk Link';
+    }
 
     $journalNavLabels = ['Journals'];
     if ($hasPerm('journal-account-list') || $isSuperAdmin) {
@@ -718,6 +721,9 @@
     </button>
     <div x-show="open && sidebarOpen" x-cloak class="ml-6 mt-1 space-y-0.5">
         <a href="{{ route('tiktok-shop.chats.index') }}" x-show="navLinkVisible('Customer Chat', 'TikTok Shop')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/tiktok-shop/chats') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Customer Chat</a>
+        @if($hasPerm('tiktok-shop-item-link') || $hasPerm('tiktok-shop-view') || $isSuperAdmin)
+        <a href="{{ route('tiktok-shop.bulk-link.index') }}" x-show="navLinkVisible('Bulk Link', 'TikTok Shop')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/tiktok-shop/bulk-link') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Bulk Link</a>
+        @endif
     </div>
 </div>
 @endif
