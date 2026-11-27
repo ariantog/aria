@@ -90,7 +90,7 @@
     ])
 @endif
 <div class="flex flex-col gap-1">
-    <label class="text-xs font-medium uppercase text-gray-500">Rows / page</label>
+    <label class="text-xs font-medium uppercase text-gray-500">Transactions / page</label>
     <select name="per_page" class="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
         @foreach([100, 200, 300] as $size)
             <option value="{{ $size }}" @selected($perPage == $size)>{{ $size }}</option>

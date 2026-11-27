@@ -162,7 +162,7 @@
                 </tbody>
             </table>
         </div>
-        @include('partials.pagination', ['paginator' => $rows, 'label' => 'lines'])
+        @include('partials.pagination', ['paginator' => $rows, 'label' => 'transactions'])
     </div>
 </div>
 
