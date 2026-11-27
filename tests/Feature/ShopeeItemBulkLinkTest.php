@@ -325,3 +325,79 @@ it('forbids bulk link without sync permission', function () {
         ->get(route('shopee.bulk-link.index'))
         ->assertForbidden();
 });
+
+it('downloads failed bulk link rows as csv', function () {
+    $run = ShopeeBulkLinkRun::query()->create([
+        'filename' => 'errors.csv',
+        'status' => ShopeeBulkLinkRun::STATUS_COMPLETED,
+        'total_rows' => 1,
+        'processed_rows' => 1,
+        'error_count' => 1,
+        'payload' => [],
+        'failed_results' => [[
+            'line' => 2,
+            'code' => 'MISSING-SKU',
+            'shopee_item_id' => 9001,
+            'shopee_model_id' => 8001,
+            'status' => 'error',
+            'message' => 'SKU tidak ditemukan',
+            'item' => null,
+        ]],
+    ]);
+
+    $response = $this->actingAs($this->user)
+        ->get(route('shopee.bulk-link.errors.download', $run));
+
+    $response->assertOk()
+        ->assertHeader('content-type', 'text/csv; charset=UTF-8');
+
+    $body = $response->streamedContent();
+    expect($body)->toContain('SKU tidak ditemukan')
+        ->and($body)->toContain('MISSING-SKU')
+        ->and($body)->toContain('error');
+});
+
+it('dismisses failed rows display while keeping error count on index', function () {
+    ShopeeBulkLinkRun::query()->delete();
+
+    $run = ShopeeBulkLinkRun::query()->create([
+        'filename' => 'dismiss.csv',
+        'status' => ShopeeBulkLinkRun::STATUS_COMPLETED,
+        'total_rows' => 2,
+        'processed_rows' => 2,
+        'linked_count' => 1,
+        'error_count' => 1,
+        'payload' => [],
+        'failed_results' => [[
+            'line' => 3,
+            'code' => 'BAD-SKU',
+            'shopee_item_id' => 9002,
+            'shopee_model_id' => 8002,
+            'status' => 'error',
+            'message' => 'SKU tidak ditemukan',
+        ]],
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('shopee.bulk-link.index'))
+        ->assertOk()
+        ->assertSee('data-testid="shopee-bulk-link-failed-rows"', false);
+
+    $this->actingAs($this->user)
+        ->post(route('shopee.bulk-link.errors.dismiss', $run))
+        ->assertRedirect(route('shopee.bulk-link.index'));
+
+    expect($run->fresh()->errors_dismissed_at)->not->toBeNull();
+
+    $this->actingAs($this->user)
+        ->get(route('shopee.bulk-link.index'))
+        ->assertOk()
+        ->assertDontSee('data-testid="shopee-bulk-link-failed-rows"', false)
+        ->assertSee('1 error', false);
+
+    $download = $this->actingAs($this->user)
+        ->get(route('shopee.bulk-link.errors.download', $run));
+
+    $download->assertOk();
+    expect($download->streamedContent())->toContain('BAD-SKU');
+});

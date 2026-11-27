@@ -2,13 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ShopeeBulkLinkRun;
 use App\Models\ShopeeStock;
+use App\Support\BulkLinkFailedRowsCsv;
 use App\Services\Shopee\ShopeeItemBulkLinkService;
 use App\Services\Shopee\ShopeeStockApiService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ShopeeItemBulkLinkController extends Controller
 {
@@ -93,5 +96,54 @@ class ShopeeItemBulkLinkController extends Controller
                 $batchesLeft,
                 ShopeeItemBulkLinkService::BATCH_SIZE,
             ));
+    }
+
+    public function downloadErrors(ShopeeBulkLinkRun $run, ShopeeItemBulkLinkService $service): StreamedResponse
+    {
+        Gate::authorize(ShopeeStock::getPermissions()['sync']);
+
+        $rows = $service->storedFailedResults($run);
+        $storedCount = count($rows);
+        $suffix = $run->error_count > $storedCount
+            ? sprintf('-errors-total%d-stored%d', $run->error_count, $storedCount)
+            : sprintf('-errors-%d', $run->error_count);
+
+        $filename = sprintf('shopee-bulk-link-run-%d%s.csv', $run->id, $suffix);
+
+        return BulkLinkFailedRowsCsv::download(
+            $filename,
+            ['line', 'sku', 'shopee_item_id', 'shopee_model_id', 'status', 'message', 'aria_item_id'],
+            $rows,
+            (int) $run->error_count,
+            function (array $row): array {
+                $item = $row['item'] ?? null;
+
+                return [
+                    $row['line'] ?? '',
+                    $row['code'] ?? ($item['code'] ?? ''),
+                    $row['shopee_item_id'] ?? '',
+                    $row['shopee_model_id'] ?? '',
+                    $row['status'] ?? '',
+                    $row['message'] ?? '',
+                    is_array($item) ? ($item['id'] ?? '') : ($row['aria_item_id'] ?? ''),
+                ];
+            },
+        );
+    }
+
+    public function dismissErrors(ShopeeBulkLinkRun $run, ShopeeItemBulkLinkService $service): RedirectResponse
+    {
+        Gate::authorize(ShopeeStock::getPermissions()['sync']);
+
+        $display = $service->displayRun();
+        if ($display === null || (int) $display->id !== (int) $run->id) {
+            return back()->with('error', 'Run tidak aktif di halaman ini.');
+        }
+
+        $service->dismissErrorDisplay($run);
+
+        return redirect()
+            ->route('shopee.bulk-link.index')
+            ->with('success', 'Laporan baris gagal disembunyikan — statistik error tetap di panel run.');
     }
 }

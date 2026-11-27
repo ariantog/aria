@@ -2,13 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\TikTokBulkLinkRun;
 use App\Models\TikTokShop;
+use App\Support\BulkLinkFailedRowsCsv;
 use App\Services\TikTokShop\TikTokShopItemBulkLinkService;
 use App\Services\TikTokShop\TikTokShopItemSearchService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TikTokShopItemBulkLinkController extends Controller
 {
@@ -95,6 +98,55 @@ class TikTokShopItemBulkLinkController extends Controller
                 $batchesLeft,
                 TikTokShopItemBulkLinkService::BATCH_SIZE,
             ));
+    }
+
+    public function downloadErrors(TikTokBulkLinkRun $run, TikTokShopItemBulkLinkService $service): StreamedResponse
+    {
+        $this->authorizeBulkLink();
+
+        $rows = $service->storedFailedResults($run);
+        $storedCount = count($rows);
+        $suffix = $run->error_count > $storedCount
+            ? sprintf('-errors-total%d-stored%d', $run->error_count, $storedCount)
+            : sprintf('-errors-%d', $run->error_count);
+
+        $filename = sprintf('tiktok-bulk-link-run-%d%s.csv', $run->id, $suffix);
+
+        return BulkLinkFailedRowsCsv::download(
+            $filename,
+            ['line', 'sku', 'tiktok_product_id', 'tiktok_sku_id', 'status', 'message', 'aria_item_id'],
+            $rows,
+            (int) $run->error_count,
+            function (array $row): array {
+                $item = $row['item'] ?? null;
+
+                return [
+                    $row['line'] ?? '',
+                    $row['code'] ?? ($item['code'] ?? ''),
+                    $row['tiktok_product_id'] ?? '',
+                    $row['tiktok_sku_id'] ?? '',
+                    $row['status'] ?? '',
+                    $row['message'] ?? '',
+                    is_array($item) ? ($item['id'] ?? '') : ($row['aria_item_id'] ?? ''),
+                ];
+            },
+        );
+    }
+
+    public function dismissErrors(TikTokBulkLinkRun $run, TikTokShopItemBulkLinkService $service): RedirectResponse
+    {
+        $this->authorizeBulkLink();
+
+        $display = $service->displayRun();
+        if ($display === null || (int) $display->id !== (int) $run->id) {
+            return back()->with('error', 'Run tidak aktif di halaman ini.');
+        }
+
+        $service->dismissErrorDisplay($run);
+
+        return redirect()
+            ->route('tiktok-shop.bulk-link.index')
+            ->with('success', 'Laporan baris gagal disembunyikan — statistik error tetap di panel run.');
     }
 
     private function authorizeBulkLink(): void
