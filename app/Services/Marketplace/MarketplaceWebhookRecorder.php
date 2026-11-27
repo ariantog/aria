@@ -12,6 +12,7 @@ class MarketplaceWebhookRecorder
     public function __construct(
         protected MarketplaceWebhookStatusPresenter $statusPresenter,
         protected MarketplaceChannelOrderWarehousePersist $warehousePersist,
+        protected MarketplaceChannelOrderOrderedAtResolver $orderedAtResolver,
     ) {}
 
     public const CHANNEL_SHOPEE = 'shopee';
@@ -254,6 +255,22 @@ class MarketplaceWebhookRecorder
         $order->last_event_at = $receivedAt;
         $order->last_webhook_event_id = $event->id;
         $order->updated_at = $receivedAt;
+
+        if (Schema::hasColumn('marketplace_channel_orders', 'marketplace_ordered_at')) {
+            $orderedAt = $this->orderedAtResolver->resolveFromWebhookPayload(
+                (string) $event->channel,
+                (string) $event->order_ref,
+                $payload,
+                $event->order_status,
+            );
+            $this->orderedAtResolver->applyToOrder($order, $orderedAt);
+
+            $payTime = $this->extractPaidAtUnix($event->channel, $payload);
+            if ($payTime !== null && $order->paid_at === null) {
+                $order->paid_at = $payTime;
+            }
+        }
+
         $order->save();
 
         $this->warehousePersist->persistFromWebhookEvent($order, $event);
@@ -262,5 +279,33 @@ class MarketplaceWebhookRecorder
     protected function unifiedStorageEnabled(): bool
     {
         return (bool) config('marketplace.webhook.unified_storage', false);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    protected function extractPaidAtUnix(string $channel, array $payload): ?\Carbon\CarbonInterface
+    {
+        $data = is_array($payload['data'] ?? null) ? $payload['data'] : [];
+        $raw = match (strtolower($channel)) {
+            self::CHANNEL_SHOPEE => $data['pay_time'] ?? null,
+            self::CHANNEL_TIKTOK => $data['paid_time'] ?? $data['pay_time'] ?? $data['payment_time'] ?? null,
+            default => null,
+        };
+
+        if ($raw === null || $raw === '' || ! is_numeric($raw)) {
+            return null;
+        }
+
+        $seconds = (int) $raw;
+        if ($seconds <= 0) {
+            return null;
+        }
+
+        try {
+            return \Illuminate\Support\Carbon::createFromTimestamp($seconds, config('app.timezone'));
+        } catch (\Throwable) {
+            return null;
+        }
     }
 }

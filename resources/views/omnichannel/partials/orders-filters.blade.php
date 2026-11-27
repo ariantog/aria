@@ -97,6 +97,13 @@
                 <a href="{{ route('omnichannel.orders.index', $resetQuery) }}" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">Reset</a>
             </div>
         </form>
-        <p class="mt-2 text-[10px] text-gray-500 dark:text-gray-400">Order ref: partial match; mengisi ini mengabaikan filter tanggal.</p>
+        <p class="mt-2 text-[10px] text-gray-500 dark:text-gray-400">
+            @if(($filters['view'] ?? 'events') === 'orders')
+            Rentang tanggal memfilter <span class="font-medium">Tgl order</span> marketplace (bukan last_event / webhook).
+            @else
+            Rentang tanggal memfilter waktu webhook diterima Aria.
+            @endif
+            Order ref: partial match; mengisi ini mengabaikan filter tanggal.
+        </p>
     </div>
 </div>

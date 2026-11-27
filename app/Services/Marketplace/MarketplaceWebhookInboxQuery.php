@@ -116,7 +116,7 @@ class MarketplaceWebhookInboxQuery
             ]);
 
         $this->applyChannel($query, $filters['channel']);
-        $this->applyDateRange($query, 'last_event_at', $filters);
+        $this->applyDateRange($query, MarketplaceChannelOrderOrderedAtResolver::ordersDateColumn(), $filters);
         $this->applyShopAndWarehouse($query, 'shop_ref', $filters);
         $this->applyOrderStatus($query, 'order_status', $filters['order_status']);
         $this->applyOrderRef($query, $filters);
@@ -147,7 +147,7 @@ class MarketplaceWebhookInboxQuery
 
         $query = MarketplaceChannelOrder::query();
         $this->applyChannel($query, $filtersWithoutOps['channel']);
-        $this->applyDateRange($query, 'last_event_at', $filtersWithoutOps);
+        $this->applyDateRange($query, MarketplaceChannelOrderOrderedAtResolver::ordersDateColumn(), $filtersWithoutOps);
         $this->applyShopAndWarehouse($query, 'shop_ref', $filtersWithoutOps);
         $this->applyOrderStatus($query, 'order_status', $filtersWithoutOps['order_status']);
         $this->applyOrderRef($query, $filtersWithoutOps);
