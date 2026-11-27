@@ -71,7 +71,7 @@ Code: `App\Services\Marketplace\MarketplaceWebhookRecorder`.
 | Param | Notes |
 |-------|--------|
 | `channel` | `all` (default), `shopee`, `tiktok` |
-| `date_from`, `date_to` | On `received_at` (events) or `last_event_at` (orders); default last 7 days |
+| `date_from`, `date_to` | On `received_at` (events) or `marketplace_ordered_at` (orders — marketplace order date, not webhook receipt); default last 7 days |
 | `order_status` | Partial `LIKE` match; datalist from distinct values in current scope |
 | `shop_ref` | Exact match on stored shop id |
 | `warehouse_id` | Aria gudang — resolves `shop_ref` via **`shopee_syncs.shop_id`** and **`tiktok_shop_syncs.shop_ref`** |

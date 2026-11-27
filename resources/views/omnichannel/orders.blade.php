@@ -52,7 +52,7 @@ $activeOpsBucket = $filters['ops_bucket'] ?? null;
 $opsBucketStats = $opsBucketStats ?? [];
 $opsBucketService = $opsBucketService ?? null;
 $showShopColumn = $showShopColumn ?? ($shopOptions->count() > 1 && blank($filters['shop_ref'] ?? ''));
-$ordersTableColspan = $showShopColumn ? 11 : 10;
+$ordersTableColspan = $showShopColumn ? 12 : 11;
 $eventsTableColspan = $showShopColumn ? 11 : 10;
 @endphp
 
@@ -552,6 +552,7 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                         @endif
                         <th class="{{ $th }} w-36">Aria warehouse</th>
                         <th class="{{ $th }} w-32">Platform WH</th>
+                        <th class="{{ $th }} w-36" title="Tanggal order di marketplace (bukan waktu webhook Aria)">Tgl order</th>
                         <th class="{{ $th }} w-36">last_event</th>
                         <th class="{{ $th }} w-36">first_received</th>
                     </tr>
@@ -694,6 +695,10 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                                   x-text="warehousePlatformWh(@js($row->id))"></span>
                             <span x-show="!warehousePending(@js($row->id)) && !warehousePlatformWh(@js($row->id))" x-cloak class="text-gray-500">—</span>
                             @endif
+                        </td>
+                        <td class="{{ $td }} whitespace-nowrap text-gray-600"
+                            data-testid="omnichannel-order-ordered-at-{{ $row->id }}">
+                            {{ $row->marketplace_ordered_at?->format('Y-m-d H:i:s') ?? '—' }}
                         </td>
                         <td class="{{ $td }} whitespace-nowrap text-gray-600">{{ $row->last_event_at?->format('Y-m-d H:i:s') ?? '—' }}</td>
                         <td class="{{ $td }} whitespace-nowrap text-gray-600">{{ $row->first_received_at?->format('Y-m-d H:i:s') ?? '—' }}</td>
