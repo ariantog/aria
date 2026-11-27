@@ -151,6 +151,10 @@
         || $canOmnichannelView
         || $hasPerm('tiktok-shop-view');
     $canOmnichannelSettings = $hasPerm('omnichannel-settings') || $canOmnichannelView;
+    $canOmnichannelItemLinks = $hasPerm('omnichannel-view')
+        || $hasPerm('shopee-stock-sync')
+        || $hasPerm('tiktok-shop-item-link')
+        || $isSuperAdmin;
 
     $omnichannelNavLabels = ['Omnichannel'];
     if ($canOmnichannelOrders) {
@@ -160,6 +164,9 @@
     if ($canOmnichannelView) {
         $omnichannelNavLabels[] = 'Compare';
     }
+    if ($canOmnichannelItemLinks) {
+        $omnichannelNavLabels[] = 'Item links';
+    }
     if ($canOmnichannelSettings) {
         $omnichannelNavLabels[] = 'Settings';
     }
@@ -167,7 +174,8 @@
     $canOmnichannelNav = $isSuperAdmin
         || $canOmnichannelView
         || $canOmnichannelOrders
-        || $canOmnichannelSettings;
+        || $canOmnichannelSettings
+        || $canOmnichannelItemLinks;
 
     $jubelioNavLabels = ['Jubelio'];
     if ($hasPerm('jubelio-view') || $isSuperAdmin) {
@@ -191,6 +199,7 @@
         $shopeeNavLabels[] = 'FLEXI Shops';
         $shopeeNavLabels[] = 'Auto Link';
         $shopeeNavLabels[] = 'Bulk Link';
+        $shopeeNavLabels[] = 'Unlinked items';
     }
 
     $tiktokNavLabels = ['TikTok Shop'];
@@ -199,6 +208,7 @@
     }
     if ($hasPerm('tiktok-shop-item-link') || $hasPerm('tiktok-shop-view') || $isSuperAdmin) {
         $tiktokNavLabels[] = 'Bulk Link';
+        $tiktokNavLabels[] = 'Unlinked items';
     }
 
     $journalNavLabels = ['Journals'];
@@ -609,6 +619,7 @@
 @if($canOmnichannelNav ?? false)
 @php
     $omniActive = $isActive('/omnichannel') || $isActive('/marketplace/webhooks');
+    $omniItemLinksActive = $isActive('/omnichannel/item-links');
     $omnichannelOrdersRouteActive = $isActive('/omnichannel/orders') || $isActive('/marketplace/webhooks');
     $omnichannelOrdersView = request()->query('view', 'events');
     $omniWebhooksNavActive = $omnichannelOrdersRouteActive && $omnichannelOrdersView !== 'orders';
@@ -632,6 +643,9 @@
         @endif
         @if($canOmnichannelView)
         <a href="{{ route('omnichannel.index') }}" x-show="navLinkVisible('Compare', 'Omnichannel')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $currentUrl === 'omnichannel' || str_starts_with($currentUrl, 'omnichannel/shopee') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Compare</a>
+        @endif
+        @if($canOmnichannelItemLinks ?? false)
+        <a href="{{ route('omnichannel.item-links.index') }}" x-show="navLinkVisible('Item links', 'Omnichannel')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $omniItemLinksActive ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Item links</a>
         @endif
         @if($canOmnichannelSettings)
         <a href="{{ route('omnichannel.settings.index') }}" x-show="navLinkVisible('Settings', 'Omnichannel')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/omnichannel/settings') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Settings</a>
@@ -678,7 +692,7 @@
 
 {{-- ── Shopee (Ads + Stock Checker) ──────────────────────────────────── --}}
 @if($hasPerm('shopee-ads-view') || $hasPerm('shopee-stock-sync') || $isSuperAdmin)
-@php $shopeActive = $isActive('/shopee-ads') || $isActive('/shopee-sync') || $isActive('/shopee-flexi') || $isActive('/shopee/auto-link') || $isActive('/shopee/bulk-link'); @endphp
+@php $shopeActive = $isActive('/shopee-ads') || $isActive('/shopee-sync') || $isActive('/shopee-flexi') || $isActive('/shopee/auto-link') || $isActive('/shopee/bulk-link') || $isActive('/omnichannel/item-links'); @endphp
 <div x-data="{ open: {{ $shopeActive ? 'true' : 'false' }} }"
      class="mb-1"
      x-show="navGroupVisible(@js($shopeeNavLabels))"
@@ -700,6 +714,7 @@
         <a href="{{ route('shopee.flexi.index') }}" x-show="navLinkVisible('FLEXI Shops', 'Shopee')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/shopee-flexi') && ! $isActive('/shopee-flexi/orders') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">FLEXI Shops</a>
         <a href="{{ route('shopee.auto-link.index') }}" x-show="navLinkVisible('Auto Link', 'Shopee')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/shopee/auto-link') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Auto Link</a>
         <a href="{{ route('shopee.bulk-link.index') }}" x-show="navLinkVisible('Bulk Link', 'Shopee')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/shopee/bulk-link') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Bulk Link</a>
+        <a href="{{ route('omnichannel.item-links.index', ['channel' => 'shopee']) }}" x-show="navLinkVisible('Unlinked items', 'Shopee')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/omnichannel/item-links') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Unlinked items</a>
         @endif
     </div>
 </div>
@@ -707,7 +722,7 @@
 
 {{-- ── TikTok Shop ───────────────────────────────────────────────────── --}}
 @if($hasPerm('tiktok-shop-view') || $isSuperAdmin)
-@php $tiktokActive = $isActive('/tiktok-shop'); @endphp
+@php $tiktokActive = $isActive('/tiktok-shop') || $isActive('/omnichannel/item-links'); @endphp
 <div x-data="{ open: {{ $tiktokActive ? 'true' : 'false' }} }"
      class="mb-1"
      x-show="navGroupVisible(@js($tiktokNavLabels))"
@@ -723,6 +738,7 @@
         <a href="{{ route('tiktok-shop.chats.index') }}" x-show="navLinkVisible('Customer Chat', 'TikTok Shop')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/tiktok-shop/chats') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Customer Chat</a>
         @if($hasPerm('tiktok-shop-item-link') || $hasPerm('tiktok-shop-view') || $isSuperAdmin)
         <a href="{{ route('tiktok-shop.bulk-link.index') }}" x-show="navLinkVisible('Bulk Link', 'TikTok Shop')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/tiktok-shop/bulk-link') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Bulk Link</a>
+        <a href="{{ route('omnichannel.item-links.index', ['channel' => 'tiktok']) }}" x-show="navLinkVisible('Unlinked items', 'TikTok Shop')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $isActive('/omnichannel/item-links') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Unlinked items</a>
         @endif
     </div>
 </div>
