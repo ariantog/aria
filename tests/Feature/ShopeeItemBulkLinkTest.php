@@ -46,15 +46,33 @@ it('parses csv rows with flexible headers', function () {
         ->and($rows[0]['shopee_model_id'])->toBe(8001);
 });
 
-it('matches legacy sku before current code on bulk preview', function () {
-    $legacyItem = Item::factory()->create([
+it('matches current code before legacy_code when both could match on bulk preview', function () {
+    Item::factory()->create([
         'code' => 'NEW-SKU-FORMAT',
         'legacy_code' => 'OLD-SHOPEE-SKU',
         'shopee_item_id' => null,
     ]);
-    Item::factory()->create([
+    $codeItem = Item::factory()->create([
         'code' => 'OLD-SHOPEE-SKU',
         'legacy_code' => null,
+        'shopee_item_id' => null,
+    ]);
+
+    $csv = "Kode Produk,Kode Variasi,SKU\n9001,8001,OLD-SHOPEE-SKU\n";
+    $upload = UploadedFile::fake()->createWithContent('shopee.csv', $csv);
+
+    $preview = app(ShopeeItemBulkLinkService::class)->preview($upload);
+
+    expect($preview['summary']['ready'])->toBe(1)
+        ->and($preview['rows'][0]['status'])->toBe('ready')
+        ->and($preview['rows'][0]['message'])->toContain('Match code')
+        ->and($preview['rows'][0]['item']['id'])->toBe($codeItem->id);
+});
+
+it('falls back to legacy_code when csv sku does not match current code on bulk preview', function () {
+    $legacyItem = Item::factory()->create([
+        'code' => 'NEW-SKU-FORMAT',
+        'legacy_code' => 'OLD-SHOPEE-SKU',
         'shopee_item_id' => null,
     ]);
 

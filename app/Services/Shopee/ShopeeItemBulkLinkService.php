@@ -386,7 +386,7 @@ class ShopeeItemBulkLinkService
             return $row + [
                 'status' => 'error',
                 'message' => $code !== ''
-                    ? 'SKU tidak ditemukan (legacy_code lalu code).'
+                    ? 'SKU tidak ditemukan (code lalu legacy_code).'
                     : 'SKU kolom 3 kosong.',
                 'item' => null,
             ];
@@ -523,12 +523,12 @@ class ShopeeItemBulkLinkService
             return null;
         }
 
-        if (isset($legacyMap[$key])) {
-            return ['item' => $legacyMap[$key], 'matched_via' => 'legacy_code'];
-        }
-
         if (isset($codeMap[$key])) {
             return ['item' => $codeMap[$key], 'matched_via' => 'code'];
+        }
+
+        if (isset($legacyMap[$key])) {
+            return ['item' => $legacyMap[$key], 'matched_via' => 'legacy_code'];
         }
 
         return null;

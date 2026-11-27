@@ -48,15 +48,33 @@ it('parses tiktok export style headers', function () {
         ->and($rows[0]['tiktok_sku_id'])->toBe('7491000000000000202');
 });
 
-it('matches legacy sku before current code on bulk preview', function () {
-    $legacyItem = Item::factory()->create([
+it('matches current code before legacy_code when both could match on bulk preview', function () {
+    Item::factory()->create([
         'code' => 'NEW-TTS-FORMAT',
         'legacy_code' => 'OLD-TTS-SKU',
         'tiktok_shop_product_id' => null,
     ]);
-    Item::factory()->create([
+    $codeItem = Item::factory()->create([
         'code' => 'OLD-TTS-SKU',
         'legacy_code' => null,
+        'tiktok_shop_product_id' => null,
+    ]);
+
+    $csv = "product_id,sku_id,seller_sku\n749001,749101,OLD-TTS-SKU\n";
+    $upload = UploadedFile::fake()->createWithContent('tiktok.csv', $csv);
+
+    $preview = app(TikTokShopItemBulkLinkService::class)->preview($upload);
+
+    expect($preview['summary']['ready'])->toBe(1)
+        ->and($preview['rows'][0]['status'])->toBe('ready')
+        ->and($preview['rows'][0]['message'])->toContain('Match code')
+        ->and($preview['rows'][0]['item']['id'])->toBe($codeItem->id);
+});
+
+it('falls back to legacy_code when csv sku does not match current code on bulk preview', function () {
+    $legacyItem = Item::factory()->create([
+        'code' => 'NEW-TTS-FORMAT',
+        'legacy_code' => 'OLD-TTS-SKU',
         'tiktok_shop_product_id' => null,
     ]);
 
