@@ -136,6 +136,22 @@ it('maps shopee code 30 logistics status for ingest', function () {
         ->and($presenter->eventTypeLabel('shopee', 30))->toBe('Package fulfillment');
 });
 
+it('persists code 30 delivery done status in inbox and unified storage', function () {
+    $ordersn = 'DELIVERY-DONE-SN';
+    $expectedStatus = 'FULFILLMENT:LOGISTICS_DELIVERY_DONE';
+
+    $body = '{"data":{"ordersn":"'.$ordersn.'","package_number":"PKG9","logistics_status":"LOGISTICS_DELIVERY_DONE"},"shop_id":727720655,"code":30,"timestamp":1732413400}';
+    runPersistShopeePushJobFromJson($body);
+
+    $inbox = ShopeePushInbox::query()->where('ordersn', $ordersn)->first();
+    $event = MarketplaceWebhookEvent::query()->where('order_ref', $ordersn)->first();
+
+    expect($inbox)->not->toBeNull()
+        ->and($inbox->order_status)->toBe($expectedStatus)
+        ->and($event)->not->toBeNull()
+        ->and($event->order_status)->toBe($expectedStatus);
+});
+
 it('shows webhook log on shopee shadow detail page', function () {
     $admin = User::factory()->create();
 
