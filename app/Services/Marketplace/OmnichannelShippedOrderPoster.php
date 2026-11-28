@@ -8,7 +8,6 @@ use App\Models\MarketplaceChannelOrder;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use App\Models\WarehouseItem;
-use App\Services\Jubelio\JubelioSellInvoiceGuard;
 use App\Services\LocationAccessService;
 use App\Services\TransactionService;
 use Carbon\Carbon;
@@ -23,7 +22,7 @@ class OmnichannelShippedOrderPoster
         private OmnichannelPostSellEligibility $eligibility,
         private OmnichannelPostSellLineResolver $lineResolver,
         private OmnichannelMarketplaceCustomerResolver $customerResolver,
-        private JubelioSellInvoiceGuard $sellInvoiceGuard,
+        private MarketplaceSellPostGuard $sellPostGuard,
         private TransactionService $transactionService,
         private LocationAccessService $locationAccessService,
     ) {}
@@ -80,9 +79,6 @@ class OmnichannelShippedOrderPoster
         }
 
         $invoice = $this->eligibility->resolveInvoice($order);
-        if ($this->sellInvoiceGuard->sellInvoiceInTransactions($invoice)) {
-            return ['posted' => false, 'skipped' => true, 'dry_run' => false, 'error' => 'Transaction sudah ada.'];
-        }
 
         $warehouseId = (int) $order->aria_warehouse_id;
         $customerId = $this->customerResolver->customerIdForWarehouse($warehouseId);
@@ -120,32 +116,51 @@ class OmnichannelShippedOrderPoster
         $transactionDate = $order->marketplace_ordered_at ?? $order->last_event_at ?? now();
 
         try {
-            $transactionId = $this->createSellTransaction(
-                $warehouseId,
-                $customerId,
-                $invoice,
-                Carbon::parse($transactionDate)->toDateString(),
-                $matched['items'],
-                $matched['adjustment'],
-            );
+            return DB::transaction(function () use ($order, $invoice, $warehouseId, $customerId, $transactionDate, $matched) {
+                $locked = MarketplaceChannelOrder::query()
+                    ->whereKey($order->id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($locked === null) {
+                    return ['posted' => false, 'skipped' => true, 'dry_run' => false, 'error' => 'Order tidak ditemukan.'];
+                }
+
+                if ($this->sellPostGuard->shouldSkipNativePost($locked, $invoice)) {
+                    return ['posted' => false, 'skipped' => true, 'dry_run' => false, 'error' => 'Transaction sudah ada.'];
+                }
+
+                $transactionId = $this->createSellTransaction(
+                    $warehouseId,
+                    $customerId,
+                    $invoice,
+                    Carbon::parse($transactionDate)->toDateString(),
+                    $matched['items'],
+                    $matched['adjustment'],
+                );
+
+                if (Schema::hasColumn('marketplace_channel_orders', 'posted_transaction_id')) {
+                    $locked->forceFill([
+                        'posted_transaction_id' => $transactionId,
+                        'posted_at' => now(),
+                    ])->save();
+                }
+
+                Log::info('Omnichannel post-sell success', [
+                    'order_ref' => $locked->order_ref,
+                    'invoice' => $invoice,
+                    'transaction_id' => $transactionId,
+                ]);
+
+                return ['posted' => true, 'skipped' => false, 'dry_run' => false, 'error' => null];
+            });
         } catch (\Throwable $e) {
+            if ($this->sellPostGuard->invoiceTaken($invoice)) {
+                return ['posted' => false, 'skipped' => true, 'dry_run' => false, 'error' => 'Transaction sudah ada.'];
+            }
+
             return ['posted' => false, 'skipped' => false, 'dry_run' => false, 'error' => $e->getMessage()];
         }
-
-        if (Schema::hasColumn('marketplace_channel_orders', 'posted_transaction_id')) {
-            $order->forceFill([
-                'posted_transaction_id' => $transactionId,
-                'posted_at' => now(),
-            ])->save();
-        }
-
-        Log::info('Omnichannel post-sell success', [
-            'order_ref' => $order->order_ref,
-            'invoice' => $invoice,
-            'transaction_id' => $transactionId,
-        ]);
-
-        return ['posted' => true, 'skipped' => false, 'dry_run' => false, 'error' => null];
     }
 
     /**
@@ -261,6 +276,10 @@ class OmnichannelShippedOrderPoster
         float $adjustment,
     ): int {
         return (int) DB::transaction(function () use ($warehouseId, $customerId, $invoice, $date, $items, $adjustment) {
+            if ($this->sellPostGuard->invoiceTaken($invoice)) {
+                throw new \RuntimeException('Transaction sudah ada.');
+            }
+
             $customer = Addrbook::findOrFail($customerId);
             $warehouse = Addrbook::findOrFail($warehouseId);
             $this->locationAccessService->ensureJubelioPartyLocations($warehouse, $customer);

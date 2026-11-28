@@ -55,4 +55,13 @@ Requires `marketplace_channel_orders.awb_printed_at` and excludes cancelled / un
 
 ## Mutual exclusion
 
-Duplicate guard uses transaction invoice + `posted_transaction_id` on `marketplace_channel_orders`. Do not run Jubelio and native post for the same channel without maintainer exclusion rules.
+During Jubelio → native cutover, **both** `jubelio:order-jubelio-to-aria` and `omnichannel:post-shipped-orders` may run temporarily. `MarketplaceSellPostGuard` keeps a single SELL per marketplace invoice:
+
+| Check | Native cron skips when… | Jubelio cron skips when… |
+|-------|-------------------------|---------------------------|
+| Invoice | SELL already in `transactions` | Same |
+| Channel order | `posted_transaction_id` on `marketplace_channel_orders` | Matching row has `posted_transaction_id > 0` |
+| Jubelio queue | `jubelioorders` SELL **pending** (`status=0`) or **success** for same `invoice` | Another successful queue row (via `invoiceTaken`) |
+| Race | `lockForUpdate` on channel order row + re-check inside DB transaction before insert | Re-check in `ProcessJubelioOrder::createTransaction` before insert |
+
+**Maintainer:** still disable Jubelio order posting per channel once native post is trusted (`OMNICHANNEL_POST_SELLS=true`). Mutual exclusion is a safety net, not a substitute for turning off duplicate pipelines.

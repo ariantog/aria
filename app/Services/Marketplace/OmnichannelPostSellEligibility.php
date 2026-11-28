@@ -17,6 +17,7 @@ class OmnichannelPostSellEligibility
         private JubelioSellInvoiceGuard $sellInvoiceGuard,
         private ShopeeSyncInvoicePrefix $shopeeInvoicePrefix,
         private OmnichannelSettingStore $settings,
+        private MarketplaceSellPostGuard $sellPostGuard,
     ) {}
 
     public function masterEnabled(): bool
@@ -67,16 +68,13 @@ class OmnichannelPostSellEligibility
 
     public function alreadyPosted(MarketplaceChannelOrder $order): bool
     {
-        if ((int) ($order->posted_transaction_id ?? 0) > 0) {
+        if ($this->sellPostGuard->nativeAlreadyPosted($order)) {
             return true;
         }
 
         $invoice = $this->resolveInvoice($order);
-        if ($invoice === '') {
-            return false;
-        }
 
-        return $this->sellInvoiceGuard->sellInvoiceInTransactions($invoice);
+        return $this->sellPostGuard->jubelioQueueBlocksNative($invoice, $order->order_ref);
     }
 
     public function passesGate(MarketplaceChannelOrder $order): bool
