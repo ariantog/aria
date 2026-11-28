@@ -24,6 +24,7 @@ $cards = [
     ['key' => 'pending_verification', 'title' => 'Menunggu verifikasi', 'border' => 'border-amber-500', 'bg' => 'bg-amber-50 text-amber-800'],
     ['key' => 'verified', 'title' => 'Terverifikasi', 'border' => 'border-blue-500', 'bg' => 'bg-blue-50 text-blue-800'],
     ['key' => 'posted', 'title' => 'Sudah diposting', 'border' => 'border-green-500', 'bg' => 'bg-green-50 text-green-800'],
+    ['key' => 'dismissed', 'title' => 'Di-skip', 'border' => 'border-gray-400', 'bg' => 'bg-gray-50 text-gray-600'],
     ['key' => 'all', 'title' => 'Semua', 'border' => 'border-gray-400', 'bg' => 'bg-gray-50 text-gray-700'],
 ];
 @endphp
@@ -32,7 +33,11 @@ $cards = [
     <div class="flex flex-col justify-between gap-3 md:flex-row md:items-end">
         <div>
             <h1 class="text-2xl font-bold text-gray-900">Marketplace returns</h1>
-            <p class="mt-1 text-sm text-gray-600">Shopee, TikTok Shop, dan Tokopedia — verifikasi penerimaan fisik sebelum posting RETURN.</p>
+            <p class="mt-1 max-w-3xl text-sm text-gray-600">
+                Shopee, TikTok Shop, dan Tokopedia.
+                <strong class="font-semibold text-gray-800">Verify</strong> hanya konfirmasi barang fisik diterima di gudang — tidak menambah stok.
+                <strong class="font-semibold text-gray-800">Post</strong> baru membuat transaksi RETURN di Aria.
+            </p>
         </div>
 
         <form method="GET" action="{{ route('omnichannel.returns.index') }}" class="flex w-full flex-wrap items-end gap-2 md:w-auto">
@@ -75,7 +80,7 @@ $cards = [
     @if(!$tableReady)
     <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-6 text-sm text-amber-900">Tabel marketplace belum tersedia — jalankan migrasi.</div>
     @else
-    <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         @foreach($cards as $card)
         @php $isActive = $status === $card['key'] || ($status === '' && $card['key'] === 'pending_verification'); @endphp
         <a href="{{ $buildTabUrl($card['key']) }}"
@@ -106,6 +111,9 @@ $cards = [
                     $workflowStatus = $workflow->workflowStatus($row);
                     $sellInvoice = $eligibility->resolveSellInvoice($row);
                     $reject = $rejectByOrderId[$row->id] ?? null;
+                    $existingReturnId = $existingReturnByOrderId[$row->id] ?? null;
+                    $postedReturnId = (int) ($row->posted_return_transaction_id ?? 0);
+                    $linkedReturnId = $postedReturnId > 0 ? $postedReturnId : $existingReturnId;
                     $channelLabel = strtolower((string) $row->channel) === 'tiktok'
                         && strtoupper((string) ($row->commerce_platform ?? '')) === 'TOKOPEDIA'
                         ? 'Tokopedia'
@@ -119,6 +127,14 @@ $cards = [
                     <td class="{{ $td }}">
                         @if($workflowStatus === 'posted')
                             <span class="rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">Posted</span>
+                            @if($postedReturnId > 0)
+                                <a href="{{ route('transactions.show', $postedReturnId) }}" class="mt-1 block text-[11px] font-medium text-blue-700 hover:underline" data-testid="omnichannel-returns-txn-link-{{ $row->id }}">RETURN #{{ $postedReturnId }}</a>
+                            @endif
+                        @elseif($workflowStatus === 'dismissed')
+                            <span class="rounded bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-700">Di-skip</span>
+                            @if($row->returnDismissedBy)
+                                <span class="block text-[11px] text-gray-500">{{ $row->returnDismissedBy->username }}</span>
+                            @endif
                         @elseif($workflowStatus === 'verified')
                             <span class="rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">Verified</span>
                             @if($row->returnVerifiedBy)
@@ -127,7 +143,10 @@ $cards = [
                         @else
                             <span class="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900">Pending verify</span>
                         @endif
-                        @if($reject && $workflowStatus !== 'posted')
+                        @if($linkedReturnId && $workflowStatus !== 'posted')
+                            <a href="{{ route('transactions.show', $linkedReturnId) }}" class="mt-1 block text-[11px] font-medium text-blue-700 hover:underline" data-testid="omnichannel-returns-detected-txn-{{ $row->id }}">RETURN #{{ $linkedReturnId }} terdeteksi</a>
+                        @endif
+                        @if($reject && ! in_array($workflowStatus, ['posted', 'dismissed'], true))
                             <p class="mt-1 text-[11px] text-gray-500">{{ $reject }}</p>
                         @endif
                     </td>
@@ -135,7 +154,7 @@ $cards = [
                     <td class="{{ $td }} text-right">
                         <div class="flex flex-wrap justify-end gap-1">
                             @if($verifyReady && $workflowStatus === 'pending_verification')
-                            <form method="POST" action="{{ route('omnichannel.returns.verify', $row) }}" class="inline">
+                            <form method="POST" action="{{ route('omnichannel.returns.verify', $row) }}" class="inline" title="Konfirmasi fisik saja — tidak mengubah stok">
                                 @csrf
                                 <button type="submit"
                                         class="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100"
@@ -144,8 +163,32 @@ $cards = [
                                 </button>
                             </form>
                             @endif
+                            @if($existingReturnId && $workflowStatus !== 'posted' && $workflowStatus !== 'dismissed')
+                            <form method="POST" action="{{ route('omnichannel.returns.link-existing', $row) }}" class="inline"
+                                  onsubmit="return confirm('Tandai sudah diposting ke RETURN #{{ $existingReturnId }}? Tidak ada transaksi atau stok baru.');">
+                                @csrf
+                                <button type="submit"
+                                        class="rounded border border-indigo-300 bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-900 hover:bg-indigo-100"
+                                        data-testid="omnichannel-returns-link-existing-{{ $row->id }}">
+                                    Tandai sudah diposting
+                                </button>
+                            </form>
+                            @endif
+                            @if($dismissReady && $workflowStatus === 'pending_verification')
+                            <form method="POST" action="{{ route('omnichannel.returns.dismiss', $row) }}" class="inline"
+                                  onsubmit="return confirm('Skip baris ini dari antrian tanpa posting RETURN?');">
+                                @csrf
+                                <button type="submit"
+                                        class="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                                        data-testid="omnichannel-returns-dismiss-{{ $row->id }}">
+                                    Skip
+                                </button>
+                            </form>
+                            @endif
                             @if($workflowStatus === 'verified' && $eligibility->masterEnabled())
-                            <form method="POST" action="{{ route('omnichannel.returns.post', $row) }}" class="inline" onsubmit="return confirm('Post RETURN untuk order ini?');">
+                            <form method="POST" action="{{ route('omnichannel.returns.post', $row) }}" class="inline"
+                                  onsubmit="return confirm('Post RETURN baru untuk order ini? Stok gudang akan bertambah.');"
+                                  title="Buat transaksi RETURN — menambah stok gudang">
                                 @csrf
                                 <button type="submit"
                                         class="rounded border border-green-300 bg-green-50 px-2 py-1 text-xs font-medium text-green-800 hover:bg-green-100"
@@ -155,6 +198,9 @@ $cards = [
                             </form>
                             @endif
                         </div>
+                        @if($verifyReady && $workflowStatus === 'pending_verification')
+                        <p class="mt-1 text-[10px] text-gray-400">Verify = fisik saja · Post = buat RETURN</p>
+                        @endif
                     </td>
                 </tr>
                 @empty

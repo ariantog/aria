@@ -116,11 +116,18 @@ class MarketplaceReturnPostGuard
             return null;
         }
 
+        $returnInvoice = $this->resolveReturnInvoice($sellInvoice);
+        $srInvoice = str_starts_with(strtoupper($sellInvoice), 'SR-')
+            ? $sellInvoice
+            : 'SR-'.$sellInvoice;
+
         $id = Transaction::query()
             ->where('type', Transaction::TYPE_RETURN)
-            ->where(function ($query) use ($sellInvoice) {
+            ->where(function ($query) use ($sellInvoice, $returnInvoice, $srInvoice) {
                 $query->where('description', $sellInvoice)
-                    ->orWhere('invoice', $this->resolveReturnInvoice($sellInvoice));
+                    ->orWhere('invoice', $sellInvoice)
+                    ->orWhere('invoice', $returnInvoice)
+                    ->orWhere('invoice', $srInvoice);
             })
             ->orderByDesc('id')
             ->value('id');

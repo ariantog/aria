@@ -146,6 +146,10 @@ Route::middleware(['auth', 'verified', 'active', 'enforce.readonly'])->group(fun
         ->name('omnichannel.returns.verify');
     Route::post('omnichannel/returns/{marketplaceChannelOrder}/post', [App\Http\Controllers\OmnichannelReturnsController::class, 'post'])
         ->name('omnichannel.returns.post');
+    Route::post('omnichannel/returns/{marketplaceChannelOrder}/link-existing', [App\Http\Controllers\OmnichannelReturnsController::class, 'linkExisting'])
+        ->name('omnichannel.returns.link-existing');
+    Route::post('omnichannel/returns/{marketplaceChannelOrder}/dismiss', [App\Http\Controllers\OmnichannelReturnsController::class, 'dismiss'])
+        ->name('omnichannel.returns.dismiss');
     Route::get('omnichannel/orders', [App\Http\Controllers\OmnichannelOrdersController::class, 'index'])->name('omnichannel.orders.index');
     Route::get('omnichannel/orders/{channel}/{orderRef}', [App\Http\Controllers\OmnichannelOrdersController::class, 'show'])
         ->where(['channel' => 'shopee|tiktok', 'orderRef' => '.+'])
