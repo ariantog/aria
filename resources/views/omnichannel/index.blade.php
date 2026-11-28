@@ -82,6 +82,15 @@ $lineLabels = [
             <p class="mt-1 text-sm text-gray-800">{{ $stats['matched'] }} match · {{ $stats['mismatch'] }} mismatch</p>
             <p class="text-xs text-gray-500">{{ $stats['line_mismatch'] }} beda baris · {{ $stats['jubelio_missing'] }} tanpa Jubelio</p>
         </div>
+        @if(\App\Models\Omnichannel::userCanOrders(auth()->user()))
+        <a href="{{ route('omnichannel.missed-push.index') }}"
+           class="rounded-xl border border-amber-200 bg-white p-4 shadow-sm transition hover:bg-amber-50 dark:border-amber-800/60 dark:bg-gray-800/50"
+           data-testid="omnichannel-missed-push-card">
+            <p class="text-xs font-semibold uppercase text-gray-500">Missed push</p>
+            <p class="mt-1 text-sm text-gray-800">Reconcile order platform tanpa webhook</p>
+            <p class="mt-1 text-xs text-amber-800">Buka antrian gap →</p>
+        </a>
+        @endif
     </div>
 
     <form method="GET" action="{{ route('omnichannel.index') }}" class="flex flex-wrap items-end gap-2 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800/50">

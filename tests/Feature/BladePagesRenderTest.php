@@ -259,7 +259,7 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'omnichannel item links' => 'omnichannel/item-links',
     'omnichannel orders events view' => 'omnichannel/orders?view=events',
     'omnichannel orders orders view' => 'omnichannel/orders?view=orders',
-    'omnichannel orders missed push view' => 'omnichannel/orders?view=missed_push',
+    'omnichannel missed push' => 'omnichannel/missed-push',
     'omnichannel settings' => 'omnichannel/settings',
     'omnichannel settings warehouse tab' => 'omnichannel/settings?tab=warehouse',
     'marketplace warehouse sync index' => 'marketplace-warehouse-sync?channel=tiktok',
@@ -317,4 +317,10 @@ it('redirects the legacy tiktok webhook inbox route to omnichannel orders preser
     $this->actingAs($this->user)
         ->get(route('tiktok-shop.webhooks.index', ['view' => 'orders']))
         ->assertRedirect(route('omnichannel.orders.index', ['view' => 'orders']));
+});
+
+it('redirects omnichannel orders missed push view to dedicated page', function () {
+    $this->actingAs($this->user)
+        ->get('/omnichannel/orders?view=missed_push&channel=shopee')
+        ->assertRedirect(route('omnichannel.missed-push.index', ['channel' => 'shopee']));
 });

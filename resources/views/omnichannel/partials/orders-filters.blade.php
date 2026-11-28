@@ -37,7 +37,7 @@
                 <select name="view" id="view" class="{{ $formControlClassSm }}" data-testid="omnichannel-view-select">
                     <option value="events" @selected(($filters['view'] ?? 'events') === 'events')>Events (history)</option>
                     <option value="orders" @selected(($filters['view'] ?? 'events') === 'orders')>Current orders</option>
-                    <option value="missed_push" @selected(($filters['view'] ?? 'events') === 'missed_push')>Missed push (reconcile)</option>
+                    <option value="missed_push" @selected(($filters['view'] ?? 'events') === 'missed_push')>Missed push (→ halaman khusus)</option>
                 </select>
             </div>
             <div class="flex flex-col gap-1">

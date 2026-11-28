@@ -15,7 +15,7 @@ php artisan marketplace:reconcile-missed-orders
 - **Window:** `MARKETPLACE_MISSED_PUSH_RECONCILE_DAYS` (default 14), capped by `MARKETPLACE_MISSED_PUSH_RECONCILE_MAX_DAYS` (default 30).
 - **Shopee shops:** mapped rows on `shopee_syncs` (`shop_id` > 0, `warehouse_id` > 0) with Admin OAuth.
 - **Ingest path:** `ShopeeOrderPollService::pullAndIngestOrder()` → `ShopeeOrderStatusIngest` → `MarketplaceWebhookRecorder::recordShopee()` (same as poll / manual pull).
-- **Cron:** scheduled task `marketplace:reconcile-missed-orders` (inactive by default).
+- **Cron:** scheduled task `marketplace:reconcile-missed-orders`, **`frequency` = daily**, **`active` = false** by default. Set `MARKETPLACE_MISSED_PUSH_RECONCILE_ENABLED=true` and activate the task in Cron Manager for daily detect + ingest.
 
 ## Status filters (Shopee)
 
@@ -40,7 +40,8 @@ Configurable via `MARKETPLACE_MISSED_PUSH_RECONCILE_SHOPEE_STATUSES` (comma-sepa
 ## Gap queue + UI
 
 - Table: `marketplace_missed_push_gaps` (open rows: `ingested_at` null).
-- Omnichannel → Orders → view **Missed push (reconcile)** — open gaps, manual **Ingest**, last reconcile poll per shop (`shopee_syncs.last_order_poll_at`).
+- **Canonical URL:** `GET /omnichannel/missed-push` (`omnichannel.missed-push.index`) — same permission as omnichannel orders (`Omnichannel::userCanOrders`). Open gaps, manual **Ingest**, last reconcile poll per shop (`shopee_syncs.last_order_poll_at`). Ingest POST: `omnichannel.orders.missed-push.ingest`.
+- Legacy `GET /omnichannel/orders?view=missed_push` redirects to the dedicated page (query preserved except `view`).
 
 ## TikTok
 

@@ -263,5 +263,15 @@ class ScheduledTaskSeeder extends Seeder
                 'description' => 'Deletes restock_cell_histories rows older than 6 months (override with --months on the command).',
             ]
         );
+
+        \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'marketplace:reconcile-missed-orders'],
+            [
+                'name' => 'Marketplace reconcile missed push orders',
+                'frequency' => 'daily',
+                'active' => false,
+                'description' => 'Daily poll of Shopee get_order_list for mapped shopee_syncs shops; records gaps and ingests orders missing from marketplace_channel_orders. Set MARKETPLACE_MISSED_PUSH_RECONCILE_ENABLED=true and activate this task in Cron Manager for daily detect + ingest.',
+            ]
+        );
     }
 }

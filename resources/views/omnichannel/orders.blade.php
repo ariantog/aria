@@ -3,14 +3,11 @@
 @php
 $activeView = $filters['view'] ?? 'events';
 $isEventsView = $activeView === 'events';
-$isMissedPushView = $activeView === 'missed_push';
 $pageTitle = match ($activeView) {
-    'missed_push' => 'Omnichannel — Missed push',
     'orders' => 'Omnichannel — Orders',
     default => 'Omnichannel — Webhooks',
 };
 $crumbLabel = match ($activeView) {
-    'missed_push' => 'Missed push',
     'orders' => 'Orders',
     default => 'Webhooks',
 };
@@ -275,7 +272,7 @@ $eventsTableColspan = $showShopColumn ? 11 : 10;
              }
          }
      }"
-     @if(! $isEventsView && ! $isMissedPushView) x-init="hydrateWarehouseLabels()" @endif>
+     @if(! $isEventsView) x-init="hydrateWarehouseLabels()" @endif>
     <div>
         <h1 class="text-2xl font-bold text-gray-900">{{ $pageTitle }}</h1>
         <p class="mt-1 max-w-3xl text-sm text-gray-600">
@@ -284,8 +281,6 @@ $eventsTableColspan = $showShopColumn ? 11 : 10;
             / <code class="rounded bg-gray-100 px-1 text-xs">marketplace_channel_orders</code>).
             @if($isEventsView)
             Semua webhook termasuk non-order; tidak mem-post order atau memanggil API marketplace pada render daftar.
-            @elseif($isMissedPushView)
-            Platform punya order, tetapi belum ada baris di <code class="rounded bg-gray-100 px-1 text-xs">marketplace_channel_orders</code> — antrian reconcile (Shopee MVP). TikTok menyusul.
             @else
             Ringkasan per order; detail (shadow, webhook, ingress) dimuat lazily — tanpa API Shopee/TikTok/Jubelio pada render awal.
             @endif
@@ -309,18 +304,7 @@ $eventsTableColspan = $showShopColumn ? 11 : 10;
         'defaultOpen' => $hasActiveFilters,
     ])
 
-    @if($isMissedPushView && ! empty($shopeeLastReconcileByShop))
-    <div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-700" data-testid="omnichannel-missed-push-last-poll">
-        <span class="font-semibold text-gray-900">Terakhir reconcile poll (Shopee)</span>
-        <ul class="mt-2 flex flex-wrap gap-x-4 gap-y-1">
-            @foreach($shopeeLastReconcileByShop as $shopId => $polledAt)
-            <li><span class="font-mono">shop {{ $shopId }}</span>: {{ $polledAt ? \Illuminate\Support\Carbon::parse($polledAt)->format('Y-m-d H:i') : '—' }}</li>
-            @endforeach
-        </ul>
-    </div>
-    @endif
-
-    @if(! $isEventsView && ! $isMissedPushView && $opsBucketService !== null && ($ordersTableExists ?? true))
+    @if(! $isEventsView && $opsBucketService !== null && ($ordersTableExists ?? true))
     @php
         $opsCardPresets = [
             ['bucket' => \App\Services\Marketplace\MarketplaceChannelOrderOpsBucket::BUCKET_ALL, 'border' => 'border-gray-400', 'bg' => 'bg-gray-50 text-gray-700', 'ring' => 'ring-2 ring-gray-500'],
@@ -369,7 +353,6 @@ $eventsTableColspan = $showShopColumn ? 11 : 10;
 
     @php
     $missingTable = match (true) {
-        $isMissedPushView => ! ($missedPushTableExists ?? false),
         $isEventsView => ! $eventsTableExists,
         default => ! $ordersTableExists,
     };
@@ -388,58 +371,11 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
         @if($isEventsView)
         Aktifkan <code>MARKETPLACE_WEBHOOK_UNIFIED_STORAGE</code> atau jalankan
         <code class="text-xs">php artisan marketplace:backfill-webhook-events</code>.
-        @elseif($isMissedPushView)
-        Jalankan <code class="text-xs">php artisan marketplace:reconcile-missed-orders</code> (cron atau manual) dengan
-        <code>MARKETPLACE_MISSED_PUSH_RECONCILE_ENABLED=true</code>.
         @endif
     </div>
     @else
     <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800/50">
-        @if($isMissedPushView)
-        <div class="border-b border-gray-100 px-3 py-2 text-xs text-gray-500">
-            {{ number_format($rows->total()) }} gap terbuka — halaman {{ $rows->currentPage() }} / {{ $rows->lastPage() }}
-            · <code>marketplace_missed_push_gaps</code>
-        </div>
-        <div class="min-w-0 overflow-x-auto">
-            <table class="w-full min-w-[40rem] text-left" data-testid="omnichannel-missed-push-table">
-                <thead class="border-b border-gray-200 bg-gray-50">
-                    <tr>
-                        <th class="{{ $th }} w-14">ID</th>
-                        <th class="{{ $th }} w-28">detected</th>
-                        <th class="{{ $th }} w-24">channel</th>
-                        <th class="{{ $th }} w-24">shop</th>
-                        <th class="{{ $th }}">order_ref</th>
-                        <th class="{{ $th }} w-32">order_status</th>
-                        <th class="{{ $th }} w-28">platform upd</th>
-                        <th class="{{ $th }} w-28 text-right">aksi</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100">
-                    @foreach($rows as $row)
-                    <tr class="hover:bg-gray-50/80" data-testid="omnichannel-missed-push-row-{{ $row->id }}">
-                        <td class="{{ $td }} font-mono text-[11px]">{{ $row->id }}</td>
-                        <td class="{{ $td }} whitespace-nowrap text-gray-600">{{ $row->detected_at?->format('Y-m-d H:i:s') ?? '—' }}</td>
-                        <td class="{{ $td }}">{{ ucfirst($row->channel) }}</td>
-                        <td class="{{ $td }} font-mono text-[11px]">{{ $row->shop_ref ?? '—' }}</td>
-                        <td class="{{ $td }} font-mono text-[11px] break-all">{{ $row->order_ref }}</td>
-                        <td class="{{ $td }} text-[11px]">{{ $row->order_status ?? '—' }}</td>
-                        <td class="{{ $td }} whitespace-nowrap text-gray-600">{{ $row->platform_update_at?->format('Y-m-d H:i') ?? '—' }}</td>
-                        <td class="{{ $td }} text-right">
-                            @if($row->channel === 'shopee')
-                            <form method="post" action="{{ route('omnichannel.orders.missed-push.ingest', ['gap' => $row->id]) }}" class="inline">
-                                @csrf
-                                <button type="submit" class="rounded border border-blue-600 px-2 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-50" data-testid="omnichannel-missed-push-ingest-{{ $row->id }}">Ingest</button>
-                            </form>
-                            @else
-                            <span class="text-[11px] text-gray-400">—</span>
-                            @endif
-                        </td>
-                    </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
-        @elseif(! $isEventsView && ! $isMissedPushView)
+        @if(! $isEventsView)
         @php
             require resource_path('views/partials/form-control-class-vars.php');
         @endphp
@@ -481,13 +417,10 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
             </div>
         </div>
         @endif
-        @if(! $isMissedPushView)
         <div class="border-b border-gray-100 px-3 py-2 text-xs text-gray-500">
             {{ number_format($rows->total()) }} baris — halaman {{ $rows->currentPage() }} / {{ $rows->lastPage() }}
             · {{ $isEventsView ? 'marketplace_webhook_events' : 'marketplace_channel_orders' }}
         </div>
-        @endif
-        @if(! $isMissedPushView)
         <div class="min-w-0 overflow-x-auto">
             @if($isEventsView)
             <table class="w-full min-w-[52rem] text-left" data-testid="omnichannel-events-table">
