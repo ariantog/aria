@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Jubelioorder;
 use App\Models\MarketplaceChannelOrder;
 use App\Models\Omnichannel;
+use App\Models\Transaction;
 use App\Services\Marketplace\MarketplaceChannelOrderAwbDocumentState;
 use App\Services\Marketplace\MarketplaceChannelOrderAwbPrintGuard;
 use App\Services\Marketplace\MarketplaceChannelOrderAwbPromoter;
@@ -13,6 +15,8 @@ use App\Services\Marketplace\MarketplaceWebhookInboxQuery;
 use App\Services\Marketplace\MarketplaceWebhookStatusPresenter;
 use App\Services\Marketplace\MarketplaceWebhookShopWarehouseResolver;
 use App\Services\Marketplace\OmnichannelOrderDetailReader;
+use App\Services\Marketplace\OmnichannelPostSellDashboardStats;
+use App\Services\Marketplace\OmnichannelPostSellEligibility;
 use App\Models\MarketplaceMissedPushGap;
 use App\Services\Marketplace\MarketplaceMissedPushGapQuery;
 use App\Services\Marketplace\MarketplaceWebhookRecorder;
@@ -36,6 +40,8 @@ class OmnichannelOrdersController extends Controller
         MarketplaceWebhookStatusPresenter $statusPresenter,
         MarketplaceChannelOrderWarehousePersist $warehousePersist,
         MarketplaceChannelOrderOpsBucket $opsBucket,
+        OmnichannelPostSellDashboardStats $postSellStats,
+        OmnichannelPostSellEligibility $postSellEligibility,
     ): View|RedirectResponse {
         abort_unless(Omnichannel::userCanOrders($request->user()), 403);
 
@@ -84,6 +90,11 @@ class OmnichannelOrdersController extends Controller
         $showShopFilter = $shopOptions->count() > 1;
         $showShopColumn = $showShopFilter && blank($filters['shop_ref']);
 
+        $nativePostSellStats = ($filters['view'] === 'orders' && $ordersTableExists)
+            ? $postSellStats->counts()
+            : null;
+
+        $postSellByOrderId = [];
         $pendingWarehouseIds = [];
         $initialWarehouseLabels = [];
         if ($filters['view'] === 'orders' && $rows !== null) {
@@ -98,6 +109,39 @@ class OmnichannelOrdersController extends Controller
                 } elseif ($warehousePersist->orderNeedsWarehouseHydration($row)) {
                     $pendingWarehouseIds[] = (int) $row->id;
                 }
+            }
+
+            $txnIds = $rows->pluck('posted_transaction_id')
+                ->map(fn ($id) => (int) $id)
+                ->filter(fn (int $id) => $id > 0)
+                ->unique()
+                ->values()
+                ->all();
+            $txnsById = $txnIds !== []
+                ? Transaction::query()->whereIn('id', $txnIds)->get()->keyBy('id')
+                : collect();
+
+            foreach ($rows as $row) {
+                $postedId = (int) ($row->posted_transaction_id ?? 0);
+                $txn = $postedId > 0 ? $txnsById->get($postedId) : null;
+                if ($txn === null) {
+                    $invoice = $postSellEligibility->resolveInvoice($row);
+                    if ($invoice !== '') {
+                        $txn = Transaction::query()
+                            ->where('type', Transaction::TYPE_SELL)
+                            ->where('invoice', $invoice)
+                            ->orderByDesc('id')
+                            ->first();
+                    }
+                }
+
+                $postSellByOrderId[$row->id] = [
+                    'posted' => $postedId > 0 || $txn !== null,
+                    'posted_transaction_id' => $txn?->id ?? ($postedId > 0 ? $postedId : null),
+                    'submit_type_label' => $txn !== null
+                        ? Transaction::submitTypeLabel((int) $txn->submit_type)
+                        : null,
+                ];
             }
         }
 
@@ -118,6 +162,10 @@ class OmnichannelOrdersController extends Controller
             'statusPresenter' => $statusPresenter,
             'opsBucketStats' => $opsBucketStats,
             'opsBucketService' => $opsBucket,
+            'nativePostSellStats' => $nativePostSellStats,
+            'postSellByOrderId' => $postSellByOrderId,
+            'jubelioActive' => (bool) config('services.jubelio.active'),
+            'jubelioPendingSell' => Jubelioorder::query()->where('type', 'SELL')->where('status', 0)->count(),
             'canReprintAwb' => Omnichannel::userCanReprintAwb($request->user()),
             'warehouseLabelsUrl' => route('omnichannel.orders.warehouse-labels'),
             'pendingWarehouseIds' => $pendingWarehouseIds,

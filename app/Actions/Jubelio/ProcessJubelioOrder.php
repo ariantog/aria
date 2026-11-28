@@ -59,9 +59,12 @@ class ProcessJubelioOrder
 
         if ($order->type === 'SELL' && $order->invoice !== null && $order->invoice !== '') {
             if ($this->duplicateSellBlocked($order->invoice, (int) $order->id)) {
-                $this->markDuplicate($order, $runCount, $executedByUserId);
-
-                return ['success' => false, 'message' => 'Transaction sudah ada'];
+                return $this->marketplaceSellPostGuard->finishJubelioSellOnExistingInvoice(
+                    $order,
+                    $runCount,
+                    $executedByUserId,
+                    $order->invoice,
+                );
             }
         }
 
@@ -161,9 +164,12 @@ class ProcessJubelioOrder
         $arrayInvoice = $dataApi['salesorder_no'] ?? $order->invoice;
 
         if ($this->duplicateSellBlocked($arrayInvoice, (int) $order->id)) {
-            $this->markDuplicate($order, $runCount, $executedByUserId);
-
-            return ['success' => false, 'message' => 'Transaction sudah ada'];
+            return $this->marketplaceSellPostGuard->finishJubelioSellOnExistingInvoice(
+                $order,
+                $runCount,
+                $executedByUserId,
+                $arrayInvoice,
+            );
         }
 
         $stockError = $this->validateWarehouseStock($jubelioSync->warehouse_id, $matched['items']);

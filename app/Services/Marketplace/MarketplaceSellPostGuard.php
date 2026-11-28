@@ -8,6 +8,7 @@ use App\Models\Transaction;
 use App\Services\Jubelio\JubelioOrderSyncStatus;
 use App\Services\Jubelio\JubelioSellInvoiceGuard;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Carbon;
 
 /**
  * Mutual exclusion between omnichannel native SELL post and Jubelio inbound sell cron during cutover.
@@ -156,5 +157,105 @@ class MarketplaceSellPostGuard
         }
 
         return $orderRef;
+    }
+
+    public function existingSellTransactionId(string $invoice): ?int
+    {
+        if ($invoice === '') {
+            return null;
+        }
+
+        $id = Transaction::query()
+            ->where('type', Transaction::TYPE_SELL)
+            ->where('invoice', $invoice)
+            ->orderByDesc('id')
+            ->value('id');
+
+        return $id !== null ? (int) $id : null;
+    }
+
+    public function backfillChannelOrderPosted(MarketplaceChannelOrder $order, int $transactionId): void
+    {
+        if ($transactionId <= 0
+            || ! Schema::hasColumn('marketplace_channel_orders', 'posted_transaction_id')) {
+            return;
+        }
+
+        if ((int) ($order->posted_transaction_id ?? 0) > 0) {
+            return;
+        }
+
+        $order->forceFill([
+            'posted_transaction_id' => $transactionId,
+            'posted_at' => $order->posted_at ?? Carbon::now(),
+        ])->save();
+    }
+
+    /**
+     * When a SELL invoice already exists, mark the Jubelio queue row finished and backfill native channel order.
+     *
+     * @return array{success: bool, message: string, transaction_id: ?int}
+     */
+    public function finishJubelioSellOnExistingInvoice(
+        Jubelioorder $order,
+        int $runCount,
+        ?int $executedByUserId,
+        ?string $invoice = null,
+    ): array {
+        $invoice = trim((string) ($invoice ?? $order->invoice ?? ''));
+        $transactionId = $invoice !== '' ? $this->existingSellTransactionId($invoice) : null;
+
+        if ($invoice !== '') {
+            $channelOrder = $this->findChannelOrderByInvoice($invoice);
+            if ($channelOrder !== null && $transactionId !== null) {
+                $this->backfillChannelOrderPosted($channelOrder, $transactionId);
+            }
+        }
+
+        $message = $transactionId !== null
+            ? "Transaksi sudah ada (SELL #{$transactionId})."
+            : 'Transaksi sudah ada.';
+
+        $order->update([
+            'run_count' => $runCount,
+            'error_type' => JubelioOrderSyncStatus::SUCCESS,
+            'error' => $message,
+            'stock_error_items' => null,
+            'status' => 2,
+            'execute_by' => $executedByUserId ?? 0,
+        ]);
+
+        return [
+            'success' => true,
+            'message' => $message,
+            'transaction_id' => $transactionId,
+        ];
+    }
+
+  /**
+   * Backfill posted_transaction_id and mark matching Jubelio SELL queue rows success when txn already exists.
+   */
+    public function reconcileNativeSkipBecauseInvoiceExists(MarketplaceChannelOrder $order, string $invoice): void
+    {
+        $transactionId = $this->existingSellTransactionId($invoice);
+        if ($transactionId !== null) {
+            $this->backfillChannelOrderPosted($order, $transactionId);
+        }
+
+        Jubelioorder::query()
+            ->where('type', 'SELL')
+            ->where('invoice', $invoice)
+            ->where(function ($query): void {
+                $query->where('status', 0)
+                    ->orWhere('error_type', JubelioOrderSyncStatus::ERROR_DUPLICATE);
+            })
+            ->each(function (Jubelioorder $jubelioOrder) use ($invoice): void {
+                $this->finishJubelioSellOnExistingInvoice(
+                    $jubelioOrder,
+                    (int) $jubelioOrder->run_count,
+                    null,
+                    $invoice,
+                );
+            });
     }
 }

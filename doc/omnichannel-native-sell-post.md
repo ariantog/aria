@@ -53,6 +53,30 @@ Requires `marketplace_channel_orders.awb_printed_at` and excludes cancelled / un
 3. Disable Jubelio order posting for that channel (maintainer: pause `jubelio:order-jubelio-to-aria` or channel-specific flag).
 4. Do not remove Jubelio stock/listing sync in this phase.
 
+## Dashboard (ops)
+
+**Omnichannel → Current orders** and **Omnichannel index** (when the user has `omnichannel-orders`) show native fulfillment KPIs from `marketplace_channel_orders` + `config('marketplace.post_sell')` / Settings **Fulfillment** gate:
+
+| Card | Meaning |
+|------|---------|
+| Native SELL posted | Rows with `posted_transaction_id > 0` in the rolling window and post-sell gate |
+| Eligible to post | In-window, gate bucket, not posted — `OmnichannelPostSellEligibility::rejectReason()` is null |
+| Post errors | Same scope, not posted, reject reason other than “Transaction sudah ada.” (e.g. unmapped warehouse) |
+| Jubelio sell pending | Secondary when `JUBELIO_ACTIVE` — legacy queue `status = 0` |
+
+List/detail show **submit source** via `Transaction::submitTypeLabel()` on the linked SELL (`SUBMIT_TYPE_JUBELIO` = Jubelio cron, `SUBMIT_TYPE_MARKETPLACE` = omnichannel cron).
+
+## Duplicate invoice → finished (not ERROR_DUPLICATE)
+
+When either cron would create a duplicate SELL for the same marketplace invoice (`SP-…` / `TT-…`):
+
+| Path | Behaviour |
+|------|-----------|
+| `ProcessJubelioOrder` (SELL) | `MarketplaceSellPostGuard::finishJubelioSellOnExistingInvoice()` — `jubelioorders.status = 2`, `error_type = SUCCESS`, message links existing txn id; backfill `posted_transaction_id` on matching `marketplace_channel_orders` when found |
+| `OmnichannelShippedOrderPoster` skip | `reconcileNativeSkipBecauseInvoiceExists()` — sets `posted_transaction_id` from existing txn; marks pending/error-duplicate Jubelio SELL rows SUCCESS for same invoice |
+
+Operators should still pause Jubelio order posting per channel once native post is trusted; reconciliation is a cutover safety net.
+
 ## Mutual exclusion
 
 During Jubelio → native cutover, **both** `jubelio:order-jubelio-to-aria` and `omnichannel:post-shipped-orders` may run temporarily. `MarketplaceSellPostGuard` keeps a single SELL per marketplace invoice:

@@ -8,6 +8,7 @@ use App\Models\Omnichannel;
 use App\Services\Marketplace\MarketplaceWebhookShopWarehouseResolver;
 use App\Services\Marketplace\MarketplaceWebhookStatusPresenter;
 use App\Services\Marketplace\OmnichannelOrderDetailReader;
+use App\Services\Marketplace\OmnichannelPostSellDashboardStats;
 use App\Services\Marketplace\OmnichannelReceivedTimes;
 use App\Services\Marketplace\ShopeeOrderShadowRecorder;
 use App\Services\Shopee\ShopeeAdminOpenApiService;
@@ -18,7 +19,12 @@ use Illuminate\View\View;
 
 class OmnichannelController extends Controller
 {
-    public function index(Request $request, ShopeeAdminOpenApiService $shopeeAdmin, OmnichannelReceivedTimes $receivedTimes): View
+    public function index(
+        Request $request,
+        ShopeeAdminOpenApiService $shopeeAdmin,
+        OmnichannelReceivedTimes $receivedTimes,
+        OmnichannelPostSellDashboardStats $postSellStats,
+    ): View
     {
         Gate::authorize(Omnichannel::getPermissions()['view']);
 
@@ -57,6 +63,7 @@ class OmnichannelController extends Controller
         ];
 
         $jubelioPending = Jubelioorder::query()->where('type', 'SELL')->where('status', 0)->count();
+        $nativePostSellStats = $postSellStats->counts();
 
         $shopeeAdminConnection = $shopeeAdmin->getConnectionStatus();
         $ingressByShadowId = $receivedTimes->forShadows($shadows);
@@ -71,6 +78,7 @@ class OmnichannelController extends Controller
                 'invoice' => $invoiceSearch,
             ],
             'jubelioPending' => $jubelioPending,
+            'nativePostSellStats' => $nativePostSellStats,
             'jubelioActive' => (bool) config('services.jubelio.active'),
             'shopeePushConfigured' => filled(config('services.shopee_push.partner_key')),
             'shopeeShadowEnabled' => (bool) config('services.shopee_push.shadow_enabled'),

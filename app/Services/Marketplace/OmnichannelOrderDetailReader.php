@@ -4,6 +4,7 @@ namespace App\Services\Marketplace;
 
 use App\Models\Jubelioorder;
 use App\Models\MarketplaceChannelOrder;
+use App\Models\Transaction;
 use App\Models\MarketplaceChannelOrderAwbPrint;
 use App\Models\User;
 use App\Models\MarketplaceOrderShadow;
@@ -25,6 +26,7 @@ class OmnichannelOrderDetailReader
         protected TikTokOrderLineSummary $tikTokLineSummary,
         protected ShopeeSyncInvoicePrefix $shopeeInvoicePrefix,
         protected MarketplaceWebhookShopWarehouseResolver $shopWarehouseResolver,
+        protected OmnichannelPostSellEligibility $postSellEligibility,
     ) {}
 
     /**
@@ -147,6 +149,7 @@ class OmnichannelOrderDetailReader
             'links' => $this->resolveLinks($channel, $orderRef, $jubelioOrder),
             'awb_print' => $this->resolveAwbPrintForDetail($channelOrder),
             'awb_print_history' => $this->resolveAwbPrintHistoryForDetail($channel, $orderRef),
+            'sell_post' => $this->resolveSellPostForDetail($channelOrder),
         ];
 
         if ($channel === MarketplaceWebhookRecorder::CHANNEL_TIKTOK) {
@@ -421,6 +424,44 @@ class OmnichannelOrderDetailReader
             'user_id' => $userId,
             'username' => $username !== null ? (string) $username : null,
             'printed_at' => $channelOrder->awb_printed_at?->toIso8601String(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    protected function resolveSellPostForDetail(?MarketplaceChannelOrder $channelOrder): ?array
+    {
+        if ($channelOrder === null) {
+            return null;
+        }
+
+        $invoice = $this->postSellEligibility->resolveInvoice($channelOrder);
+        $postedTransactionId = (int) ($channelOrder->posted_transaction_id ?? 0);
+
+        $transaction = null;
+        if ($postedTransactionId > 0) {
+            $transaction = Transaction::query()->find($postedTransactionId);
+        }
+        if ($transaction === null && $invoice !== '') {
+            $transaction = Transaction::query()
+                ->where('type', Transaction::TYPE_SELL)
+                ->where('invoice', $invoice)
+                ->orderByDesc('id')
+                ->first();
+        }
+
+        $submitType = $transaction !== null ? (int) $transaction->submit_type : null;
+
+        return [
+            'invoice' => $invoice,
+            'posted_transaction_id' => $postedTransactionId > 0 ? $postedTransactionId : ($transaction?->id),
+            'posted_at' => $channelOrder->posted_at?->toIso8601String(),
+            'submit_type' => $submitType,
+            'submit_type_label' => $submitType !== null ? Transaction::submitTypeLabel($submitType) : null,
+            'transaction_url' => $transaction !== null
+                ? route('transactions.show', $transaction->id)
+                : null,
         ];
     }
 

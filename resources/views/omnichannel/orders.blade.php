@@ -59,7 +59,7 @@ $activeOpsBucket = $filters['ops_bucket'] ?? null;
 $opsBucketStats = $opsBucketStats ?? [];
 $opsBucketService = $opsBucketService ?? null;
 $showShopColumn = $showShopColumn ?? ($shopOptions->count() > 1 && blank($filters['shop_ref'] ?? ''));
-$ordersTableColspan = $showShopColumn ? 12 : 11;
+$ordersTableColspan = $showShopColumn ? 13 : 12;
 $eventsTableColspan = $showShopColumn ? 11 : 10;
 @endphp
 
@@ -303,6 +303,14 @@ $eventsTableColspan = $showShopColumn ? 11 : 10;
         'resetQuery' => $resetQuery,
         'defaultOpen' => $hasActiveFilters,
     ])
+
+    @if(! $isEventsView && ($ordersTableExists ?? true))
+    @include('omnichannel.partials.post-sell-stats', [
+        'nativePostSellStats' => $nativePostSellStats ?? null,
+        'jubelioActive' => $jubelioActive ?? false,
+        'jubelioPendingSell' => $jubelioPendingSell ?? 0,
+    ])
+    @endif
 
     @if(! $isEventsView && $opsBucketService !== null && ($ordersTableExists ?? true))
     @php
@@ -557,6 +565,7 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                         <th class="{{ $th }}">order_ref</th>
                         <th class="{{ $th }} w-28">status</th>
                         <th class="{{ $th }} w-32">AWB</th>
+                        <th class="{{ $th }} w-28">SELL</th>
                         @if($showShopColumn)
                         <th class="{{ $th }} w-32">Shop</th>
                         @endif
@@ -575,6 +584,7 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                         $platformWhLabel = $shopResolver->platformWarehouseLabelForListRow($row);
                         $detailUrl = route('omnichannel.orders.show', ['channel' => $row->channel, 'orderRef' => $row->order_ref]);
                         $channelLabel = $omnichannelChannelLabel($row);
+                        $postSellRow = $postSellByOrderId[$row->id] ?? null;
                         $awbRow = [
                             'channel' => (string) $row->channel,
                             'order_ref' => (string) $row->order_ref,
@@ -651,6 +661,16 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
                             </span>
                             @else
                             —
+                            @endif
+                        </td>
+                        <td class="{{ $td }} text-[11px]" data-testid="omnichannel-order-sell-post-{{ $row->id }}">
+                            @if(! empty($postSellRow['posted']))
+                            <span class="inline-flex rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-900">Posted</span>
+                            @if(! empty($postSellRow['submit_type_label']))
+                            <span class="mt-0.5 block text-[10px] text-gray-600">{{ $postSellRow['submit_type_label'] }}</span>
+                            @endif
+                            @else
+                            <span class="text-gray-400">—</span>
                             @endif
                         </td>
                         @if($showShopColumn)
