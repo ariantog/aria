@@ -2,9 +2,11 @@
 
 namespace App\Services\Marketplace;
 
+use App\Jobs\RefreshOmnichannelPostSellStatsJob;
 use App\Models\MarketplaceChannelOrder;
 use App\Models\OmnichannelPostSellStat;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -52,10 +54,30 @@ class OmnichannelPostSellStatsStore
         $row = OmnichannelPostSellStat::query()->find(OmnichannelPostSellStat::ROW_ID);
         $scopeKey = $this->scope->scopeKey();
 
-        if ($row === null || $row->scope_key !== $scopeKey) {
-            $row = $this->rebuildFull();
-        } elseif ($this->snapshotIsStale($row)) {
-            $row = $this->tryInlineRefresh($row);
+        if ($row === null) {
+            $this->maybeQueueBackgroundRefresh();
+
+            return array_merge($this->emptyCounts(), $meta, [
+                'stats_updated_at' => null,
+                'stats_stale' => true,
+            ]);
+        }
+
+        if ($row->scope_key !== $scopeKey) {
+            $this->maybeQueueBackgroundRefresh();
+
+            return array_merge([
+                'posted' => (int) $row->posted,
+                'eligible_to_post' => (int) $row->eligible_to_post,
+                'errors' => (int) $row->errors,
+                'stats_updated_at' => $row->updated_at?->toIso8601String(),
+                'stats_stale' => true,
+            ], $meta);
+        }
+
+        $stale = $this->snapshotIsStale($row);
+        if ($stale) {
+            $this->maybeQueueBackgroundRefresh();
         }
 
         return array_merge([
@@ -63,7 +85,7 @@ class OmnichannelPostSellStatsStore
             'eligible_to_post' => (int) $row->eligible_to_post,
             'errors' => (int) $row->errors,
             'stats_updated_at' => $row->updated_at?->toIso8601String(),
-            'stats_stale' => $this->snapshotIsStale($row),
+            'stats_stale' => $stale,
         ], $meta);
     }
 
@@ -160,19 +182,20 @@ class OmnichannelPostSellStatsStore
         });
     }
 
-    private function tryInlineRefresh(OmnichannelPostSellStat $row): OmnichannelPostSellStat
+    private function maybeQueueBackgroundRefresh(): void
     {
-        $timeout = max(1, (int) config('marketplace.dashboard_cache.post_sell_inline_refresh_seconds', 8));
-        $previous = ini_get('max_execution_time');
-        if ($previous !== false && (int) $previous > 0 && (int) $previous < $timeout + 2) {
-            @set_time_limit($timeout + 2);
+        if (app()->runningInConsole()) {
+            return;
         }
 
-        try {
-            return $this->rebuildFull();
-        } catch (\Throwable) {
-            return $row;
+        $debounceSeconds = max(30, (int) config('marketplace.dashboard_cache.post_sell_fresh_seconds', 180));
+        $lockKey = 'omnichannel.post_sell_stats_refresh_queued';
+
+        if (! Cache::add($lockKey, 1, $debounceSeconds)) {
+            return;
         }
+
+        RefreshOmnichannelPostSellStatsJob::dispatch();
     }
 
     private function snapshotIsStale(OmnichannelPostSellStat $row): bool
