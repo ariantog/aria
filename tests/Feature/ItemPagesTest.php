@@ -751,7 +751,9 @@ test('item create and edit forms mark shared colorway attributes', function () {
         ->assertOk()
         ->assertSee('data-testid="item-form-create-catalog-hint"', false)
         ->assertSee('data-testid="item-form-parent-defaults"', false)
-        ->assertSee('data-testid="item-form-description"', false);
+        ->assertSee('data-testid="item-form-description"', false)
+        ->assertSee('data-testid="item-form-pricing-ongkir-value"', false)
+        ->assertDontSee('Ongkir is per SKU only (preview dropdown)', false);
 
     $this->actingAs($this->user)
         ->get(route('items.edit', $item))
