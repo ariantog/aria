@@ -727,7 +727,6 @@ php artisan migrate --path=database/migrations/2026_11_21_151000_create_marketpl
             </table>
             @endif
         </div>
-        @endif
         @if($rows->hasPages())
         <div class="border-t border-gray-100 px-3 py-3">
             {{ $rows->links() }}
