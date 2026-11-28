@@ -10,14 +10,18 @@
     if (! ($isAsset ?? false)) {
         $fields = array_intersect_key($fields, array_flip(['price', 'reseller_price']));
     } else {
-        unset($fields['ongkir']);
+        $fields['ongkir'] = ['label' => 'Ongkir (shipping)', 'step' => 'any', 'decimals' => 2];
     }
 @endphp
 
 <fieldset class="space-y-4 rounded-lg border border-indigo-200 bg-indigo-50/40 p-4" data-testid="item-pricing-create">
     <legend class="px-1 text-xs font-semibold uppercase tracking-wide text-indigo-800">Pricing</legend>
     <p class="px-1 text-xs leading-relaxed text-gray-600">
-        Default amounts are stored on the <strong>parent group</strong> for every SKU in this batch. Override price, cost, or reseller in the summary preview dropdown when a size needs its own amount. Ongkir is per SKU only (preview dropdown).
+        @if($isAsset ?? false)
+            Sell, reseller, and cost defaults are stored on the <strong>parent group</strong> for every SKU in this batch. Ongkir is applied to each new SKU from the field below. Override any amount per row in the summary preview when needed.
+        @else
+            Default amounts are stored on the <strong>parent group</strong> for every SKU in this batch. Override price, cost, or reseller in the summary preview dropdown when a size needs its own amount. Ongkir is per SKU only (preview dropdown).
+        @endif
     </p>
 
     <div class="grid gap-4 sm:grid-cols-2">

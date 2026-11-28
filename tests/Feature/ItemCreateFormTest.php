@@ -324,7 +324,9 @@ it('renders asset lancar create page', function () {
         ->assertSee('data-testid="item-form-product-name"', false)
         ->assertSee('data-testid="item-form-parent-defaults"', false)
         ->assertSee('data-testid="item-form-description"', false)
-        ->assertSee('data-testid="item-catalog-panel"', false);
+        ->assertSee('data-testid="item-catalog-panel"', false)
+        ->assertSee('data-testid="item-pricing-create"', false)
+        ->assertSee('data-testid="item-form-pricing-ongkir-value"', false);
 });
 
 it('renders item summary preview below tag selection on create forms', function () {
