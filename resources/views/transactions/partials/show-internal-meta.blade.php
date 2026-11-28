@@ -18,6 +18,8 @@
         <div class="mt-1.5">
             @if((int) $transaction->submit_type === \App\Models\Transaction::SUBMIT_TYPE_JUBELIO)
                 <span class="inline-flex items-center rounded-md border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-xs font-bold text-amber-600 dark:text-amber-400" data-testid="tx-show-submit-source">cron jubelio</span>
+            @elseif((int) $transaction->submit_type === \App\Models\Transaction::SUBMIT_TYPE_MARKETPLACE)
+                <span class="inline-flex items-center rounded-md border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-xs font-bold text-emerald-600 dark:text-emerald-400" data-testid="tx-show-submit-source">marketplace</span>
             @elseif((int) $transaction->submit_type === \App\Models\Transaction::SUBMIT_TYPE_MANUAL)
                 <span class="inline-flex items-center rounded-md border border-blue-500/20 bg-blue-500/10 px-2 py-0.5 text-xs font-bold text-blue-600 dark:text-blue-400" data-testid="tx-show-submit-source">aria submit</span>
             @else

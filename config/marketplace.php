@@ -65,6 +65,34 @@ return [
      * Map platform-native order_status strings to coarse ops buckets (UI chips).
      * Tokopedia rows use TikTok vocabulary via commerce_platform=TOKOPEDIA.
      */
+    /**
+     * Native marketplace SELL posting (replaces jubelio:order-jubelio-to-aria for enabled channels).
+     *
+     * Gate shipped: Shopee SHIPPED, TO_CONFIRM_RECEIVE, COMPLETED; TikTok/Tokopedia IN_TRANSIT family + COMPLETED.
+     * Gate awb_printed: awb_printed_at set, not cancelled (Shopee-led; TikTok may stay on shipped gate).
+     */
+    'post_sell' => [
+        'enabled' => filter_var(
+            env('OMNICHANNEL_POST_SELLS', false),
+            FILTER_VALIDATE_BOOLEAN
+        ),
+        'dry_run' => filter_var(
+            env('OMNICHANNEL_POST_SELL_DRY_RUN', false),
+            FILTER_VALIDATE_BOOLEAN
+        ),
+        'gate' => in_array(
+            strtolower((string) env('OMNICHANNEL_POST_SELL_GATE', 'shipped')),
+            ['shipped', 'awb_printed'],
+            true
+        ) ? strtolower((string) env('OMNICHANNEL_POST_SELL_GATE', 'shipped')) : 'shipped',
+        'max_age_days' => max(1, (int) env('OMNICHANNEL_POST_SELL_MAX_AGE_DAYS', 30)),
+        'batch_size' => max(1, (int) env('OMNICHANNEL_POST_SELL_BATCH_SIZE', 25)),
+        'channels' => array_values(array_filter(array_map(
+            static fn (string $c) => strtolower(trim($c)),
+            explode(',', (string) env('OMNICHANNEL_POST_SELL_CHANNELS', 'shopee'))
+        ))),
+    ],
+
     'webhook_status_buckets' => [
         'shopee' => [
             'UNPAID' => 'unpaid',

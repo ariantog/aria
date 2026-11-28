@@ -26,8 +26,13 @@ class ShopeeJubelioSellOnOrderRelease
             return false;
         }
 
-        if ((int) $transaction->submit_type !== Transaction::SUBMIT_TYPE_JUBELIO) {
+        $submitType = (int) $transaction->submit_type;
+        if (! in_array($submitType, [Transaction::SUBMIT_TYPE_JUBELIO, Transaction::SUBMIT_TYPE_MARKETPLACE], true)) {
             return false;
+        }
+
+        if ($submitType === Transaction::SUBMIT_TYPE_MARKETPLACE) {
+            return $this->hasOnOrderReservationForInvoice((string) $transaction->invoice);
         }
 
         $invoice = trim((string) ($transaction->invoice ?? ''));

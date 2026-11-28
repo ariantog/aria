@@ -70,6 +70,8 @@ class Transaction extends Model
 
     const SUBMIT_TYPE_JUBELIO = 2; // L10: cron jubelio
 
+    const SUBMIT_TYPE_MARKETPLACE = 3; // Omnichannel native fulfillment cron
+
     /** L10 Jubelio cron used -100 when no human submitter (production user_id is NOT NULL). */
     const JUBELIO_CRON_USER_ID = -100;
 
@@ -202,7 +204,10 @@ class Transaction extends Model
     public function getSubmitTypeLabel(): string
     {
         return match ((int) $this->submit_type) {
-            self::SUBMIT_TYPE_MANUAL => 'Manual', self::SUBMIT_TYPE_JUBELIO => 'Jubelio Sync', default => 'Unknown'
+            self::SUBMIT_TYPE_MANUAL => 'Manual',
+            self::SUBMIT_TYPE_JUBELIO => 'Jubelio Sync',
+            self::SUBMIT_TYPE_MARKETPLACE => 'Marketplace',
+            default => 'Unknown'
         };
     }
 
