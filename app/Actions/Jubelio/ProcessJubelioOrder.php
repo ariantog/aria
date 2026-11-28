@@ -16,6 +16,7 @@ use App\Services\Jubelio\JubelioOrderQueueEligibility;
 use App\Services\Jubelio\JubelioOrderSyncStatus;
 use App\Services\Jubelio\JubelioSellInvoiceGuard;
 use App\Services\Jubelio\JubelioSellReturnGuard;
+use App\Services\Marketplace\MarketplaceReturnPostGuard;
 use App\Services\Marketplace\MarketplaceSellPostGuard;
 use App\Services\Jubelio\JubelioOrderWarehouseResolver;
 use App\Services\Jubelio\JubelioSellerIncomeResolver;
@@ -37,6 +38,7 @@ class ProcessJubelioOrder
         private JubelioSellInvoiceGuard $sellInvoiceGuard,
         private JubelioSellReturnGuard $sellReturnGuard,
         private MarketplaceSellPostGuard $marketplaceSellPostGuard,
+        private MarketplaceReturnPostGuard $marketplaceReturnPostGuard,
     ) {}
 
     /**
@@ -64,6 +66,19 @@ class ProcessJubelioOrder
                     $runCount,
                     $executedByUserId,
                     $order->invoice,
+                );
+            }
+        }
+
+        if ($order->type === 'RETURN') {
+            $sellInvoice = trim((string) ($order->source_sell_invoice ?? ''));
+            if ($sellInvoice !== '' && $this->duplicateReturnBlocked($sellInvoice, (int) $order->id)) {
+                return $this->marketplaceReturnPostGuard->finishJubelioReturnOnExistingReturn(
+                    $order,
+                    $runCount,
+                    $executedByUserId,
+                    $sellInvoice,
+                    (string) $order->invoice,
                 );
             }
         }
@@ -250,6 +265,16 @@ class ProcessJubelioOrder
         }
 
         $sellInvoice = (string) ($dataApi['salesorder_no'] ?? '');
+        if ($this->marketplaceReturnPostGuard->jubelioBlockedByNativeReturn($sellInvoice)) {
+            return $this->marketplaceReturnPostGuard->finishJubelioReturnOnExistingReturn(
+                $order,
+                $runCount,
+                $executedByUserId,
+                $sellInvoice,
+                (string) ($dataApi['return_no'] ?? $order->invoice),
+            );
+        }
+
         if ((int) $cekTransaksiSell->jubelio_return > 0
             || $this->sellReturnGuard->returnPostedForSell($sellInvoice)) {
             $message = 'Invoice jual sudah memiliki retur (pembatalan manual atau retur Jubelio SR).';
@@ -615,5 +640,14 @@ class ProcessJubelioOrder
         }
 
         return $this->marketplaceSellPostGuard->invoiceTaken($invoice, $jubelioOrderId);
+    }
+
+    protected function duplicateReturnBlocked(string $sellInvoice, int $jubelioOrderId): bool
+    {
+        if ($this->marketplaceReturnPostGuard->jubelioBlockedByNativeReturn($sellInvoice)) {
+            return true;
+        }
+
+        return $this->marketplaceReturnPostGuard->sellReturnAlreadyPosted($sellInvoice, $jubelioOrderId);
     }
 }

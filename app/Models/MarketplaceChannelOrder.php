@@ -37,6 +37,8 @@ class MarketplaceChannelOrder extends Model
         'awb_document_ready_at',
         'posted_transaction_id',
         'posted_at',
+        'posted_return_transaction_id',
+        'posted_return_at',
     ];
 
     protected function casts(): array
@@ -54,6 +56,8 @@ class MarketplaceChannelOrder extends Model
             'awb_document_ready_at' => 'datetime',
             'posted_transaction_id' => 'integer',
             'posted_at' => 'datetime',
+            'posted_return_transaction_id' => 'integer',
+            'posted_return_at' => 'datetime',
         ];
     }
 

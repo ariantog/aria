@@ -185,5 +185,5 @@ it('artisan command requires enable or dry-run', function () {
     expect(Artisan::output())->toContain('OMNICHANNEL_POST_SELLS');
 
     Artisan::call('omnichannel:post-shipped-orders', ['--dry-run' => true]);
-    expect(Artisan::output())->toContain('Gate=');
+    expect(Artisan::output())->toContain('SELL gate=');
 });
