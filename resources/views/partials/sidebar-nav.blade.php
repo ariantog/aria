@@ -162,6 +162,7 @@
         $omnichannelNavLabels[] = 'Marketplace returns';
         $omnichannelNavLabels[] = 'Webhooks';
         $omnichannelNavLabels[] = 'Missed push';
+        $omnichannelNavLabels[] = 'Fetch order';
     }
     if ($canOmnichannelView) {
         $omnichannelNavLabels[] = 'Compare';
@@ -627,6 +628,7 @@
     $omniWebhooksNavActive = $omnichannelOrdersRouteActive && $omnichannelOrdersView !== 'orders';
     $omniCurrentOrdersNavActive = $omnichannelOrdersRouteActive && $omnichannelOrdersView === 'orders';
     $omniMissedPushNavActive = $isActive('/omnichannel/missed-push');
+    $omniFetchOrderNavActive = $isActive('/omnichannel/fetch-order');
     $omniReturnsNavActive = $isActive('/omnichannel/returns');
 @endphp
 <div x-data="{ open: {{ $omniActive ? 'true' : 'false' }} }"
@@ -646,6 +648,7 @@
         <a href="{{ route('omnichannel.returns.index') }}" x-show="navLinkVisible('Marketplace returns', 'Omnichannel')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $omniReturnsNavActive ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Marketplace returns</a>
         <a href="{{ route('omnichannel.orders.index', ['view' => 'events']) }}" x-show="navLinkVisible('Webhooks', 'Omnichannel')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $omniWebhooksNavActive ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Webhooks</a>
         <a href="{{ route('omnichannel.missed-push.index') }}" x-show="navLinkVisible('Missed push', 'Omnichannel')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $omniMissedPushNavActive ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Missed push</a>
+        <a href="{{ route('omnichannel.fetch-order.index') }}" x-show="navLinkVisible('Fetch order', 'Omnichannel')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $omniFetchOrderNavActive ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Fetch order</a>
         @endif
         @if($canOmnichannelView)
         <a href="{{ route('omnichannel.index') }}" x-show="navLinkVisible('Compare', 'Omnichannel')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $currentUrl === 'omnichannel' || str_starts_with($currentUrl, 'omnichannel/shopee') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Compare</a>
