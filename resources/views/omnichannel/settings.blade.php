@@ -11,8 +11,15 @@ $breadcrumbs = [
 $tabs = [
     'connections' => 'Connections',
     'warehouse' => 'Warehouse mapping',
+    'fulfillment' => 'Fulfillment',
     'low-stock' => 'Low stock (Shopee)',
 ];
+$postSellGateSelected = old(
+    'post_sell_gate',
+    in_array($postSellGateStored ?? '', ['shipped', 'awb_printed'], true)
+        ? $postSellGateStored
+        : ($postSellGateEffective ?? 'shipped'),
+);
     require resource_path('views/partials/form-control-class-vars.php');
 @endphp
 
@@ -334,6 +341,69 @@ $tabs = [
                 </div>
                 @if($canEditLowStock)
                 <button type="submit" class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800">Simpan catatan Tokopedia</button>
+                @else
+                <p class="text-xs text-gray-500">Perlu permission <code>omnichannel-settings-edit</code> atau superadmin.</p>
+                @endif
+            </form>
+            @endif
+        </section>
+    </div>
+    @elseif($tab === 'fulfillment')
+    <div class="max-w-2xl space-y-4" data-testid="omnichannel-settings-fulfillment">
+        <section id="omnichannel-settings-post-sell-gate" class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800/50">
+            <h2 class="text-sm font-semibold text-gray-900">Native post SELL — eligibility gate</h2>
+            <p class="mt-2 text-sm text-gray-600">
+                Mengontrol kapan <code class="text-xs">omnichannel:post-shipped-orders</code> boleh memposting transaksi SELL dari
+                <code class="text-xs">marketplace_channel_orders</code>. Master enable tetap di env
+                <code class="text-xs">OMNICHANNEL_POST_SELLS</code> / dry-run.
+            </p>
+            <p class="mt-2 text-xs text-gray-500">
+                Nilai efektif saat ini: <strong class="font-mono">{{ $postSellGateEffective ?? 'shipped' }}</strong>.
+                @if(! in_array($postSellGateStored ?? '', ['shipped', 'awb_printed'], true))
+                Belum disimpan di UI — memakai default env/config (<code class="text-xs">OMNICHANNEL_POST_SELL_GATE</code> = <span class="font-mono">{{ $configPostSellGate ?? 'shipped' }}</span>).
+                @else
+                Tersimpan di <code class="text-xs">omnichannel_settings</code> (mengoverride env).
+                @endif
+            </p>
+            @if(! $settingsTableExists)
+            <p class="mt-4 text-sm text-amber-800">
+                Tabel <code>omnichannel_settings</code> belum ada. Jalankan migrasi install sebelum menyimpan gate dari UI.
+            </p>
+            @else
+            <form method="post" action="{{ route('omnichannel.settings.post-sell-gate.update') }}" class="mt-4 space-y-4">
+                @csrf
+                <fieldset class="space-y-3" @disabled(! $canEditLowStock)>
+                    <legend class="sr-only">Post-sell gate</legend>
+                    <label class="flex cursor-pointer gap-3 rounded-lg border border-gray-200 p-3 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700/40">
+                        <input type="radio" name="post_sell_gate" value="shipped" class="mt-1"
+                               @checked($postSellGateSelected === 'shipped')
+                               data-testid="omnichannel-post-sell-gate-shipped">
+                        <span>
+                            <span class="block text-sm font-medium text-gray-900">Shipped (default)</span>
+                            <span class="mt-1 block text-xs text-gray-600">
+                                Order sudah masuk bucket <strong>in transit</strong> atau <strong>completed</strong> (status map webhook).
+                                <strong>Tidak</strong> mewajibkan kolom <code class="text-xs">awb_printed_at</code>.
+                            </span>
+                        </span>
+                    </label>
+                    <label class="flex cursor-pointer gap-3 rounded-lg border border-gray-200 p-3 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700/40">
+                        <input type="radio" name="post_sell_gate" value="awb_printed" class="mt-1"
+                               @checked($postSellGateSelected === 'awb_printed')
+                               data-testid="omnichannel-post-sell-gate-awb">
+                        <span>
+                            <span class="block text-sm font-medium text-gray-900">AWB printed</span>
+                            <span class="mt-1 block text-xs text-gray-600">
+                                Setelah bulk AWB — wajib <code class="text-xs">awb_printed_at</code> terisi dan bukan cancelled/unprocessed.
+                                Disarankan setelah cutover Jubelio jika alur AWB sudah penuh di Aria.
+                            </span>
+                        </span>
+                    </label>
+                </fieldset>
+                @error('post_sell_gate')
+                <p class="text-xs text-red-600">{{ $message }}</p>
+                @enderror
+                @if($canEditLowStock)
+                <button type="submit" class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800" data-testid="omnichannel-post-sell-gate-save">Simpan gate</button>
                 @else
                 <p class="text-xs text-gray-500">Perlu permission <code>omnichannel-settings-edit</code> atau superadmin.</p>
                 @endif

@@ -9,6 +9,7 @@ use App\Models\Transaction;
 use App\Models\WarehouseItem;
 use App\Services\Marketplace\MarketplaceWebhookRecorder;
 use App\Services\Marketplace\OmnichannelPostSellEligibility;
+use App\Services\Marketplace\OmnichannelSettingStore;
 use App\Services\Marketplace\OmnichannelShippedOrderPoster;
 use Illuminate\Support\Facades\Artisan;
 
@@ -73,6 +74,33 @@ function seedNativePostFixture(array $orderOverrides = []): array
 
     return compact('warehouse', 'customer', 'item', 'order');
 }
+
+it('eligibility accepts shipped gate without awb_printed_at', function () {
+    $order = createMarketplaceChannelOrder([
+        'channel' => 'shopee',
+        'order_ref' => 'SHIP-NO-AWB',
+        'order_status' => 'SHIPPED',
+        'aria_warehouse_id' => 1,
+        'awb_printed_at' => null,
+        'last_event_at' => now(),
+        'first_received_at' => now(),
+    ]);
+
+    config(['marketplace.post_sell.gate' => 'shipped']);
+    $eligibility = app(OmnichannelPostSellEligibility::class);
+
+    expect($eligibility->passesGate($order))->toBeTrue();
+});
+
+it('gate mode prefers omnichannel_settings over config', function () {
+    config(['marketplace.post_sell.gate' => 'shipped']);
+    app(OmnichannelSettingStore::class)->set(
+        OmnichannelSettingStore::KEY_POST_SELL_GATE,
+        OmnichannelSettingStore::POST_SELL_GATE_AWB_PRINTED,
+    );
+
+    expect(app(OmnichannelPostSellEligibility::class)->gateMode())->toBe('awb_printed');
+});
 
 it('eligibility rejects unshipped shopee order under shipped gate', function () {
     $order = createMarketplaceChannelOrder([

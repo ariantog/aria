@@ -15,6 +15,12 @@ class OmnichannelSettingStore
 
     public const KEY_FLEXI_STAGING_WAREHOUSE_ID = 'flexi_staging_warehouse_id';
 
+    public const KEY_POST_SELL_GATE = 'post_sell_gate';
+
+    public const POST_SELL_GATE_SHIPPED = 'shipped';
+
+    public const POST_SELL_GATE_AWB_PRINTED = 'awb_printed';
+
     public function tableExists(): bool
     {
         return Schema::hasTable('omnichannel_settings');
@@ -48,5 +54,23 @@ class OmnichannelSettingStore
             ['key' => $key],
             ['value' => $value],
         );
+    }
+
+    /**
+     * Runtime post-sell gate: env/config default, overridden when omnichannel_settings has a valid value.
+     */
+    public function resolvePostSellGate(): string
+    {
+        $configDefault = strtolower(trim((string) config('marketplace.post_sell.gate', self::POST_SELL_GATE_SHIPPED)));
+        if (! in_array($configDefault, [self::POST_SELL_GATE_SHIPPED, self::POST_SELL_GATE_AWB_PRINTED], true)) {
+            $configDefault = self::POST_SELL_GATE_SHIPPED;
+        }
+
+        $stored = strtolower(trim((string) $this->getString(self::KEY_POST_SELL_GATE, '')));
+        if (in_array($stored, [self::POST_SELL_GATE_SHIPPED, self::POST_SELL_GATE_AWB_PRINTED], true)) {
+            return $stored;
+        }
+
+        return $configDefault;
     }
 }

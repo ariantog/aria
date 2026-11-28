@@ -478,6 +478,24 @@ it('saves flexi staging warehouse with settings-edit permission', function () {
     expect($store->getInt(OmnichannelSettingStore::KEY_FLEXI_STAGING_WAREHOUSE_ID))->toBe($warehouse->id);
 });
 
+it('saves post sell gate with settings-edit permission', function () {
+    $user = User::factory()->create(['id' => 55]);
+    $user->givePermissionTo([
+        Omnichannel::getPermissions()['settings'],
+        Omnichannel::getPermissions()['settings-edit'],
+    ]);
+
+    $this->actingAs($user)
+        ->post(route('omnichannel.settings.post-sell-gate.update'), [
+            'post_sell_gate' => OmnichannelSettingStore::POST_SELL_GATE_AWB_PRINTED,
+        ])
+        ->assertRedirect(route('omnichannel.settings.index', ['tab' => 'fulfillment']));
+
+    $store = app(OmnichannelSettingStore::class);
+    expect($store->getString(OmnichannelSettingStore::KEY_POST_SELL_GATE))->toBe('awb_printed')
+        ->and($store->resolvePostSellGate())->toBe('awb_printed');
+});
+
 it('forbids low stock save without settings-edit permission', function () {
     $user = User::factory()->create(['id' => 53]);
     $user->givePermissionTo(Omnichannel::getPermissions()['settings']);

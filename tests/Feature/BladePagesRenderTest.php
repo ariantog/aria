@@ -262,6 +262,7 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'omnichannel missed push' => 'omnichannel/missed-push',
     'omnichannel settings' => 'omnichannel/settings',
     'omnichannel settings warehouse tab' => 'omnichannel/settings?tab=warehouse',
+    'omnichannel settings fulfillment tab' => 'omnichannel/settings?tab=fulfillment',
     'marketplace warehouse sync index' => 'marketplace-warehouse-sync?channel=tiktok',
     'marketplace warehouse sync tiktok create' => 'marketplace-warehouse-sync/tiktok/create',
     'tiktok shop bulk link' => 'tiktok-shop/bulk-link',

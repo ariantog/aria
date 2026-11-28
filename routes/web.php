@@ -158,6 +158,7 @@ Route::middleware(['auth', 'verified', 'active', 'enforce.readonly'])->group(fun
     Route::post('omnichannel/settings/low-stock', [App\Http\Controllers\OmnichannelSettingsController::class, 'updateLowStock'])->name('omnichannel.settings.low-stock.update');
     Route::post('omnichannel/settings/tokopedia', [App\Http\Controllers\OmnichannelSettingsController::class, 'updateTokopedia'])->name('omnichannel.settings.tokopedia.update');
     Route::post('omnichannel/settings/flexi-staging', [App\Http\Controllers\OmnichannelSettingsController::class, 'updateFlexiStaging'])->name('omnichannel.settings.flexi-staging.update');
+    Route::post('omnichannel/settings/post-sell-gate', [App\Http\Controllers\OmnichannelSettingsController::class, 'updatePostSellGate'])->name('omnichannel.settings.post-sell-gate.update');
     Route::get('omnichannel/tiktok/{orderRef}', [App\Http\Controllers\OmnichannelOrdersController::class, 'showTikTokPage'])
         ->where('orderRef', '.+')
         ->name('omnichannel.tiktok.show');
