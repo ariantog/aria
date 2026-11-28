@@ -1,37 +1,34 @@
 # Omnichannel dashboard stat cache
 
-Reduces per-request full-table scans on **Omnichannel index**, **Current orders**, and native post-sell KPI cards.
+Performance model follows **Jubelio index** (`JubelioController@index`): one bounded SQL aggregate for tab cards + paginated list — no per-card COUNT loop and no full-table KPI scan on page load.
 
-## Native post-sell KPIs (`posted` / `eligible_to_post` / `errors`)
+## Current orders (`/omnichannel/orders?view=orders`)
 
-| Layer | Behavior |
+| Piece | Behavior |
 |-------|----------|
-| **Storage** | Single row `omnichannel_post_sell_stats` (id `1`), keyed by `scope_key` (gate + max age + allowed channels). |
-| **Incremental** | `MarketplaceChannelOrderObserver` on save/delete calls `OmnichannelPostSellStatsStore` using `OmnichannelPostSellEligibility::rejectReason()` (same rules as live posting). |
-| **Read** | `OmnichannelPostSellDashboardStats::counts()` returns the snapshot. Missing row or `scope_key` mismatch → full rebuild. Older than **fresh TTL** (default **180s**) → bounded inline rebuild (default **8s** `max_execution_time`) else show snapshot marked **stale** in UI. |
-| **Reconcile** | `php artisan omnichannel:refresh-post-sell-stats` — full cursor recount (maintainer / optional hourly **inactive** cron). Use after gate or channel config changes or if counters drift from rolling window without row updates. |
+| **Ops tab cards** | `MarketplaceChannelOrderOpsBucket::aggregateBucketCounts()` — single `SELECT` with `COUNT(CASE WHEN …)` per bucket on `ordersQueryForStats()` (date/channel/warehouse filters). Tab links only change list `ops_bucket`. |
+| **Native posted** | Same aggregate adds `COUNT(CASE WHEN posted_transaction_id > 0 …)` for a lightweight “posted in window” hint — not eligibility/errors. |
+| **Status filter hints** | Static list from ops-bucket status maps (`knownOrderStatusHints`) — no `DISTINCT order_status` on each request. |
+| **Shop / warehouse dropdowns** | Short TTL cache on `MarketplaceWebhookShopWarehouseResolver` (default **120s**). |
 
-Env: `OMNICHANNEL_DASHBOARD_POST_SELL_FRESH_SECONDS`, `OMNICHANNEL_DASHBOARD_POST_SELL_REFRESH_SECONDS`.
+## Native post-sell KPIs (eligible / errors / gate)
 
-## Ops bucket stat cards (`/omnichannel/orders?view=orders`)
-
-| Layer | Behavior |
+| Piece | Behavior |
 |-------|----------|
-| **Storage** | Laravel cache entry per **filter fingerprint** (`channel`, `date_from`, `date_to`, `warehouse_id`, `shop_ref`, `order_ref`). |
-| **TTL** | Default **90s** (`OMNICHANNEL_DASHBOARD_OPS_BUCKET_TTL_SECONDS`). |
-| **Invalidation** | Global `omnichannel.dashboard.ops_bucket_version` incremented on every `marketplace_channel_orders` save/delete (matches any filter using the same base stats query). |
+| **Storage** | Row `omnichannel_post_sell_stats` (id `1`), incremental via `MarketplaceChannelOrderObserver`. |
+| **Web read** | `OmnichannelPostSellStatsStore::countsForDashboard()` returns snapshot only; **never** `rebuildFull()` / `computeCountsFromDatabase()` on HTTP. Missing or stale → last snapshot or zeros + `stats_stale=true`; optional `RefreshOmnichannelPostSellStatsJob` (debounced). |
+| **Reconcile** | `php artisan omnichannel:refresh-post-sell-stats` — full cursor recount. Run once after deploy/migration before relying on snapshot; then hourly scheduled task (if enabled). |
 
-Still runs six `COUNT`s on a cache miss; hits avoid repeat work within TTL.
+Env: `OMNICHANNEL_DASHBOARD_POST_SELL_FRESH_SECONDS`, `OMNICHANNEL_DASHBOARD_OPS_BUCKET_TTL_SECONDS` (legacy cache class unused on orders index), `OMNICHANNEL_DASHBOARD_COMPARE_TTL_SECONDS`, `OMNICHANNEL_DASHBOARD_SHOP_WAREHOUSE_TTL_SECONDS`.
 
 ## Shadow compare index (`/omnichannel`)
 
-| Layer | Behavior |
+| Piece | Behavior |
 |-------|----------|
-| **Storage** | One cache blob: five `marketplace_order_shadows` compare counts + Jubelio sell pending. |
-| **TTL** | Default **120s** (`OMNICHANNEL_DASHBOARD_COMPARE_TTL_SECONDS`). |
-| **Invalidation** | `OmnichannelDashboardCacheBuster::bustCompareStats()` after Shopee shadow upsert / compare refresh. |
+| **Compare counts** | One `selectRaw` CASE aggregate on `marketplace_order_shadows` (+ small Jubelio pending count), cached **120s** (`OmnichannelCompareDashboardStats`). |
+| **Invalidation** | `OmnichannelDashboardCacheBuster::bustCompareStats()` after shadow upsert. |
 
 ## Related
 
 - Eligibility and gates: `doc/omnichannel-native-sell-post.md`
-- Ops bucket rules: `doc/omnichannel.md` (Current orders ops buckets)
+- Ops bucket rules: `doc/omnichannel.md`

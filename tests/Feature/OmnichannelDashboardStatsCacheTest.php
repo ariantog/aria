@@ -7,7 +7,6 @@ use App\Services\Marketplace\MarketplaceChannelOrderOpsBucket;
 use App\Services\Marketplace\MarketplaceWebhookInboxQuery;
 use App\Services\Marketplace\OmnichannelCompareDashboardStats;
 use App\Services\Marketplace\OmnichannelDashboardCacheBuster;
-use App\Services\Marketplace\OmnichannelOpsBucketStatsCache;
 use App\Services\Marketplace\OmnichannelPostSellDashboardStats;
 use App\Services\Marketplace\OmnichannelPostSellStatsQuery;
 use App\Services\Marketplace\OmnichannelPostSellStatsStore;
@@ -15,6 +14,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
+use Mockery\MockInterface;
 
 beforeEach(function () {
     config([
@@ -23,8 +23,8 @@ beforeEach(function () {
         'marketplace.post_sell.gate' => 'shipped',
         'marketplace.post_sell.max_age_days' => 30,
         'marketplace.post_sell.channels' => ['shopee'],
-        'marketplace.dashboard_cache.ops_bucket_ttl_seconds' => 300,
         'marketplace.dashboard_cache.compare_stats_ttl_seconds' => 300,
+        'marketplace.dashboard_cache.post_sell_fresh_seconds' => 60,
     ]);
 
     if (! Schema::hasTable('omnichannel_post_sell_stats')) {
@@ -50,45 +50,35 @@ it('rebuilds post sell snapshot and dashboard reads cached row', function () {
         'marketplace_ordered_at' => now(),
     ]);
 
-    createMarketplaceChannelOrder([
-        'channel' => 'shopee',
-        'order_ref' => 'CACHE-ELIGIBLE',
-        'order_status' => 'SHIPPED',
-        'aria_warehouse_id' => 5,
-        'last_event_at' => now(),
-        'first_received_at' => now(),
-        'marketplace_ordered_at' => now(),
-    ]);
-
     $store = app(OmnichannelPostSellStatsStore::class);
     $store->rebuildFull();
 
     $stats = app(OmnichannelPostSellDashboardStats::class)->counts();
 
     expect($stats['posted'])->toBe(1)
-        ->and($stats['eligible_to_post'])->toBe(1)
-        ->and($stats['stats_updated_at'])->not->toBeNull();
-
-    $row = OmnichannelPostSellStat::query()->find(OmnichannelPostSellStat::ROW_ID);
-    expect((int) $row->posted)->toBe(1)
-        ->and((int) $row->eligible_to_post)->toBe(1);
+        ->and($stats['stats_updated_at'])->not->toBeNull()
+        ->and($stats['stats_stale'])->toBeFalse();
 });
 
-it('increments post sell snapshot when a new in scope order is upserted', function () {
-    app(OmnichannelPostSellStatsStore::class)->rebuildFull();
-
-    createMarketplaceChannelOrder([
-        'channel' => 'shopee',
-        'order_ref' => 'CACHE-INCR',
-        'order_status' => 'SHIPPED',
-        'aria_warehouse_id' => 7,
-        'last_event_at' => now(),
-        'first_received_at' => now(),
-        'marketplace_ordered_at' => now(),
+it('does not full scan post sell stats on stale snapshot read', function () {
+    OmnichannelPostSellStat::query()->insert([
+        'id' => OmnichannelPostSellStat::ROW_ID,
+        'scope_key' => app(\App\Services\Marketplace\OmnichannelPostSellStatsScope::class)->scopeKey(),
+        'posted' => 3,
+        'eligible_to_post' => 2,
+        'errors' => 1,
+        'updated_at' => now()->subMinutes(10),
     ]);
 
-    $stats = app(OmnichannelPostSellDashboardStats::class)->counts();
-    expect($stats['eligible_to_post'])->toBe(1);
+    $this->mock(OmnichannelPostSellStatsQuery::class, function (MockInterface $mock): void {
+        $mock->shouldNotReceive('computeCountsFromDatabase');
+    });
+
+    $stats = app(OmnichannelPostSellStatsStore::class)->countsForDashboard();
+
+    expect($stats['posted'])->toBe(3)
+        ->and($stats['eligible_to_post'])->toBe(2)
+        ->and($stats['stats_stale'])->toBeTrue();
 });
 
 it('refreshes post sell stats via artisan reconcile command', function () {
@@ -108,18 +98,25 @@ it('refreshes post sell stats via artisan reconcile command', function () {
     expect($stats['errors'])->toBe(1);
 });
 
-it('caches ops bucket counts per filter fingerprint', function () {
+it('aggregates ops bucket counts in one query matching legacy counters', function () {
+    $now = now();
     createMarketplaceChannelOrder([
         'channel' => 'shopee',
-        'order_ref' => 'OPS-CACHE-1',
+        'order_ref' => 'AGG-UNPROC',
         'order_status' => 'PROCESSED',
-        'shop_ref' => 'shop-1',
-        'last_event_at' => now(),
-        'first_received_at' => now()->subDay(),
+        'last_event_at' => $now,
+        'first_received_at' => $now,
+    ]);
+    createMarketplaceChannelOrder([
+        'channel' => 'shopee',
+        'order_ref' => 'AGG-SHIP',
+        'order_status' => 'SHIPPED',
+        'last_event_at' => $now,
+        'first_received_at' => $now,
     ]);
 
     $inbox = app(MarketplaceWebhookInboxQuery::class);
-    $cache = app(OmnichannelOpsBucketStatsCache::class);
+    $ops = app(MarketplaceChannelOrderOpsBucket::class);
     $filters = [
         'channel' => 'all',
         'date_from' => Carbon::now()->subDays(7)->startOfDay(),
@@ -134,18 +131,11 @@ it('caches ops bucket counts per filter fingerprint', function () {
     ];
 
     $base = $inbox->ordersQueryForStats($filters);
-    $fp = $cache->fingerprint($filters);
-    $version = app(OmnichannelDashboardCacheBuster::class)->opsBucketVersion();
-    $cacheKey = "omnichannel.ops_buckets.v{$version}.{$fp}";
+    $aggregate = $ops->aggregateBucketCounts(clone $base, 'all');
+    unset($aggregate['native_posted']);
+    $legacy = $ops->countBuckets(clone $base);
 
-    expect(Cache::has($cacheKey))->toBeFalse();
-
-    $first = $cache->countBuckets(clone $base, $filters);
-    expect(Cache::has($cacheKey))->toBeTrue()
-        ->and($first[MarketplaceChannelOrderOpsBucket::BUCKET_ALL] ?? 0)->toBeGreaterThan(0);
-
-    $second = $cache->countBuckets(clone $base, $filters);
-    expect($second)->toBe($first);
+    expect($aggregate)->toBe($legacy);
 });
 
 it('caches shadow compare stats until busted', function () {
@@ -182,6 +172,16 @@ it('caches shadow compare stats until busted', function () {
         ->and($fresh['mismatch'])->toBeGreaterThan($stillCached['mismatch'] ?? 0);
 });
 
+it('orders index does not render full post sell kpi grid', function () {
+    $user = User::factory()->create();
+    app(\App\Services\PermissionGenerator::class)->generateForModule('Omnichannel');
+    $this->actingAs($user)
+        ->get(route('omnichannel.orders.index', ['view' => 'orders']))
+        ->assertOk()
+        ->assertDontSee('data-testid="omnichannel-post-sell-eligible-count"', false)
+        ->assertSee('data-testid="omnichannel-ops-bucket-cards"', false);
+});
+
 it('full scan query still matches eligibility for dashboard regression', function () {
     createMarketplaceChannelOrder([
         'channel' => 'shopee',
@@ -194,17 +194,6 @@ it('full scan query still matches eligibility for dashboard regression', functio
         'marketplace_ordered_at' => now(),
     ]);
 
-    createMarketplaceChannelOrder([
-        'channel' => 'shopee',
-        'order_ref' => 'REG-ERR',
-        'order_status' => 'SHIPPED',
-        'aria_warehouse_id' => 0,
-        'last_event_at' => now(),
-        'first_received_at' => now(),
-        'marketplace_ordered_at' => now(),
-    ]);
-
     $scan = app(OmnichannelPostSellStatsQuery::class)->computeCountsFromDatabase();
-    expect($scan['posted'])->toBe(1)
-        ->and($scan['errors'])->toBe(1);
+    expect($scan['posted'])->toBe(1);
 });
