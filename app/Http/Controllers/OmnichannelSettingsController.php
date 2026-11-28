@@ -35,7 +35,7 @@ class OmnichannelSettingsController extends Controller
         abort_unless(Omnichannel::userCanSettings($request->user()), 403);
 
         $tab = strtolower((string) $request->query('tab', 'connections'));
-        if (! in_array($tab, ['warehouse', 'low-stock', 'connections'], true)) {
+        if (! in_array($tab, ['warehouse', 'low-stock', 'connections', 'fulfillment'], true)) {
             $tab = 'connections';
         }
 
@@ -83,6 +83,12 @@ class OmnichannelSettingsController extends Controller
             OmnichannelSettingStore::KEY_FLEXI_STAGING_WAREHOUSE_ID,
             0,
         );
+        $postSellGateStored = strtolower(trim((string) $settings->getString(
+            OmnichannelSettingStore::KEY_POST_SELL_GATE,
+            '',
+        )));
+        $postSellGateEffective = $settings->resolvePostSellGate();
+        $configPostSellGate = strtolower(trim((string) config('marketplace.post_sell.gate', 'shipped')));
         $physicalWarehouses = collect();
         if ($tab === 'warehouse') {
             $physicalWarehouses = Addrbook::query()
@@ -106,6 +112,9 @@ class OmnichannelSettingsController extends Controller
             'tokopediaStoreId' => $tokopediaStoreId ?? '',
             'tokopediaNotes' => $tokopediaNotes ?? '',
             'flexiStagingWarehouseId' => $flexiStagingWarehouseId,
+            'postSellGateStored' => $postSellGateStored,
+            'postSellGateEffective' => $postSellGateEffective,
+            'configPostSellGate' => $configPostSellGate,
             'physicalWarehouses' => $physicalWarehouses,
             'settingsTableExists' => $settings->tableExists(),
             'shopeeAdminConnection' => $shopeeAdmin->getConnectionStatus(),
@@ -194,5 +203,31 @@ class OmnichannelSettingsController extends Controller
         return redirect()
             ->route('omnichannel.settings.index', ['tab' => 'warehouse'])
             ->with('success', 'Gudang staging FLEXI disimpan.');
+    }
+
+    public function updatePostSellGate(Request $request, OmnichannelSettingStore $settings): RedirectResponse
+    {
+        abort_unless(Omnichannel::userCanSettingsEdit($request->user()), 403);
+        abort_unless($settings->tableExists(), 503, 'Migrasi omnichannel_settings belum dijalankan.');
+
+        $validated = $request->validate([
+            'post_sell_gate' => [
+                'required',
+                'string',
+                Rule::in([
+                    OmnichannelSettingStore::POST_SELL_GATE_SHIPPED,
+                    OmnichannelSettingStore::POST_SELL_GATE_AWB_PRINTED,
+                ]),
+            ],
+        ]);
+
+        $settings->set(
+            OmnichannelSettingStore::KEY_POST_SELL_GATE,
+            $validated['post_sell_gate'],
+        );
+
+        return redirect()
+            ->route('omnichannel.settings.index', ['tab' => 'fulfillment'])
+            ->with('success', 'Gate native post SELL disimpan.');
     }
 }

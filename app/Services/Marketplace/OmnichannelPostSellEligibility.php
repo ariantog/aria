@@ -16,6 +16,7 @@ class OmnichannelPostSellEligibility
         private MarketplaceChannelOrderOpsBucket $opsBucket,
         private JubelioSellInvoiceGuard $sellInvoiceGuard,
         private ShopeeSyncInvoicePrefix $shopeeInvoicePrefix,
+        private OmnichannelSettingStore $settings,
     ) {}
 
     public function masterEnabled(): bool
@@ -30,7 +31,7 @@ class OmnichannelPostSellEligibility
 
     public function gateMode(): string
     {
-        return (string) config('marketplace.post_sell.gate', 'shipped');
+        return $this->settings->resolvePostSellGate();
     }
 
     /**
