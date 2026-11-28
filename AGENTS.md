@@ -283,6 +283,37 @@ not "modernize" or refactor Alpine style:
 - Inside a double-quoted `x-data="..."` attribute, build endpoints with **`@js(...)`** — never
   `@json(...)`.
 
+## Omnichannel UI (forms & filters)
+
+Omnichannel Blade pages share one layout vocabulary — match **`resources/views/omnichannel/orders.blade.php`**, **`omnichannel/partials/orders-filters.blade.php`**, **`omnichannel/returns.blade.php`**, and **`omnichannel/settings.blade.php`** when adding or editing Omnichannel UI (not Jubelio / transaction forms).
+
+**Page shell**
+
+- Outer wrapper: `flex flex-col gap-4 p-2 sm:gap-6 sm:p-4` with stable `data-testid="omnichannel-{feature}-page"`.
+- `$breadcrumbs` array at top of `@section('content')` when other omnichannel pages use breadcrumbs (see missed push, settings, fetch order).
+- Title block: `h1` `text-2xl font-bold text-gray-900` + `mt-1 text-sm text-gray-600` description; optional cross-links in `text-xs text-gray-500`.
+- Session flashes: `rounded-lg border` blocks (green / red / amber) with `data-testid` when the page has actions; same classes as returns index.
+
+**Filter / maintainer forms**
+
+- Card: `rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800/50`.
+- Optional card header: `border-b border-gray-100 px-3 py-2.5` + `text-sm font-medium text-gray-700`.
+- Field row: `flex flex-wrap items-end gap-2` (same as orders filters).
+- Controls: `require resource_path('views/partials/form-control-class-vars.php')` and `$formControlClassSm` (`h-9`, gray border, blue focus ring) — or **`@include('omnichannel.partials.form-field', [...])`** for label + input/select + `@error`.
+- Labels: `text-xs font-medium uppercase text-gray-500 dark:text-gray-400`.
+- Primary action: `h-9 rounded-lg bg-blue-700 px-4 text-sm font-medium text-white hover:bg-blue-800`.
+- Secondary: `rounded-lg border border-gray-300 bg-white … hover:bg-gray-50` (dark variants as in orders-filters Reset).
+- Footer hint: `mt-2 text-[10px] text-gray-500` under the field row when filters need explanation.
+- POST forms: `@csrf`, validation via `@error` / `text-[10px] text-red-600`; add `data-testid` on page, form, submit, and primary inputs.
+
+**Alpine**
+
+- Use **methods** in `x-data` for `:disabled` / handlers, not getters.
+- Build URLs inside `x-data` with **`@js(route(...))`**, not `@json`.
+- Do not use `$root`; nested scopes inherit bare names.
+
+**Reference implementation:** `resources/views/omnichannel/fetch-order.blade.php` + `omnichannel/partials/form-field.blade.php`.
+
 ## Testing & workflow preferences (IMPORTANT)
 
 - See **AI agent restrictions** above — no demo videos or GUI walkthroughs.
