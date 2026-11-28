@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Addrbook;
 use App\Models\MarketplaceChannelOrder;
 use App\Models\MarketplaceWebhookEvent;
 use App\Models\Setting;
@@ -126,14 +127,16 @@ it('pulls tiktok order by ref via mock api', function () {
         ->and($order->order_status)->toBe('AWAITING_SHIPMENT');
 });
 
-it('posts fetch order form and redirects to order detail', function () {
+it('posts fetch order form and shows result panel on fetch page', function () {
     if (! Schema::hasTable('shopee_syncs')) {
         $this->markTestSkipped('shopee_syncs missing');
     }
 
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'Gudang Fetch Test']);
     Shopeesync::query()->create([
         'shop_id' => 501,
-        'warehouse_id' => 1,
+        'warehouse_id' => $warehouse->id,
+        'shopee_warehouse_name' => 'Pickup BSD',
     ]);
 
     Http::fake([
@@ -157,8 +160,31 @@ it('posts fetch order form and redirects to order detail', function () {
             'order_ref' => 'FORM-PULL-001',
             'shop_ref' => '501',
         ])
-        ->assertRedirect(route('omnichannel.orders.show', [
-            'channel' => 'shopee',
-            'orderRef' => 'FORM-PULL-001',
-        ]));
+        ->assertRedirect(route('omnichannel.fetch-order.index', ['channel' => 'shopee']))
+        ->assertSessionHas('fetch_result.ok', true);
+
+    $this->actingAs($this->user)
+        ->get(route('omnichannel.fetch-order.index', ['channel' => 'shopee']))
+        ->assertOk()
+        ->assertSee('data-testid="omnichannel-fetch-order-result"', false)
+        ->assertSee('data-testid="fetch-order-result-detail-link"', false)
+        ->assertSee('Shopee · Pickup BSD · shop 501', false);
+});
+
+it('labels mapped shops on fetch order form', function () {
+    if (! Schema::hasTable('shopee_syncs')) {
+        $this->markTestSkipped('shopee_syncs missing');
+    }
+
+    $warehouse = Addrbook::factory()->warehouse()->create(['name' => 'WH Label']);
+    Shopeesync::query()->create([
+        'shop_id' => 777,
+        'warehouse_id' => $warehouse->id,
+        'shopee_warehouse_name' => 'Shopee WH',
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('omnichannel.fetch-order.index', ['channel' => 'shopee']))
+        ->assertOk()
+        ->assertSee('Shopee · Shopee WH · shop 777', false);
 });

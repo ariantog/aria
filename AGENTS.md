@@ -305,6 +305,8 @@ Omnichannel Blade pages share one layout vocabulary — match **`resources/views
 - Secondary: `rounded-lg border border-gray-300 bg-white … hover:bg-gray-50` (dark variants as in orders-filters Reset).
 - Footer hint: `mt-2 text-[10px] text-gray-500` under the field row when filters need explanation.
 - POST forms: `@csrf`, validation via `@error` / `text-[10px] text-red-600`; add `data-testid` on page, form, submit, and primary inputs.
+- **Mapped shop pickers:** option **labels** must be human-readable (`MarketplaceWebhookShopWarehouseResolver::mappedShopSelectOptionsForChannel`) — channel + shop name / platform WH + Aria gudang + `ref …`; option **value** stays `shop_ref` / `shop_id`.
+- **Post-action result:** after a successful maintainer POST (e.g. fetch order), prefer a **result panel** (`rounded-xl` summary card with stat tiles + primary/secondary links), not a one-line flash only — see `omnichannel/partials/fetch-order-result.blade.php`. Session key + partial pattern; errors stay on flash red blocks.
 
 **Alpine**
 
@@ -312,7 +314,7 @@ Omnichannel Blade pages share one layout vocabulary — match **`resources/views
 - Build URLs inside `x-data` with **`@js(route(...))`**, not `@json`.
 - Do not use `$root`; nested scopes inherit bare names.
 
-**Reference implementation:** `resources/views/omnichannel/fetch-order.blade.php` + `omnichannel/partials/form-field.blade.php`.
+**Reference implementation:** `resources/views/omnichannel/fetch-order.blade.php`, `omnichannel/partials/form-field.blade.php`, `omnichannel/partials/fetch-order-result.blade.php`.
 
 ## Testing & workflow preferences (IMPORTANT)
 

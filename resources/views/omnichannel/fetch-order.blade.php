@@ -10,21 +10,23 @@ $breadcrumbs = [
 ];
 $selectedChannel = old('channel', $selectedChannel);
 $isTikTokFamily = in_array($selectedChannel, ['tiktok', 'tokopedia'], true);
-$shopRequired = $shopOptions->count() !== 1;
+$shopSelectOptions = $shopSelectOptions ?? [];
+$shopRequired = count($shopSelectOptions) !== 1;
 $channelOptions = [
     'shopee' => 'Shopee',
     'tiktok' => 'TikTok Shop',
     'tokopedia' => 'Tokopedia (via TikTok API)',
 ];
 $shopOptionsList = [];
-if ($shopOptions->isEmpty()) {
+if ($shopSelectOptions === []) {
     $shopOptionsList = [];
 } elseif (! $shopRequired) {
-    $shopOptionsList = [(string) $shopOptions->first() => (string) $shopOptions->first()];
+    $only = $shopSelectOptions[0];
+    $shopOptionsList = [(string) $only['value'] => (string) $only['label']];
 } else {
     $shopOptionsList = ['' => '— pilih shop —'];
-    foreach ($shopOptions as $ref) {
-        $shopOptionsList[(string) $ref] = (string) $ref;
+    foreach ($shopSelectOptions as $row) {
+        $shopOptionsList[(string) $row['value']] = (string) $row['label'];
     }
 }
 @endphp
@@ -49,9 +51,8 @@ if ($shopOptions->isEmpty()) {
         </div>
     </div>
 
-    @if(session('success'))
-    <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900 dark:border-green-800 dark:bg-green-950/40 dark:text-green-200" data-testid="omnichannel-fetch-order-flash-success">{{ session('success') }}</div>
-    @endif
+    @include('omnichannel.partials.fetch-order-result', ['fetchResult' => $fetchResult ?? session('fetch_result')])
+
     @if(session('error'))
     <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40" data-testid="omnichannel-fetch-order-flash-error">{{ session('error') }}</div>
     @endif
@@ -108,7 +109,7 @@ if ($shopOptions->isEmpty()) {
                     'attributes' => 'maxlength="128"',
                 ])
 
-                @if($shopOptions->isEmpty())
+                @if($shopSelectOptions === [])
                     @include('omnichannel.partials.form-field', [
                         'name' => 'shop_ref',
                         'id' => 'fetch-shop-ref',
@@ -127,12 +128,12 @@ if ($shopOptions->isEmpty()) {
                         'id' => 'fetch-shop-ref',
                         'label' => $isTikTokFamily ? 'Shop (shop_ref)' : 'Shop (shop_id)',
                         'type' => 'select',
-                        'selected' => old('shop_ref', $shopRequired ? '' : (string) $shopOptions->first()),
+                        'selected' => old('shop_ref', $shopRequired ? '' : (string) ($shopSelectOptions[0]['value'] ?? '')),
                         'required' => $shopRequired,
                         'mono' => true,
                         'testid' => 'fetch-shop-ref-select',
                         'options' => $shopOptionsList,
-                        'extraClass' => 'max-w-[16rem]',
+                        'extraClass' => 'max-w-[22rem]',
                         'attributes' => $shopRequired ? 'required' : '',
                     ])
                 @endif
