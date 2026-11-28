@@ -129,6 +129,29 @@ return [
         'shop_warehouse_resolver_ttl_seconds' => max(30, (int) env('OMNICHANNEL_DASHBOARD_SHOP_WAREHOUSE_TTL_SECONDS', 120)),
     ],
 
+    /**
+     * Pilot: push Aria-computed listing sellable to marketplaces (no warehouse_item writes).
+     */
+    'listing_push' => [
+        'allowlist_item_ids' => array_values(array_filter(array_map(
+            static fn (string $id) => (int) trim($id),
+            explode(',', (string) env('MARKETPLACE_STOCK_PUSH_ITEM_IDS', '')),
+        ))),
+        'return_shopee_listing_correct' => filter_var(
+            env('OMNICHANNEL_RETURN_SHOPEE_LISTING_CORRECT', false),
+            FILTER_VALIDATE_BOOLEAN
+        ),
+        'return_verify_listing_push' => filter_var(
+            env('OMNICHANNEL_RETURN_VERIFY_LISTING_PUSH', false),
+            FILTER_VALIDATE_BOOLEAN
+        ),
+        'return_verify_auto_post' => filter_var(
+            env('OMNICHANNEL_RETURN_VERIFY_AUTO_POST', true),
+            FILTER_VALIDATE_BOOLEAN
+        ),
+        'idempotency_ttl_minutes' => max(5, (int) env('MARKETPLACE_LISTING_PUSH_IDEMPOTENCY_TTL_MINUTES', 120)),
+    ],
+
     'webhook_status_buckets' => [
         'shopee' => [
             'UNPAID' => 'unpaid',

@@ -7,6 +7,7 @@ use App\Models\Omnichannel;
 use App\Services\Marketplace\OmnichannelMarketplaceReturnWorkflow;
 use App\Services\Marketplace\OmnichannelPostReturnEligibility;
 use App\Services\Marketplace\OmnichannelReturnOrderPoster;
+use App\Services\Marketplace\OmnichannelReturnVerifyListingPush;
 use App\Services\Marketplace\OmnichannelReturnQueueReconciler;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -83,6 +84,7 @@ class OmnichannelReturnsController extends Controller
         Request $request,
         MarketplaceChannelOrder $marketplaceChannelOrder,
         OmnichannelMarketplaceReturnWorkflow $workflow,
+        OmnichannelReturnVerifyListingPush $verifyListingPush,
     ): RedirectResponse {
         abort_unless(Omnichannel::userCanOrders($request->user()), 403);
 
@@ -98,6 +100,26 @@ class OmnichannelReturnsController extends Controller
             );
         } catch (\Throwable $e) {
             return back()->with('error', $e->getMessage());
+        }
+
+        $followUp = $verifyListingPush->afterVerify($marketplaceChannelOrder, $request->user());
+
+        if ($verifyListingPush->verifyPushEnabled()) {
+            $parts = ['Return '.$marketplaceChannelOrder->order_ref.' diverifikasi.'];
+            if ($followUp['posted']) {
+                $parts[] = 'RETURN diposting otomatis.';
+            } elseif ($followUp['post_error'] !== null) {
+                $parts[] = 'Posting RETURN gagal: '.$followUp['post_error'];
+            }
+            $listing = $followUp['listing'];
+            if (($listing['pushed'] ?? 0) > 0) {
+                $parts[] = 'Listing push: '.$listing['pushed'].' lokasi.';
+            }
+            if (($listing['skipped'] ?? 0) > 0 && ($listing['pushed'] ?? 0) === 0) {
+                $parts[] = 'Listing push dilewati (pilot allowlist / TikTok stub).';
+            }
+
+            return back()->with('success', implode(' ', $parts));
         }
 
         return back()->with('success', 'Return '.$marketplaceChannelOrder->order_ref.' diverifikasi — siap posting.');
