@@ -201,14 +201,19 @@ class Transaction extends Model
         return self::typeLabel((int) $this->type);
     }
 
+    public static function submitTypeLabel(?int $submitType): string
+    {
+        return match ((int) $submitType) {
+            self::SUBMIT_TYPE_MANUAL => 'Manual',
+            self::SUBMIT_TYPE_JUBELIO => 'Jubelio cron',
+            self::SUBMIT_TYPE_MARKETPLACE => 'Omnichannel cron',
+            default => 'Unknown',
+        };
+    }
+
     public function getSubmitTypeLabel(): string
     {
-        return match ((int) $this->submit_type) {
-            self::SUBMIT_TYPE_MANUAL => 'Manual',
-            self::SUBMIT_TYPE_JUBELIO => 'Jubelio Sync',
-            self::SUBMIT_TYPE_MARKETPLACE => 'Marketplace',
-            default => 'Unknown'
-        };
+        return self::submitTypeLabel((int) $this->submit_type);
     }
 
     public function isManual(): bool

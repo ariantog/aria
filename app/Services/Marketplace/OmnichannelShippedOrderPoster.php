@@ -75,6 +75,13 @@ class OmnichannelShippedOrderPoster
 
         $reject = $this->eligibility->rejectReason($order);
         if ($reject !== null) {
+            if ($reject === 'Transaction sudah ada.') {
+                $this->sellPostGuard->reconcileNativeSkipBecauseInvoiceExists(
+                    $order,
+                    $this->eligibility->resolveInvoice($order),
+                );
+            }
+
             return ['posted' => false, 'skipped' => true, 'dry_run' => false, 'error' => $reject];
         }
 
@@ -127,6 +134,8 @@ class OmnichannelShippedOrderPoster
                 }
 
                 if ($this->sellPostGuard->shouldSkipNativePost($locked, $invoice)) {
+                    $this->sellPostGuard->reconcileNativeSkipBecauseInvoiceExists($locked, $invoice);
+
                     return ['posted' => false, 'skipped' => true, 'dry_run' => false, 'error' => 'Transaction sudah ada.'];
                 }
 
@@ -156,6 +165,8 @@ class OmnichannelShippedOrderPoster
             });
         } catch (\Throwable $e) {
             if ($this->sellPostGuard->invoiceTaken($invoice)) {
+                $this->sellPostGuard->reconcileNativeSkipBecauseInvoiceExists($order, $invoice);
+
                 return ['posted' => false, 'skipped' => true, 'dry_run' => false, 'error' => 'Transaction sudah ada.'];
             }
 

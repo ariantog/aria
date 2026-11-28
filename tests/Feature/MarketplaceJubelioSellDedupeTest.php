@@ -130,10 +130,11 @@ it('jubelio process marks duplicate when native already posted marketplace chann
 
     $result = app(ProcessJubelioOrder::class)->execute($order);
 
-    expect($result['success'])->toBeFalse()
-        ->and($result['message'])->toBe('Transaction sudah ada')
+    expect($result['success'])->toBeTrue()
+        ->and($result['message'])->toContain('Transaksi sudah ada')
         ->and(Transaction::where('invoice', 'SP-NATIVE-LOCK')->count())->toBe(1)
-        ->and($order->fresh()->error_type)->toBe(JubelioOrderSyncStatus::ERROR_DUPLICATE);
+        ->and($order->fresh()->error_type)->toBe(JubelioOrderSyncStatus::SUCCESS)
+        ->and($order->fresh()->status)->toBe(2);
 });
 
 it('serial race second native post skips after transaction already exists', function () {

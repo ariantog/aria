@@ -76,6 +76,42 @@ $apiDetail = $detail['api_detail'] ?? null;
         </dl>
     </div>
     @endif
+    @php $sellPost = $detail['sell_post'] ?? null; @endphp
+    @if(is_array($sellPost))
+    <div class="rounded-lg border border-gray-200 bg-white p-3" data-testid="omnichannel-order-sell-post-detail">
+        <p class="text-[10px] font-semibold uppercase text-gray-500">Native SELL / invoice</p>
+        <dl class="mt-2 grid grid-cols-1 gap-2 text-[11px] sm:grid-cols-2">
+            <div>
+                <dt class="text-gray-500">Invoice</dt>
+                <dd class="font-mono font-medium text-gray-900">{{ $sellPost['invoice'] ?? '—' }}</dd>
+            </div>
+            <div>
+                <dt class="text-gray-500">Submit source</dt>
+                <dd class="font-medium text-gray-900" data-testid="omnichannel-order-sell-submit-source">
+                    @if(! empty($sellPost['submit_type_label']))
+                    {{ $sellPost['submit_type_label'] }}
+                    @else
+                    <span class="text-gray-400">Belum diposting</span>
+                    @endif
+                </dd>
+            </div>
+            @if(! empty($sellPost['transaction_url']))
+            <div class="sm:col-span-2">
+                <dt class="text-gray-500">Transaksi Aria</dt>
+                <dd>
+                    <a href="{{ $sellPost['transaction_url'] }}" class="font-medium text-blue-700 hover:underline">
+                        SELL #{{ $sellPost['posted_transaction_id'] ?? '—' }}
+                    </a>
+                    @if(! empty($sellPost['posted_at']))
+                    <span class="text-gray-500">· posted {{ \Illuminate\Support\Carbon::parse($sellPost['posted_at'])->format('Y-m-d H:i') }}</span>
+                    @endif
+                </dd>
+            </div>
+            @endif
+        </dl>
+    </div>
+    @endif
+
     <div class="flex flex-wrap items-center gap-2">
         @if(!empty($links['shadow_compare']))
         <a href="{{ $links['shadow_compare'] }}" class="rounded-md border border-gray-300 bg-white px-2 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-50">Shadow compare Shopee</a>
