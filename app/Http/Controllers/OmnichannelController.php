@@ -8,6 +8,7 @@ use App\Models\Omnichannel;
 use App\Services\Marketplace\MarketplaceWebhookShopWarehouseResolver;
 use App\Services\Marketplace\MarketplaceWebhookStatusPresenter;
 use App\Services\Marketplace\OmnichannelOrderDetailReader;
+use App\Services\Marketplace\OmnichannelCompareDashboardStats;
 use App\Services\Marketplace\OmnichannelPostSellDashboardStats;
 use App\Services\Marketplace\OmnichannelReceivedTimes;
 use App\Services\Marketplace\ShopeeOrderShadowRecorder;
@@ -24,6 +25,7 @@ class OmnichannelController extends Controller
         ShopeeAdminOpenApiService $shopeeAdmin,
         OmnichannelReceivedTimes $receivedTimes,
         OmnichannelPostSellDashboardStats $postSellStats,
+        OmnichannelCompareDashboardStats $compareStats,
     ): View
     {
         Gate::authorize(Omnichannel::getPermissions()['view']);
@@ -54,15 +56,16 @@ class OmnichannelController extends Controller
 
         $shadows = $query->paginate(25)->withQueryString();
 
+        $compareCounts = $compareStats->counts();
         $stats = [
-            'matched' => MarketplaceOrderShadow::query()->where('compare_status', MarketplaceOrderShadow::COMPARE_MATCHED)->count(),
-            'mismatch' => MarketplaceOrderShadow::query()->where('compare_status', MarketplaceOrderShadow::COMPARE_MISMATCH)->count(),
-            'jubelio_missing' => MarketplaceOrderShadow::query()->where('compare_status', MarketplaceOrderShadow::COMPARE_JUBELIO_MISSING)->count(),
-            'pending' => MarketplaceOrderShadow::query()->where('compare_status', MarketplaceOrderShadow::COMPARE_PENDING)->count(),
-            'line_mismatch' => MarketplaceOrderShadow::query()->where('line_compare_status', MarketplaceOrderShadow::LINE_COMPARE_MISMATCH)->count(),
+            'matched' => $compareCounts['matched'],
+            'mismatch' => $compareCounts['mismatch'],
+            'jubelio_missing' => $compareCounts['jubelio_missing'],
+            'pending' => $compareCounts['pending'],
+            'line_mismatch' => $compareCounts['line_mismatch'],
         ];
 
-        $jubelioPending = Jubelioorder::query()->where('type', 'SELL')->where('status', 0)->count();
+        $jubelioPending = (int) $compareCounts['jubelio_pending_sell'];
         $nativePostSellStats = $postSellStats->counts();
 
         $shopeeAdminConnection = $shopeeAdmin->getConnectionStatus();

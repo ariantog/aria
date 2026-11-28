@@ -51,17 +51,21 @@ class ShopeeOrderShadowRecorder
         }
 
         if ($shadow === null) {
-            return MarketplaceOrderShadow::query()->create([
+            $shadow = MarketplaceOrderShadow::query()->create([
                 ...$attributes,
                 'channel' => MarketplaceOrderShadow::CHANNEL_SHOPEE,
                 'external_order_sn' => $orderSn,
                 'compare_status' => MarketplaceOrderShadow::COMPARE_PENDING,
                 'line_compare_status' => MarketplaceOrderShadow::LINE_COMPARE_SKIPPED,
             ]);
+            app(OmnichannelDashboardCacheBuster::class)->bustCompareStats();
+
+            return $shadow;
         }
 
         $shadow->fill($attributes);
         $shadow->save();
+        app(OmnichannelDashboardCacheBuster::class)->bustCompareStats();
 
         return $shadow->refresh();
     }
@@ -101,7 +105,7 @@ class ShopeeOrderShadowRecorder
                 : ShopeeTestPushDetector::COMPARE_NOTE;
         }
 
-        return MarketplaceOrderShadow::query()->updateOrCreate(
+        $shadow = MarketplaceOrderShadow::query()->updateOrCreate(
             [
                 'channel' => MarketplaceOrderShadow::CHANNEL_SHOPEE,
                 'external_order_sn' => $orderSn,
@@ -122,6 +126,9 @@ class ShopeeOrderShadowRecorder
                 'last_event_at' => Carbon::now(),
             ],
         );
+        app(OmnichannelDashboardCacheBuster::class)->bustCompareStats();
+
+        return $shadow;
     }
 
     private function retainStubAfterDetailUnavailable(
