@@ -19,6 +19,7 @@ beforeEach(function () {
     config([
         'marketplace.post_return.enabled' => true,
         'marketplace.post_return.dry_run' => false,
+        'marketplace.post_return.require_physical_verify' => false,
         'marketplace.post_return.max_age_days' => 30,
         'marketplace.post_return.batch_size' => 10,
         'marketplace.post_return.channels' => ['shopee'],

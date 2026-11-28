@@ -106,6 +106,22 @@ During Jubelio → native cutover, **both** `jubelio:order-jubelio-to-aria` and 
 | `OMNICHANNEL_POST_RETURN_BATCH_SIZE` | `25` | Per run |
 | `OMNICHANNEL_POST_RETURN_CHANNELS` | `shopee` | Comma list |
 
+### Physical verify (Shopee / TikTok / Tokopedia)
+
+Marketplace webhooks may report return **before** goods arrive at the warehouse. Posting (cron or manual) is gated on staff **Verify** on **Omnichannel → Marketplace returns** (`/omnichannel/returns`).
+
+| Column | Meaning |
+|--------|---------|
+| `return_verified_at` | Physical receipt confirmed |
+| `return_verified_by` | `users.id` |
+| `return_verify_note` | Optional note |
+
+`OMNICHANNEL_POST_RETURN_REQUIRE_PHYSICAL_VERIFY` (default `true`) — when `false`, legacy auto-post from signal only (not recommended for the three native channels).
+
+Workflow: **pending_verification** (return signal, no verify) → **verified** → **posted** (`posted_return_transaction_id`).
+
+Jubelio RETURN cron for other channels is unchanged; `MarketplaceReturnPostGuard` prevents double post with native for the same sell invoice.
+
 ### Return gate
 
 Uses `MarketplaceChannelOrderOpsBucket::BUCKET_CANCELLED` and explicit statuses (`TO_RETURN` on Shopee). Requires a linked **SELL** in `transactions` with invoice matching `OmnichannelPostSellEligibility::resolveInvoice()` (same rules as Jubelio RETURN `salesorder_no` linkage). No warehouse stock shortage check on RETURN.

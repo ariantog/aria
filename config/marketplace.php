@@ -109,8 +109,12 @@ return [
         'batch_size' => max(1, (int) env('OMNICHANNEL_POST_RETURN_BATCH_SIZE', 25)),
         'channels' => array_values(array_filter(array_map(
             static fn (string $c) => strtolower(trim($c)),
-            explode(',', (string) env('OMNICHANNEL_POST_RETURN_CHANNELS', 'shopee'))
+            explode(',', (string) env('OMNICHANNEL_POST_RETURN_CHANNELS', 'shopee,tiktok,tokopedia'))
         ))),
+        'require_physical_verify' => filter_var(
+            env('OMNICHANNEL_POST_RETURN_REQUIRE_PHYSICAL_VERIFY', true),
+            FILTER_VALIDATE_BOOLEAN
+        ),
         'shopee_statuses' => ['TO_RETURN', 'IN_CANCEL', 'CANCELLED', 'CANCELED'],
         'tiktok_statuses' => ['CANCEL', 'CANCELLED', 'CANCELED'],
     ],

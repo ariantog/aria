@@ -159,6 +159,7 @@
     $omnichannelNavLabels = ['Omnichannel'];
     if ($canOmnichannelOrders) {
         $omnichannelNavLabels[] = 'Current orders';
+        $omnichannelNavLabels[] = 'Marketplace returns';
         $omnichannelNavLabels[] = 'Webhooks';
         $omnichannelNavLabels[] = 'Missed push';
     }
@@ -626,6 +627,7 @@
     $omniWebhooksNavActive = $omnichannelOrdersRouteActive && $omnichannelOrdersView !== 'orders';
     $omniCurrentOrdersNavActive = $omnichannelOrdersRouteActive && $omnichannelOrdersView === 'orders';
     $omniMissedPushNavActive = $isActive('/omnichannel/missed-push');
+    $omniReturnsNavActive = $isActive('/omnichannel/returns');
 @endphp
 <div x-data="{ open: {{ $omniActive ? 'true' : 'false' }} }"
      class="mb-1"
@@ -641,6 +643,7 @@
     <div x-show="open && sidebarOpen" x-cloak class="ml-6 mt-1 space-y-0.5">
         @if($canOmnichannelOrders)
         <a href="{{ route('omnichannel.orders.index', ['view' => 'orders']) }}" x-show="navLinkVisible('Current orders', 'Omnichannel')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $omniCurrentOrdersNavActive ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Current orders</a>
+        <a href="{{ route('omnichannel.returns.index') }}" x-show="navLinkVisible('Marketplace returns', 'Omnichannel')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $omniReturnsNavActive ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Marketplace returns</a>
         <a href="{{ route('omnichannel.orders.index', ['view' => 'events']) }}" x-show="navLinkVisible('Webhooks', 'Omnichannel')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $omniWebhooksNavActive ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Webhooks</a>
         <a href="{{ route('omnichannel.missed-push.index') }}" x-show="navLinkVisible('Missed push', 'Omnichannel')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $omniMissedPushNavActive ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Missed push</a>
         @endif
