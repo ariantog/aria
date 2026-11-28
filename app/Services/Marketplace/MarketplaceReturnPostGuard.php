@@ -233,10 +233,6 @@ class MarketplaceReturnPostGuard
             return false;
         }
 
-        if ($this->sellReturnGuard->returnPostedForSell($sellInvoice)) {
-            return true;
-        }
-
         $channelOrder = $this->sellPostGuard->findChannelOrderByInvoice($sellInvoice);
         if ($channelOrder !== null
             && Schema::hasColumn('marketplace_channel_orders', 'posted_return_transaction_id')
