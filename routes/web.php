@@ -148,6 +148,9 @@ Route::middleware(['auth', 'verified', 'active', 'enforce.readonly'])->group(fun
         ->name('omnichannel.orders.shipping-documents');
     Route::post('omnichannel/orders/warehouse-labels', [App\Http\Controllers\OmnichannelOrdersController::class, 'warehouseLabels'])
         ->name('omnichannel.orders.warehouse-labels');
+    Route::post('omnichannel/orders/missed-push/{gap}/ingest', [App\Http\Controllers\OmnichannelOrdersController::class, 'ingestMissedPush'])
+        ->whereNumber('gap')
+        ->name('omnichannel.orders.missed-push.ingest');
     Route::get('omnichannel/item-links', [App\Http\Controllers\OmnichannelItemLinksController::class, 'index'])->name('omnichannel.item-links.index');
     Route::get('omnichannel/item-links/export', [App\Http\Controllers\OmnichannelItemLinksController::class, 'export'])->name('omnichannel.item-links.export');
     Route::get('omnichannel/settings', [App\Http\Controllers\OmnichannelSettingsController::class, 'index'])->name('omnichannel.settings.index');

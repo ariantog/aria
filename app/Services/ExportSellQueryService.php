@@ -109,7 +109,8 @@ class ExportSellQueryService
      */
     public function filtersFromRequest(Request $request): array
     {
-        return $request->only([
+        $filters = [];
+        foreach ([
             'from',
             'to',
             'type',
@@ -121,7 +122,17 @@ class ExportSellQueryService
             'sender',
             'receiver',
             'per_page',
-        ]);
+        ] as $key) {
+            if (! $request->query->has($key)) {
+                continue;
+            }
+            $value = $request->query($key);
+            if ($value !== null && $value !== '') {
+                $filters[$key] = $value;
+            }
+        }
+
+        return $filters;
     }
 
     /**
@@ -290,14 +301,25 @@ class ExportSellQueryService
             });
     }
 
+    private function queryFilterFilled(Request $request, string $key): bool
+    {
+        if (! $request->query->has($key)) {
+            return false;
+        }
+
+        $value = $request->query($key);
+
+        return $value !== null && $value !== '';
+    }
+
     private function shouldApplyDefaultDateWindow(Request $request): bool
     {
-        if ($request->filled('from') || $request->filled('to')) {
+        if ($this->queryFilterFilled($request, 'from') || $this->queryFilterFilled($request, 'to')) {
             return false;
         }
 
         foreach (['invoice', 'item_id', 'item_code', 'sender', 'receiver', 'type', 'qty_min', 'qty_max'] as $key) {
-            if ($request->filled($key)) {
+            if ($this->queryFilterFilled($request, $key)) {
                 return false;
             }
         }
