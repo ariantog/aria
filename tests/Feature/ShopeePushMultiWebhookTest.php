@@ -45,6 +45,7 @@ function runPersistShopeePushJobFromJson(string $body): void
         app(MarketplaceWebhookRecorder::class),
         app(MarketplaceWebhookStatusPresenter::class),
         app(\App\Services\Marketplace\ShopeePushWebhookOnOrderApplicator::class),
+        app(\App\Services\Marketplace\OmnichannelReturnShopeeListingCorrector::class),
     );
 }
 

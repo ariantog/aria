@@ -34,6 +34,7 @@ it('returns 200 before inbox and shadow persist via queued job', function () {
             app(\App\Services\Marketplace\MarketplaceWebhookRecorder::class),
             app(\App\Services\Marketplace\MarketplaceWebhookStatusPresenter::class),
             app(\App\Services\Marketplace\ShopeePushWebhookOnOrderApplicator::class),
+            app(\App\Services\Marketplace\OmnichannelReturnShopeeListingCorrector::class),
         );
 
         return $job->payload['data']['ordersn'] === 'ASYNC1';

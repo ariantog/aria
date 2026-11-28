@@ -15,6 +15,7 @@ function runQueuedShopeePushJobs(): void
             app(\App\Services\Marketplace\MarketplaceWebhookRecorder::class),
             app(\App\Services\Marketplace\MarketplaceWebhookStatusPresenter::class),
             app(\App\Services\Marketplace\ShopeePushWebhookOnOrderApplicator::class),
+            app(\App\Services\Marketplace\OmnichannelReturnShopeeListingCorrector::class),
         );
 
         return true;
