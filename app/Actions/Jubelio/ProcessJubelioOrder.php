@@ -16,6 +16,7 @@ use App\Services\Jubelio\JubelioOrderQueueEligibility;
 use App\Services\Jubelio\JubelioOrderSyncStatus;
 use App\Services\Jubelio\JubelioSellInvoiceGuard;
 use App\Services\Jubelio\JubelioSellReturnGuard;
+use App\Services\Marketplace\MarketplaceSellPostGuard;
 use App\Services\Jubelio\JubelioOrderWarehouseResolver;
 use App\Services\Jubelio\JubelioSellerIncomeResolver;
 use App\Services\LocationAccessService;
@@ -35,6 +36,7 @@ class ProcessJubelioOrder
         private JubelioOrderQueueEligibility $queueEligibility,
         private JubelioSellInvoiceGuard $sellInvoiceGuard,
         private JubelioSellReturnGuard $sellReturnGuard,
+        private MarketplaceSellPostGuard $marketplaceSellPostGuard,
     ) {}
 
     /**
@@ -56,7 +58,7 @@ class ProcessJubelioOrder
         }
 
         if ($order->type === 'SELL' && $order->invoice !== null && $order->invoice !== '') {
-            if ($this->sellInvoiceGuard->sellInvoiceInTransactions($order->invoice)) {
+            if ($this->duplicateSellBlocked($order->invoice, (int) $order->id)) {
                 $this->markDuplicate($order, $runCount, $executedByUserId);
 
                 return ['success' => false, 'message' => 'Transaction sudah ada'];
@@ -158,7 +160,7 @@ class ProcessJubelioOrder
 
         $arrayInvoice = $dataApi['salesorder_no'] ?? $order->invoice;
 
-        if ($this->sellInvoiceGuard->sellInvoiceInTransactions($arrayInvoice)) {
+        if ($this->duplicateSellBlocked($arrayInvoice, (int) $order->id)) {
             $this->markDuplicate($order, $runCount, $executedByUserId);
 
             return ['success' => false, 'message' => 'Transaction sudah ada'];
@@ -488,6 +490,14 @@ class ProcessJubelioOrder
     {
         try {
             return DB::transaction(function () use ($type, $dataJubelio) {
+                if ($type === Transaction::TYPE_SELL
+                    && is_string($dataJubelio->invoice ?? null)
+                    && $dataJubelio->invoice !== ''
+                    && ($this->sellInvoiceGuard->sellInvoiceInTransactions($dataJubelio->invoice)
+                        || $this->marketplaceSellPostGuard->jubelioBlockedByNativePost($dataJubelio->invoice))) {
+                    throw new \RuntimeException('Transaction sudah ada');
+                }
+
                 $customer = Addrbook::find($dataJubelio->customer);
                 $warehouse = Addrbook::find($dataJubelio->warehouse);
 
@@ -586,5 +596,18 @@ class ProcessJubelioOrder
             'status' => 2,
             'execute_by' => $executedByUserId ?? 0,
         ]);
+    }
+
+    protected function duplicateSellBlocked(string $invoice, int $jubelioOrderId): bool
+    {
+        if ($this->marketplaceSellPostGuard->jubelioBlockedByNativePost($invoice)) {
+            return true;
+        }
+
+        if ($this->sellInvoiceGuard->sellInvoiceInTransactions($invoice)) {
+            return true;
+        }
+
+        return $this->marketplaceSellPostGuard->invoiceTaken($invoice, $jubelioOrderId);
     }
 }
