@@ -34,7 +34,7 @@ TikTok/Tokopedia writes are **stubbed** (log + skip) until Partner inventory upd
 | `OMNICHANNEL_POST_RETURN_REQUIRE_PHYSICAL_VERIFY` | `true` | Cron/post button require verify |
 | `OMNICHANNEL_RETURN_SHOPEE_LISTING_CORRECT` | `false` | Step 2: Shopee webhook → listing qty correct |
 | `OMNICHANNEL_RETURN_VERIFY_LISTING_PUSH` | `false` | Step 4: after **Verify**, post (optional) + multi-channel listing push |
-| `OMNICHANNEL_RETURN_VERIFY_AUTO_POST` | `true` | When verify push on, chain RETURN post before listing push |
+| `OMNICHANNEL_RETURN_VERIFY_AUTO_POST` | `false` | When verify push on, chain RETURN post before listing push |
 | `MARKETPLACE_STOCK_PUSH_ITEM_IDS` | *(empty)* | Comma-separated Aria `items.id` pilot allowlist — others refused |
 | `MARKETPLACE_LISTING_PUSH_IDEMPOTENCY_TTL_MINUTES` | `120` | Skip duplicate successful pushes with same idempotency key |
 
