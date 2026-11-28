@@ -120,6 +120,8 @@ Marketplace webhooks may report return **before** goods arrive at the warehouse.
 
 Workflow: **pending_verification** (return signal, no verify) → **verified** → **posted** (`posted_return_transaction_id`).
 
+**Listing sync pilot** (Shopee webhook listing correct + verify multi-channel push) — see `doc/omnichannel-marketplace-returns.md`.
+
 Jubelio RETURN cron for other channels is unchanged; `MarketplaceReturnPostGuard` prevents double post with native for the same sell invoice.
 
 ### Return gate

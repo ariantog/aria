@@ -6,6 +6,7 @@ use App\Models\ShopeePushInbox;
 use App\Services\Marketplace\MarketplaceWebhookRecorder;
 use App\Services\Marketplace\MarketplaceWebhookStatusPresenter;
 use App\Services\Marketplace\ShopeeOrderStatusIngest;
+use App\Services\Marketplace\OmnichannelReturnShopeeListingCorrector;
 use App\Services\Marketplace\ShopeePushWebhookOnOrderApplicator;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -31,6 +32,7 @@ class PersistShopeePushInboxJob implements ShouldQueue
         MarketplaceWebhookRecorder $webhookRecorder,
         MarketplaceWebhookStatusPresenter $statusPresenter,
         ShopeePushWebhookOnOrderApplicator $onOrderApplicator,
+        OmnichannelReturnShopeeListingCorrector $returnListingCorrector,
     ): void {
         $data = is_array($this->payload['data'] ?? null) ? $this->payload['data'] : [];
         $shopId = isset($this->payload['shop_id']) ? (int) $this->payload['shop_id'] : null;
@@ -63,6 +65,15 @@ class PersistShopeePushInboxJob implements ShouldQueue
                 $onOrderApplicator->applyFromPush($this->payload);
             } catch (Throwable $e) {
                 Log::warning('Shopee push on_order applicator failed (queued)', [
+                    'ordersn' => $ordersn,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+
+            try {
+                $returnListingCorrector->applyFromPush($this->payload);
+            } catch (Throwable $e) {
+                Log::warning('Shopee return listing correction failed (queued)', [
                     'ordersn' => $ordersn,
                     'message' => $e->getMessage(),
                 ]);
