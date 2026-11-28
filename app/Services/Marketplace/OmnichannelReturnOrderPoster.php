@@ -196,6 +196,11 @@ class OmnichannelReturnOrderPoster
                         ->orWhere('posted_return_transaction_id', '<=', 0);
                 })
             )
+            ->when(
+                $this->eligibility->requirePhysicalVerify()
+                && Schema::hasColumn('marketplace_channel_orders', 'return_verified_at'),
+                fn (Builder $q) => $q->whereNotNull('return_verified_at')
+            )
             ->orderByDesc('last_event_at')
             ->orderBy('id')
             ->limit($limit);

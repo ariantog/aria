@@ -39,6 +39,9 @@ class MarketplaceChannelOrder extends Model
         'posted_at',
         'posted_return_transaction_id',
         'posted_return_at',
+        'return_verified_at',
+        'return_verified_by',
+        'return_verify_note',
     ];
 
     protected function casts(): array
@@ -58,7 +61,14 @@ class MarketplaceChannelOrder extends Model
             'posted_at' => 'datetime',
             'posted_return_transaction_id' => 'integer',
             'posted_return_at' => 'datetime',
+            'return_verified_at' => 'datetime',
+            'return_verified_by' => 'integer',
         ];
+    }
+
+    public function returnVerifiedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'return_verified_by');
     }
 
     public function awbPrintedBy(): BelongsTo

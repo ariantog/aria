@@ -4,6 +4,7 @@ namespace App\Services\Marketplace;
 
 use App\Models\MarketplaceChannelOrder;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Eligibility for omnichannel native RETURN posting from marketplace_channel_orders.
@@ -41,7 +42,41 @@ class OmnichannelPostReturnEligibility
 
     public function passesChannelAllowlist(MarketplaceChannelOrder $order): bool
     {
-        return in_array(strtolower((string) $order->channel), $this->allowedChannels(), true);
+        $allowed = $this->allowedChannels();
+        $channel = strtolower((string) $order->channel);
+        $isTokopedia = strtoupper((string) ($order->commerce_platform ?? '')) === 'TOKOPEDIA';
+
+        if ($channel === MarketplaceWebhookRecorder::CHANNEL_SHOPEE) {
+            return in_array(MarketplaceWebhookRecorder::CHANNEL_SHOPEE, $allowed, true);
+        }
+
+        if ($channel === MarketplaceWebhookRecorder::CHANNEL_TIKTOK) {
+            if ($isTokopedia) {
+                return in_array('tokopedia', $allowed, true) || in_array(MarketplaceWebhookRecorder::CHANNEL_TIKTOK, $allowed, true);
+            }
+
+            return in_array(MarketplaceWebhookRecorder::CHANNEL_TIKTOK, $allowed, true);
+        }
+
+        return in_array($channel, $allowed, true);
+    }
+
+    public function requirePhysicalVerify(): bool
+    {
+        return (bool) config('marketplace.post_return.require_physical_verify', true);
+    }
+
+    public function passesPhysicalVerify(MarketplaceChannelOrder $order): bool
+    {
+        if (! $this->requirePhysicalVerify()) {
+            return true;
+        }
+
+        if (! Schema::hasColumn('marketplace_channel_orders', 'return_verified_at')) {
+            return false;
+        }
+
+        return $order->return_verified_at !== null;
     }
 
     public function passesRollingWindow(MarketplaceChannelOrder $order): bool
@@ -113,6 +148,9 @@ class OmnichannelPostReturnEligibility
         }
         if (! $this->passesReturnGate($order)) {
             return 'Order belum memenuhi gate return/cancelled.';
+        }
+        if (! $this->passesPhysicalVerify($order)) {
+            return 'Belum diverifikasi penerimaan fisik.';
         }
         if ((int) ($order->aria_warehouse_id ?? 0) <= 0) {
             return 'Gudang Aria belum dipetakan.';

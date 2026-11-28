@@ -139,6 +139,11 @@ Route::middleware(['auth', 'verified', 'active', 'enforce.readonly'])->group(fun
         ->name('tiktok-shop.authorize');
     Route::get('omnichannel', [App\Http\Controllers\OmnichannelController::class, 'index'])->name('omnichannel.index');
     Route::get('omnichannel/missed-push', [App\Http\Controllers\OmnichannelOrdersController::class, 'missedPushIndex'])->name('omnichannel.missed-push.index');
+    Route::get('omnichannel/returns', [App\Http\Controllers\OmnichannelReturnsController::class, 'index'])->name('omnichannel.returns.index');
+    Route::post('omnichannel/returns/{marketplaceChannelOrder}/verify', [App\Http\Controllers\OmnichannelReturnsController::class, 'verify'])
+        ->name('omnichannel.returns.verify');
+    Route::post('omnichannel/returns/{marketplaceChannelOrder}/post', [App\Http\Controllers\OmnichannelReturnsController::class, 'post'])
+        ->name('omnichannel.returns.post');
     Route::get('omnichannel/orders', [App\Http\Controllers\OmnichannelOrdersController::class, 'index'])->name('omnichannel.orders.index');
     Route::get('omnichannel/orders/{channel}/{orderRef}', [App\Http\Controllers\OmnichannelOrdersController::class, 'show'])
         ->where(['channel' => 'shopee|tiktok', 'orderRef' => '.+'])
