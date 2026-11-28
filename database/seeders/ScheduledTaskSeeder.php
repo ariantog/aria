@@ -283,5 +283,15 @@ class ScheduledTaskSeeder extends Seeder
                 'description' => 'Posts SELL from marketplace_channel_orders when OMNICHANNEL_POST_SELLS=true. Shadow with OMNICHANNEL_POST_SELL_DRY_RUN first; disable Jubelio order cron per channel after validation.',
             ]
         );
+
+        \App\Models\ScheduledTask::updateOrCreate(
+            ['command' => 'omnichannel:post-shipped-orders --returns'],
+            [
+                'name' => 'Omnichannel post marketplace returns',
+                'frequency' => 'everyFiveMinutes',
+                'active' => false,
+                'description' => 'Posts RETURN from marketplace_channel_orders when OMNICHANNEL_POST_RETURNS=true. Shadow with OMNICHANNEL_POST_RETURN_DRY_RUN first; disable Jubelio RETURN queue per channel after validation.',
+            ]
+        );
     }
 }

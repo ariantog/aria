@@ -94,6 +94,28 @@ return [
     ],
 
     /**
+     * Native marketplace RETURN posting (cancelled / buyer-return statuses; requires linked SELL).
+     */
+    'post_return' => [
+        'enabled' => filter_var(
+            env('OMNICHANNEL_POST_RETURNS', false),
+            FILTER_VALIDATE_BOOLEAN
+        ),
+        'dry_run' => filter_var(
+            env('OMNICHANNEL_POST_RETURN_DRY_RUN', false),
+            FILTER_VALIDATE_BOOLEAN
+        ),
+        'max_age_days' => max(1, (int) env('OMNICHANNEL_POST_RETURN_MAX_AGE_DAYS', 30)),
+        'batch_size' => max(1, (int) env('OMNICHANNEL_POST_RETURN_BATCH_SIZE', 25)),
+        'channels' => array_values(array_filter(array_map(
+            static fn (string $c) => strtolower(trim($c)),
+            explode(',', (string) env('OMNICHANNEL_POST_RETURN_CHANNELS', 'shopee'))
+        ))),
+        'shopee_statuses' => ['TO_RETURN', 'IN_CANCEL', 'CANCELLED', 'CANCELED'],
+        'tiktok_statuses' => ['CANCEL', 'CANCELLED', 'CANCELED'],
+    ],
+
+    /**
      * Omnichannel hub / orders dashboard stat cards (post-sell snapshot, ops buckets, shadow compare).
      */
     'dashboard_cache' => [

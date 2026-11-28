@@ -6,7 +6,9 @@ Phase 1 fulfillment cutover: post SELL transactions from `marketplace_channel_or
 
 `php artisan omnichannel:post-shipped-orders`
 
-Options: `--channel=shopee`, `--dry-run`, `--limit=N`. `--returns` is reserved (not implemented).
+Options: `--channel=shopee`, `--dry-run`, `--limit=N`.
+
+**RETURN posting:** same command with `--returns` (cancelled / `TO_RETURN` gate; requires linked SELL). Cron: **Omnichannel post marketplace returns** (`omnichannel:post-shipped-orders --returns`, **inactive** by default).
 
 Registered in Cron Manager as **Omnichannel post shipped marketplace sells** (`everyFiveMinutes`, **inactive** by default).
 
@@ -91,3 +93,45 @@ During Jubelio → native cutover, **both** `jubelio:order-jubelio-to-aria` and 
 | Race | `lockForUpdate` on channel order row + re-check inside DB transaction before insert | Re-check in `ProcessJubelioOrder::createTransaction` before insert |
 
 **Maintainer:** still disable Jubelio order posting per channel once native post is trusted (`OMNICHANNEL_POST_SELLS=true`). Mutual exclusion is a safety net, not a substitute for turning off duplicate pipelines.
+
+## Native marketplace RETURN posting
+
+`php artisan omnichannel:post-shipped-orders --returns`
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `OMNICHANNEL_POST_RETURNS` | `false` | Master enable for real RETURN posts |
+| `OMNICHANNEL_POST_RETURN_DRY_RUN` | `false` | Log would-post without transactions |
+| `OMNICHANNEL_POST_RETURN_MAX_AGE_DAYS` | `30` | Rolling window |
+| `OMNICHANNEL_POST_RETURN_BATCH_SIZE` | `25` | Per run |
+| `OMNICHANNEL_POST_RETURN_CHANNELS` | `shopee` | Comma list |
+
+### Return gate
+
+Uses `MarketplaceChannelOrderOpsBucket::BUCKET_CANCELLED` and explicit statuses (`TO_RETURN` on Shopee). Requires a linked **SELL** in `transactions` with invoice matching `OmnichannelPostSellEligibility::resolveInvoice()` (same rules as Jubelio RETURN `salesorder_no` linkage). No warehouse stock shortage check on RETURN.
+
+- Return invoice: `RT-{sell_invoice}` (e.g. `RT-SP-241128ABC`).
+- Return txn: `description` = sell invoice; parties customer → warehouse; `submit_type` = `SUBMIT_TYPE_MARKETPLACE` (3).
+- Channel order columns: `posted_return_transaction_id`, `posted_return_at`.
+
+### RETURN mutual exclusion
+
+`MarketplaceReturnPostGuard` mirrors SELL cutover:
+
+| Check | Native RETURN skips when… | Jubelio RETURN skips when… |
+|-------|---------------------------|----------------------------|
+| Sell linkage | No SELL txn for resolved sell invoice | Same (existing guard) |
+| Already returned | RETURN on sell via description / `RT-` invoice / `posted_return_transaction_id` | `jubelioBlockedByNativeReturn()` |
+| Jubelio queue | Pending RETURN on `source_sell_invoice` | Native row or marketplace RETURN txn exists |
+
+### Dashboard
+
+Post-return KPI cards are **not** added in this phase (post-sell incremental stats unchanged). Revisit when RETURN volume is live.
+
+### Production checklist (RETURN)
+
+1. Migrate `2026_11_28_210000_add_posted_return_columns_to_marketplace_channel_orders.php`.
+2. `OMNICHANNEL_POST_RETURN_DRY_RUN=true`; run `omnichannel:post-shipped-orders --returns --dry-run`.
+3. Confirm linked SELL exists for each return-eligible row; compare line SKUs to shadow.
+4. `OMNICHANNEL_POST_RETURNS=true`; activate **Omnichannel post marketplace returns** in Cron Manager.
+5. Pause Jubelio RETURN queue for the same channel once native returns are trusted.
