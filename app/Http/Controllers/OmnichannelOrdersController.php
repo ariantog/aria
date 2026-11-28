@@ -11,12 +11,10 @@ use App\Services\Marketplace\MarketplaceChannelOrderAwbPrintGuard;
 use App\Services\Marketplace\MarketplaceChannelOrderAwbPromoter;
 use App\Services\Marketplace\MarketplaceChannelOrderWarehousePersist;
 use App\Services\Marketplace\MarketplaceChannelOrderOpsBucket;
-use App\Services\Marketplace\OmnichannelOpsBucketStatsCache;
 use App\Services\Marketplace\MarketplaceWebhookInboxQuery;
 use App\Services\Marketplace\MarketplaceWebhookStatusPresenter;
 use App\Services\Marketplace\MarketplaceWebhookShopWarehouseResolver;
 use App\Services\Marketplace\OmnichannelOrderDetailReader;
-use App\Services\Marketplace\OmnichannelPostSellDashboardStats;
 use App\Services\Marketplace\OmnichannelPostSellEligibility;
 use App\Models\MarketplaceMissedPushGap;
 use App\Services\Marketplace\MarketplaceMissedPushGapQuery;
@@ -41,8 +39,6 @@ class OmnichannelOrdersController extends Controller
         MarketplaceWebhookStatusPresenter $statusPresenter,
         MarketplaceChannelOrderWarehousePersist $warehousePersist,
         MarketplaceChannelOrderOpsBucket $opsBucket,
-        OmnichannelOpsBucketStatsCache $opsBucketStatsCache,
-        OmnichannelPostSellDashboardStats $postSellStats,
         OmnichannelPostSellEligibility $postSellEligibility,
     ): View|RedirectResponse {
         abort_unless(Omnichannel::userCanOrders($request->user()), 403);
@@ -59,24 +55,25 @@ class OmnichannelOrdersController extends Controller
         $eventsTableExists = Schema::hasTable('marketplace_webhook_events');
         $ordersTableExists = Schema::hasTable('marketplace_channel_orders');
         $rows = null;
-        $statusOptions = [];
+        $statusOptions = $opsBucket->knownOrderStatusHints($filters['channel']);
         $opsBucketStats = [];
+        $nativePostedCount = null;
 
         if ($filters['view'] === 'orders' && $ordersTableExists) {
             $statsBaseQuery = $inboxQuery->ordersQueryForStats($filters);
-            $opsBucketStats = $opsBucketStatsCache->countBuckets($statsBaseQuery, $filters);
+            $opsBucketStats = $opsBucket->aggregateBucketCounts($statsBaseQuery, $filters['channel']);
+            $nativePostedCount = $opsBucketStats['native_posted'] ?? null;
+            unset($opsBucketStats['native_posted']);
             $rows = $inboxQuery->ordersQuery($filters)
                 ->paginate($filters['per_page'])
                 ->withQueryString();
             if (Schema::hasColumn('marketplace_channel_orders', 'awb_printed_by')) {
                 $rows->load('awbPrintedBy:id,username');
             }
-            $statusOptions = $inboxQuery->distinctOrderStatuses($filters, 'orders');
         } elseif ($filters['view'] === 'events' && $eventsTableExists) {
             $rows = $inboxQuery->eventsQuery($filters)
                 ->paginate($filters['per_page'])
                 ->withQueryString();
-            $statusOptions = $inboxQuery->distinctOrderStatuses($filters, 'events');
         }
 
         $channelForShops = $filters['channel'] === 'all' ? null : $filters['channel'];
@@ -92,10 +89,6 @@ class OmnichannelOrdersController extends Controller
         $shopRefToWarehouse = $shopResolver->shopRefToWarehouseMap();
         $showShopFilter = $shopOptions->count() > 1;
         $showShopColumn = $showShopFilter && blank($filters['shop_ref']);
-
-        $nativePostSellStats = ($filters['view'] === 'orders' && $ordersTableExists)
-            ? $postSellStats->counts()
-            : null;
 
         $postSellByOrderId = [];
         $pendingWarehouseIds = [];
@@ -165,10 +158,9 @@ class OmnichannelOrdersController extends Controller
             'statusPresenter' => $statusPresenter,
             'opsBucketStats' => $opsBucketStats,
             'opsBucketService' => $opsBucket,
-            'nativePostSellStats' => $nativePostSellStats,
+            'nativePostedCount' => $nativePostedCount,
             'postSellByOrderId' => $postSellByOrderId,
             'jubelioActive' => (bool) config('services.jubelio.active'),
-            'jubelioPendingSell' => Jubelioorder::query()->where('type', 'SELL')->where('status', 0)->count(),
             'canReprintAwb' => Omnichannel::userCanReprintAwb($request->user()),
             'warehouseLabelsUrl' => route('omnichannel.orders.warehouse-labels'),
             'pendingWarehouseIds' => $pendingWarehouseIds,

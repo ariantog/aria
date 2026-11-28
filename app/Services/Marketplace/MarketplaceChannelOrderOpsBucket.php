@@ -98,6 +98,146 @@ class MarketplaceChannelOrderOpsBucket
     }
 
     /**
+     * Single-scan ops bucket + native-posted counts (Jubelio index pattern).
+     *
+     * @return array<string, int>
+     */
+    public function aggregateBucketCounts(Builder $baseQuery, string $channelFilter = 'all'): array
+    {
+        $parts = ['COUNT(*) AS `'.self::BUCKET_ALL.'`'];
+
+        foreach (self::ALLOWED as $bucket) {
+            if ($bucket === self::BUCKET_ALL) {
+                continue;
+            }
+
+            $predicate = $this->bucketMembershipPredicateSql($bucket, $channelFilter);
+            $parts[] = "COUNT(CASE WHEN ({$predicate}) THEN 1 END) AS `{$bucket}`";
+        }
+
+        if (Schema::hasColumn('marketplace_channel_orders', 'posted_transaction_id')) {
+            $parts[] = 'COUNT(CASE WHEN posted_transaction_id > 0 THEN 1 END) AS native_posted';
+        }
+
+        $row = (clone $baseQuery)->selectRaw(implode(', ', $parts))->toBase()->first();
+
+        $counts = [];
+        foreach (self::ALLOWED as $bucket) {
+            $counts[$bucket] = (int) ($row?->{$bucket} ?? 0);
+        }
+        if (isset($row?->native_posted)) {
+            $counts['native_posted'] = (int) $row->native_posted;
+        }
+
+        return $counts;
+    }
+
+    /**
+     * Status hints for filter datalist (no DISTINCT scan).
+     *
+     * @return list<string>
+     */
+    public function knownOrderStatusHints(string $channelFilter = 'all'): array
+    {
+        $scopes = match ($channelFilter) {
+            'shopee' => ['shopee'],
+            'tiktok' => ['tiktok'],
+            'tokopedia' => ['tokopedia'],
+            default => ['shopee', 'tiktok', 'tokopedia'],
+        };
+
+        $statuses = [];
+        foreach ($scopes as $scope) {
+            foreach (self::ALLOWED as $bucket) {
+                if ($bucket === self::BUCKET_ALL) {
+                    continue;
+                }
+                foreach ($this->statusesForBucket($scope, $bucket) as $status) {
+                    $statuses[strtoupper(trim($status))] = true;
+                }
+            }
+        }
+
+        $hints = array_keys($statuses);
+        sort($hints);
+
+        return $hints;
+    }
+
+    private function bucketMembershipPredicateSql(string $opsBucket, string $channelFilter): string
+    {
+        $scopes = $this->scopesForChannelFilter($channelFilter);
+        $parts = [];
+        foreach ($scopes as $scope) {
+            $clause = $this->scopeBucketMembershipSql(
+                $scope['channel'],
+                $scope['platform'],
+                $opsBucket,
+            );
+            if ($clause !== '') {
+                $parts[] = '('.$clause.')';
+            }
+        }
+
+        if ($parts === []) {
+            return '0';
+        }
+
+        return implode(' OR ', $parts);
+    }
+
+    private function scopeBucketMembershipSql(string $channel, ?string $platformScope, string $opsBucket): string
+    {
+        $statusKey = match ($platformScope) {
+            'tokopedia' => 'tokopedia',
+            'tiktok' => 'tiktok',
+            default => $channel,
+        };
+        $statuses = $this->statusesForBucket($statusKey, $opsBucket);
+        if ($statuses === []) {
+            return '';
+        }
+
+        $upperList = implode(',', array_map(
+            static fn (string $s) => "'".addslashes(strtoupper($s))."'",
+            $statuses,
+        ));
+
+        $platformSql = match ($platformScope) {
+            'tokopedia' => " AND UPPER(COALESCE(commerce_platform, '')) = 'TOKOPEDIA'",
+            'tiktok' => " AND (commerce_platform IS NULL OR commerce_platform = '' OR UPPER(commerce_platform) != 'TOKOPEDIA')",
+            default => '',
+        };
+
+        $channelEsc = addslashes($channel);
+        $statusExpr = 'UPPER(TRIM(order_status))';
+
+        if ($channel === MarketplaceWebhookRecorder::CHANNEL_SHOPEE && $this->shopeeAwbGateEnabled()) {
+            if ($opsBucket === self::BUCKET_UNPROCESSED) {
+                $unprocessed = array_map(
+                    static fn (string $s) => "'".addslashes(strtoupper($s))."'",
+                    $this->statusesForBucket('shopee', self::BUCKET_UNPROCESSED),
+                );
+                $ready = array_map(
+                    static fn (string $s) => "'".addslashes(strtoupper($s))."'",
+                    $this->statusesForBucket('shopee', self::BUCKET_READY_TO_SHIP),
+                );
+
+                return "channel = '{$channelEsc}' AND ("
+                    .$statusExpr.' IN ('.implode(',', $unprocessed).')'
+                    .' OR ('.$statusExpr.' IN ('.implode(',', $ready).') AND awb_printed_at IS NULL)'
+                    .')';
+            }
+
+            if ($opsBucket === self::BUCKET_READY_TO_SHIP) {
+                return "channel = '{$channelEsc}' AND {$statusExpr} IN ({$upperList}) AND awb_printed_at IS NOT NULL";
+            }
+        }
+
+        return "channel = '{$channelEsc}'{$platformSql} AND {$statusExpr} IN ({$upperList})";
+    }
+
+    /**
      * @param  Builder<\App\Models\MarketplaceChannelOrder>  $query
      */
     public function applyOpsBucketFilter(Builder $query, string $opsBucket, string $channelFilter = 'all'): void

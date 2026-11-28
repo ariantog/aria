@@ -4,9 +4,9 @@ namespace App\Services\Marketplace;
 
 use App\Models\MarketplaceChannelOrder;
 use App\Models\MarketplaceWebhookEvent;
-use Illuminate\Support\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 
 class MarketplaceWebhookInboxQuery
 {
@@ -161,30 +161,6 @@ class MarketplaceWebhookInboxQuery
      * @param  array<string, mixed>  $filters
      * @return list<string>
      */
-    public function distinctOrderStatuses(array $filters, string $view): array
-    {
-        $filtersWithoutStatus = $filters;
-        $filtersWithoutStatus['order_status'] = null;
-        if ($view === 'orders') {
-            $filtersWithoutStatus['ops_bucket'] = null;
-        }
-
-        $query = $view === 'orders'
-            ? $this->ordersQuery($filtersWithoutStatus)
-            : $this->eventsQuery($filtersWithoutStatus);
-
-        $column = 'order_status';
-
-        return $query
-            ->whereNotNull($column)
-            ->where($column, '!=', '')
-            ->distinct()
-            ->orderBy($column)
-            ->limit(100)
-            ->pluck($column)
-            ->all();
-    }
-
     protected function parseDate(mixed $value, Carbon $default): Carbon
     {
         if (! is_string($value) || trim($value) === '') {
