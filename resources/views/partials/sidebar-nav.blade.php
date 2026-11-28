@@ -160,6 +160,7 @@
     if ($canOmnichannelOrders) {
         $omnichannelNavLabels[] = 'Current orders';
         $omnichannelNavLabels[] = 'Webhooks';
+        $omnichannelNavLabels[] = 'Missed push';
     }
     if ($canOmnichannelView) {
         $omnichannelNavLabels[] = 'Compare';
@@ -624,6 +625,7 @@
     $omnichannelOrdersView = request()->query('view', 'events');
     $omniWebhooksNavActive = $omnichannelOrdersRouteActive && $omnichannelOrdersView !== 'orders';
     $omniCurrentOrdersNavActive = $omnichannelOrdersRouteActive && $omnichannelOrdersView === 'orders';
+    $omniMissedPushNavActive = $isActive('/omnichannel/missed-push');
 @endphp
 <div x-data="{ open: {{ $omniActive ? 'true' : 'false' }} }"
      class="mb-1"
@@ -640,6 +642,7 @@
         @if($canOmnichannelOrders)
         <a href="{{ route('omnichannel.orders.index', ['view' => 'orders']) }}" x-show="navLinkVisible('Current orders', 'Omnichannel')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $omniCurrentOrdersNavActive ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Current orders</a>
         <a href="{{ route('omnichannel.orders.index', ['view' => 'events']) }}" x-show="navLinkVisible('Webhooks', 'Omnichannel')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $omniWebhooksNavActive ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Webhooks</a>
+        <a href="{{ route('omnichannel.missed-push.index') }}" x-show="navLinkVisible('Missed push', 'Omnichannel')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $omniMissedPushNavActive ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Missed push</a>
         @endif
         @if($canOmnichannelView)
         <a href="{{ route('omnichannel.index') }}" x-show="navLinkVisible('Compare', 'Omnichannel')" class="block rounded-md px-2.5 py-1.5 text-sm {{ $currentUrl === 'omnichannel' || str_starts_with($currentUrl, 'omnichannel/shopee') ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' }}">Compare</a>

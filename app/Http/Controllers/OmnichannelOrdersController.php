@@ -36,28 +36,25 @@ class OmnichannelOrdersController extends Controller
         MarketplaceWebhookStatusPresenter $statusPresenter,
         MarketplaceChannelOrderWarehousePersist $warehousePersist,
         MarketplaceChannelOrderOpsBucket $opsBucket,
-        MarketplaceMissedPushGapQuery $missedPushQuery,
-    ): View {
+    ): View|RedirectResponse {
         abort_unless(Omnichannel::userCanOrders($request->user()), 403);
+
+        if ($request->query('view') === 'missed_push') {
+            $query = $request->query();
+            unset($query['view']);
+
+            return redirect()->route('omnichannel.missed-push.index', $query);
+        }
 
         $filters = $inboxQuery->parseFilters($request);
 
         $eventsTableExists = Schema::hasTable('marketplace_webhook_events');
         $ordersTableExists = Schema::hasTable('marketplace_channel_orders');
-        $missedPushTableExists = Schema::hasTable('marketplace_missed_push_gaps');
         $rows = null;
         $statusOptions = [];
         $opsBucketStats = [];
-        $shopeeLastReconcileByShop = [];
 
-        if ($filters['view'] === 'missed_push' && $missedPushTableExists) {
-            $gapFilters = $missedPushQuery->parseFilters($request);
-            $rows = $missedPushQuery->openGapsQuery($gapFilters)
-                ->paginate($gapFilters['per_page'])
-                ->withQueryString();
-            $filters = array_merge($filters, $gapFilters);
-            $shopeeLastReconcileByShop = $missedPushQuery->shopeeLastReconcileByShop();
-        } elseif ($filters['view'] === 'orders' && $ordersTableExists) {
+        if ($filters['view'] === 'orders' && $ordersTableExists) {
             $opsBucketStats = $opsBucket->countBuckets($inboxQuery->ordersQueryForStats($filters));
             $rows = $inboxQuery->ordersQuery($filters)
                 ->paginate($filters['per_page'])
@@ -125,8 +122,40 @@ class OmnichannelOrdersController extends Controller
             'warehouseLabelsUrl' => route('omnichannel.orders.warehouse-labels'),
             'pendingWarehouseIds' => $pendingWarehouseIds,
             'initialWarehouseLabels' => $initialWarehouseLabels,
+        ]);
+    }
+
+    public function missedPushIndex(
+        Request $request,
+        MarketplaceMissedPushGapQuery $missedPushQuery,
+        MarketplaceWebhookShopWarehouseResolver $shopResolver,
+    ): View {
+        abort_unless(Omnichannel::userCanOrders($request->user()), 403);
+
+        $missedPushTableExists = Schema::hasTable('marketplace_missed_push_gaps');
+        $filters = $missedPushQuery->parseFilters($request);
+        $rows = null;
+
+        if ($missedPushTableExists) {
+            $rows = $missedPushQuery->openGapsQuery($filters)
+                ->paginate($filters['per_page'])
+                ->withQueryString();
+        }
+
+        $channelForShops = $filters['channel'] === 'all' ? null : $filters['channel'];
+        $shopOptions = $shopResolver->distinctMappedShopRefsForChannel($channelForShops);
+        if ($shopOptions->isEmpty()) {
+            $shopOptions = $shopResolver->distinctShopRefsForChannel($channelForShops);
+        }
+        $showShopFilter = $shopOptions->count() > 1;
+
+        return view('omnichannel.missed-push', [
+            'filters' => $filters,
+            'rows' => $rows,
             'missedPushTableExists' => $missedPushTableExists,
-            'shopeeLastReconcileByShop' => $shopeeLastReconcileByShop,
+            'shopeeLastReconcileByShop' => $missedPushQuery->shopeeLastReconcileByShop(),
+            'shopOptions' => $shopOptions,
+            'showShopFilter' => $showShopFilter,
         ]);
     }
 

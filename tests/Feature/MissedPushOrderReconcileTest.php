@@ -127,8 +127,27 @@ it('renders missed push reconcile queue view', function () {
     ]);
 
     $this->actingAs($this->admin)
-        ->get(route('omnichannel.orders.index', ['view' => 'missed_push']))
+        ->get(route('omnichannel.missed-push.index'))
         ->assertOk()
         ->assertSee('data-testid="omnichannel-missed-push-table"', false)
         ->assertSee('GAP-QUEUE-001', false);
+});
+
+it('redirects legacy orders missed push view to dedicated page', function () {
+    $this->actingAs($this->admin)
+        ->get(route('omnichannel.orders.index', ['view' => 'missed_push', 'channel' => 'shopee']))
+        ->assertRedirect(route('omnichannel.missed-push.index', ['channel' => 'shopee']));
+});
+
+it('returns 403 on missed push page without permission', function () {
+    if (! Schema::hasTable('marketplace_missed_push_gaps')) {
+        $this->markTestSkipped('marketplace_missed_push_gaps missing');
+    }
+
+    $user = User::factory()->create();
+    expect($user->is_superadmin)->toBeFalse();
+
+    $this->actingAs($user)
+        ->get(route('omnichannel.missed-push.index'))
+        ->assertForbidden();
 });
