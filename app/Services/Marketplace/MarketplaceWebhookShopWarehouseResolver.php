@@ -638,6 +638,105 @@ class MarketplaceWebhookShopWarehouseResolver
         return $refs->unique()->sort()->values();
     }
 
+    /**
+     * Human-readable shop picker options from mapped sync rows (not raw webhook refs).
+     *
+     * @return list<array{value: string, label: string}>
+     */
+    public function mappedShopSelectOptionsForChannel(?string $channel): array
+    {
+        $channel = $channel === null || $channel === '' ? null : strtolower($channel);
+        $warehouseNames = $this->warehouseOptions();
+        $options = [];
+        $seen = [];
+
+        $push = function (string $value, string $label) use (&$options, &$seen): void {
+            $value = $this->normalizeShopRef($value);
+            if ($value === '' || isset($seen[$value])) {
+                return;
+            }
+            $seen[$value] = true;
+            $options[] = [
+                'value' => $value,
+                'label' => $label !== '' ? $label : $value,
+            ];
+        };
+
+        $warehouseHint = function (int $warehouseId) use ($warehouseNames): ?string {
+            if ($warehouseId <= 0) {
+                return null;
+            }
+
+            return $warehouseNames[$warehouseId] ?? null;
+        };
+
+        $includeShopee = $channel === null || $channel === 'shopee';
+        $includeTiktok = $channel === null || $channel === 'tiktok';
+        $includeTokopedia = $channel === null || $channel === 'tokopedia';
+
+        if ($includeShopee && Schema::hasTable('shopee_syncs')) {
+            Shopeesync::query()
+                ->where('shop_id', '>', 0)
+                ->orderBy('shop_id')
+                ->get(['shop_id', 'warehouse_id', 'shopee_warehouse_name'])
+                ->each(function (Shopeesync $row) use ($push, $warehouseHint): void {
+                    $whHint = $warehouseHint((int) $row->warehouse_id);
+                    $loc = filled($row->shopee_warehouse_name) ? (string) $row->shopee_warehouse_name : $whHint;
+                    $parts = array_filter(['Shopee', $loc, 'shop '.$row->shop_id], fn ($p) => filled($p));
+                    $push((string) $row->shop_id, implode(' · ', $parts));
+                });
+        }
+
+        if (($includeTiktok || $includeTokopedia) && Schema::hasTable('marketplace_warehouse_syncs')) {
+            $matrixQuery = MarketplaceWarehouseSync::query()
+                ->where('shop_ref', '!=', '');
+
+            if ($includeTokopedia && ! $includeTiktok) {
+                $matrixQuery->where('commerce_platform', 'TOKOPEDIA');
+            } elseif ($includeTiktok && ! $includeTokopedia) {
+                $matrixQuery->where(function ($q): void {
+                    $q->where('commerce_platform', '!=', 'TOKOPEDIA')
+                        ->orWhere('commerce_platform', '');
+                });
+            }
+
+            $matrixQuery
+                ->orderBy('shop_ref')
+                ->get(['channel', 'shop_ref', 'shop_name', 'warehouse_id', 'commerce_platform', 'platform_warehouse_name'])
+                ->each(function (MarketplaceWarehouseSync $row) use ($push, $warehouseHint): void {
+                    $platform = $this->normalizeCommercePlatform($row->commerce_platform);
+                    $channelLabel = $platform === 'TOKOPEDIA'
+                        ? 'Tokopedia'
+                        : (strtolower((string) $row->channel) === MarketplaceWarehouseSync::CHANNEL_SHOPEE ? 'Shopee' : 'TikTok Shop');
+                    $name = filled($row->shop_name) ? (string) $row->shop_name : null;
+                    $whHint = $warehouseHint((int) $row->warehouse_id);
+                    $loc = filled($row->platform_warehouse_name) ? (string) $row->platform_warehouse_name : $whHint;
+                    $parts = array_filter([$channelLabel, $name, $loc, 'ref '.$row->shop_ref], fn ($p) => filled($p));
+                    $push((string) $row->shop_ref, implode(' · ', $parts));
+                });
+        }
+
+        if (($includeTiktok || $includeTokopedia) && Schema::hasTable('tiktok_shop_syncs')) {
+            TiktokShopSync::query()
+                ->where('shop_ref', '!=', '')
+                ->orderBy('shop_ref')
+                ->get(['shop_ref', 'shop_name', 'warehouse_id'])
+                ->each(function (TiktokShopSync $row) use ($push, $warehouseHint, $channel): void {
+                    if ($channel === 'tokopedia') {
+                        return;
+                    }
+                    $whHint = $warehouseHint((int) $row->warehouse_id);
+                    $name = filled($row->shop_name) ? (string) $row->shop_name : null;
+                    $parts = array_filter(['TikTok Shop', $name, $whHint, 'ref '.$row->shop_ref], fn ($p) => filled($p));
+                    $push((string) $row->shop_ref, implode(' · ', $parts));
+                });
+        }
+
+        usort($options, fn (array $a, array $b): int => strcasecmp($a['label'], $b['label']));
+
+        return $options;
+    }
+
     protected function normalizeCommercePlatform(?string $commercePlatform): string
     {
         $commercePlatform = strtoupper(trim((string) $commercePlatform));

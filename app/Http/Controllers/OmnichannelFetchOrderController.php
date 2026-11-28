@@ -23,16 +23,27 @@ class OmnichannelFetchOrderController extends Controller
             $selectedChannel = 'shopee';
         }
 
-        $channelForShops = $selectedChannel === 'tokopedia' ? 'tiktok' : $selectedChannel;
-        $shopOptions = $shopResolver->distinctMappedShopRefsForChannel($channelForShops);
-        if ($shopOptions->isEmpty()) {
-            $shopOptions = $shopResolver->distinctShopRefsForChannel($channelForShops);
+        $channelForShops = $selectedChannel === 'tokopedia' ? 'tokopedia' : $selectedChannel;
+        $shopSelectOptions = $shopResolver->mappedShopSelectOptionsForChannel($channelForShops);
+        if ($shopSelectOptions === []) {
+            $fallbackRefs = $shopResolver->distinctMappedShopRefsForChannel(
+                $selectedChannel === 'tokopedia' ? 'tiktok' : $channelForShops,
+            );
+            if ($fallbackRefs->isEmpty()) {
+                $fallbackRefs = $shopResolver->distinctShopRefsForChannel(
+                    $selectedChannel === 'tokopedia' ? 'tiktok' : $channelForShops,
+                );
+            }
+            foreach ($fallbackRefs as $ref) {
+                $shopSelectOptions[] = ['value' => (string) $ref, 'label' => (string) $ref];
+            }
         }
 
         return view('omnichannel.fetch-order', [
             'selectedChannel' => $selectedChannel,
-            'shopOptions' => $shopOptions,
+            'shopSelectOptions' => $shopSelectOptions,
             'unifiedStorage' => (bool) config('marketplace.webhook.unified_storage', false),
+            'fetchResult' => session('fetch_result'),
         ]);
     }
 
@@ -59,25 +70,20 @@ class OmnichannelFetchOrderController extends Controller
                 ->with('error', $result['error']);
         }
 
-        $status = $result['order_status'] ?? '—';
-        $platform = filled($result['commerce_platform'] ?? null)
-            ? ' ('.$result['commerce_platform'].')'
-            : '';
-        $message = "Order {$result['order_ref']} ditarik — status: {$status}{$platform}.";
-
-        $redirect = redirect()->route('omnichannel.orders.show', [
+        $fetchPayload = [
+            'ok' => true,
             'channel' => $result['channel'],
-            'orderRef' => $result['order_ref'],
-        ])->with('success', $message);
+            'order_ref' => $result['order_ref'],
+            'order_status' => $result['order_status'] ?? null,
+            'shop_ref' => $result['shop_ref'] ?? null,
+            'commerce_platform' => $result['commerce_platform'] ?? null,
+            'return_signal' => (bool) ($result['return_signal'] ?? false),
+            'webhook_event' => (bool) ($result['webhook_event'] ?? false),
+            'warning' => filled($result['warning'] ?? null) ? trim((string) $result['warning']) : null,
+        ];
 
-        if ($result['return_signal'] ?? false) {
-            $redirect->with('warning', 'Order memenuhi sinyal return marketplace — cek Marketplace returns (verifikasi fisik sebelum post).');
-        }
-
-        if (filled($result['warning'] ?? null)) {
-            $redirect->with('warning', trim((string) $result['warning']));
-        }
-
-        return $redirect;
+        return redirect()
+            ->route('omnichannel.fetch-order.index', ['channel' => $validated['channel']])
+            ->with('fetch_result', $fetchPayload);
     }
 }
