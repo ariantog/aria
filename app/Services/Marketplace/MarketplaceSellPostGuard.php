@@ -86,10 +86,6 @@ class MarketplaceSellPostGuard
             return false;
         }
 
-        if ($this->sellInvoiceGuard->sellInvoiceInTransactions($invoice)) {
-            return true;
-        }
-
         $channelOrder = $this->findChannelOrderByInvoice($invoice);
         if ($channelOrder !== null
             && Schema::hasColumn('marketplace_channel_orders', 'posted_transaction_id')

@@ -60,19 +60,25 @@ class ProcessJubelioOrder
         }
 
         if ($order->type === 'SELL' && $order->invoice !== null && $order->invoice !== '') {
-            if ($this->duplicateSellBlocked($order->invoice, (int) $order->id)) {
+            $sellInvoice = (string) $order->invoice;
+            if ($this->marketplaceSellPostGuard->jubelioBlockedByNativePost($sellInvoice)) {
                 return $this->marketplaceSellPostGuard->finishJubelioSellOnExistingInvoice(
                     $order,
                     $runCount,
                     $executedByUserId,
-                    $order->invoice,
+                    $sellInvoice,
                 );
+            }
+            if ($this->jubelioDuplicateSellBlocked($sellInvoice, (int) $order->id)) {
+                $this->markDuplicate($order, $runCount, $executedByUserId);
+
+                return ['success' => false, 'message' => 'Transaction sudah ada'];
             }
         }
 
         if ($order->type === 'RETURN') {
             $sellInvoice = trim((string) ($order->source_sell_invoice ?? ''));
-            if ($sellInvoice !== '' && $this->duplicateReturnBlocked($sellInvoice, (int) $order->id)) {
+            if ($sellInvoice !== '' && $this->marketplaceReturnPostGuard->jubelioBlockedByNativeReturn($sellInvoice)) {
                 return $this->marketplaceReturnPostGuard->finishJubelioReturnOnExistingReturn(
                     $order,
                     $runCount,
@@ -178,13 +184,19 @@ class ProcessJubelioOrder
 
         $arrayInvoice = $dataApi['salesorder_no'] ?? $order->invoice;
 
-        if ($this->duplicateSellBlocked($arrayInvoice, (int) $order->id)) {
+        if ($this->marketplaceSellPostGuard->jubelioBlockedByNativePost($arrayInvoice)) {
             return $this->marketplaceSellPostGuard->finishJubelioSellOnExistingInvoice(
                 $order,
                 $runCount,
                 $executedByUserId,
                 $arrayInvoice,
             );
+        }
+
+        if ($this->jubelioDuplicateSellBlocked($arrayInvoice, (int) $order->id)) {
+            $this->markDuplicate($order, $runCount, $executedByUserId);
+
+            return ['success' => false, 'message' => 'Transaction sudah ada'];
         }
 
         $stockError = $this->validateWarehouseStock($jubelioSync->warehouse_id, $matched['items']);
@@ -629,25 +641,12 @@ class ProcessJubelioOrder
         ]);
     }
 
-    protected function duplicateSellBlocked(string $invoice, int $jubelioOrderId): bool
+    protected function jubelioDuplicateSellBlocked(string $invoice, int $jubelioOrderId): bool
     {
-        if ($this->marketplaceSellPostGuard->jubelioBlockedByNativePost($invoice)) {
-            return true;
-        }
-
         if ($this->sellInvoiceGuard->sellInvoiceInTransactions($invoice)) {
             return true;
         }
 
         return $this->marketplaceSellPostGuard->invoiceTaken($invoice, $jubelioOrderId);
-    }
-
-    protected function duplicateReturnBlocked(string $sellInvoice, int $jubelioOrderId): bool
-    {
-        if ($this->marketplaceReturnPostGuard->jubelioBlockedByNativeReturn($sellInvoice)) {
-            return true;
-        }
-
-        return $this->marketplaceReturnPostGuard->sellReturnAlreadyPosted($sellInvoice, $jubelioOrderId);
     }
 }
