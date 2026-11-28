@@ -138,6 +138,8 @@ Route::middleware(['auth', 'verified', 'active', 'enforce.readonly'])->group(fun
     Route::get('tiktok-shop/authorize', [App\Http\Controllers\TikTokShopOAuthController::class, 'authorizeShop'])
         ->name('tiktok-shop.authorize');
     Route::get('omnichannel', [App\Http\Controllers\OmnichannelController::class, 'index'])->name('omnichannel.index');
+    Route::get('omnichannel/fetch-order', [App\Http\Controllers\OmnichannelFetchOrderController::class, 'index'])->name('omnichannel.fetch-order.index');
+    Route::post('omnichannel/fetch-order', [App\Http\Controllers\OmnichannelFetchOrderController::class, 'store'])->name('omnichannel.fetch-order.store');
     Route::get('omnichannel/missed-push', [App\Http\Controllers\OmnichannelOrdersController::class, 'missedPushIndex'])->name('omnichannel.missed-push.index');
     Route::get('omnichannel/returns', [App\Http\Controllers\OmnichannelReturnsController::class, 'index'])->name('omnichannel.returns.index');
     Route::post('omnichannel/returns/{marketplaceChannelOrder}/verify', [App\Http\Controllers\OmnichannelReturnsController::class, 'verify'])

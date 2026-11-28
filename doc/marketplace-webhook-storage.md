@@ -92,3 +92,25 @@ php artisan marketplace:backfill-webhook-events --limit=1000
 Upserts `marketplace_channel_orders` when `order_ref` is present (same rules as live recorder).
 
 **Key files:** `MarketplaceWebhookInboxController`, `MarketplaceWebhookInboxQuery`, `MarketplaceWebhookShopWarehouseResolver`, `resources/views/marketplace/webhooks.blade.php`, `BackfillMarketplaceWebhookEventsCommand`.
+
+## Maintainer — pull order by ref (API)
+
+When a webhook was missed or history must be seeded for one order:
+
+| Channel | API | Shop auth |
+|---------|-----|-----------|
+| Shopee | `ShopeeAdminOpenApiService::getOrderDetail` | `shop_id` from `shopee_syncs` + Shopee Admin OAuth |
+| TikTok Shop / Tokopedia | `TikTokShopOpenApiService::getOrderDetail` | `shop_ref` + `shop_cipher` from `tiktok_shop_syncs` |
+
+**UI:** `GET/POST /omnichannel/fetch-order` (sidebar **Fetch order**). Permission: `omnichannel-orders` (same as Omnichannel orders).
+
+**CLI:** `php artisan marketplace:pull-order ORDER_REF --channel=shopee --shop-ref=501` (Shopee `--shop-id` alias). Tokopedia: `--channel=tokopedia` (uses TikTok API).
+
+Ingest path:
+
+- Shopee → `ShopeeOrderPollService::pullAndIngestOrder` → `ShopeeOrderStatusIngest` → `MarketplaceWebhookRecorder::recordShopee()`
+- TikTok → `TikTokOrderPullService::pullAndIngestOrder` → `MarketplaceWebhookRecorder::recordTikTok()` (+ optional legacy `tiktok_shop_webhook_inbox`, commerce_platform enrich)
+
+Requires `MARKETPLACE_WEBHOOK_UNIFIED_STORAGE=true` for rows on **Current orders** / **Webhooks**. Return-related statuses follow the same gates as live webhooks (#1191 verify before post).
+
+**Key files:** `OmnichannelFetchOrderController`, `MarketplaceOrderRefPullService`, `TikTokOrderPullService`, `PullMarketplaceOrderCommand`, `resources/views/omnichannel/fetch-order.blade.php`.

@@ -261,6 +261,7 @@ it('renders migrated GET pages with a 200', function (string $route) {
     'omnichannel orders orders view' => 'omnichannel/orders?view=orders',
     'omnichannel marketplace returns' => 'omnichannel/returns',
     'omnichannel missed push' => 'omnichannel/missed-push',
+    'omnichannel fetch order' => 'omnichannel/fetch-order',
     'omnichannel settings' => 'omnichannel/settings',
     'omnichannel settings warehouse tab' => 'omnichannel/settings?tab=warehouse',
     'omnichannel settings fulfillment tab' => 'omnichannel/settings?tab=fulfillment',
