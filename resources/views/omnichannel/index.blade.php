@@ -40,14 +40,6 @@ $lineLabels = [
     <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $flash['error'] }}</div>
     @endif
 
-    @if(\App\Models\Omnichannel::userCanOrders(auth()->user()))
-    @include('omnichannel.partials.post-sell-stats', [
-        'nativePostSellStats' => $nativePostSellStats ?? null,
-        'jubelioActive' => $jubelioActive,
-        'jubelioPendingSell' => $jubelioPending,
-    ])
-    @endif
-
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         @if($jubelioActive && ! \App\Models\Omnichannel::userCanOrders(auth()->user()))
         <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800/50">
