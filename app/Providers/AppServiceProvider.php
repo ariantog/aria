@@ -4,8 +4,10 @@ namespace App\Providers;
 
 use App\Contracts\TikTokShop\TikTokShopChatClient;
 use App\Models\Addrbook;
+use App\Models\MarketplaceChannelOrder;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Observers\MarketplaceChannelOrderObserver;
 use App\Services\TikTokShop\LiveTikTokShopChatClient;
 use App\Services\TikTokShop\MockTikTokShopChatClient;
 use App\Services\TikTokShop\TikTokShopOpenApiService;
@@ -48,6 +50,7 @@ class AppServiceProvider extends ServiceProvider
         $this->configureDefaults();
 
         Transaction::observe(TransactionObserver::class);
+        MarketplaceChannelOrder::observe(MarketplaceChannelOrderObserver::class);
 
         Relation::morphMap([
             (string) Addrbook::TYPE_CUSTOMER => Addrbook::class,

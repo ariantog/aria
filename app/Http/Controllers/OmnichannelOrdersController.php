@@ -11,6 +11,7 @@ use App\Services\Marketplace\MarketplaceChannelOrderAwbPrintGuard;
 use App\Services\Marketplace\MarketplaceChannelOrderAwbPromoter;
 use App\Services\Marketplace\MarketplaceChannelOrderWarehousePersist;
 use App\Services\Marketplace\MarketplaceChannelOrderOpsBucket;
+use App\Services\Marketplace\OmnichannelOpsBucketStatsCache;
 use App\Services\Marketplace\MarketplaceWebhookInboxQuery;
 use App\Services\Marketplace\MarketplaceWebhookStatusPresenter;
 use App\Services\Marketplace\MarketplaceWebhookShopWarehouseResolver;
@@ -40,6 +41,7 @@ class OmnichannelOrdersController extends Controller
         MarketplaceWebhookStatusPresenter $statusPresenter,
         MarketplaceChannelOrderWarehousePersist $warehousePersist,
         MarketplaceChannelOrderOpsBucket $opsBucket,
+        OmnichannelOpsBucketStatsCache $opsBucketStatsCache,
         OmnichannelPostSellDashboardStats $postSellStats,
         OmnichannelPostSellEligibility $postSellEligibility,
     ): View|RedirectResponse {
@@ -61,7 +63,8 @@ class OmnichannelOrdersController extends Controller
         $opsBucketStats = [];
 
         if ($filters['view'] === 'orders' && $ordersTableExists) {
-            $opsBucketStats = $opsBucket->countBuckets($inboxQuery->ordersQueryForStats($filters));
+            $statsBaseQuery = $inboxQuery->ordersQueryForStats($filters);
+            $opsBucketStats = $opsBucketStatsCache->countBuckets($statsBaseQuery, $filters);
             $rows = $inboxQuery->ordersQuery($filters)
                 ->paginate($filters['per_page'])
                 ->withQueryString();

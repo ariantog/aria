@@ -42,4 +42,13 @@ $jubelioPendingSell = (int) ($jubelioPendingSell ?? $jubelioPending ?? 0);
     </div>
     @endif
 </div>
+@if(! empty($nativePostSellStats['stats_updated_at']))
+<p class="mt-1 text-[11px] text-gray-500" data-testid="omnichannel-post-sell-stats-refreshed">
+    KPI cache
+    @if(! empty($nativePostSellStats['stats_stale']))
+    <span class="text-amber-700">(stale)</span>
+    @endif
+    · terakhir {{ \Illuminate\Support\Carbon::parse($nativePostSellStats['stats_updated_at'])->diffForHumans() }}
+</p>
+@endif
 @endif

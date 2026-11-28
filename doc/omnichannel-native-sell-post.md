@@ -64,6 +64,8 @@ Requires `marketplace_channel_orders.awb_printed_at` and excludes cancelled / un
 | Post errors | Same scope, not posted, reject reason other than “Transaction sudah ada.” (e.g. unmapped warehouse) |
 | Jubelio sell pending | Secondary when `JUBELIO_ACTIVE` — legacy queue `status = 0` |
 
+Counts are served from `omnichannel_post_sell_stats` (incremental on webhook upserts + optional `omnichannel:refresh-post-sell-stats`). See **`doc/omnichannel-dashboard-cache.md`**.
+
 List/detail show **submit source** via `Transaction::submitTypeLabel()` on the linked SELL (`SUBMIT_TYPE_JUBELIO` = Jubelio cron, `SUBMIT_TYPE_MARKETPLACE` = omnichannel cron).
 
 ## Duplicate invoice → finished (not ERROR_DUPLICATE)
