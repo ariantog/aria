@@ -98,9 +98,9 @@ return [
      */
     'dashboard_cache' => [
         'post_sell_fresh_seconds' => max(60, (int) env('OMNICHANNEL_DASHBOARD_POST_SELL_FRESH_SECONDS', 180)),
-        'post_sell_inline_refresh_seconds' => max(3, (int) env('OMNICHANNEL_DASHBOARD_POST_SELL_REFRESH_SECONDS', 8)),
         'ops_bucket_ttl_seconds' => max(30, (int) env('OMNICHANNEL_DASHBOARD_OPS_BUCKET_TTL_SECONDS', 90)),
         'compare_stats_ttl_seconds' => max(30, (int) env('OMNICHANNEL_DASHBOARD_COMPARE_TTL_SECONDS', 120)),
+        'shop_warehouse_resolver_ttl_seconds' => max(30, (int) env('OMNICHANNEL_DASHBOARD_SHOP_WAREHOUSE_TTL_SECONDS', 120)),
     ],
 
     'webhook_status_buckets' => [

@@ -9,7 +9,6 @@ use App\Services\Marketplace\MarketplaceWebhookShopWarehouseResolver;
 use App\Services\Marketplace\MarketplaceWebhookStatusPresenter;
 use App\Services\Marketplace\OmnichannelOrderDetailReader;
 use App\Services\Marketplace\OmnichannelCompareDashboardStats;
-use App\Services\Marketplace\OmnichannelPostSellDashboardStats;
 use App\Services\Marketplace\OmnichannelReceivedTimes;
 use App\Services\Marketplace\ShopeeOrderShadowRecorder;
 use App\Services\Shopee\ShopeeAdminOpenApiService;
@@ -24,7 +23,6 @@ class OmnichannelController extends Controller
         Request $request,
         ShopeeAdminOpenApiService $shopeeAdmin,
         OmnichannelReceivedTimes $receivedTimes,
-        OmnichannelPostSellDashboardStats $postSellStats,
         OmnichannelCompareDashboardStats $compareStats,
     ): View
     {
@@ -66,7 +64,6 @@ class OmnichannelController extends Controller
         ];
 
         $jubelioPending = (int) $compareCounts['jubelio_pending_sell'];
-        $nativePostSellStats = $postSellStats->counts();
 
         $shopeeAdminConnection = $shopeeAdmin->getConnectionStatus();
         $ingressByShadowId = $receivedTimes->forShadows($shadows);
@@ -81,7 +78,6 @@ class OmnichannelController extends Controller
                 'invoice' => $invoiceSearch,
             ],
             'jubelioPending' => $jubelioPending,
-            'nativePostSellStats' => $nativePostSellStats,
             'jubelioActive' => (bool) config('services.jubelio.active'),
             'shopeePushConfigured' => filled(config('services.shopee_push.partner_key')),
             'shopeeShadowEnabled' => (bool) config('services.shopee_push.shadow_enabled'),

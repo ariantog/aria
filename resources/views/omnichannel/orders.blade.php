@@ -273,44 +273,23 @@ $eventsTableColspan = $showShopColumn ? 11 : 10;
          }
      }"
      @if(! $isEventsView) x-init="hydrateWarehouseLabels()" @endif>
-    <div>
-        <h1 class="text-2xl font-bold text-gray-900">{{ $pageTitle }}</h1>
-        <p class="mt-1 max-w-3xl text-sm text-gray-600">
-            Read-only log dari unified storage
-            (<code class="rounded bg-gray-100 px-1 text-xs">marketplace_webhook_events</code>
-            / <code class="rounded bg-gray-100 px-1 text-xs">marketplace_channel_orders</code>).
+    <div class="flex flex-col justify-between gap-3 md:flex-row md:items-end">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">{{ $pageTitle }}</h1>
             @if($isEventsView)
-            Semua webhook termasuk non-order; tidak mem-post order atau memanggil API marketplace pada render daftar.
+            <p class="mt-1 max-w-3xl text-sm text-gray-600">
+                Webhook inbox — tanpa API marketplace pada render daftar.
+            </p>
             @else
-            Ringkasan per order; detail (shadow, webhook, ingress) dimuat lazily — tanpa API Shopee/TikTok/Jubelio pada render awal.
+            <p class="mt-1 text-sm text-gray-600">Current orders — klik tab status; detail baris dimuat lazily.</p>
             @endif
-        </p>
+        </div>
         @if($isEventsView)
-        <span class="mt-3 block max-w-3xl rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900" data-testid="omnichannel-events-current-orders-callout">
-            Untuk detail per order (expand baris, shadow compare, dan baris SKU × qty TikTok API), buka
-            <a href="{{ $currentOrdersUrl }}" class="font-semibold text-blue-800 underline hover:text-blue-950">Current orders (detail baris &amp; API TikTok)</a>
-            — filter saat ini tetap dipakai.
-        </span>
+        <a href="{{ $currentOrdersUrl }}" class="inline-flex h-9 items-center rounded-lg border border-blue-200 bg-white px-3 text-sm font-medium text-blue-800 hover:bg-blue-50" data-testid="omnichannel-events-current-orders-callout">
+            Current orders →
+        </a>
         @endif
     </div>
-
-    @include('omnichannel.partials.orders-filters', [
-        'filters' => $filters,
-        'statusOptions' => $statusOptions,
-        'warehouseOptions' => $warehouseOptions,
-        'shopOptions' => $shopOptions,
-        'showShopFilter' => $showShopFilter ?? false,
-        'resetQuery' => $resetQuery,
-        'defaultOpen' => $hasActiveFilters,
-    ])
-
-    @if(! $isEventsView && ($ordersTableExists ?? true))
-    @include('omnichannel.partials.post-sell-stats', [
-        'nativePostSellStats' => $nativePostSellStats ?? null,
-        'jubelioActive' => $jubelioActive ?? false,
-        'jubelioPendingSell' => $jubelioPendingSell ?? 0,
-    ])
-    @endif
 
     @if(! $isEventsView && $opsBucketService !== null && ($ordersTableExists ?? true))
     @php
@@ -348,6 +327,22 @@ $eventsTableColspan = $showShopColumn ? 11 : 10;
         @endforeach
     </div>
     @endif
+
+    @if(! $isEventsView && ($ordersTableExists ?? true) && isset($nativePostedCount))
+    @include('omnichannel.partials.post-sell-stats', [
+        'nativePostedCount' => $nativePostedCount,
+    ])
+    @endif
+
+    @include('omnichannel.partials.orders-filters', [
+        'filters' => $filters,
+        'statusOptions' => $statusOptions,
+        'warehouseOptions' => $warehouseOptions,
+        'shopOptions' => $shopOptions,
+        'showShopFilter' => $showShopFilter ?? false,
+        'resetQuery' => $resetQuery,
+        'defaultOpen' => $hasActiveFilters,
+    ])
 
     @if(session('error'))
     <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" data-testid="omnichannel-awb-flash-error">{{ session('error') }}</div>

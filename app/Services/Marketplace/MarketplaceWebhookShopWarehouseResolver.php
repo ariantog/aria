@@ -8,6 +8,7 @@ use App\Models\MarketplaceWarehouseSync;
 use App\Models\Shopeesync;
 use App\Models\TiktokShopSync;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -29,6 +30,18 @@ class MarketplaceWebhookShopWarehouseResolver
      * @return array<int, string> warehouse_id => addrbook name
      */
     public function warehouseOptions(): array
+    {
+        $ttl = max(30, (int) config('marketplace.dashboard_cache.shop_warehouse_resolver_ttl_seconds', 120));
+
+        return Cache::remember('omnichannel.webhook.warehouse_options', $ttl, function (): array {
+            return $this->buildWarehouseOptions();
+        });
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function buildWarehouseOptions(): array
     {
         $warehouseIds = collect();
 
@@ -117,6 +130,18 @@ class MarketplaceWebhookShopWarehouseResolver
      * @return array<string, int> shop_ref => warehouse_id (first row wins per channel table order)
      */
     public function shopRefToWarehouseMap(): array
+    {
+        $ttl = max(30, (int) config('marketplace.dashboard_cache.shop_warehouse_resolver_ttl_seconds', 120));
+
+        return Cache::remember('omnichannel.webhook.shop_ref_warehouse_map', $ttl, function (): array {
+            return $this->buildShopRefToWarehouseMap();
+        });
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function buildShopRefToWarehouseMap(): array
     {
         $map = [];
 
