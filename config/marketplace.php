@@ -146,7 +146,7 @@ return [
             FILTER_VALIDATE_BOOLEAN
         ),
         'return_verify_auto_post' => filter_var(
-            env('OMNICHANNEL_RETURN_VERIFY_AUTO_POST', true),
+            env('OMNICHANNEL_RETURN_VERIFY_AUTO_POST', false),
             FILTER_VALIDATE_BOOLEAN
         ),
         'idempotency_ttl_minutes' => max(5, (int) env('MARKETPLACE_LISTING_PUSH_IDEMPOTENCY_TTL_MINUTES', 120)),
