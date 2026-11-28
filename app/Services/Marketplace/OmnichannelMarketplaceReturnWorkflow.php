@@ -19,6 +19,8 @@ class OmnichannelMarketplaceReturnWorkflow
 
     public const STATUS_POSTED = 'posted';
 
+    public const STATUS_DISMISSED = 'dismissed';
+
     public const STATUS_ALL = 'all';
 
     /** @var list<string> */
@@ -27,6 +29,7 @@ class OmnichannelMarketplaceReturnWorkflow
         self::STATUS_PENDING_VERIFICATION,
         self::STATUS_VERIFIED,
         self::STATUS_POSTED,
+        self::STATUS_DISMISSED,
     ];
 
     public function __construct(
@@ -54,11 +57,30 @@ class OmnichannelMarketplaceReturnWorkflow
         return $order->return_verified_at !== null;
     }
 
+    public function dismissColumnsReady(): bool
+    {
+        return Schema::hasTable('marketplace_channel_orders')
+            && Schema::hasColumn('marketplace_channel_orders', 'return_dismissed_at');
+    }
+
+    public function isDismissed(MarketplaceChannelOrder $order): bool
+    {
+        if (! $this->dismissColumnsReady()) {
+            return false;
+        }
+
+        return $order->return_dismissed_at !== null;
+    }
+
     public function workflowStatus(MarketplaceChannelOrder $order): string
     {
         if (Schema::hasColumn('marketplace_channel_orders', 'posted_return_transaction_id')
             && (int) ($order->posted_return_transaction_id ?? 0) > 0) {
             return self::STATUS_POSTED;
+        }
+
+        if ($this->isDismissed($order)) {
+            return self::STATUS_DISMISSED;
         }
 
         if ($this->isPhysicallyVerified($order)) {
@@ -97,6 +119,10 @@ class OmnichannelMarketplaceReturnWorkflow
 
         if ((int) ($order->posted_return_transaction_id ?? 0) > 0) {
             throw new \RuntimeException('Return sudah diposting.');
+        }
+
+        if ($this->isDismissed($order)) {
+            throw new \RuntimeException('Return sudah di-skip.');
         }
 
         if ($order->return_verified_at !== null) {
@@ -162,7 +188,7 @@ class OmnichannelMarketplaceReturnWorkflow
         $this->applyReturnSignalScope($base);
 
         $counts = [];
-        foreach ([self::STATUS_PENDING_VERIFICATION, self::STATUS_VERIFIED, self::STATUS_POSTED] as $status) {
+        foreach ([self::STATUS_PENDING_VERIFICATION, self::STATUS_VERIFIED, self::STATUS_POSTED, self::STATUS_DISMISSED] as $status) {
             $scoped = clone $base;
             $this->applyWorkflowStatusFilter($scoped, $status);
             $counts[$status] = $scoped->count();
@@ -265,6 +291,9 @@ class OmnichannelMarketplaceReturnWorkflow
             if ($this->verifyColumnsReady()) {
                 $query->whereNotNull('return_verified_at');
             }
+            if ($this->dismissColumnsReady()) {
+                $query->whereNull('return_dismissed_at');
+            }
             if (Schema::hasColumn('marketplace_channel_orders', 'posted_return_transaction_id')) {
                 $query->where(function (Builder $inner) {
                     $inner->whereNull('posted_return_transaction_id')
@@ -278,6 +307,23 @@ class OmnichannelMarketplaceReturnWorkflow
         if ($status === self::STATUS_PENDING_VERIFICATION) {
             if ($this->verifyColumnsReady()) {
                 $query->whereNull('return_verified_at');
+            }
+            if ($this->dismissColumnsReady()) {
+                $query->whereNull('return_dismissed_at');
+            }
+            if (Schema::hasColumn('marketplace_channel_orders', 'posted_return_transaction_id')) {
+                $query->where(function (Builder $inner) {
+                    $inner->whereNull('posted_return_transaction_id')
+                        ->orWhere('posted_return_transaction_id', '<=', 0);
+                });
+            }
+
+            return;
+        }
+
+        if ($status === self::STATUS_DISMISSED) {
+            if ($this->dismissColumnsReady()) {
+                $query->whereNotNull('return_dismissed_at');
             }
             if (Schema::hasColumn('marketplace_channel_orders', 'posted_return_transaction_id')) {
                 $query->where(function (Builder $inner) {

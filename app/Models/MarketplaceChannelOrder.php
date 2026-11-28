@@ -42,6 +42,9 @@ class MarketplaceChannelOrder extends Model
         'return_verified_at',
         'return_verified_by',
         'return_verify_note',
+        'return_dismissed_at',
+        'return_dismissed_by',
+        'return_dismiss_note',
     ];
 
     protected function casts(): array
@@ -63,7 +66,14 @@ class MarketplaceChannelOrder extends Model
             'posted_return_at' => 'datetime',
             'return_verified_at' => 'datetime',
             'return_verified_by' => 'integer',
+            'return_dismissed_at' => 'datetime',
+            'return_dismissed_by' => 'integer',
         ];
+    }
+
+    public function returnDismissedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'return_dismissed_by');
     }
 
     public function returnVerifiedBy(): BelongsTo
